@@ -1,0 +1,21 @@
+# Katta AppSheet PDF (JSON bilan bir xil) — repoga yuklanmaydi
+AppSheetsDoc.pdf
+
+# Claude Code lokal sozlamalari
+.claude/
+
+# Tizim fayllari
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Python (Django bosqichi uchun)
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+db.sqlite3
+media/
+staticfiles/
+import_data/

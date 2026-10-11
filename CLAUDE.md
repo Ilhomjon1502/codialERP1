@@ -1,0 +1,743 @@
+# Codial ERP — AppSheet tizimini Django'da qayta qurish
+
+> Claude Code uchun asosiy topshiriq hujjati. Har bir sessiya shu fayldan boshlanadi.
+> Hujjat tili o'zbekcha (lotin). Kod, model va o'zgaruvchi nomlari inglizcha.
+
+---
+
+## 0. Joriy holat (2026-10-11) — yangi kelgan dasturchi shu yerdan boshlasin
+
+**Qisqasi:** Django kodi hali yozilmagan. Tayyor bo'lgani — **bosiladigan HTML prototip** (`prototype/` papkasi). Buyurtmachi uni ko'rib chiqdi va **umumiy holda ma'qulladi**, lekin bir-ikki detalni o'zgartirmoqchi (ro'yxati keyin beriladi, 20.6-bo'limga yoziladi).
+
+| Bosqich | Holat |
+|---|---|
+| AppSheet tahlili, shu CLAUDE.md | ✅ tayyor |
+| Bosiladigan prototip (dizayn + jarayonlar + hisob-kitob) | ✅ tayyor, buyurtmachi ma'qullagan |
+| Prototipdagi detallarni tuzatish | ⏳ buyurtmachi ro'yxat beradi |
+| 18-bo'limdagi ochiq savollarga javob | ⏳ kutilmoqda |
+| Django kodi (M1 → M11) | ⛔ boshlanmagan |
+
+- **Saytni ko'rish:** https://ilhomjon1502.github.io/codialERP1/ (GitHub Pages, `main` branch). Lokal: `python -m http.server 5510 --directory prototype` → http://localhost:5510
+- **Buyurtmachi aytmaguncha Django kodini yozishni boshlama.** Hozirgi ish — prototipdagi o'zgarishlar.
+- Kod yozishga ruxsat berilgach, 3-bo'limdagi tartib bilan ish boshlanadi: tuzilma → ER-diagramma → bosqichlar rejasi → ochiq savollar → tasdiq → M1.
+- Prototip haqida hamma narsa — **20-bo'limda**.
+
+### Yangi kelgan dasturchi uchun 5 qadam
+
+1. Shu bo'limni va 20-bo'limni o'qing (10 daqiqa).
+2. Saytni oching, o'ng yuqoridagi ismni bosib turli rollar bilan kirib ko'ring.
+3. Biznes qoidalarni bilish uchun 6-bo'lim (rollar), 7-bo'lim (modellar) va 8-bo'lim (hisob-kitob) ni o'qing.
+4. Prototipda biror narsani o'zgartirmoqchi bo'lsangiz, 20.3-bo'limdagi jadvaldan kerakli faylni toping.
+5. O'zgartirgach, `prototype/index.html` dagi `?v=N` raqamini bittaga oshiring (aks holda brauzer eski faylni ko'rsatadi), commit va push qiling — sayt 1–2 daqiqada yangilanadi.
+
+## 1. Manbalar
+
+| Fayl | Nima |
+|---|---|
+| `codial_appdoc.json` | AppSheet "Codial 1.0" ilovasining to'liq texnik tavsifi (48 jadval, 651 ustun, 170 view, 202 action, 16 format qoidasi, 10 slice). **Asosiy mashina o'qiydigan manba.** |
+| `AppSheetsDoc.pdf` | Xuddi shu "Application Documentation" ning brauzerdan saqlangan PDF nusxasi (851 sahifa). Faqat odam o'qishi uchun; JSON bilan bir xil. **GitHub'ga yuklanmagan** (18 MB, `.gitignore` da) — kerak bo'lsa buyurtmachidan so'rang. |
+| `prototype/` | Bosiladigan HTML prototip (20-bo'lim). |
+
+JSON tuzilmasi: `[{t: "H2"|"H3"|"H4"|"table", text|rows}]` ro'yxati. Jadval bloklari kalit-qiymat juftlari: `Table name`, `Schema Name`, `Column name` (+ `Type`, `Type Qualifier` ichida `Valid_If`, `Show_If`, `Editable_If`, `Required_If`, `Reset_If`, `EnumValues`, `ReferencedTableName`), `App formula`, `Initial value`, `View name`, `Action name`, `Rule name`, `Slice Name`.
+
+- Fayl 1,1 MB. Uni to'liq o'qima. Kerakli jadval yoki ustunni nomi bo'yicha qidir (Grep yoki kichik Python skript bilan).
+- Biznes qoidaning asl formulasini doim shu fayldan tekshir. Bu hujjat bilan farq bo'lsa, **shu hujjat ustun**: unda AppSheet xatolari ataylab tuzatilgan (19-bo'lim).
+- Kod boshlanganda manba fayllar `docs/appsheet/` ga ko'chiriladi.
+
+## 2. Kontekst va maqsad
+
+- **Kompaniya:** Codial — Farg'onadagi IT o'quv markazi. Kurslar: Frontend, Backend, Flutter, Kiber xavfsizlik, Kompyuter savodxonligi va boshqalar.
+- **Hozirgi holat:** "Codial 1.0" AppSheet ilovasi, ma'lumotlar Google Sheets'da.
+- **Muammo:** ilova sekin ochiladi (sinxronlash 25–30 s), chunki AppSheet barcha jadvallarni klientga yuklaydi va virtual ustunlarni (`SELECT(...)` lar) har safar butun jadvallar bo'ylab qayta hisoblaydi.
+- **Maqsad:** barcha funksiyalarni saqlagan holda tez, ishonchli va kengaytiriladigan Django veb-ilova qurish. Topilgan xatolar tuzatiladi va yangi imkoniyatlar qo'shiladi.
+- **Faqat Codial uchun.** iTeach boshqa markaz va boshqa tizim, uni hech qanday shaklda aralashtirma.
+- **Filiallar:** hozir bitta faol filial bor: **"Emirat"** (Farg'ona). Model filiallarga bo'lingan bo'lsin. Faol filial bitta bo'lsa, u hamma joyda avtomatik tanlanadi va filial maydoni ko'rinmaydi. "Xonaqoh" va "Andijon" yopilgan, ko'chirilmaydi.
+- **Foydalanuvchilar** faqat xodimlar (telefon va kompyuterdan). Talabalar va ota-onalar tizimga kirmaydi.
+
+## 3. Ish tartibi
+
+1. Kod yozishdan oldin quyidagilarni taqdim et va tasdiqlashni kut: loyiha tuzilmasi, ER-diagramma (Mermaid), bosqichlar rejasi, 18-bo'limdagi ochiq savollar.
+2. Ish **bosqichma-bosqich** (17-bo'lim) olib boriladi. Har bosqich oxirida: testlar yashil, `README` yangilangan, qisqa hisobot (nima qilindi, qanday tekshirish mumkin).
+3. Jonli AppSheet ilovasiga yoki Google Sheets'ga **hech qachon ulanma va yozma.** Eski ma'lumotlar faqat Excel eksport fayllaridan import qilinadi (16-bo'lim).
+4. Biznes qoidasi noaniq bo'lsa, taxmin qilma, so'ra. Taxmin majburiy bo'lsa, `docs/decisions.md` ga yoz (sana, qaror, sabab).
+5. Interfeys matnlari o'zbek tilida (lotin), Django i18n (`gettext`) orqali.
+6. Commit faqat buyurtmachi so'raganda qilinadi.
+
+## 4. Texnologiyalar
+
+| Qism | Tanlov |
+|---|---|
+| Til / framework | Python 3.12, Django 5.x |
+| Ma'lumotlar bazasi | PostgreSQL 16 (asosiy). Kod Django ORM orqali yoziladi va PythonAnywhere bepul tarifidagi MySQL'da ham ishlaydi. PostgreSQL'ga xos funksiyalar faqat zarur bo'lsa va zaxira yechim bilan |
+| Frontend | Django shablonlari + oddiy HTML/CSS/JS. Murakkab sahifalarda (davomat ekrani, dashboard, AI chat) **faqat zarur bo'lsa** React "island" (Vite). SPA emas |
+| Diagrammalar | Chart.js |
+| Dizayn | Responsive (telefon + kompyuter), PWA. Brend ranglari: qora, oq, to'q sariq (Codial logotipi) |
+| PDF / Excel | WeasyPrint yoki xhtml2pdf (chek), openpyxl (Excel) |
+| Fon vazifalari | Management buyruqlari + cron. Celery shart emas |
+| Telegram | aiogram yoki python-telegram-bot |
+| Testlar | pytest + pytest-django, factory_boy |
+| Kod sifati | ruff, black, pre-commit |
+| Deploy | 1: PythonAnywhere bepul (test). 2: Hetzner VPS, Docker Compose |
+| Sozlamalar | `LANGUAGE_CODE="uz"`, `TIME_ZONE="Asia/Tashkent"`, pul butun so'mda: `DecimalField(max_digits=14, decimal_places=0)` |
+
+## 5. Loyiha tuzilmasi va konventsiyalar
+
+Taklif etilgan tuzilma (M1 da tasdiqlanadi):
+
+```
+config/              # settings (base/dev/prod), urls, wsgi
+apps/
+  core/              # BaseModel, soft delete, audit, filial doirasi (scoping), umumiy mixin'lar
+  accounts/          # User, Role, RolePermission, RolePower, login
+  references/        # Branch, Course, Room, DayPattern, LessonTime, CoursePrice, LessonFrequency,
+                     # DiscountType, ExpenseCategory, LeadSource, AttendanceStatus
+  crm/               # Parent, Student, Lead, LeadComment
+  education/         # Group, Contract, Attendance, MakeupRequest, StudentTask, TeacherEvaluation,
+                     # GradingSession/StudentGrade, ParentCall, Discount50
+  finance/           # Account, CashMovement, Payment, Transfer, Exchange, Expense, Creditor,
+                     # CreditorTransaction, CreditorComment
+  payroll/           # KPIRate, SalaryAssignment, SalaryPayout
+  reports/           # Dashboard, statistika, foyda, Excel eksport
+  notifications/     # Telegram bot
+  ai_assistant/      # AI yordamchi
+services/ yoki har bir app ichida services.py   # barcha biznes hisob-kitoblari
+docs/                # decisions.md, deploy_*.md, user_guide/, appsheet/
+import_data/         # AppSheet .xlsx eksportlari (git'ga kirmaydi)
+```
+
+Qoidalar:
+- Biznes mantiq **faqat servis qatlamida**, view, shablon yoki `save()` ichida emas. Har bir servis uchun unit-test bo'ladi.
+- Har bir model `BaseModel` dan meros oladi: `created_at`, `created_by`, `updated_at`, `updated_by`, `is_deleted` (soft delete), `legacy_id` (AppSheet kaliti, indeksli, nullable).
+- Pul hisobida faqat `Decimal`, `float` taqiqlangan. Bo'lish natijalari so'mgacha yaxlitlanadi (`ROUND_HALF_UP`); qoida `docs/decisions.md` da.
+- Barcha moliyaviy amallar `transaction.atomic` ichida.
+- Enum'lar `TextChoices`. Qiymatlar AppSheet'dagi o'zbekcha matnlar bilan mos keladi, chunki import shunga tayanadi.
+- Formadagi bosqichma-bosqich ko'rinish (AppSheet `Show_If`) va bog'liq ro'yxatlar (filial → kurs → guruh → talaba) serverda ham tekshiriladi, faqat JS'ga ishonilmaydi.
+
+## 6. Rollar va ruxsatlar
+
+### 6.1 Rollar (seed)
+
+| Kod | Nomi |
+|---|---|
+| `ADMIN` | Admin (tizim egasi) |
+| `BOSH_MENEJER` | Bosh menejer |
+| `FILIAL_MENEJERI` | Filial menejeri |
+| `ADMINISTRATOR` | Administrator (qabul bo'limi) |
+| `ADMINISTRATOR_HISOBCHI` | Administrator+Hisobchi |
+| `HISOBCHI` | Hisobchi |
+| `USTOZ` | Ustoz |
+| `YORDAMCHI` | Yordamchi ustoz |
+| `USTOZ_YORDAMCHI` | Ustoz+Yordamchi |
+| `BOSHQA` | Boshqa (tizimga kirmaydi, faqat ro'yxatda) |
+
+- `Role` modeli: har bir rol uchun bo'limlar bo'yicha ruxsatlar (ko'rish / qo'shish / tahrirlash / o'chirish / tasdiqlash) va tahrirlash muddati.
+- Bosh menejer va Admin Sozlamalarda rollarni boshqaradi va yangi rol qo'shadi.
+- `RolePower`: qaysi rol qaysi rollarni tayinlay oladi (AppSheet: `Roles.RolePower`).
+- "Asoschi / Investor" va "Aloqa operatori" rollari ko'chirilmaydi.
+
+### 6.2 Boshlang'ich ruxsatlar matritsasi (AppSheet "update mode" dan)
+
+`A` = hammasi, `QT` = qo'shish+tahrirlash, `T` = faqat tahrirlash, `K` = faqat ko'rish, `—` = bo'lim ko'rinmaydi yoki doiradan tashqari. Bu **seed uchun boshlang'ich holat**. Muddatlar 6.4 bo'yicha qo'llanadi.
+
+| Bo'lim | Admin | BM | FM | Adm | Adm+H | Hisobchi | Ustoz | Yordamchi | U+Y |
+|---|---|---|---|---|---|---|---|---|---|
+| Foydalanuvchilar | A | A | A | K | QT | K | K | K | K |
+| Talabalar, Ota-onalar, Lidlar, Shartnomalar | A | A | A | A | A | K | K | K | K |
+| Kurslar | A | A | A | QT | A | K | K | K | K |
+| Guruhlar | A | A | A | QT | QT | K | K | K | K |
+| Filiallar, Pul turlari, Xarajat kategoriyalari | A | A | K | K | K | K | K | K | K |
+| Xonalar, Kurs narxlari | A | A | A | A | A | K | K | K | K |
+| Dars kunlari, Dars vaqtlari, Lid manbalari | A | A | A | QT | QT | K | K | K | K |
+| Oydagi dars soni | A | A | A | QT | A | K | K | K | K |
+| KPI stavkalari, Oylik belgilash, Chegirma turlari | A | A | A | K | K | K | K | K | K |
+| G'aznalar | A | A | K | K | T | T | K | K | K |
+| To'lovlar, Xarajatlar, Oylik berish, Ichki o'tkazmalar | A | A | K | K | A | A | K | K | K |
+| Davomat | A | A | A | A | A | K | A | A | A |
+| Davomat statuslari, Rollar | A | T | K | K | K | K | K | K | K |
+| Talaba vazifalari | A | A | K | K | K | K | A | K | A |
+| Kreditorlar, Kreditor amallari, Pul ayirboshlash | A | A | — | — | — | — | — | — | — |
+| Baholash (talaba → ustoz) | A | A | A | A | A | K | K | K | K |
+| Baholash bo'limi (ustoz → talaba) | A | A | A | A | A | K | A | A | A |
+
+Diqqat: AppSheet'da `Exchange`, `CommentToCreditors`, `Parent_Comment`, `Discount50`, `Exel` jadvallarida cheklov ifodasi yo'q edi (hamma hammasini qila olardi). Yangi tizimda ular uchun ruxsat aniq belgilanadi. Taklif: Parent_Comment va Discount50 administratorlar va menejerlarga; Exchange va Creditor bo'limlari faqat Admin va Bosh menejerga.
+
+### 6.3 Ma'lumotlarga kirish doirasi (scoping)
+
+- **Admin, Bosh menejer:** barcha filiallar.
+- **Qolgan rollar:** faqat `user.branches` ichidagi filiallar.
+- **Ustoz:** faqat o'zi ustoz bo'lgan guruhlar, ularning shartnomalari, davomati va vazifalari.
+- **Yordamchi:** faqat o'zi yordamchi bo'lgan guruhlar.
+- **Ustoz+Yordamchi:** ikkalasi.
+- Har kim o'zi yaratgan yozuvlarni ko'radi (`created_by`).
+- KPI stavkasi, oylik belgilash va oylik berish: Filial menejeri o'z filialini, boshqa xodim faqat o'zinikini ko'radi.
+- Ichki o'tkazmalar: foydalanuvchi filialidagi g'azna jo'natuvchi yoki qabul qiluvchi bo'lgan yozuvlar.
+- Doira so'rov boshida bir marta aniqlanadi va umumiy `QuerySet` menejeri yoki mixin orqali qo'llanadi. Har sahifada qayta hisoblanmaydi.
+
+### 6.4 Tahrirlash va o'chirish muddatlari (tasdiqlangan)
+
+| Rol | O'tgan sanadagi yozuvni tahrirlash / o'chirish |
+|---|---|
+| Admin | cheklovsiz |
+| Bosh menejer | cheklovsiz (o'tgan sanalarni ham) |
+| Filial menejeri | oxirgi 15 kun |
+| Administrator, Administrator+Hisobchi | shartnoma, lid, davomat: 7 kun; to'lov: faqat bugun |
+| Hisobchi | xarajat, to'lov, oylik berish: faqat bugun |
+| Ustoz, Yordamchi | davomat: faqat bugun; boshqa yozuvlarni tahrirlay olmaydi |
+
+- Tasdiqlangan to'lov, chegirma va o'tkazmani faqat Admin va Bosh menejer o'zgartiradi.
+- Muddat yozuvning `date` maydoni (bo'lmasa `created_at`) bo'yicha: `today - date <= N kun`.
+- AppSheet'dagi `TODAY()+30 >= [CreatedTime]` kabi formulalar xato (doim rost). Ularni ko'chirma, yuqoridagi jadvalni qo'lla.
+- **Audit log:** har bir yaratish, o'zgartirish va o'chirishda kim, qachon, model, yozuv, eski va yangi qiymatlar yoziladi (`django-simple-history` yoki o'z yechim). Bosh menejer audit tarixini ko'radi.
+- O'chirish **soft delete** (moliyaviy yozuvlar jismonan o'chirilmaydi).
+- Ishlatilgan ma'lumotnoma yozuvini (masalan davomatda ishlatilgan statusni) o'chirib bo'lmaydi, faqat nofaol qilinadi.
+
+## 7. Ma'lumotlar modeli
+
+### 7.1 AppSheet → Django moslik jadvali
+
+| AppSheet | Django | Izoh |
+|---|---|---|
+| Users | `User` (AbstractUser) | |
+| Roles | `Role`, `RolePower` | |
+| Branches | `Branch` | |
+| Courses | `Course` | |
+| Rooms | `Room` | |
+| LessonDays + Days | `DayPattern` | Days alohida jadval bo'lmaydi |
+| LessonTimes | `LessonTime` | |
+| CoursePrices | `CoursePrice` | yangi mantiq: `effective_from` |
+| LessonFrequency | `LessonFrequency` | yangi: Taklif/Tasdiqlangan |
+| TeacherKPI | `KPIRate` | yangi mantiq: `effective_from` |
+| DiscountTypes | `DiscountType` | |
+| Categories | `ExpenseCategory` | |
+| LeadSources | `LeadSource` | |
+| CashType | `CashType` (TextChoices) | |
+| AttendanceStatus | `AttendanceStatus` | enum + rollar ruxsati |
+| Months | — | Python/Django oy nomlari |
+| Parents | `Parent` | |
+| Students | `Student` | |
+| Leads | `Lead` | |
+| LeadComments | `LeadComment` | |
+| Groups | `Group` | |
+| Contracts | `Contract` | |
+| Attendance | `Attendance` | |
+| TakeAttendance | — | jadval emas, ekran holati |
+| — | `MakeupRequest` | yangi |
+| StudentTasks | `StudentTask` | |
+| Baholash | `TeacherEvaluation` | talaba ustozni baholaydi |
+| Baholash_tizimi + B_Students | `GradingSession` + `StudentGrade` | ustoz talabani baholaydi |
+| Parent_Comment | `ParentCall` | |
+| Discount50 | `Discount50` | |
+| Accounts | `Account` | |
+| — | `CashMovement` | yangi ledger |
+| Payments | `Payment` | |
+| Transactions | `Transfer` | |
+| Exchange | `Exchange` | |
+| Expenses | `Expense` | |
+| Creditors | `Creditor` | |
+| CashFlow | `CreditorTransaction` | |
+| CommentToCreditors | `CreditorComment` | |
+| SalaryAppoinment | `SalaryAssignment` | |
+| SalaryGiving | `SalaryPayout` | |
+| Balance | — | foyda hisoboti sahifasi |
+| Exel + "Process for Exel" + "Yuklash Output" | `ExcelExport` servisi | |
+| "Process for Chek" + "Faylni yuklash Output" | chek PDF servisi | |
+| _Per User Settings | — | kerak emas |
+
+### 7.2 Sozlamalar (ma'lumotnomalar)
+
+- **Branch:** `name` (unique), `status` (Faol/Nofaol), `default_cashbox` (FK Account), `noncash_cashbox` (FK Account, naqdsiz to'lovlar g'aznasi; AppSheet'dagi qattiq yozilgan `cb4963b4` o'rniga).
+- **User:**
+  - `full_name` (unique, xato: "Avval kiritilgan ism! Boshqa nom bering"), `phone`, `email` (unique, login uchun; xato: "Avval kiritilgan pochta!");
+  - `role` (FK Role; tanlov ro'yxati `RolePower` bo'yicha), `branches` (M2M; Admin va Bosh menejerda bo'sh = hammasi);
+  - `teams` (ko'p tanlov: Qabul, Marketing, Moliya, HR, Ta'lim, Boshqa, Qurilish va ta'mirlash, IT, Ta'minot);
+  - `employment_status` (Faol / Ishdan ketgan). Ishdan ketgan xodim kira olmaydi, tarixi saqlanadi;
+  - `BOSHQA` rolida email va login bo'lmaydi.
+- **Course:** `name` (unique), `branches` (M2M), `status` (Faol/Nofaol, standart Faol).
+- **Room:** `branch`, `name`, `capacity`, `status` (standart Faol).
+- **DayPattern** (LessonDays): `name` (masalan "Dush,Chor,Jum"), `weekdays` (ISO raqamlar ro'yxati, unique).
+  - AppSheet `Days.DayNumber` va `WEEKDAY()-1` ishlatgan: yakshanba=0, dushanba=1 … shanba=6. ISO'da dushanba=1 … yakshanba=7, ya'ni faqat **yakshanba** farq qiladi (0 → 7). Importda shunday o'girilsin.
+- **LessonTime:** `branch`, `start_time`, `end_time` (standart start + 2 soat), (branch, start, end) unique (xato: "Avval qo'shilgan vaqt!"). Ko'rinishi "08:00 - 10:00".
+- **CoursePrice** (yangi mantiq):
+  - maydonlar: `branch`, `course`, `effective_from` (oyning 1-kuni), `price` (≥ 0);
+  - oy uchun narx = shu oyda amalda bo'lgan oxirgi yozuv;
+  - narx faqat o'zgarganda yangi yozuv qo'shiladi, tarix saqlanadi.
+- **LessonFrequency** (oydagi darslar soni):
+  - maydonlar: `branch`, `day_pattern`, `courses` (M2M), `year`, `month`, `frequency` (4–26; xato: "Oyda eng ozi 4 marta, ko'p 26 marta bo'lishi mumkin, xolos"), `status` (Taklif / Tasdiqlangan), `approved_by`;
+  - (branch, day_pattern, course, year, month) takrorlanmasin;
+  - **yangi jarayon:** har oy 1-kuni cron har bir faol dars kunlari jadvali uchun shu oydagi dars kunlarini kalendardan hisoblab, "Taklif" holatida yozuv tayyorlaydi (o'tgan oydagi kurs tanlovini nusxalaydi). Menejer kurslarni belgilaydi, sonni tekshiradi, kerak bo'lsa tuzatadi (bayramlar) va tasdiqlaydi;
+  - tasdiqlanmagan oy uchun qarz va KPI hisoblanmaydi, dashboard'da ogohlantirish chiqadi. Tasdiqlangach, shu oyning davomat qatorlari qayta hisoblanadi.
+- **KPIRate** (TeacherKPI, yangi mantiq):
+  - maydonlar: `branch`, `user`, `role_type` (USTOZ / YORDAMCHI), `course`, `effective_from`, `type` (O'zgarmas / Foiz), `fixed_amount` (≥ 0), `percent` (0–100);
+  - oy uchun stavka = shu oyda amalda bo'lgan oxirgi yozuv;
+  - "O'tgan oy stavkalarini nusxalash" tugmasi bor;
+  - yordamchiga menejer alohida (odatda arzonroq) stavka belgilaydi.
+- **DiscountType:** `name` (unique, xato: "Avval qo'shilgan nom!"), `max_amount` (≥ 0), `courses` (M2M, ixtiyoriy), `is_system` (masalan "Boshlang'ich balansga", oddiy tanlovda ko'rinmaydi), `is_discount50` (50% chegirma turi; qattiq yozilgan `914bea1a` o'rniga). Hozirgi turlar: 50% Chegirma (500 000), Rag'batlantiruvchi (350 000), Boshlang'ich balansga (500 000), Ikki va undan ortiq farzand (100 000), Avvaldan to'lov (75 000).
+- **ExpenseCategory:** `name`, `kind` (Xarajat / Qayta investitsiya / Dividend / Tashqi qarz), `allowed_roles` (M2M). AppSheet'da `kind` faqat 3 qiymatli edi, "Tashqi qarz" yangi.
+- **LeadSource:** `name`.
+- **CashType:** `CASH` (Naqd), `BANK` (Bank), `CARD` (Karta). `ALL` faqat g'azna turi sifatida ishlatiladi, to'lov yoki xarajatda tanlanmaydi.
+- **AttendanceStatus:** `KELDI="1"`, `SABABLI="0"`, `BESABAB="X"`, `NOFAOL="-"`. Har bir status uchun uni qo'ya oladigan rollar sozlanadi.
+
+### 7.3 CRM
+
+- **Parent:** `branch`, `first_name` (≥ 3), `last_name`, `phone` (9 raqam, +998 siz; xato: "9 sondan iborat bo'lsin. Namuna: 998883322").
+- **Student:**
+  - maydonlar: `branch`, `first_name`, `last_name` (3–20 belgi; xato: "Eng ozi 3 harf, ko'pi 20"), `father_name` (≥ 3, nuqta taqiqlangan: "Nuqta qo'yib bo'lmaydi!"), `gender` (Erkak / Ayol), `phone1` (9 raqam), `phone2` (9 raqam, ≠ phone1: "Ikki bir xil nomer kiritib bo'lmaydi!"), `birth_date`, `parent` (FK);
+  - **dublikat tekshiruvi:** (branch, first, last, father_name) unique, bo'sh joylar `trim` qilinib, harf katta-kichikligi hisobga olinmaydi. Xato: "Ushbu o'quvchi avval kiritilgan. Lidlar yoki shartnomalar oynasidan qidiring";
+  - `full_name = first + " " + last + " " + father_name`;
+  - talaba odatda lid formasidan yaratiladi va filialni lid'dan oladi.
+- **Lead:**
+  - maydonlar: `branch`, `student`, `source`, `course`, `day_pattern`, `preferred_times` (M2M LessonTime), `status`, `group`, `demo_date` (standart bugun), `demo_attended` (Keldi / Kelmadi), `age_group`, `social_status`, `laptop`, `tags`;
+  - `status`: 1. Qayta bog'lanishga · 2. Yangi guruhga kutyapti · 3. Sinov darsga yozildi · 4. Sinov darsga qatnashdi · 5. O'qishni boshladi · 6. Ma'qul kelmadi · 7. Ma'qul kelmadi (Sifatsiz) · 8. Keyinroq o'qiydi;
+  - `age_group`: 9-12, 13-15, 16-18, 19-21, 22-24, 25-27, 28-30, 31-33, 34-36, 37-39, 40-42;
+  - `social_status`: Maktab o'quvchisi, Oliygoh talabasi, Kompaniya xodimi, Davlat xizmatchisi, Vaqtincha ishsiz;
+  - `laptop`: Bor, Yo'q, Sotib oladi;
+  - formadagi tartib: talaba → yosh guruhi → ijtimoiy holat → noutbuk → teglar;
+  - bitta talaba bir filialda faqat bitta lidga ega bo'ladi; shartnomasi bor talabaga yangi lid ochilmaydi;
+  - `group` 3, 4, 5-statuslarda ko'rinadi va filial + kurs bo'yicha Faol yoki Rejadagi guruhlardan tanlanadi. `demo_date` guruh tanlangach, `demo_attended` sana kiritilgach chiqadi;
+  - hisoblanadigan: "Shartnoma statusi" (Tuzilgan / Tuzilmagan), lid oyi va yili (`created_at` bo'yicha), talabaning to'lovlari ro'yxati;
+  - **5-statusda:** tug'ilgan sana bo'sh bo'lsa, talaba ma'lumotlarini to'ldirish formasiga yo'naltiriladi. Shartnomasi yo'q bo'lsa "Shartnoma tuzish" tugmasi chiqadi: filial, talaba, kurs, guruh, `start_date = demo_date`, `type = Pullik` bilan shartnoma yaratib, uning sahifasini ochadi.
+- **LeadComment:** `lead`, `comment` (filial lid'dan olinadi).
+
+### 7.4 O'quv jarayoni
+
+- **Group:**
+  - maydonlar: `branch`, `course`, `day_pattern`, `time` (shu filialdan), `teacher` (USTOZ yoki USTOZ_YORDAMCHI, shu filialda), `supporter` (YORDAMCHI yoki USTOZ_YORDAMCHI, ixtiyoriy), `room` (shu filialdan), `start_date` (standart bugun), `end_date` (> start; xato: "Boshlanish sanadan kichik bo'lolmaydi!"), `number`, `comment`;
+  - `number` avtomatik: (branch, course) bo'yicha max+1. Nomi: `"{course} / #{number}"`;
+  - filialni yaratilgandan keyin o'zgartirib bo'lmaydi; kursni yaratilgandan keyin faqat Admin o'zgartiradi;
+  - `status` (hisoblanadi): end bo'sh bo'lsa start > bugun → Rejada, aks holda Faol. End bor bo'lsa start ≤ bugun ≤ end → Faol, start > bugun → Rejada, aks holda Nofaol;
+  - to'lish foizi = faol shartnomalar ÷ xona sig'imi (sig'im 0 yoki xona yo'q bo'lsa "—");
+  - to'lish holati: 0 → Bo'sh, ≤ 50% → Yomon, ≤ 75% → O'rtacha, ≤ 85% → Yaxshi, > 85% → Zo'r (ranglar: qizil, to'q sariq, ko'k, yashil);
+  - bo'sh o'rinlar = sig'im − faol shartnomalar; faol va nofaol talabalar ro'yxati.
+- **Contract:**
+  - maydonlar: `branch`, `student` (shu filialdan), `course` (filialdagi faol kurs), `group` (shu kurs va filialdagi faol guruh; kurs o'zgarsa guruh tozalanadi), `type`, `number`, `start_date` (standart bugun), `end_date` (≥ start), `stop_reason`, `comment`, `file` (PDF), `opening_balance`;
+  - `type`: Grant / Pullik (standart Pullik, faqat Admin va Bosh menejer o'zgartiradi);
+  - `number` avtomatik: filial bo'yicha max+1. Nomi: `"{student.full_name} №{number}"`;
+  - `stop_reason` (`end_date` bo'lsa majburiy): Kursni tamomladi, Moliyaviy qiyinchilik, Dars sifatidan qoniqmadi, Markaz sharoiti yoqmadi, Chetlashtirildi - o'zlashtirish past, Chetlashtirildi - xulqi yomon, Kurs yoqmadi - Boshqa kursga o'tyapti;
+  - filial va talaba yaratilgandan keyin o'zgarmaydi; kursni faqat Admin o'zgartiradi;
+  - `status`: end bor va end < bugun → Nofaol; start > bugun → Rejada; aks holda Faol (AppSheet formulasi buzilgan, 18-bo'lim 1-savol);
+  - **qarz:** `debt = Σ attendance.student_debt − Σ payments.amount − Σ payments.discount + opening_balance`. Shartnoma sahifasida "Shartnoma summasi" (Σ student_debt), "To'lov summasi", "Chegirma summasi" va "Balans" ko'rsatiladi;
+  - ko'rsatiladi: talaba telefonlari, guruh, filial va kurs nomlari, yosh guruhi (lid'dan).
+- **Davomat olish ekrani** (AppSheet'dagi TakeAttendance o'rniga; alohida jadval yo'q). **Davomatni faqat ustoz oladi:**
+  1. Ustoz o'z faol guruhini tanlaydi (bitta bo'lsa avtomatik). Menejerlar istalgan ustoz va guruhni tanlaydi.
+  2. Sana: ustoz uchun faqat bugun; Admin, Bosh menejer, Filial menejeri va administratorlar tuzatish uchun ≤ bugun. Sana guruh dars kunlariga mos bo'lishi shart. Xatolar: "Guruhning bu sanaga darsi yo'q", "Kelajak sana bilan davomat olib bo'lmaydi", "Faqat bugunga davomat olish mumkin, xolos".
+  3. O'rindosh ustoz yoki yordamchi ko'rsatilishi mumkin. Buni Admin, Bosh menejer va administratorlar belgilaydi. O'rindosh guruhning o'z ustozidan farq qiladi.
+  4. Ekranda shu sanada faol talabalar chiqadi (`start ≤ sana` va `end` bo'sh yoki `end ≥ sana`), hali belgilanmaganlari yuqorida.
+  5. Har bir talaba uchun katta tugmalar: **Keldi** (yashil), **Sababli** (sariq, izoh bilan), **Besabab** (qizil). "Hammasi keldi" tugmasi ham bor.
+  6. (group, contract, date) unique.
+- **Attendance:**
+  - maydonlar: `branch`, `group`, `course`, `contract`, `date`, `status`, `teacher` (darsni amalda o'tgan, o'rindosh bo'lsa o'rindosh), `supporter` (guruh yordamchisi yoki o'rindosh yordamchi), `day_pattern`, `contact_status`, `comment`;
+  - `contact_status`: Bog'lanishga, Gaplashildi, Tushib bo'lmadi, Noto'g'ri raqam. X va 0 uchun standart "Bog'lanishga". "Gaplashildi" bo'lsa izoh majburiy;
+  - **saqlanadigan hisoblangan maydonlar:** `student_debt`, `teacher_kpi`, `supporter_kpi` (servisda hisoblanadi, 8-bo'lim).
+- **MakeupRequest** (yangi): 9-bo'lim.
+- **StudentTask:**
+  - maydonlar: `branch`, `teacher` (ustoz uchun avtomatik o'zi), `course`, `group`, `contract`, `task`, `deadline` (standart bugun+3), `status`, `completion_rate` (0–100, faqat Tamomladi bo'lsa), `teacher_comment` (Tamomladi, Bajarmadi, Bajarolmadi bo'lsa);
+  - `status`: Rejada (standart), Yuklatildi, Tamomladi, Bajarolmadi, Bajarmadi.
+- **TeacherEvaluation** (Baholash, talaba ustozni baholaydi; javoblarni administrator kiritadi):
+  - maydonlar: `branch`, `date`, `contract`, `group` va `teacher` (shartnomadan avtomatik), `comment`;
+  - 5 ta mezon, har biri 0–10: mavzuni sodda tushuntira oladimi; dars qiziqmi, qiziq metodlardan foydalanadimi; adolatlimi, teng e'tibor qiladimi; kerak vaqtda yordam beradimi; kamchiliklar haqida tavsiya berib ruhlantiradimi;
+  - jami = mezonlar yig'indisi.
+- **GradingSession / StudentGrade** (Baholash_tizimi + B_Students, ustoz talabani baholaydi):
+  - sessiya: `branch`, `teacher`, `course`, `group`, `date`, `comment`;
+  - har bir talaba (guruhdagi faol shartnoma): davomat bali (1–20), vazifa bali (1–40), oy yakuniy bali (1–500), jami, izoh;
+  - bir sessiyada bir talaba bir marta baholanadi.
+- **ParentCall** (Parent_Comment): `branch`, `course`, `group`, `contract`, `date`, `comment`. Telefonlar talabadan olinadi, qo'ng'iroq (`tel:`) va SMS (`sms:`) havolalari ko'rsatiladi. Ota-ona sahifasida farzandlari va qo'ng'iroqlar tarixi chiqadi.
+- **Discount50:** `branch`, `date`, `group` (faol), `contract` (guruhdagi faol), `month`, `discount_type` (faqat `is_discount50`). Guruhda ≥ 3 faol o'quvchi bo'lishi shart (xato: "Guruhdagi o'quvchilar soni 3 tadan kam bo'lmasligi kerak"). Bir shartnomaga bir oyda bitta yozuv. Batafsil qoida 18-bo'limda so'raladi.
+
+### 7.5 Moliya
+
+- **Account** (G'azna):
+  - maydonlar: `name` (unique), `responsible` (M2M User; rollar: Admin, Bosh menejer, Administrator+Hisobchi, Hisobchi), `cash_type` (Cash / Bank / Card / All), `initial_balance`, `status`;
+  - mas'ullarni faqat Admin va Bosh menejer o'zgartiradi;
+  - hozir ikkita g'azna bor: "Emirat g'azna" (All) va "Bosh g'azna" (Karta).
+- **CashMovement** (yangi, yagona pul harakatlari jurnali / ledger):
+  - har bir to'lov, xarajat, oylik berish, o'tkazma, almashtirish va kreditor amali servis orqali bir yoki bir nechta `CashMovement` qatorini yaratadi; manba o'zgarsa yoki o'chirilsa, qatorlar ham yangilanadi;
+  - maydonlar: `account`, `cash_type`, `amount` (+/−), `date`, `source_type`, `source_id`, `is_confirmed`;
+  - **g'azna balansi = initial_balance + Σ tasdiqlangan harakatlar**, `cash_type` bo'yicha alohida ham. Indeksli aggregatsiya bilan olinadi va AppSheet'dagi ulkan `Accounts.Now` formulasini almashtiradi.
+- **Payment:**
+  - maydonlar: `branch` (shartnomadan), `contract`, `group` (shartnomadan), `date`, `amount`, `cash_type` (standart Cash, All tanlanmaydi), `comment`, `receipt_pdf`;
+  - `date`: Admin va Bosh menejer ≤ bugun kiritadi ("Kelasi davr bilan kiritib bo'lmaydi"), boshqalar faqat bugun ("Faqat bugun bilan kiritish mumkin, xolos");
+  - chegirma: `discount_type`, `discount`. **Limit majburiy:** `|discount| ≤ discount_type.max_amount`. Xato: "Bu chegirma turiga X so'mdan ortiqcha chegirma kiritib bo'lmaydi";
+  - `discount_confirmation` (Tasdiqlashga / Tasdiqlandi), `discount_confirmed_by`, `discount_confirmed_at`: Admin istalgan vaqtda, Bosh menejer yaratilganidan keyin 30 kun ichida tasdiqlaydi;
+  - `noncash_confirmation`, `noncash_confirmed_by`, `noncash_confirmed_at`: Cash bo'lmagan to'lovni Admin istalgan vaqtda, Bosh menejer 360 kun, Filial menejeri 7 kun ichida tasdiqlaydi;
+  - `cashbox`: Cash bo'lsa foydalanuvchi mas'ul bo'lgan faol g'azna, naqdsiz bo'lsa `branch.noncash_cashbox`;
+  - `accountant`: g'azna mas'ullaridan biri;
+  - naqdsiz to'lov tasdiqlanmaguncha g'azna balansiga qo'shilmaydi;
+  - **PDF chek** avtomatik yaratiladi, to'lov o'zgarsa qayta yaratiladi va qayta yuklab olinadi;
+  - ko'rsatiladi: shartnoma statusi, guruhdagi o'quvchilar soni.
+- **Transfer** (Ichki pul oqimi):
+  - maydonlar: `date` (standart bugun, faqat Admin va Bosh menejer o'zgartiradi), `sender_account` (foydalanuvchi mas'ul bo'lgan faol g'azna), `sender_cashier`, `cash_type` (faqat Cash), `amount` (≥ 0), `receiver_account` (faol, ≠ sender), `receiver_cashier`, `status` (Tasdiqlashga → Tasdiqlandi), `confirmed_by`, `comment`;
+  - `amount` ≤ jo'natuvchi g'azna qoldig'i (Admin va Bosh menejerdan tashqari). Xato: "G'aznada X so'm pul bor" yoki "G'aznada pul yo'q";
+  - yaratilgandan keyin summa va pul turini faqat Admin o'zgartiradi;
+  - tasdiqni qabul qiluvchi g'azna mas'uli yoki Admin beradi. Tasdiqlanmaguncha ikkala tomonda ham hisobga olinmaydi;
+  - ro'yxatda har bir foydalanuvchiga yo'nalish ko'rsatiladi: Chiquvchi / Kiruvchi / Boshqa.
+- **Exchange** (Pul ayirboshlash, faqat Admin va Bosh menejer): `account`, `date` (bugun), `from_type`, `amount`, `to_type` (≠ from), `amount_to` (≤ amount, xato: "X dan katta bo'lolmaydi"), `loss = amount − amount_to`.
+- **Expense:**
+  - maydonlar: `branch`, `date`, `category`, `name` (shu kategoriyadagi oldingi nomlar taklif qilinadi; kategoriya o'zgarsa tozalanadi), `quantity` (≥ 1), `price` (≥ 0), `total = quantity × price`, `cash_type`, `account`, `cashier`, `period_year`, `period_month` (hisob davri; standart sanadan, faqat Admin va Bosh menejer o'zgartiradi), `comment`;
+  - `total` ≤ g'azna qoldig'i (Admin va Bosh menejerdan tashqari). Xato: "G'aznada X so'm pul bor".
+- **Creditor** (faqat Admin va Bosh menejer): `name` (unique), `initial_balance` (yaratilgandan keyin faqat Admin o'zgartiradi); joriy haqqi = initial − Σ amallar.
+- **CreditorTransaction** (CashFlow): `date`, `creditor`, `amount`, `cash_type`, `account`, `cashier`, `comment`. Belgisi: **"−" qarz olish, "+" qarz qaytarish.** Formada shu ogohlantirish ko'rsatiladi. G'aznaga ta'siri: `CashMovement.amount = −amount`.
+- **CreditorComment:** `creditor`, `comment`.
+- **SalaryAssignment** (Oylik belgilash):
+  - maydonlar: `branch`, `user` (Admin emas, shu filialda), `year`, `month`, `fixed`, `bonus`, `kpi` (qo'lda), `fine` (≥ 0), `comment`;
+  - (branch, user, year, month) unique;
+  - avtomatik: `teacher_kpi`, `supporter_kpi`, `total` (8.4), `given` (shu oy uchun berilganlar), `carried_from_previous` (barcha oldingi davrlarning `total − given` yig'indisi, **yillar oralig'ida ham**), `final_balance = total + carried − given`.
+- **SalaryPayout** (Oylik berish): `branch`, `user`, `year`, `month`, `date` (bugun), `type` (O'zgarmas / Bonus / KPI), `amount` (≥ 0; ≤ g'azna qoldig'i, Admin va Bosh menejerdan tashqari), `cash_type`, `account`, `cashier`, `comment`.
+
+### 7.6 Eksport
+
+- **ExcelExport:** filial → kurs → guruhlar (ko'p tanlov) bo'yicha shartnomalar ro'yxati `.xlsx` ga yuklanadi (AppSheet'dagi "Shartnoma yuklash" boti o'rniga).
+- Har bir ro'yxat sahifasida joriy filtr bilan "Excel'ga yuklash" tugmasi bor.
+
+## 8. Hisob-kitob algoritmlari
+
+Hammasi servis modullarida bo'ladi va har biri uchun unit-test yoziladi.
+
+### 8.1 Oydagi dars soni
+
+```
+frequency(branch, day_pattern, course, year, month)
+  = LessonFrequency(status=Tasdiqlangan): aynan shu filial + dars kunlari + kurs + oy
+```
+Topilmasa yoki tasdiqlanmagan bo'lsa, qarz va KPI hisoblanmaydi (0 emas, "hisoblanmagan" holat) va ogohlantirish chiqadi.
+
+### 8.2 Talaba qarzi (har bir davomat qatori)
+
+```
+agar status == NOFAOL ("-")  yoki  contract.type == Grant:   student_debt = 0
+aks holda (KELDI, SABABLI, BESABAB):
+    student_debt = price(branch, course, oy) / frequency(branch, day_pattern, course, oy)
+```
+Qoida: **dars bo'ldimi, qarz yoziladi**, talaba kelmagan bo'lsa ham.
+
+### 8.3 Ustoz va yordamchi KPI (har bir davomat qatori)
+
+```
+agar contract.type == Grant  yoki  status in (BESABAB, NOFAOL):  kpi = 0
+aks holda (KELDI, SABABLI):
+    rate = KPIRate(branch, user, role_type, course, oy)
+    O'zgarmas:  kpi = rate.fixed_amount / frequency(...)
+    Foiz:       kpi = rate.percent / 100 × price(branch, course, oy) / frequency(...)
+
+teacher_kpi   = formula, user = attendance.teacher,   role_type = USTOZ
+supporter_kpi = formula, user = attendance.supporter, role_type = YORDAMCHI
+```
+- `fixed_amount` = bitta o'quvchi uchun oylik kelishilgan summa.
+- Yordamchi KPI'si ustoz olgan davomat qatorlaridan guruh yordamchisiga avtomatik yoziladi.
+- O'rindosh bo'lsa, KPI darsni amalda o'tgan kishiga yoziladi.
+- Stavka topilmasa KPI = 0 va bu "stavka belgilanmagan" ogohlantirishi sifatida ko'rsatiladi.
+- Besabab bo'lsa KPI yozilmaydi. Ustoz darsni yetkazib bersa, status SABABLI ga o'zgaradi va KPI yoziladi (9-bo'lim).
+
+### 8.4 Oylik
+
+```
+teacher_kpi(user, oy)   = Σ attendance.teacher_kpi   (teacher = user,   filial, yil, oy)
+supporter_kpi(user, oy) = Σ attendance.supporter_kpi (supporter = user, filial, yil, oy)
+
+total = fixed + bonus + kpi + teacher_kpi + supporter_kpi − fine
+```
+Ustoz+Yordamchi rolidagi xodimda ikkalasi bo'lishi mumkin. **Jarima ayiriladi.**
+
+### 8.5 Qayta hisoblash
+
+Narx, KPI stavkasi, dars soni, shartnoma turi yoki davomat statusi o'zgarganda tegishli oy va shartnomalarning `student_debt`, `teacher_kpi`, `supporter_kpi` qiymatlari `transaction.atomic` ichida qayta hisoblanadi. Qo'lda ishga tushirish uchun `python manage.py recalculate --month 2026-10` buyrug'i bo'ladi.
+
+### 8.6 Foyda (oyma-oy)
+
+```
+Foyda = Σ to'lovlar − Σ xarajatlar (kind = "Xarajat") − Σ hisoblangan oyliklar (SalaryAssignment.total)
+```
+- Filtrlar: filial, yil, bir nechta oy.
+- "Qayta investitsiya", "Dividend", "Tashqi qarz" alohida qatorlarda ko'rsatiladi.
+- Ranglar: to'lovlar ko'k, xarajatlar pushti, foyda musbat yashil, manfiy qizil.
+- AppSheet'dagi Balance "kalkulyator" jadvali kerak emas, bu oddiy filtrli hisobot sahifasi.
+
+## 9. Qoldirilgan darsni yetkazish (yangi jarayon)
+
+**Hozir:** oy oxirida ustoz adminga og'zaki aytadi, admin X ni 0 ga o'zgartiradi.
+
+**Yangi jarayon:**
+1. Ustoz "Kelmaganlar" ro'yxatidan BESABAB qatorni tanlaydi va **"Darsni yetkazdim"** so'rovini yuboradi (yetkazilgan sana va izoh bilan).
+2. So'rov Bosh menejer, Filial menejeri va administratorlarga tushadi, Telegram'ga ham xabar boradi.
+3. Tasdiqlansa, davomat statusi SABABLI ga o'zgaradi va KPI qayta hisoblanadi. Rad etilsa, sabab yoziladi.
+4. Hammasi audit'ga yoziladi.
+
+Model: `MakeupRequest(attendance, teacher, makeup_date, comment, status [Kutilmoqda / Tasdiqlandi / Rad etildi], reviewed_by, reviewed_at, reject_reason)`.
+
+## 10. Interfeys va menyu
+
+Menyu tartibi va nomlari AppSheet'dagidek saqlanadi, xodimlar qayta o'rganmasin. Har bir rol faqat ruxsat berilgan bo'limlarni ko'radi.
+
+1. **Bosh sahifa (Dashboard)**, yangi.
+2. **Lidlar:** voronka (status bo'yicha), statistika, to'lov qilganlar.
+3. **Shartnomalar:** Faol / Nofaol, guruhlash filial → kurs.
+4. **To'lovlar:** yil → oy → sana, jami summa bilan.
+5. **Qarzdorlar:** qarzi > 0, guruh bo'yicha, jami qarz bilan.
+6. **Davomatlar:** davomat olish ekrani, kelmaganlar (X va 0, bog'lanish holati bilan), statistika, qoldirilgan darslar so'rovlari.
+7. **Baholash bo'limi:** ustoz talabani baholaydi (Yordamchi va Ustoz+Yordamchi'ga AppSheet'da ko'rinmagan).
+8. **Foyda (oyma-oy):** Admin, Bosh menejer.
+9. **Xarajatlar bo'limi:** sana bo'yicha va oy → kategoriya bo'yicha.
+10. **Shartnoma yuklash:** Excel eksport.
+11. **Faol guruhlar tahlili:** to'lish holati, ustoz va kurs bo'yicha.
+12. **Guruhlar.**
+13. **50% chegirmalar.**
+14. **Tasdiqlashlar:** chegirmalar, 50% chegirmalar, naqdsiz to'lovlar, o'tkazmalar, qoldirilgan darslar.
+15. **Oyliklar:** KPI belgilash, hisoblangan KPI (ustozlar, yordamchilar), oylik belgilash, oylik berish, xodim balansi.
+16. **Ichki pul oqimi:** g'aznalar orasida o'tkazma.
+17. **Tashqi pul oqimi:** kreditorlar (Admin, Bosh menejer).
+18. **Pul ayirboshlash** (Admin, Bosh menejer).
+19. **G'aznalar:** joriy qoldiq bilan.
+20. **Baholash:** talaba ustozni baholaydi.
+21. **Talaba vazifalari:** ustozlar uchun "mening vazifalarim", menejerlar uchun hammasi.
+22. **Ota-onalar bilan aloqa.**
+23. **Sozlamalar:** barcha ma'lumotnomalar. Bosh menejer hammasini, Filial menejeri o'z filiali doirasida boshqaradi. Bo'limlar: kurslar, kurs narxlari, oydagi dars soni (oylik tasdiq bilan), KPI stavkalari, chegirma turlari, xarajat kategoriyalari, lid manbalari, xonalar, dars kunlari, dars vaqtlari, filiallar, g'aznalar, foydalanuvchilar (qo'shish, rol berish, filial biriktirish, ishdan chiqarish), rollar va ruxsatlar, davomat statuslari.
+24. **AI yordamchi:** faqat Bosh menejer (13-bo'lim).
+25. **Audit tarixi:** Admin va Bosh menejer.
+
+UX talablari:
+- Formalar bosqichma-bosqich: keyingi maydon oldingisi to'ldirilgach chiqadi (AppSheet `Show_If`). Bog'liq ro'yxatlar avtomatik filtrlanadi: filial → kurs → guruh → talaba. Tanlov bitta bo'lsa, u avtomatik tanlanadi va maydon yashiriladi.
+- Ro'yxatlarda qidiruv, filtrlar, guruhlash, jami summalar va sahifalash (50 tadan) bor.
+- Ranglar (AppSheet format qoidalari): shartnoma Faol yashil, Nofaol qizil; qarzdor talaba nomi qizil; guruh to'lish holati rangli; foyda musbat yashil, manfiy qizil; lid shartnoma holati "Tuzilmagan" 5-statusda qizil, boshqa statuslarda to'q sariq.
+- Telefonda davomat ekrani bir qo'l bilan qulay: katta tugmalar.
+- Yaratgan/o'zgartirgan shaxs va vaqt formalarda ko'rinmaydi, faqat batafsil sahifada.
+
+## 11. Dashboard va statistika (yangi)
+
+**Bosh sahifa** (rolga mos):
+- bugungi to'lovlar (naqd, naqdsiz);
+- g'azna qoldiqlari;
+- jami qarzdorlik va qarzdorlar soni;
+- faol talabalar, faol guruhlar va ularning to'lish holati;
+- tasdiq kutayotganlar soni;
+- shu oy uchun dars soni tasdiqlanmagan bo'lsa ogohlantirish;
+- bugun davomati olinmagan guruhlar.
+
+**Oylik statistika** (Chart.js, oyma-oy taqqoslash):
+- yangi lidlar (manba va kurs bo'yicha);
+- yangi va to'xtatilgan shartnomalar (to'xtatish sababi bo'yicha);
+- to'lovlar, xarajatlar va foyda;
+- o'rtacha davomat foizi (guruh va ustoz bo'yicha).
+
+**Sotuv voronkasi:** har bosqichdagi lidlar soni va o'tish foizi. Filtrlar: davr, manba, kurs, mas'ul xodim. Lid → to'lov konversiyasi ham ko'rsatiladi.
+
+**Birinchi marta to'lov qilganlar:** tanlangan oyda birinchi marta to'lov qilgan talabalar soni va ro'yxati, manba va kurs kesimida.
+
+Hisobot so'rovlari aggregatsiya bilan bajariladi. Og'ir hisobotlar uchun kesh (15 daqiqa) yoki tunda hisoblanadigan jadval ishlatiladi.
+
+## 12. Telegram bot (xodimlar uchun)
+
+- Xodim `/start` yozadi va profilidagi bir martalik kod bilan akkauntini bog'laydi.
+- Xabarlar:
+  - yangi lid (filial administratorlariga);
+  - tasdiq kutayotgan chegirma yoki naqdsiz to'lov (Bosh menejer, Filial menejeri);
+  - tasdiq kutayotgan o'tkazma (qabul qiluvchi g'azna mas'uliga);
+  - qoldirilgan dars so'rovi;
+  - dars boshlanganidan keyin N daqiqa (standart 30) ichida davomat olinmasa (ustoz va administratorga);
+  - har kuni kechqurun Bosh menejerga hisobot: to'lovlar, yangi lidlar, yangi shartnomalar, kelmaganlar, g'azna qoldiqlari.
+- Har bir xodim qaysi xabarlarni olishini sozlaydi. Token `.env` da saqlanadi.
+- **Keyingi bosqich (hozir qilinmaydi):** ota-onalarga SMS yoki Telegram xabarlar (qarz eslatmasi, darsga kelmagani). Arxitektura bunga tayyor bo'lsin.
+
+## 13. AI yordamchi (faqat Bosh menejer)
+
+**Maqsad:** Bosh menejer o'zbek tilida savol beradi va data analitikada yordam oladi. Masalan: "Sentabrda qaysi kurs eng ko'p foyda keltirdi?"
+
+**Arxitektura:**
+1. Faqat o'qish huquqiga ega alohida DB foydalanuvchisi. U faqat `analytics_*` view'larni ko'radi; telefonlar va parollar bu view'larga kirmaydi.
+2. LLM'ga savol va view'lar sxemasi (ustun tavsiflari bilan) yuboriladi, LLM SQL qaytaradi.
+3. Server SQL'ni tekshiradi: faqat `SELECT`, faqat ruxsat etilgan view'lar, `LIMIT` va 5 soniya timeout.
+4. Natija jadval yoki Chart.js diagramma qilib ko'rsatiladi.
+5. Ixtiyoriy: natijaning faqat yig'ma ko'rinishi LLM'ga qayta yuborilib, qisqa tahlil olinadi. Talabalar ismlari LLM'ga yuborilmaydi.
+6. Har bir savol, SQL va natija hajmi log'ga yoziladi.
+
+**Provayder:** `AI_PROVIDER=gemini|anthropic|openai` bilan almashtiriladi. Boshida Gemini bepul tarifi bo'lishi mumkin; bepul tariflarda ma'lumot xizmatni yaxshilash uchun ishlatilishi mumkin, shuning uchun 1, 3 va 5-bandlar majburiy. Kunlik so'rovlar limiti sozlanadi.
+
+## 14. Tezlik, sifat va xavfsizlik
+
+- Har qanday ro'yxat yoki forma sahifasi serverda **< 300 ms**, foydalanuvchida **< 1 s**.
+- N+1 so'rovlar taqiqlanadi (`select_related` / `prefetch_related`). Testlarda `django_assert_max_num_queries` bilan tekshiriladi.
+- Indekslar: filial, sana, (yil, oy), guruh, shartnoma, status, `created_by`, `legacy_id`.
+- Hisoblangan qiymatlar (qarz, KPI, balans) saqlanadi yoki indeksli aggregatsiya bilan olinadi. Butun jadvalni Python'da aylanib chiqish taqiqlanadi.
+- Statik fayllar siqiladi va keshlanadi (WhiteNoise yoki Nginx).
+- CSRF, HTTPS, xavfsiz cookie'lar, login urinishlariga limit, kuchli parol siyosati, sirlar `.env` da, prod'da `DEBUG=False`.
+- Kodga hech qanday ID, email yoki parol qattiq yozilmaydi.
+
+## 15. Deploy
+
+**Bosqich 1 — PythonAnywhere (bepul, test):** MySQL bilan ishlashi tekshiriladi. Cheklovlar: kunlik protsessor vaqti, tashqi internet faqat ruxsat etilgan saytlarga, akkauntni har 3 oyda uzaytirish. Qo'llanma: `docs/deploy_pythonanywhere.md`.
+
+**Bosqich 2 — Hetzner VPS (asosiy):**
+- `docker-compose.yml`: `web` (Gunicorn), `db` (PostgreSQL 16), `nginx`, `certbot`, `bot`, `cron`.
+- Har kuni `pg_dump` (siqilgan, 30 kun saqlanadi), ixtiyoriy tashqi nusxa (Storage Box yoki S3).
+- Qo'llanma: `docs/deploy_hetzner.md` (server, domen, SSL, yangilash, backup'dan tiklash).
+- Resurs: 2 vCPU, 4 GB RAM, 40 GB SSD.
+- **Eslatma:** O'zbekistonda fuqarolarning shaxsiy ma'lumotlarini mamlakat hududida saqlash talabi bor. Buyurtmachi buni tekshiradi. Kod istalgan hostingga ko'chiriladigan bo'lsin.
+
+## 16. Migratsiya (faqat faol ma'lumotlar)
+
+**Manba:** Google Sheets'dan yuklab olingan `.xlsx` fayllar, `import_data/` papkasida. Faqat **Emirat** filiali ko'chiriladi.
+
+Avval `python manage.py import_appsheet --dry-run` ishga tushiriladi va xatolar hamda ogohlantirishlar hisobotini chiqaradi. Keyin haqiqiy rejimda ishlatiladi.
+
+**Ko'chiriladiganlar:**
+1. Ma'lumotnomalar: filial (Emirat), faol kurslar, xonalar, dars kunlari, dars vaqtlari, chegirma turlari, xarajat kategoriyalari, lid manbalari, g'aznalar, kreditorlar.
+2. Foydalanuvchilar: AppSheet `Status` = "Qo'shilgan" bo'lsa Faol, "Qo'shilmagan" bo'lsa Ishdan ketgan. Rollar 6.1 bo'yicha moslashtiriladi, eski xato nomlar ham ("Yordmachi", "Ustoz-Yordamchi", "Filial menejer") taniladi. Parollar yangidan beriladi: birinchi kirishda parol o'rnatish havolasi yuboriladi.
+3. Joriy kurs narxlari va KPI stavkalari, `effective_from` = joriy oyning 1-kuni.
+4. Joriy oy uchun oydagi dars soni (Tasdiqlangan holatda).
+5. Faol va rejadagi guruhlar.
+6. Faol va rejadagi shartnomalar, ularning talabalari va ota-onalari, ochiq lidlar (1–4 va 8-statuslar).
+7. **Boshlang'ich qoldiqlar** (o'tish sanasi holatiga):
+   - har bir shartnomaning joriy qarzi → `Contract.opening_balance`;
+   - har bir g'aznaning joriy qoldig'i → `Account.initial_balance`;
+   - kreditorlarning joriy haqqi;
+   - xodimlarning oylik qoldig'i (`ToMonthBalance`) → `carried_from_previous` uchun boshlang'ich yozuv.
+
+**Qoidalar:**
+- Har bir yozuvda `legacy_id` saqlanadi.
+- Importni qayta ishga tushirish dublikat yaratmaydi (idempotent).
+- Oxirida tekshiruv hisoboti chiqadi (faol shartnomalar soni, jami qarz, g'azna qoldiqlari). Bu raqamlar AppSheet ko'rsatkichlari bilan solishtiriladi.
+
+## 17. Bosqichlar (milestone'lar)
+
+| # | Bosqich | Natija |
+|---|---|---|
+| M0 | Prototip (ixtiyoriy) | Bosiladigan HTML prototip: asosiy ekranlar, sinov ma'lumotlari, rol almashtirish |
+| M1 | Loyiha asosi | Django loyihasi, Docker, sozlamalar, User/Role/ruxsatlar, filial doirasi, audit, login, bazaviy layout, PWA, Sozlamalar bo'limi |
+| M2 | CRM | Talabalar, ota-onalar, lidlar (voronka), lid izohlari, "Shartnoma tuzish" |
+| M3 | O'quv jarayoni | Guruhlar, shartnomalar, davomat ekrani, qarz va KPI servislari, kelmaganlar, qoldirilgan darslar, oydagi dars soni (avto-taklif va tasdiq) |
+| M4 | Moliya | CashMovement ledger, g'aznalar, to'lovlar (tasdiqlar, chegirma limiti, PDF chek), o'tkazmalar, almashtirish, xarajatlar, kreditorlar |
+| M5 | Oyliklar | KPI stavkalari, oylik belgilash va berish, xodim balansi |
+| M6 | Qo'shimcha modullar | Vazifalar, ikki yo'nalishli baholash, ota-onalar bilan aloqa, 50% chegirma, Excel eksport |
+| M7 | Hisobot va dashboard | Bosh sahifa, oylik statistika, voronka, birinchi to'lovchilar, foyda, guruh tahlili |
+| M8 | Telegram bot | Bog'lash, xabarlar, kunlik hisobot |
+| M9 | AI yordamchi | Faqat o'qish view'lari, SQL xavfsizligi, provayder abstraksiyasi |
+| M10 | Migratsiya | Import skripti, sinov rejimi, tekshiruv hisoboti |
+| M11 | Deploy | PythonAnywhere qo'llanmasi, Hetzner Docker Compose, backup, monitoring |
+
+Har bir bosqichda bo'ladi: algoritm va ruxsatlar uchun testlar, `seed_demo` buyrug'i (sinov ma'lumotlari), qisqa foydalanuvchi qo'llanmasi (`docs/user_guide/`).
+
+## 18. Ochiq savollar (kod boshlanishidan oldin buyurtmachidan so'ra)
+
+Asl topshiriqdan:
+1. **Shartnoma statusi:** AppSheet formulasi buzilgan (`IFS([EndDate]=TODAY()), "Faol", …`). Taxmin: end < bugun → Nofaol, start > bugun → Rejada, aks holda Faol. Tasdiqlansin.
+2. **Kreditor amali sanasi:** formula buzilgan (`[_THIS]TODAY()`). Xato matni "bir hafta avvalgi sanagacha" deydi. Taxmin: oxirgi 7 kun ichida, kelajak sana mumkin emas.
+3. **50% chegirma:** aniq qoidasi qanday? Kimga, qachon beriladi va to'lovdagi chegirma bilan qanday bog'lanadi? AppSheet'da Discount50 to'lovga bog'lanmagan, faqat ro'yxat edi. Guruhda ≥ 3 o'quvchi sharti nimani anglatadi?
+4. **"Nofaol (–)" davomat statusini** kim va qachon qo'yadi?
+5. **"All" turidagi g'azna:** balans har bir to'lov turi bo'yicha alohida ko'rsatilsinmi?
+6. **Davomat olinmagani haqidagi eslatma:** dars boshlanganidan necha daqiqa keyin? (standart 30)
+7. **Xarajat kategoriyasining `allowed_roles` maydoni** majburiy tekshirilsinmi?
+
+JSON tahlilidan yangi savollar:
+
+8. **Manfiy chegirma:** AppSheet'da `Discount < 0` ruxsat etilgan ("Chegirmalar" slice'i `Discount>0 OR Discount<0`). U nima uchun ishlatilgan, masalan "Boshlang'ich balansga" turi bilan oldingi qarzni kiritish uchunmi? Yangi tizimda bu `opening_balance` bilan almashtirilsinmi?
+9. **Pulni qaytarish:** to'lov summasi manfiy bo'lishi mumkinmi (formulalar `Summa<>0` ni tekshiradi)? Qaytarish alohida amal bo'lsinmi?
+10. **Administrator to'lov qabul qiladimi?** AppSheet'da `Administrator` roli To'lovlar jadvalida faqat ko'ra olardi, 6.4-jadval esa unga "to'lov: faqat bugun" muddatini beradi. Qaysi biri to'g'ri?
+11. **Shartnoma PDF fayli:** AppSheet'da `Contracts/{ContractID}.pdf` yo'li bor. Shartnoma shablondan avtomatik yaratilsinmi yoki qo'lda yuklanadimi? Shablon bormi?
+12. **Oylik belgilash noyobligi:** AppSheet'da (filial, xodim, yil, oy) bo'yicha edi. Xodim bir necha filialda ishlasa, har filial uchun alohida oylik bo'ladimi?
+13. **Talabaning 2-telefoni** majburiymi? AppSheet formasida tug'ilgan sana faqat 2-telefon kiritilgandan keyin chiqardi.
+14. **Ota-onalar bilan aloqa, 50% chegirma va Excel eksport** bo'limlarini qaysi rollar ishlatadi? AppSheet'da ular uchun cheklov yo'q edi.
+
+## 19. AppSheet'da topilgan va tuzatilishi kerak bo'lgan xatolar
+
+1. Tahrirlash va o'chirish muddatlari ishlamaydi (`TODAY()+N >= sana` doim rost). 6.4 qo'llansin.
+2. Jarima jami oylikdan ayirilmagan (`TotalSalary = Fixed+Bonus+KPI+TeacherKPI+SupporterKPI`). 8.4 bo'yicha tuzatilsin.
+3. Chegirma limiti (`MaxAmount`) tekshirilmagan: xato matni bor, lekin `Valid_If` yo'q. Endi majburiy.
+4. Yordamchi KPI'sida Grant shartnomalar chiqarib tashlanmagan.
+5. Foiz-KPI'da (ustoz va yordamchi) va yordamchining O'zgarmas KPI'sida oydagi dars soni dars kunlarisiz qidirilgan (`ANY(SELECT(...))` tasodifiy qiymat olishi mumkin).
+6. Oylik qoldig'i (`FromLastMonth`) faqat bir yil ichida o'tkaziladi, yillar oralig'ida yo'qoladi.
+7. Rol nomlaridagi xatolar ("Ustoz-Yordamchi", "Yordmachi", "Filial menejer") tufayli ba'zi shartlar hech qachon ishlamagan. Endi rollar FK yoki enum bilan.
+8. Kodga qattiq yozilgan ID'lar: `cb4963b4` (naqdsiz g'azna), `914bea1a` (50% chegirma), `10f01992` (foydadan chiqariladigan kategoriya). Endi `Branch.noncash_cashbox`, `DiscountType.is_discount50`, `ExpenseCategory.kind` ishlatiladi.
+9. `Baholash_tizimi.CreatedBy` va `B_Students.CreatedBy` boshlang'ich qiymati aniq bir email bilan qattiq yozilgan. `request.user` ishlatilsin.
+10. Yordamchi KPI oylikka filial bo'yicha filtrlanmasdan yig'ilgan.
+11. Sekinlik: g'azna balansi, guruh statistikasi va shartnoma qarzi har ochilishda butun jadvallar bo'yicha qayta hisoblanardi. Endi ledger va saqlanadigan maydonlar.
+12. Davomat "sessiyasi" (TakeAttendance) har foydalanuvchi uchun jadval qatori sifatida saqlanardi. Endi u oddiy ekran holati.
+13. `Attendance.ContactStatus` da `Required_If = [ContactStatus]="Bog'lanildi"`, ammo bunday qiymat yo'q. To'g'ri qoida: "Gaplashildi" bo'lsa izoh majburiy.
+14. `Expenses.Cashier` boshlang'ich qiymati foydalanuvchining to'liq ismi, ruxsat etilgan qiymatlar esa UserID. Bu tur nomuvofiqligi. Endi FK User.
+15. `Accounts.Now` ("All" turi) tasdiqlanmagan naqdsiz to'lovlarni ham qo'shgan. Endi naqdsiz to'lov tasdiqlangandan keyin hisobga olinadi.
+16. `Exchange`, `CommentToCreditors`, `Parent_Comment`, `Discount50`, `Exel` jadvallarida ruxsat cheklovi bo'lmagan (6.2).
+17. `Groups.Open_Place_percent` xona sig'imi 0 yoki xona bo'lmasa nolga bo'linadi. Endi "—" ko'rsatiladi.
+
+---
+
+## 20. Prototip (`prototype/`) — hozirgi holat
+
+### 20.1 Bu nima va nima emas
+
+- **Bu:** kelajakdagi tizimning **ishlaydigan maketi**. Oddiy HTML + CSS + JavaScript: framework yo'q, server yo'q, build yo'q. Brauzerda ochiladi, tugmalar bosiladi, formalar saqlanadi, qarz / KPI / g'azna / oylik haqiqatan hisoblanadi.
+- **Bu emas:** Django tizimi. Prototip kodi Django'ga ko'chirilmaydi — u **talablar va dizayn namunasi**. Django'da hamma narsa 4–19-bo'limlar bo'yicha qaytadan yoziladi, lekin ekranlar, formalar ketma-ketligi va matnlar prototipdagidek bo'ladi.
+- Ma'lumotlar **soxta** (sinov uchun yaratilgan) va faqat foydalanuvchi brauzerida (`localStorage`) saqlanadi. Serverga hech narsa yuborilmaydi.
+
+### 20.2 Qanday ochiladi
+
+| Usul | Qanday |
+|---|---|
+| Internetda | https://ilhomjon1502.github.io/codialERP1/ |
+| Kompyuterda | `python -m http.server 5510 --directory prototype` → http://localhost:5510 |
+| Eng oddiy | `prototype/index.html` ni ikki marta bosish |
+
+- Kirish sahifasida parol yo'q — demo xodimni tanlaysiz. O'ng yuqoridagi ism orqali istalgan payt boshqa rolga o'tiladi.
+- Yuqoridagi **sana tugmasi**: "bugun"ni o'zgartirish (masalan, dars bor kunga) va ma'lumotlarni boshlang'ich holatga qaytarish.
+- Sinov ma'lumotlari: Emirat filiali, 13 xodim (har roldan), 5 kurs, 7 guruh, ~60 shartnoma, ~70 lid, sentabr–oktabr davomatlari, to'lovlar, xarajatlar, oyliklar. AppSheet'dan import sanasi **01.09.2026** deb olingan.
+
+### 20.3 Fayllar xaritasi — "nimani o'zgartirsam, qaysi faylni ochaman?"
+
+| Fayl (`prototype/` ichida) | Ichida nima bor | Qachon ochiladi |
+|---|---|---|
+| `index.html` | Fayllarni ulaydi, `?v=N` versiya | Har o'zgarishdan keyin `?v=N` ni oshirish |
+| `assets/style.css` | Butun dizayn: ranglar (`:root` dagi `--brand` = to'q sariq), tugmalar, jadvallar, telefon ko'rinishi (`@media (max-width: 900px)`) | Rang, o'lcham, joylashuv |
+| `assets/js/util.js` | Sana, pul formati (`A.money`), oy nomlari | Kamdan-kam |
+| `assets/js/core.js` | **Rollar va ruxsatlar matritsasi** (`MATRIX`), tahrirlash muddatlari (`A.editDays`), ma'lumot doirasi (`A.vis`), **hisob-kitob servislari**: narx, dars soni, qarz, KPI, g'azna ledger, oylik, tasdiq qoidalari | Ruxsat yoki formula o'zgarsa |
+| `assets/js/seed.js` | Sinov ma'lumotlari (xodimlar, kurslar, guruhlar, narxlar, KPI stavkalari…) | Demo ma'lumotni o'zgartirish. **O'zgartirsangiz `seed.js` dagi `version` va `core.js` dagi `s.version !== N` raqamini oshiring**, aks holda eski ma'lumot qoladi |
+| `assets/js/forms.js` | Modal oyna va bosqichma-bosqich forma (AppSheet `Show_If` / `Valid_If` / `Reset_If` mantig'i) | Forma xatti-harakati |
+| `assets/js/app.js` | Layout, chap menyu (`A.NAV` — tartib va nomlar), pastki panel (telefon), login, marshrutlash | Menyu tartibi, nomi, ikonkasi |
+| `assets/js/pages-crm.js` | Bosh sahifa, Lidlar (voronka, forma, kartochka), Talabalar, Shartnomalar, Qarzdorlar | Shu sahifalar |
+| `assets/js/pages-edu.js` | Guruhlar, Guruhlar tahlili, **Davomat olish**, Kelmaganlar, Qoldirilgan darslar, Vazifalar, Baholash (ikkala yo'nalish), Ota-onalar, 50% chegirma, Excel eksport | Shu sahifalar |
+| `assets/js/pages-fin.js` | To'lovlar va chek, Tasdiqlashlar, G'aznalar, O'tkazmalar, Ayirboshlash, Xarajatlar, Kreditorlar, Foyda, Oyliklar | Shu sahifalar |
+| `assets/js/pages-admin.js` | Sozlamalar (barcha ma'lumotnomalar, rollar matritsasi, oydagi dars soni), Audit tarixi, AI yordamchi | Shu sahifalar |
+
+Har bir sahifa bir xil shaklda yozilgan: `A.page('marshrut', { title, section, render() {...} })`. `section` — ruxsat kaliti (`core.js` dagi `MATRIX`). Tugmalar `data-act="nom"` orqali `A.act.nom` funksiyasini chaqiradi. Formalar `A.form({ fields: [...] })` bilan yoziladi: har bir maydonda `show` (qachon ko'rinadi), `options`, `validate`, `resets` (qaysi maydonlarni tozalaydi) bor.
+
+### 20.4 Prototipda ishlaydigan narsalar (buyurtmachi ma'qullagan)
+
+- **Rollar:** 10 rol, har biri uchun menyu, tugmalar va ko'rinadigan ma'lumot farq qiladi (6-bo'lim). Ruxsatlar matritsasini Sozlamalar → Rollar va ruxsatlar'da o'zgartirsa bo'ladi.
+- **Tahrirlash muddatlari:** muddati o'tgan yozuvda tugma o'chiq va sababi ko'rsatiladi. Tasdiqlangan yozuvni faqat Admin / Bosh menejer o'zgartiradi.
+- **Lidlar:** 8 bosqichli voronka (kanban), bosqichma-bosqich forma, dublikat talaba tekshiruvi, izohlar, statistika (manba, konversiya), 5-statusda "talaba ma'lumotlarini to'ldirish" → "Shartnoma tuzish".
+- **Shartnomalar:** Faol / Rejada / Nofaol, qarzdor nomi qizil, "Qarz qanday hisoblandi" bloki, to'lovlar va davomat tarixi.
+- **Davomat:** faqat ustoz oladi; ustoz uchun faqat bugun, menejerlar o'tgan sanani tuzatadi; dars kuni tekshiruvi; o'rindosh ustoz; telefonda katta Keldi / Sababli / Besabab tugmalari; "Hammasi keldi"; belgilashda qatorlar sakramaydi.
+- **Kelmaganlar:** bog'lanish holati, "Gaplashildi" bo'lsa izoh majburiy; ustoz "Darsni yetkazdim" so'rovini yuboradi → menejer tasdiqlaydi → X → 0 va KPI yoziladi.
+- **Oydagi dars soni:** kalendar bo'yicha "Taklif" → tasdiqlash → qarz va KPI qayta hisoblanadi. Tasdiqlanmagan oy uchun Bosh sahifada ogohlantirish chiqadi.
+- **To'lov:** shartnoma → summa → turi → g'azna (avtomatik) → chegirma (limit tekshiruvi) → chek. Naqdsiz to'lov va chegirma tasdiqlashga ketadi; naqdsiz to'lov tasdiqlanmaguncha g'azna balansiga qo'shilmaydi.
+- **G'azna:** yagona pul harakatlari jurnali (ledger), balans to'lov turlari bo'yicha, tasdiqlanmagan summalar alohida.
+- **O'tkazma, ayirboshlash, xarajat** (g'aznadagi puldan ko'p bo'lmaydi), **kreditorlar** ("−" qarz olish / "+" qaytarish).
+- **Oyliklar:** belgilash, KPI (davomatdan avtomatik), jarima ayiriladi, oldingi oylardan qoldiq yillar oralig'ida ham; KPI stavkalari "amal qilish oyi" bilan; oylik berish; xodim balansi.
+- **Foyda:** oylar tanlanadi, faqat "Xarajat" turi ayiriladi; qayta investitsiya / dividend / tashqi qarz alohida.
+- **Guruhlar:** to'lish rangi (qizil / to'q sariq / ko'k / yashil), oylik davomat jurnali, tahlil.
+- **Boshqalar:** vazifalar, ikki yo'nalishli baholash, ota-onalar bilan aloqa (tel / SMS havolalar), 50% chegirma (≥3 talaba), Excel (CSV) eksport, audit tarixi, AI yordamchi (namunaviy).
+- **Telefon:** chap menyu yashirin (☰), pastda 5 tugmali panel, jadvallar kartochkaga aylanadi, formalar pastdan ochiladi.
+
+### 20.5 Prototipdagi soddalashtirishlar (Django'da boshqacha bo'ladi)
+
+| Prototipda | Django'da |
+|---|---|
+| Parolsiz kirish, demo xodim tanlanadi | Email + parol, login urinishlariga limit |
+| `localStorage` | PostgreSQL |
+| Excel o'rniga CSV | openpyxl bilan `.xlsx` |
+| PDF chek = brauzerda chop etish | WeasyPrint bilan PDF fayl |
+| AI javoblari — oldindan yozilgan 6 ta savol | LLM → SQL → tekshiruv (13-bo'lim) |
+| Telegram xabarlari yo'q (faqat matnda aytilgan) | Telegram bot (12-bo'lim) |
+| "Kalendar bo'yicha taklif" tugma bilan | Har oy 1-kuni cron |
+| Bitta filial | Ko'p filialga tayyor model |
+| Manfiy to'lov taqiqlangan | 18-bo'limdagi savolga javobga qarab |
+
+### 20.6 Buyurtmachi so'ragan o'zgarishlar
+
+Buyurtmachi prototipni umumiy holda ma'qulladi, "bir-ikki detal" o'zgaradi. **Ro'yxat hali berilmagan.** Berilganda shu yerga yozing va bajarilganini belgilang:
+
+| # | Nima o'zgaradi | Sahifa / fayl | Holat |
+|---|---|---|---|
+| — | (buyurtmachidan kutilmoqda) | | |
+
+### 20.7 GitHub
+
+- Repo: https://github.com/Ilhomjon1502/codialERP1 (ochiq — GitHub Pages bepul ishlashi uchun). Ichida haqiqiy talaba ma'lumoti yo'q, faqat soxta demo.
+- Sayt `main` branch ildizidan chiqadi: ildizdagi `index.html` → `prototype/` ga yo'naltiradi.
+- `AppSheetsDoc.pdf` va `.claude/` yuklanmaydi (`.gitignore`).
+- Push qilingandan keyin sayt 1–2 daqiqada yangilanadi.
