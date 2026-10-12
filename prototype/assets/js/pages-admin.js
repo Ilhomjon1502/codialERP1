@@ -7,10 +7,10 @@
   const crudList = (key) => {
     const c = CRUD[key];
     const rows = c.rows ? c.rows() : A.rows(c.coll);
-    const canA = A.can('settings', 'a'), canE = A.can('settings', 'e');
+    const canA = A.can('settings', 'a'), canE = A.can('settings', 'e'), canD = A.can('settings', 'd') && c.usage;
     return `<div class="row between"><h2>${esc(c.title)}</h2>${canA && !c.noAdd ? A.btn("Qo'shish", 'crud-add', { id: key, icon: 'plus' }) : ''}</div>
       ${c.note ? `<p class="muted small">${c.note}</p>` : ''}
-      ${A.table([...c.cols, { h: '', f: (r) => (canE ? `<button class="btn sm ghost" data-act="crud-edit" data-id="${key}|${r.id}">✎</button>` : '') }], rows)}`;
+      ${A.table([...c.cols, { h: '', f: (r) => (canE ? `<button class="btn sm ghost" data-act="crud-edit" data-id="${key}|${r.id}" title="Tahrirlash">✎</button>` : '') + (canD ? ` <button class="btn sm ghost" data-act="crud-del" data-id="${key}|${r.id}" title="O'chirish">🗑</button>` : '') }], rows)}`;
   };
   const crudForm = (key, rec) => {
     const c = CRUD[key];
@@ -37,6 +37,21 @@
     const c = CRUD[key];
     crudForm(key, (c.rows ? c.rows() : A.rows(c.coll)).find((r) => r.id === id));
   };
+  // O'chirish: ishlatilgan ma'lumotnoma yozuvi o'chirilmaydi, faqat nofaol qilinadi (CLAUDE.md 6.4)
+  A.act['crud-del'] = async (el) => {
+    const [key, id] = el.dataset.id.split('|');
+    const c = CRUD[key];
+    const rec = A.get(c.coll, id);
+    const name = c.label ? c.label(rec) : rec.name;
+    const used = c.usage(rec);
+    if (used) return A.toast(`«${name}» ishlatilgan (${used}). O'chirib bo'lmaydi — tahrirlab, Nofaol qiling`, 'warn');
+    if (!(await A.confirm(`«${esc(name)}» o'chirilsinmi?`, "O'chirish", true))) return;
+    A.softDelete(c.coll, id, c.title, name);
+    A.toast("O'chirildi");
+    A.refresh();
+  };
+  const isActive = (r) => (r.status || 'Faol') === 'Faol';
+  const statusBadge = (r) => A.badge(r.status || 'Faol', isActive(r) ? 'green' : 'gray');
   const B = () => A.branchIds()[0] || 'b1';
   const unique = (coll, field, msg) => (val, x) => (A.rows(coll).some((r) => String(r[field]).toLowerCase() === String(val).toLowerCase() && r.id !== x.id) ? msg : '');
 
@@ -67,7 +82,12 @@
       { name: 'allowed_roles', label: 'Kim qila oladi?', type: 'chips', options: () => ['ADMIN', 'BOSH_MENEJER', 'FILIAL_MENEJERI', 'ADMINISTRATOR_HISOBCHI', 'HISOBCHI'].map((r) => [r, A.ROLES[r]]), default: [] },
     ],
   };
-  CRUD.sources = { coll: 'leadSources', title: 'Lid manbalari', cols: [{ h: 'Nomi', f: (r) => esc(r.name) }, { h: 'Lidlar', f: (r) => A.rows('leads').filter((l) => l.source === r.id).length, cls: 'num' }], fields: [{ name: 'name', label: 'Nomi', required: true }] };
+  CRUD.sources = {
+    coll: 'leadSources', title: 'Lid manbalari',
+    note: "Nofaol manba yangi lid formasida chiqmaydi. Eski lidlar va statistikada saqlanib qoladi.",
+    cols: [{ h: 'Nomi', f: (r) => esc(r.name) }, { h: 'Lidlar', f: (r) => A.rows('leads').filter((l) => l.source === r.id).length, cls: 'num' }, { h: 'Status', f: (r) => A.badge(r.status || 'Faol', (r.status || 'Faol') === 'Faol' ? 'green' : 'gray') }],
+    fields: [{ name: 'name', label: 'Nomi', required: true }, { name: 'status', label: 'Status', type: 'seg', options: ['Faol', 'Nofaol'], default: 'Faol' }],
+  };
   CRUD.rooms = {
     coll: 'rooms', title: 'Xonalar',
     cols: [{ h: 'Nomi', f: (r) => `<b>${esc(r.name)}</b>` }, { h: "Sig'imi", f: (r) => r.capacity, cls: 'num' }, { h: 'Guruhlar', f: (r) => A.rows('groups').filter((g) => g.room === r.id && A.groupStatus(g) !== 'Nofaol').map((g) => esc(A.groupName(g))).join(', ') }, { h: 'Status', f: (r) => A.badge(r.status, r.status === 'Faol' ? 'green' : 'gray') }],
@@ -76,25 +96,36 @@
   };
   CRUD.patterns = {
     coll: 'dayPatterns', title: 'Dars kunlari',
-    note: "Hafta kunlari ISO raqamlarda saqlanadi (Dushanba = 1 … Yakshanba = 7). AppSheet'dagi WEEKDAY()−1 formati importda shunga o'giriladi.",
-    cols: [{ h: 'Nomi', f: (r) => `<b>${esc(r.name)}</b>` }, { h: 'Kunlar (ISO)', f: (r) => r.weekdays.join(', ') }],
-    fields: [{ name: 'weekdays', label: 'Hafta kunlari', type: 'chips', required: true, options: [1, 2, 3, 4, 5, 6, 7].map((d) => [String(d), A.WD_FULL[d]]) }],
+    note: "Hafta kunlari ISO raqamlarda saqlanadi (Dushanba = 1 … Yakshanba = 7). AppSheet'dagi WEEKDAY()−1 formati importda shunga o'giriladi. Nofaol dars kunlari yangi guruh va lid formalarida chiqmaydi, oydagi dars soni taklifiga kirmaydi. Guruh, lid yoki dars sonida ishlatilganini o'chirib bo'lmaydi — faqat nofaol qilinadi.",
+    cols: [{ h: 'Nomi', f: (r) => `<b>${esc(r.name)}</b>` }, { h: 'Kunlar (ISO)', f: (r) => r.weekdays.join(', ') }, { h: 'Guruhlar', f: (r) => A.rows('groups').filter((g) => g.pattern === r.id).length, cls: 'num' }, { h: 'Status', f: statusBadge }],
+    fields: [{ name: 'weekdays', label: 'Hafta kunlari', type: 'chips', required: true, options: [1, 2, 3, 4, 5, 6, 7].map((d) => [String(d), A.WD_FULL[d]]) }, { name: 'status', label: 'Status', type: 'seg', options: ['Faol', 'Nofaol'], default: 'Faol' }],
     save(x, rec) {
       const wd = x.weekdays.map(Number).sort();
       const name = wd.map((d) => A.WD[d]).join(', ');
-      if (rec) A.patch('dayPatterns', rec.id, { weekdays: wd, name }, 'Dars kunlari', name);
-      else A.insert('dayPatterns', { weekdays: wd, name }, 'Dars kunlari', name);
+      if (rec) A.patch('dayPatterns', rec.id, { weekdays: wd, name, status: x.status }, 'Dars kunlari', name);
+      else A.insert('dayPatterns', { weekdays: wd, name, status: x.status }, 'Dars kunlari', name);
+    },
+    usage: (r) => {
+      const n = (coll) => A.rows(coll).filter((x) => x.pattern === r.id).length;
+      return [[n('groups'), 'guruh'], [n('leads'), 'lid'], [n('lessonFreqs'), 'dars soni yozuvi'], [n('attendance'), 'davomat']].filter(([k]) => k).map(([k, t]) => `${k} ta ${t}`).join(', ');
     },
     check: (x, rec) => (A.rows('dayPatterns').some((p) => p.weekdays.join() === x.weekdays.map(Number).sort().join() && (!rec || p.id !== rec.id)) ? 'Avval kiritilgan, mavjudlarni tekshiring' : ''),
     rows: () => A.rows('dayPatterns').map((p) => ({ ...p, weekdays: p.weekdays.map(String) })),
   };
   CRUD.times = {
     coll: 'lessonTimes', title: 'Dars vaqtlari',
-    cols: [{ h: 'Vaqt', f: (r) => `<b>${r.start} - ${r.end}</b>` }, { h: 'Guruhlar', f: (r) => A.rows('groups').filter((g) => g.time === r.id && A.groupStatus(g) !== 'Nofaol').length, cls: 'num' }],
+    note: "Nofaol dars vaqti yangi guruh va lid formalarida chiqmaydi. Guruh yoki lidda ishlatilganini o'chirib bo'lmaydi — faqat nofaol qilinadi.",
+    label: (r) => `${r.start} - ${r.end}`,
+    cols: [{ h: 'Vaqt', f: (r) => `<b>${r.start} - ${r.end}</b>` }, { h: 'Guruhlar', f: (r) => A.rows('groups').filter((g) => g.time === r.id && A.groupStatus(g) !== 'Nofaol').length, cls: 'num' }, { h: 'Status', f: statusBadge }],
     fields: [
       { name: 'start', label: 'Boshlanish vaqti', type: 'time', required: true, onChange: (x) => { if (x.start) { const [h, m] = x.start.split(':').map(Number); x.end = `${String((h + 2) % 24).padStart(2, '0')}:${String(m).padStart(2, '0')}`; } } },
       { name: 'end', label: 'Tugash vaqti', type: 'time', required: true, show: (x) => x.start, help: 'Standart: boshlanish + 2 soat' },
+      { name: 'status', label: 'Status', type: 'seg', options: ['Faol', 'Nofaol'], default: 'Faol', show: (x) => x.start },
     ],
+    usage: (r) => {
+      const g = A.rows('groups').filter((x) => x.time === r.id).length, l = A.rows('leads').filter((x) => (x.times || []).includes(r.id)).length;
+      return [[g, 'guruh'], [l, 'lid']].filter(([k]) => k).map(([k, t]) => `${k} ta ${t}`).join(', ');
+    },
     check: (x, rec) => (A.rows('lessonTimes').some((t) => t.start === x.start && t.end === x.end && (!rec || t.id !== rec.id)) ? "Avval qo'shilgan vaqt!" : ''),
     extra: () => ({ branch: B() }),
   };
@@ -202,7 +233,7 @@
     const [y, m] = ym.split('-').map(Number);
     const prev = A.addMonths(ym, -1);
     let n = 0;
-    for (const p of A.rows('dayPatterns')) {
+    for (const p of A.rows('dayPatterns').filter(isActive)) {
       if (A.rows('lessonFreqs').some((f) => f.pattern === p.id && f.year === y && f.month === m)) continue;
       const pf = A.rows('lessonFreqs').find((f) => f.pattern === p.id && `${f.year}-${String(f.month).padStart(2, '0')}` === prev);
       A.S.lessonFreqs.push({ id: 'f' + A.uid(), branch: B(), pattern: p.id, courses: pf ? [...pf.courses] : [], year: y, month: m, frequency: A.lessonDaysInMonth(ym, p.weekdays).length, status: 'Taklif', approved_by: '', created_by: 'system', created_at: Date.now() });
@@ -292,9 +323,9 @@
     const OPS = [['v', "ko'rish"], ['a', "qo'shish"], ['e', 'tahrirlash'], ['d', "o'chirish"], ['p', 'tasdiqlash']];
     return `<h2>Rollar va ruxsatlar</h2>
       <p class="muted small">Har katakda: <b>v</b> ko'rish · <b>a</b> qo'shish · <b>e</b> tahrirlash · <b>d</b> o'chirish · <b>p</b> tasdiqlash. ${editable ? 'Harfni bosib yoqing/o\'chiring — menyu darhol o\'zgaradi.' : 'Faqat Admin va Bosh menejer o\'zgartiradi.'} Boshlang'ich qiymatlar AppSheet sozlamalaridan olingan.</p>
-      <div class="tbl-wrap"><table class="tbl perm"><thead><tr><th>Bo'lim</th>${roles.map((r) => `<th>${esc(r.name)}</th>`).join('')}</tr></thead><tbody>
+      <div class="tbl-wrap perm-wrap"><table class="tbl perm"><thead><tr><th>Bo'lim</th>${roles.map((r) => `<th>${esc(r.name)}</th>`).join('')}</tr></thead><tbody>
       ${A.SECTIONS.map(([sec, name]) => `<tr><td>${esc(name)}</td>${roles
-        .map((r) => `<td class="pc">${OPS.map(([o, t]) => `<button class="pbit ${(r.perms[sec] || '').includes(o) ? 'on' : ''}" title="${t}" ${editable ? `data-act="perm" data-id="${r.code}|${sec}|${o}"` : 'disabled'}>${o}</button>`).join('')}</td>`)
+        .map((r) => `<td class="pc">${OPS.map(([o, t]) => `<button class="pbit ${(r.perms[sec] || '').includes(o) ? 'on' : ''}" title="${esc(r.name)} · ${esc(name)} · ${t}" ${editable ? `data-act="perm" data-id="${r.code}|${sec}|${o}"` : 'disabled'}>${o}</button>`).join('')}</td>`)
         .join('')}</tr>`).join('')}
       </tbody></table></div>
       <h3>Tahrirlash va o'chirish muddatlari</h3>
@@ -311,7 +342,12 @@
     r.perms[sec] = cur.includes(op) ? cur.replace(op, '') : cur + op;
     A.log('update', 'Rol ruxsati', `${r.name} · ${sec}`, `${cur || '∅'} → ${r.perms[sec] || '∅'}`);
     A.save();
+    // Qayta chizilganda jadval aylantirilgan joyida qolsin
+    const w = document.querySelector('.perm-wrap'), pos = w && [w.scrollTop, w.scrollLeft], y = window.scrollY;
     A.refresh();
+    const w2 = document.querySelector('.perm-wrap');
+    if (w2 && pos) [w2.scrollTop, w2.scrollLeft] = pos;
+    window.scrollTo(0, y);
   };
 
   /* ===================================================== Audit tarixi */

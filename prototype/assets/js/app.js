@@ -84,6 +84,45 @@
     `<select class="f-input" data-filter="${key}:${name}"><option value="">${esc(all)}</option>${opts
       .map(([k, l]) => `<option value="${esc(k)}" ${String(A.q(key + ':' + name, '')) === String(k) ? 'selected' : ''}>${esc(l)}</option>`)
       .join('')}</select>`;
+  /* ---- Daraxt filtri (AppSheet guruhlash kabi): "Barchasi" va darajalar, har tugunda son yoki summa.
+     opts.levels: [{ key: (r) => qiymat, label: (k) => matn, sort?: (k) => tartib, desc?, hideSingle? }]
+     hideSingle: daraja bitta qiymatli bo'lsa ko'rsatilmaydi (masalan filial bitta bo'lsa).
+     Standart: filial → kurs → guruh, son bilan. ---- */
+  A.TREE_BCG = [
+    { key: (r) => r.branch, label: (k) => A.branchName(k), hideSingle: true },
+    { key: (r) => r.course, label: (k) => A.courseName(k) },
+    { key: (r) => r.group, label: (k) => A.groupName(k), sort: (k) => (A.get('groups', k) || {}).number || 0 },
+  ];
+  const treeSel = (key, opts) => A.q(key + ':tree', opts.def || '');
+  A.treeNav = (key, rows, opts = {}) => {
+    const levels = opts.levels || A.TREE_BCG, value = opts.value || ((rs) => rs.length);
+    const sel = treeSel(key, opts), parts = sel ? sel.split('|') : [];
+    const node = (path, label, v, depth, open) =>
+      `<a class="tree-n${sel === path ? ' on' : ''}" style="padding-left:${10 + depth * 16}px" data-act="tree" data-id="${esc(key)}~${esc(path)}">` +
+      `<span class="tree-tw">${open === null ? '' : open ? '▾' : '▸'}</span><span class="tree-l">${label}</span><span class="tree-c">${v}</span></a>`;
+    let html = node('', 'Barchasi', value(rows), 0, null);
+    const walk = (rs, li, prefix, depth) => {
+      if (li >= levels.length) return;
+      const L = levels[li];
+      const groups = A.sortBy([...A.groupBy(rs, (r) => String(L.key(r)))], ([k]) => (L.sort ? L.sort(k) : L.label(k)), L.desc);
+      if (L.hideSingle && groups.length === 1) return walk(rs, li + 1, [...prefix, groups[0][0]], depth);
+      for (const [k, l] of groups) {
+        const path = [...prefix, k], leaf = li === levels.length - 1;
+        const open = !leaf && path.every((p, i) => parts[i] === p);
+        html += node(path.join('|'), esc(L.label(k)), value(l), depth, leaf ? null : open);
+        if (open) walk(l, li + 1, path, depth + 1);
+      }
+    };
+    walk(rows, 0, [], 1);
+    return `<nav class="side-tabs tree">${html}</nav>`;
+  };
+  /** Daraxtda tanlangan tugun bo'yicha filtrlangan qatorlar */
+  A.treeFilter = (key, rows, opts = {}) => {
+    const levels = opts.levels || A.TREE_BCG, sel = treeSel(key, opts), parts = sel ? sel.split('|') : [];
+    return rows.filter((r) => parts.every((p, i) => String(levels[i].key(r)) === p));
+  };
+  /** Tanlangan tugun chuqurligi (0 = Barchasi) */
+  A.treeDepth = (key, opts = {}) => { const sel = treeSel(key, opts); return sel ? sel.split('|').length : 0; };
   A.match = (text, q) => !q || String(text).toLowerCase().includes(q.toLowerCase());
   A.contractStatusBadge = (s) => A.badge(s, s === 'Faol' ? 'green' : s === 'Nofaol' ? 'red' : 'blue');
   A.attBadge = (s) => `<span class="att att-${s === '-' ? 'n' : s}">${s === '-' ? '–' : s}</span>`;
@@ -276,6 +315,11 @@
     A.save();
     location.hash = '#/dashboard';
     A.render();
+  };
+  A.act.tree = (el) => {
+    const [key, path] = el.dataset.id.split('~');
+    A.ui.q[key + ':tree'] = path;
+    A.refresh();
   };
   A.act.drawer = () => document.body.classList.toggle('drawer-open');
   A.act['drawer-close'] = () => document.body.classList.remove('drawer-open');

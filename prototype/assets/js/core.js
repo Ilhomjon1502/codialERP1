@@ -90,7 +90,7 @@
       const raw = localStorage.getItem(STORE_KEY);
       if (raw) s = JSON.parse(raw);
     } catch (e) { s = null; }
-    if (!s || s.version !== 4) s = A.buildSeed(A.today());
+    if (!s || s.version !== 5) s = A.buildSeed(A.today());
     A.S = s;
     A.recalcAll();
     A.save();

@@ -598,7 +598,7 @@
       const monthSel = `<div class="filters"><select class="f-input" data-filter="sal:month">${A.monthOptions().map(([k, l]) => `<option value="${k}" ${k === ym ? 'selected' : ''}>${l}</option>`).join('')}</select></div>`;
       let body = '';
       if (tab === 'assign') body = monthSel + assignView(ym);
-      else if (tab === 'kpi') body = monthSel + kpiView(ym);
+      else if (tab === 'kpi') body = kpiView();
       else if (tab === 'rates') body = ratesView();
       else if (tab === 'payout') body = payoutView();
       else body = balanceView();
@@ -673,25 +673,41 @@
     A.refresh();
   };
 
-  function kpiView(ym) {
-    const att = A.vis('attendance').filter((a) => A.ym(a.date) === ym);
-    const me = A.S.currentUser;
-    const mine = A.isTeacherRole();
-    const rows = [];
-    const add = (user, role, list, field) => {
-      const byG = A.groupBy(list, (a) => a.group);
-      for (const [g, l] of byG) {
-        const grp = A.get('groups', g);
-        const rate = A.rateFor(grp.branch, user, role, grp.course, ym);
-        rows.push({ user, role, group: g, n: l.length, paid: l.filter((a) => a[field] > 0).length, sum: A.sum(l, field), rate, pending: l.filter((a) => a.no_freq).length });
-      }
-    };
-    const teachers = [...new Set(att.map((a) => a.teacher).filter(Boolean))];
-    const sups = [...new Set(att.map((a) => a.supporter).filter(Boolean))];
-    for (const u of teachers) if (!mine || u === me) add(u, 'USTOZ', att.filter((a) => a.teacher === u), 'tkpi');
-    for (const u of sups) if (!mine || u === me) add(u, 'YORDAMCHI', att.filter((a) => a.supporter === u), 'skpi');
-    return `${A.table(
+  /* Hisoblangan KPI: chapda daraxt (yil → oy → xodim → guruh, KPI summasi bilan), o'ngda jadval */
+  const KPI_LEVELS = [
+    { key: (e) => e.a.branch, label: (k) => A.branchName(k), hideSingle: true },
+    { key: (e) => e.ym.slice(0, 4), label: (k) => k, desc: true },
+    { key: (e) => e.ym, label: (k) => A.ymLabel(k).split(' ')[0], sort: (k) => k, desc: true },
+    { key: (e) => e.user, label: (k) => A.userName(k) },
+    {
+      key: (e) => `${e.a.group}:${e.role}`,
+      label: (k) => { const [g, r] = k.split(':'); return A.groupName(g) + (r === 'YORDAMCHI' ? ' · yordamchi' : ''); },
+      sort: (k) => (A.get('groups', k.split(':')[0]) || {}).number || 0,
+    },
+  ];
+  function kpiView() {
+    const me = A.S.currentUser, mine = A.isTeacherRole();
+    // Har bir davomat qatoridan ustoz KPI va yordamchi KPI alohida yozuv bo'ladi
+    const entries = [];
+    for (const a of A.vis('attendance')) {
+      const ym = A.ym(a.date);
+      if (a.teacher && (!mine || a.teacher === me)) entries.push({ a, ym, user: a.teacher, role: 'USTOZ', kpi: a.tkpi || 0 });
+      if (a.supporter && (!mine || a.supporter === me)) entries.push({ a, ym, user: a.supporter, role: 'YORDAMCHI', kpi: a.skpi || 0 });
+    }
+    const latest = A.sortBy(entries, (e) => e.ym, true)[0];
+    // Standart: oxirgi oy ochiq turadi
+    const opts = { levels: KPI_LEVELS, value: (l) => A.num(A.sum(l, 'kpi')), def: latest ? `${latest.a.branch}|${latest.ym.slice(0, 4)}|${latest.ym}` : '' };
+    const sel = A.treeFilter('kpi', entries, opts);
+    const leaf = A.treeDepth('kpi', opts) === KPI_LEVELS.length;
+    // Jadval: oy + xodim + rol + guruh bo'yicha yig'indi
+    const rows = [...A.groupBy(sel, (e) => `${e.ym}|${e.user}|${e.role}|${e.a.group}`)].map(([, l]) => {
+      const e = l[0], grp = A.get('groups', e.a.group);
+      return { ym: e.ym, user: e.user, role: e.role, group: e.a.group, n: l.length, paid: l.filter((x) => x.kpi > 0).length, sum: A.sum(l, 'kpi'), rate: A.rateFor(grp.branch, e.user, e.role, grp.course, e.ym), pending: l.filter((x) => x.a.no_freq).length };
+    });
+    const manyMonths = new Set(rows.map((r) => r.ym)).size > 1;
+    const table = A.table(
       [
+        ...(manyMonths ? [{ h: 'Oy', f: (r) => A.ymLabel(r.ym) }] : []),
         { h: 'Xodim', f: (r) => `<b>${esc(A.userName(r.user))}</b>` },
         { h: 'Rol', f: (r) => A.badge(r.role === 'USTOZ' ? 'Ustoz' : 'Yordamchi', r.role === 'USTOZ' ? 'blue' : 'gray') },
         { h: 'Guruh', f: (r) => esc(A.groupName(r.group)) },
@@ -699,10 +715,23 @@
         { h: 'Dars qatorlari', f: (r) => `${r.n} <small class="muted">(KPI: ${r.paid})</small>`, cls: 'num' },
         { h: 'KPI', f: (r) => `<b>${A.num(r.sum)}</b>${r.pending ? ` ${A.badge(r.pending + ' ta kutilmoqda', 'orange')}` : ''}`, cls: 'num', sum: (rr) => A.num(A.sum(rr, 'sum')) },
       ],
-      A.sortBy(rows, (r) => A.userName(r.user)),
-      { empty: "Bu oyda KPI yo'q" },
-    )}
-    <p class="muted small">KPI har bir davomat qatori uchun: O'zgarmas — stavka ÷ oydagi dars soni; Foiz — foiz × kurs narxi ÷ oydagi dars soni. Besabab (X), Nofaol (–) va Grant shartnomalar uchun KPI yozilmaydi. «Kutilmoqda» — oydagi dars soni hali tasdiqlanmagan.</p>`;
+      A.sortBy(A.sortBy(rows, (r) => `${A.userName(r.user)}|${r.role}|${A.groupName(r.group)}`), (r) => r.ym, true),
+      { empty: "KPI yo'q" },
+    );
+    // Guruh tanlansa, AppSheet'dagidek har bir davomat qatori ham chiqadi
+    const detail = leaf
+      ? `<h3>Davomat qatorlari</h3>${A.table(
+          [
+            { h: 'Sana', f: (e) => A.fdate(e.a.date) },
+            { h: 'Shartnoma', f: (e) => `<a href="#/contracts/${e.a.contract}">${esc(A.contractName(e.a.contract))}</a>` },
+            { h: 'Status', f: (e) => A.attBadge(e.a.status) },
+            { h: 'KPI', f: (e) => (e.a.no_freq ? A.badge('kutilmoqda', 'orange') : A.num(e.kpi)), cls: 'num', sum: (rr) => A.num(A.sum(rr, 'kpi')) },
+          ],
+          A.sortBy(sel, (e) => e.a.date, true),
+        )}`
+      : '';
+    return `<div class="settings tree-layout">${A.treeNav('kpi', entries, opts)}<div class="settings-body">${table}${detail}
+    <p class="muted small">KPI har bir davomat qatori uchun: O'zgarmas — stavka ÷ oydagi dars soni; Foiz — foiz × kurs narxi ÷ oydagi dars soni. Besabab (X), Nofaol (–) va Grant shartnomalar uchun KPI yozilmaydi. «Kutilmoqda» — oydagi dars soni hali tasdiqlanmagan.</p></div></div>`;
   }
 
   function ratesView() {
@@ -797,7 +826,7 @@
       const last = list[0];
       return { u, last, calc: last ? A.salaryCalc(last) : null };
     }).filter((r) => r.last);
-    return A.table(
+    return `${A.table(
       [
         { h: 'Xodim', f: (r) => `<b>${esc(r.u.full_name)}</b><br><small class="muted">${esc(A.ROLES[r.u.role])}</small>` },
         { h: 'Oxirgi davr', f: (r) => `${A.MONTHS[r.last.month - 1]} ${r.last.year}` },
@@ -805,8 +834,75 @@
         { h: 'Shu oy jami', f: (r) => A.num(r.calc.total), cls: 'num' },
         { h: 'Berilgan', f: (r) => A.num(r.calc.given), cls: 'num' },
         { h: 'Yakuniy balans', f: (r) => `<b class="${r.calc.final > 0 ? 't-orange' : ''}">${A.num(r.calc.final)}</b>`, cls: 'num', sum: (rr) => A.num(A.sum(rr, (r) => r.calc.final)) },
+        { h: '', f: () => '<span class="muted">›</span>' },
       ],
       rows,
-    );
+      { rowAttr: (r) => `class="row-link" data-act="bal-open" data-id="${r.last.id}" title="Batafsil ko'rish"` },
+    )}
+    <p class="muted small">Qatorni bosing — xodimning oylar bo'yicha hisob-kitobi va olgan pullari ochiladi.</p>`;
   }
+
+  /* Xodim balansi: tanlangan oy bo'yicha batafsil hisob-kitob (qoldiq, belgilangan oylik, KPI, berilgan pullar, yakuniy balans) */
+  const balWord = (n) => (n > 0 ? 'xodim haqdor (markaz berishi kerak)' : n < 0 ? "xodim qarzdor (ortiqcha olgan)" : 'hisob teng');
+  const balCls = (n) => (n > 0 ? 't-orange' : n < 0 ? 't-red' : 't-green');
+  A.act['bal-open'] = (el) => {
+    const sa = A.get('salaryAssign', el.dataset.id);
+    const u = A.get('users', sa.user);
+    const c = A.salaryCalc(sa);
+    const history = A.sortBy(A.rows('salaryAssign').filter((x) => x.user === sa.user && x.branch === sa.branch), (x) => x.year * 100 + x.month, true);
+    const payouts = A.sortBy(A.rows('salaryPayouts').filter((p) => p.branch === sa.branch && p.user === sa.user && p.year === sa.year && p.month === sa.month), (p) => p.date);
+    const period = `${A.MONTHS[sa.month - 1]} ${sa.year}`;
+    const line = (label, v, opts = {}) => `<tr><td>${label}</td><td class="num ${opts.cls || ''}">${opts.minus && v ? '− ' : ''}${A.num(v)}</td></tr>`;
+    const body = `
+      <div class="detail-top"><span class="muted">${esc(A.ROLES[u.role])} · ${esc(A.branchName(sa.branch))}</span></div>
+      ${history.length > 1 ? `<div class="filters">${history.map((h) => `<button class="btn sm ${h.id === sa.id ? 'primary' : 'ghost'}" data-act="bal-open" data-id="${h.id}">${A.MONTHS[h.month - 1]} ${h.year}</button>`).join('')}</div>` : ''}
+      <div class="stats">
+        ${A.stat('Avvalgi oylardan', `<span class="${balCls(c.carried)}">${A.num(c.carried)}</span>`, balWord(c.carried))}
+        ${A.stat(`${period} hisoblangan`, A.num(c.total), 'oylik + bonus + KPI − jarima')}
+        ${A.stat('Shu oy berilgan', A.num(c.given), `${payouts.length} ta to'lov`)}
+        ${A.stat('Yakuniy balans', `<span class="${balCls(c.final)}">${A.num(c.final)}</span>`, balWord(c.final), c.final > 0 ? 'warn' : c.final < 0 ? 'danger' : '')}
+      </div>
+      <h3>${period}: hisoblangan oylik</h3>
+      <div class="tbl-wrap"><table class="tbl"><tbody>
+        ${line('Belgilangan oylik (o\'zgarmas)', sa.fixed || 0)}
+        ${line('Bonus', sa.bonus || 0)}
+        ${line('KPI (qo\'lda kiritilgan)', sa.kpi || 0)}
+        ${line(`Ustoz KPI <small class="muted">(davomatdan)</small>`, c.tkpi)}
+        ${line(`Yordamchi KPI <small class="muted">(davomatdan)</small>`, c.skpi)}
+        ${line('Jarima', sa.fine || 0, { minus: true, cls: sa.fine ? 't-red' : '' })}
+      </tbody><tfoot><tr><td><b>Jami hisoblangan</b></td><td class="num"><b>${A.num(c.total)}</b></td></tr></tfoot></table></div>
+      ${sa.comment ? `<p class="muted small">Izoh: ${esc(sa.comment)}</p>` : ''}
+      <h3>${period} uchun berilgan pullar</h3>
+      ${A.table(
+        [
+          { h: 'Sana', f: (p) => A.fdate(p.date) },
+          { h: 'Turi', f: (p) => esc(p.type) },
+          { h: 'Summa', f: (p) => `<b>${A.num(p.amount)}</b>`, cls: 'num', sum: (rr) => A.num(A.sum(rr, 'amount')) },
+          { h: "G'azna", f: (p) => `${esc(A.accName(p.account))} · ${A.CASH[p.cash_type]}` },
+          { h: 'Berdi', f: (p) => esc(A.userName(p.cashier)) },
+          { h: 'Izoh', f: (p) => esc(p.comment || '') },
+        ],
+        payouts,
+        { empty: "Bu oy uchun hali pul berilmagan" },
+      )}
+      <h3>Yakuniy balans</h3>
+      <div class="tbl-wrap"><table class="tbl"><tbody>
+        ${line('Avvalgi oylardan qoldiq', c.carried, { cls: balCls(c.carried) })}
+        ${line(`+ ${period} hisoblangan`, c.total)}
+        ${line(`− ${period} berilgan`, c.given)}
+      </tbody><tfoot><tr><td><b>Yakuniy balans</b> <small class="muted">— ${balWord(c.final)}</small></td><td class="num"><b class="${balCls(c.final)}">${A.num(c.final)}</b></td></tr></tfoot></table></div>
+      ${history.length > 1 ? `<h3>Oylar bo'yicha tarix</h3>${A.table(
+        [
+          { h: 'Davr', f: (h) => `${A.MONTHS[h.month - 1]} ${h.year}` },
+          { h: 'Hisoblangan', f: (h) => A.num(A.salaryBase(h).total), cls: 'num' },
+          { h: 'Berilgan', f: (h) => A.num(A.salaryBase(h).given), cls: 'num' },
+          { h: 'Oy qoldig\'i', f: (h) => { const b = A.salaryBase(h); const d = b.total - b.given; return `<span class="${balCls(d)}">${A.num(d)}</span>`; }, cls: 'num' },
+          { h: 'Yakuniy balans', f: (h) => { const f = A.salaryCalc(h).final; return `<b class="${balCls(f)}">${A.num(f)}</b>`; }, cls: 'num' },
+        ],
+        history,
+        { rowAttr: (h) => `class="row-link" data-act="bal-open" data-id="${h.id}"` },
+      )}` : ''}`;
+    el.closest('.overlay')?.remove(); // oy almashtirilganda eski oyna yopiladi
+    A.modal({ title: `${u.full_name} — xodim balansi`, wide: true, body });
+  };
 })(window.App);

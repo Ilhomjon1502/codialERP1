@@ -257,10 +257,10 @@
       { name: 'social', label: 'Ijtimoiy holati', type: 'select', options: ["Maktab o'quvchisi", 'Oliygoh talabasi', 'Kompaniya xodimi', 'Davlat xizmatchisi', 'Vaqtincha ishsiz'], show: (x) => x.age_group, half: true },
       { name: 'laptop', label: 'Noutbuki bormi?', type: 'seg', options: ['Bor', "Yo'q", 'Sotib oladi'], show: (x) => x.social },
       { name: 'tags', label: 'Teglar', type: 'chips', options: ['VIP', "Chegirma so'radi", "Ota-onasi qo'ng'iroq qiladi", 'Kechki vaqt', 'Hafta oxiri'], show: (x) => x.laptop },
-      { name: 'source', label: 'Manba', type: 'select', options: () => A.optList('leadSources'), required: true, half: true },
+      { name: 'source', label: 'Manba', type: 'select', options: (x) => A.optList('leadSources', 'name', (s) => (s.status || 'Faol') === 'Faol' || s.id === x.source), required: true, half: true },
       { name: 'course', label: 'Kurs', type: 'select', options: () => A.optList('courses', 'name', (c) => c.status === 'Faol' && c.branches.includes(B)), required: true, half: true, resets: ['group'] },
-      { name: 'pattern', label: 'Hafta kunlari', type: 'seg', options: () => A.optList('dayPatterns') },
-      { name: 'times', label: "Ma'qul dars vaqti", type: 'chips', options: () => A.optList('lessonTimes', (t) => `${t.start}-${t.end}`, (t) => t.branch === B) },
+      { name: 'pattern', label: 'Hafta kunlari', type: 'seg', options: (x) => A.optList('dayPatterns', 'name', (p) => (p.status || 'Faol') === 'Faol' || p.id === x.pattern) },
+      { name: 'times', label: "Ma'qul dars vaqti", type: 'chips', options: (x) => A.optList('lessonTimes', (t) => `${t.start}-${t.end}`, (t) => t.branch === B && ((t.status || 'Faol') === 'Faol' || (x.times || []).includes(t.id))) },
       { name: 'status', label: 'Status', type: 'select', options: Object.entries(LS).map(([k, l]) => [k, `${k}. ${l}`]), required: true },
       {
         name: 'group', label: 'Guruh', type: 'select', show: (x) => ['3', '4', '5'].includes(x.status) || (x.group && !['1', '2'].includes(x.status)),

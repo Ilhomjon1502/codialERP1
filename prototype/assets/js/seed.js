@@ -16,7 +16,7 @@
     const B = 'b1';
 
     const S = {
-      version: 4,
+      version: 5,
       seededFor: today,
       settings: { demoToday: null },
       currentUser: null,
@@ -51,16 +51,16 @@
         { id: 'r4', branch: B, name: 'Kompyuter xonasi', capacity: 18, status: 'Faol' },
       ],
       dayPatterns: [
-        { id: 'p1', name: 'Dush, Chor, Jum', weekdays: [1, 3, 5] },
-        { id: 'p2', name: 'Sesh, Pay, Shan', weekdays: [2, 4, 6] },
-        { id: 'p3', name: 'Shan, Yak', weekdays: [6, 7] },
+        { id: 'p1', name: 'Dush, Chor, Jum', weekdays: [1, 3, 5], status: 'Faol' },
+        { id: 'p2', name: 'Sesh, Pay, Shan', weekdays: [2, 4, 6], status: 'Faol' },
+        { id: 'p3', name: 'Shan, Yak', weekdays: [6, 7], status: 'Faol' },
       ],
       lessonTimes: [
-        { id: 't1', branch: B, start: '08:00', end: '10:00' },
-        { id: 't2', branch: B, start: '10:00', end: '12:00' },
-        { id: 't3', branch: B, start: '14:00', end: '16:00' },
-        { id: 't4', branch: B, start: '16:00', end: '18:00' },
-        { id: 't5', branch: B, start: '18:00', end: '20:00' },
+        { id: 't1', branch: B, start: '08:00', end: '10:00', status: 'Faol' },
+        { id: 't2', branch: B, start: '10:00', end: '12:00', status: 'Faol' },
+        { id: 't3', branch: B, start: '14:00', end: '16:00', status: 'Faol' },
+        { id: 't4', branch: B, start: '16:00', end: '18:00', status: 'Faol' },
+        { id: 't5', branch: B, start: '18:00', end: '20:00', status: 'Faol' },
       ],
       coursePrices: [
         { id: 'cp1', branch: B, course: 'c1', effective_from: '2026-01', price: 550000 },
@@ -99,8 +99,8 @@
         { id: 'e8', name: 'Kredit foizi', kind: 'Tashqi qarz', allowed_roles: ['ADMIN', 'BOSH_MENEJER'] },
       ],
       leadSources: [
-        { id: 's1', name: 'Instagram' }, { id: 's2', name: 'Telegram' }, { id: 's3', name: 'Tanish-bilish' },
-        { id: 's4', name: 'Banner / flayer' }, { id: 's5', name: 'Sayt' }, { id: 's6', name: 'Qayta murojaat' },
+        { id: 's1', name: 'Instagram', status: 'Faol' }, { id: 's2', name: 'Telegram', status: 'Faol' }, { id: 's3', name: 'Tanish-bilish', status: 'Faol' },
+        { id: 's4', name: 'Banner / flayer', status: 'Faol' }, { id: 's5', name: 'Sayt', status: 'Faol' }, { id: 's6', name: 'Qayta murojaat', status: 'Faol' },
       ],
       accounts: [
         { id: 'acc1', name: "Emirat g'azna", responsible: ['u2', 'u5', 'u6'], cash_type: 'ALL', initial: 8000000, status: 'Faol', start: '2026-09-01' },
@@ -417,6 +417,17 @@
       created_by: 'u7', created_at: ts('2026-09-30', 18),
     });
     S.parentCalls.push({ id: 'pc1', branch: B, course: 'c1', group: 'g1', contract: g1c[4].id, date: A.addDays(today, -2), comment: "Darsga 2 marta kelmadi, ota-onasi bilan gaplashildi", created_by: 'u4', created_at: ts(A.addDays(today, -2)) });
+    // Har bir guruhdan 1–3 ta qo'ng'iroq: "Ota-onalar bilan aloqa" daraxtida kurs → guruh bo'yicha ko'rinsin
+    const PC_TEXT = ["Qarzini eslatdik, hafta oxirigacha to'laydi", "O'zlashtirishi yaxshi, maqtadik", "Uy vazifasini bajarmayapti, nazorat qilishni so'radik", 'Kech qolib kelyapti, sababini aytdi', "Telefon ko'tarmadi, SMS yuborildi", 'Kurs tugagach davom ettirmoqchi'];
+    let pcid = 1;
+    for (const g of S.groups) {
+      const cs = S.contracts.filter((c) => c.group === g.id && !c.end);
+      const n = Math.min(cs.length, 1 + Math.floor(R() * 3));
+      for (let i = 0; i < n; i++) {
+        const d = A.addDays(today, -Math.floor(R() * 30) - 1);
+        S.parentCalls.push({ id: 'pc' + ++pcid, branch: B, course: g.course, group: g.id, contract: cs[i].id, date: d, comment: pick(PC_TEXT), created_by: pick(['u3', 'u4', 'u5']), created_at: ts(d) });
+      }
+    }
     S.discount50.push({ id: 'dc1', branch: B, date: '2026-09-05', group: 'g3', contract: S.contracts.filter((c) => c.group === 'g3')[2].id, month: 9, year: 2026, discount_type: 'd1', created_by: 'u3', created_at: ts('2026-09-05') });
 
     S.audit.push({ id: 'au0', at: ts('2026-09-01', 7), user: 'u1', action: 'import', model: 'Tizim', obj: '', detail: "AppSheet'dan import: Emirat filiali, boshlang'ich qoldiqlar (o'tish sanasi 01.09.2026)" });

@@ -251,12 +251,13 @@ Diqqat: AppSheet'da `Exchange`, `CommentToCreditors`, `Parent_Comment`, `Discoun
   - `role` (FK Role; tanlov ro'yxati `RolePower` bo'yicha), `branches` (M2M; Admin va Bosh menejerda bo'sh = hammasi);
   - `teams` (ko'p tanlov: Qabul, Marketing, Moliya, HR, Ta'lim, Boshqa, Qurilish va ta'mirlash, IT, Ta'minot);
   - `employment_status` (Faol / Ishdan ketgan). Ishdan ketgan xodim kira olmaydi, tarixi saqlanadi;
-  - `BOSHQA` rolida email va login bo'lmaydi.
+  - `BOSHQA` rolida email va login bo'lmaydi;
+  - **parol (tasdiqlangan, 2026-10-12):** admin xodimga parol bermaydi. Xodim qo'shilganda uning pochtasiga bir martalik "parol o'rnatish" havolasi yuboriladi (Django `PasswordResetTokenGenerator`, muddatli). Xodim parolini o'zi qo'yadi. Admin "Havolani qayta yuborish" tugmasi bilan yangisini jo'nata oladi. Buning uchun SMTP pochta sozlanadi (`.env`).
 - **Course:** `name` (unique), `branches` (M2M), `status` (Faol/Nofaol, standart Faol).
 - **Room:** `branch`, `name`, `capacity`, `status` (standart Faol).
-- **DayPattern** (LessonDays): `name` (masalan "Dush,Chor,Jum"), `weekdays` (ISO raqamlar ro'yxati, unique).
+- **DayPattern** (LessonDays): `name` (masalan "Dush,Chor,Jum"), `weekdays` (ISO raqamlar ro'yxati, unique), `status` (Faol/Nofaol, standart Faol). Nofaol jadval yangi guruh va lid formalarida chiqmaydi va oydagi dars soni taklifiga kirmaydi. Guruh, lid, dars soni yoki davomatda ishlatilmagan bo'lsa o'chirish mumkin, aks holda faqat nofaol qilinadi.
   - AppSheet `Days.DayNumber` va `WEEKDAY()-1` ishlatgan: yakshanba=0, dushanba=1 … shanba=6. ISO'da dushanba=1 … yakshanba=7, ya'ni faqat **yakshanba** farq qiladi (0 → 7). Importda shunday o'girilsin.
-- **LessonTime:** `branch`, `start_time`, `end_time` (standart start + 2 soat), (branch, start, end) unique (xato: "Avval qo'shilgan vaqt!"). Ko'rinishi "08:00 - 10:00".
+- **LessonTime:** `branch`, `start_time`, `end_time` (standart start + 2 soat), (branch, start, end) unique (xato: "Avval qo'shilgan vaqt!"), `status` (Faol/Nofaol, standart Faol). Ko'rinishi "08:00 - 10:00". Nofaol vaqt yangi guruh va lid formalarida chiqmaydi. Guruh yoki lidda ishlatilmagan bo'lsa o'chirish mumkin, aks holda faqat nofaol qilinadi.
 - **CoursePrice** (yangi mantiq):
   - maydonlar: `branch`, `course`, `effective_from` (oyning 1-kuni), `price` (≥ 0);
   - oy uchun narx = shu oyda amalda bo'lgan oxirgi yozuv;
@@ -273,7 +274,7 @@ Diqqat: AppSheet'da `Exchange`, `CommentToCreditors`, `Parent_Comment`, `Discoun
   - yordamchiga menejer alohida (odatda arzonroq) stavka belgilaydi.
 - **DiscountType:** `name` (unique, xato: "Avval qo'shilgan nom!"), `max_amount` (≥ 0), `courses` (M2M, ixtiyoriy), `is_system` (masalan "Boshlang'ich balansga", oddiy tanlovda ko'rinmaydi), `is_discount50` (50% chegirma turi; qattiq yozilgan `914bea1a` o'rniga). Hozirgi turlar: 50% Chegirma (500 000), Rag'batlantiruvchi (350 000), Boshlang'ich balansga (500 000), Ikki va undan ortiq farzand (100 000), Avvaldan to'lov (75 000).
 - **ExpenseCategory:** `name`, `kind` (Xarajat / Qayta investitsiya / Dividend / Tashqi qarz), `allowed_roles` (M2M). AppSheet'da `kind` faqat 3 qiymatli edi, "Tashqi qarz" yangi.
-- **LeadSource:** `name`.
+- **LeadSource:** `name`, `status` (Faol/Nofaol, standart Faol). Nofaol manba yangi lid formasida chiqmaydi, eski lidlar, filtrlar va statistikada qoladi.
 - **CashType:** `CASH` (Naqd), `BANK` (Bank), `CARD` (Karta). `ALL` faqat g'azna turi sifatida ishlatiladi, to'lov yoki xarajatda tanlanmaydi.
 - **AttendanceStatus:** `KELDI="1"`, `SABABLI="0"`, `BESABAB="X"`, `NOFAOL="-"`. Har bir status uchun uni qo'ya oladigan rollar sozlanadi.
 
@@ -341,7 +342,7 @@ Diqqat: AppSheet'da `Exchange`, `CommentToCreditors`, `Parent_Comment`, `Discoun
   - sessiya: `branch`, `teacher`, `course`, `group`, `date`, `comment`;
   - har bir talaba (guruhdagi faol shartnoma): davomat bali (1–20), vazifa bali (1–40), oy yakuniy bali (1–500), jami, izoh;
   - bir sessiyada bir talaba bir marta baholanadi.
-- **ParentCall** (Parent_Comment): `branch`, `course`, `group`, `contract`, `date`, `comment`. Telefonlar talabadan olinadi, qo'ng'iroq (`tel:`) va SMS (`sms:`) havolalari ko'rsatiladi. Ota-ona sahifasida farzandlari va qo'ng'iroqlar tarixi chiqadi.
+- **ParentCall** (Parent_Comment): `branch`, `course`, `group`, `contract`, `date`, `comment`. Telefonlar (1- va 2-telefon, vasiy) talabadan olinadi, qo'ng'iroq (`tel:`) va SMS (`sms:`) havolalari ko'rsatiladi. Ro'yxat sahifasida chapda AppSheet'dagidek daraxt: **Barchasi → (filial) → kurs → guruh**, har birida yozuvlar soni; bosilgan tugun bo'yicha jadval filtrlanadi (filial bitta bo'lsa filial darajasi ko'rinmaydi). Izohni tahrirlash (sana va izoh; kurs, guruh, talaba o'zgarmaydi) va o'chirish (soft delete) mumkin. Tahrirlangan izoh ostida kichik yozuv: "✎ {kim} · {sana vaqt}", "Kim" ustunida qo'shgan shaxs va vaqti. Muddatlar 6.4 bo'yicha; o'chirish hozircha faqat Admin va Bosh menejerda. Ota-ona sahifasida farzandlari va qo'ng'iroqlar tarixi chiqadi.
 - **Discount50:** `branch`, `date`, `group` (faol), `contract` (guruhdagi faol), `month`, `discount_type` (faqat `is_discount50`). Guruhda ≥ 3 faol o'quvchi bo'lishi shart (xato: "Guruhdagi o'quvchilar soni 3 tadan kam bo'lmasligi kerak"). Bir shartnomaga bir oyda bitta yozuv. Batafsil qoida 18-bo'limda so'raladi.
 
 ### 7.5 Moliya
@@ -737,6 +738,14 @@ Buyurtmachi prototipni umumiy holda ma'qulladi, "bir-ikki detal" o'zgaradi. **Ro
 | 1 | Yangi lid formasida talabaning **ikkala telefoni** majburiy (1- va 2-telefon yonma-yon; bir xil bo'lmasin). 18-bo'lim 13-savolga javob: lid orqali yangi talabada 2-telefon majburiy | Lidlar → Yangi lid / `pages-crm.js` (`A.leadForm`) | ✅ |
 | 2 | Yangi lidning standart statusi **"2. Yangi guruhga kutyapti"** (avval 1 edi) | Lidlar → Yangi lid / `pages-crm.js` (`A.leadForm`) | ✅ |
 | 3 | Lid formasida "Sharif" o'rniga **"Izoh"** (ixtiyoriy, lidning birinchi izohi bo'lib saqlanadi). Dublikat tekshiruvi endi: shu filialda ism + familiya bir xil **va** telefonlardan biri mos. Sharif keyin "Talaba ma'lumotlarini to'ldirish" formasida kiritiladi | Lidlar → Yangi lid / `pages-crm.js` (`A.leadForm`) | ✅ |
+| 4 | Lid manbalariga **Faol / Nofaol** holati. Nofaol manba (masalan "Qayta murojaat") yangi lid formasida chiqmaydi; eski lidlarda va statistikada qoladi | Sozlamalar → Lid manbalari, Lidlar → Yangi lid / `pages-admin.js` (`CRUD.sources`), `pages-crm.js` | ✅ |
+| 5 | Dars kunlariga **Faol / Nofaol** va **o'chirish** (🗑). Ishlatilgan (guruh, lid, dars soni, davomat) yozuvni o'chirib bo'lmaydi — faqat nofaol. O'chirish tugmasi umumiy: boshqa ma'lumotnomaga `usage` qo'shilsa unda ham chiqadi | Sozlamalar → Dars kunlari / `pages-admin.js` (`CRUD.patterns`, `crud-del`), `pages-crm.js`, `pages-edu.js` | ✅ |
+| 6 | Dars vaqtlariga ham **Faol / Nofaol** va **o'chirish** (dars kunlari kabi). Guruh yoki lidda ishlatilgan vaqtni o'chirib bo'lmaydi — faqat nofaol | Sozlamalar → Dars vaqtlari / `pages-admin.js` (`CRUD.times`), `pages-crm.js`, `pages-edu.js` | ✅ |
+| 7 | Ota-onalar bilan aloqa: chapda **kurs → guruh daraxti** ("Barchasi" bilan, sonlari bilan), bosilganda jadval filtrlanadi. Aloqa ustunida 2-telefon ham chiqadi. Daraxt umumiy komponent (`A.treeNav` / `A.treeFilter`), boshqa ro'yxatlarga ham qo'shsa bo'ladi. Seed v5: har guruhdan qo'ng'iroqlar | Ota-onalar bilan aloqa / `pages-edu.js`, `app.js`, `style.css`, `seed.js` | ✅ |
+| 8 | Ota-onalar bilan aloqa: izohni **tahrirlash** (✎) va **o'chirish** (🗑). Tahrirlagan kishi va vaqti izoh ostida kichik yozuv bilan; tahrirlash formasida "Qo'shgan / Oxirgi tahrir" ko'rsatiladi. Hammasi audit'ga yoziladi | Ota-onalar bilan aloqa / `pages-edu.js` | ✅ |
+| 9 | Rollar va ruxsatlar jadvali: **rol nomlari (sarlavha) va bo'limlar (1-ustun) qotib turadi**, faqat kataklar o'zi aylanadi (ekran balandligiga sig'adi). Katak bosilganda jadval joyidan siljimaydi; katak ustida "rol · bo'lim · amal" yozuvi chiqadi | Sozlamalar → Rollar va ruxsatlar / `pages-admin.js` (`rolesView`, `A.act.perm`), `style.css` (`.perm-wrap`) | ✅ |
+| 10 | Oyliklar → Hisoblangan KPI: chapda AppSheet'dagidek **daraxt: Barchasi → yil → oy → xodim → guruh**, har tugunda **KPI summasi**. Standart holatda oxirgi oy ochiq. Bosilgan tugun bo'yicha jadval filtrlanadi (bir necha oy bo'lsa "Oy" ustuni chiqadi); guruh tanlansa har bir davomat qatori (sana, shartnoma, status, KPI) ham chiqadi. Oy tanlash ro'yxati bu tabda olib tashlandi. Daraxt komponenti endi darajalari sozlanadigan (`A.treeNav(key, rows, { levels, value, def })`) | Oyliklar → Hisoblangan KPI / `pages-fin.js` (`kpiView`, `KPI_LEVELS`), `app.js`, `style.css` | ✅ |
+| 11 | Oyliklar → Xodim balansi: qatorni bosganda **batafsil oyna**: oy tanlash tugmalari; 4 ta karta (avvalgi oylardan qoldiq — haqdor/qarzdor, shu oy hisoblangan, shu oy berilgan, yakuniy balans); hisoblangan oylik tarkibi (belgilangan, bonus, qo'lda KPI, ustoz KPI, yordamchi KPI, − jarima); shu oy berilgan pullar ro'yxati (sana, turi, summa, g'azna, kim berdi, izoh); yakuniy balans hisobi; oylar bo'yicha tarix. Musbat balans = xodim haqdor, manfiy = xodim qarzdor | Oyliklar → Xodim balansi / `pages-fin.js` (`balanceView`, `bal-open`), `style.css` | ✅ |
 | — | (qolganlari buyurtmachidan kutilmoqda) | | |
 
 ### 20.7 GitHub

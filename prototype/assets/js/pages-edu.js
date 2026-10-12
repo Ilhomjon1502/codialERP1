@@ -36,8 +36,8 @@
       values: g ? { ...g } : { branch: B, start: A.today() },
       fields: [
         { name: 'course', label: 'Kurs', type: 'select', required: true, readonly: () => !isNew && A.role() !== 'ADMIN', options: () => A.optList('courses', 'name', (c) => c.status === 'Faol'), help: isNew ? '' : "Kursni faqat Admin o'zgartiradi" },
-        { name: 'pattern', label: 'Dars kunlari', type: 'seg', required: true, show: (x) => x.course, options: () => A.optList('dayPatterns') },
-        { name: 'time', label: 'Dars vaqti', type: 'seg', required: true, show: (x) => x.pattern, options: () => A.optList('lessonTimes', (t) => `${t.start}-${t.end}`, (t) => t.branch === B) },
+        { name: 'pattern', label: 'Dars kunlari', type: 'seg', required: true, show: (x) => x.course, options: (x) => A.optList('dayPatterns', 'name', (p) => (p.status || 'Faol') === 'Faol' || p.id === x.pattern) },
+        { name: 'time', label: 'Dars vaqti', type: 'seg', required: true, show: (x) => x.pattern, options: (x) => A.optList('lessonTimes', (t) => `${t.start}-${t.end}`, (t) => t.branch === B && ((t.status || 'Faol') === 'Faol' || t.id === x.time)) },
         { name: 'teacher', label: 'Ustoz', type: 'select', required: true, show: (x) => x.time, options: () => A.S.users.filter((u) => ['USTOZ', 'USTOZ_YORDAMCHI'].includes(u.role) && u.status === 'Faol').map((u) => [u.id, u.full_name]) },
         { name: 'supporter', label: 'Yordamchi ustoz (ixtiyoriy)', type: 'select', show: (x) => x.teacher, options: (x) => A.S.users.filter((u) => ['YORDAMCHI', 'USTOZ_YORDAMCHI'].includes(u.role) && u.id !== x.teacher).map((u) => [u.id, u.full_name]), placeholder: "Yo'q" },
         {
@@ -613,39 +613,63 @@
     title: 'Ota-onalar bilan aloqa',
     section: 'parentCalls',
     render() {
-      const rows = A.sortBy(A.vis('parentCalls'), (r) => r.date, true);
+      const all = A.sortBy(A.vis('parentCalls'), (r) => r.date, true);
+      const rows = A.treeFilter('pcalls', all);
       return `${A.head('Ota-onalar bilan aloqa', "Qo'ng'iroq va SMS havolalari talaba va vasiy telefonidan olinadi", A.can('parentCalls', 'a') ? A.btn('Yangi yozuv', 'pcall-new', { icon: 'plus' }) : '')}
-        ${A.table(
+        <div class="settings tree-layout">${A.treeNav('pcalls', all)}<div class="settings-body">${A.table(
           [
             { h: 'Sana', f: (r) => A.fdate(r.date) },
             { h: 'Talaba', f: (r) => { const c = A.get('contracts', r.contract); return `<a href="#/contracts/${c.id}">${esc(A.studentName(c.student))}</a><br><small class="muted">${esc(A.groupName(r.group))}</small>`; } },
-            { h: 'Aloqa', f: (r) => { const st = A.get('students', A.get('contracts', r.contract).student); const p = A.get('parents', st.parent); return `<a href="tel:+998${st.phone1}">📞 ${st.phone1}</a> · <a href="sms:+998${st.phone1}">SMS</a>${p ? `<br><small>Vasiy: <a href="tel:+998${p.phone}">${esc(p.first_name)} ${p.phone}</a></small>` : ''}`; } },
-            { h: 'Izoh', f: (r) => esc(r.comment) },
-            { h: 'Kim', f: (r) => esc(A.userName(r.created_by)) },
+            { h: 'Aloqa', f: (r) => { const st = A.get('students', A.get('contracts', r.contract).student); const p = A.get('parents', st.parent); return `<a href="tel:+998${st.phone1}">📞 ${st.phone1}</a> · <a href="sms:+998${st.phone1}">SMS</a>${st.phone2 ? `<br><a href="tel:+998${st.phone2}">📞 ${st.phone2}</a> · <a href="sms:+998${st.phone2}">SMS</a>` : ''}${p ? `<br><small>Vasiy: <a href="tel:+998${p.phone}">${esc(p.first_name)} ${p.phone}</a></small>` : ''}`; } },
+            { h: 'Izoh', f: (r) => `${esc(r.comment)}${r.updated_by ? `<br><small class="muted">✎ ${esc(A.userName(r.updated_by))} · ${A.fdt(r.updated_at)}</small>` : ''}` },
+            { h: 'Kim', f: (r) => `${esc(A.userName(r.created_by))}<br><small class="muted">${A.fdt(r.created_at)}</small>` },
+            {
+              h: '', f: (r) => {
+                const ed = A.canEdit('parentCalls', r), del = A.canEdit('parentCalls', r, 'date', 'd');
+                return `<span style="white-space:nowrap">${A.can('parentCalls', 'e') ? `<button class="btn sm ghost" data-act="pcall-edit" data-id="${r.id}" title="${ed.ok ? 'Tahrirlash' : esc(ed.why)}" ${ed.ok ? '' : 'disabled'}>✎</button>` : ''}${A.can('parentCalls', 'd') ? ` <button class="btn sm ghost" data-act="pcall-del" data-id="${r.id}" title="${del.ok ? "O'chirish" : esc(del.why)}" ${del.ok ? '' : 'disabled'}>🗑</button>` : ''}</span>`;
+              },
+            },
           ],
           rows,
           { empty: "Yozuv yo'q" },
-        )}`;
+        )}</div></div>`;
     },
   });
-  A.act['pcall-new'] = () =>
+  const pcallForm = (rec) =>
     A.form({
-      title: 'Ota-ona bilan aloqa',
-      values: { date: A.today() },
+      title: rec ? 'Izohni tahrirlash' : 'Ota-ona bilan aloqa',
+      values: rec ? { ...rec } : { date: A.today() },
       fields: [
-        { name: 'course', label: 'Kurs', type: 'select', required: true, resets: ['group'], options: () => A.optList('courses') },
-        { name: 'group', label: 'Guruh', type: 'select', required: true, show: (x) => x.course, resets: ['contract'], options: (x) => A.vis('groups').filter((g) => g.course === x.course && A.groupStatus(g) === 'Faol').map((g) => [g.id, A.groupName(g)]) },
-        { name: 'contract', label: 'Talaba', type: 'select', required: true, show: (x) => x.group, options: (x) => A.activeContractsOf(x.group).map((c) => [c.id, A.studentName(c.student)]) },
-        { name: 'phones', label: 'Telefonlar', type: 'computed', show: (x) => x.contract, compute: (x) => { const st = A.get('students', A.get('contracts', x.contract).student); const p = A.get('parents', st.parent); return `<a href="tel:+998${st.phone1}">+998 ${st.phone1}</a>${st.phone2 ? ', ' + st.phone2 : ''}${p ? ` · vasiy ${esc(p.first_name)}: <a href="tel:+998${p.phone}">${p.phone}</a>` : ''}`; } },
-        { name: 'date', label: 'Sana', type: 'date', show: (x) => x.contract },
+        { name: 'course', label: 'Kurs', type: 'select', required: true, readonly: () => !!rec, resets: ['group'], options: () => A.optList('courses') },
+        { name: 'group', label: 'Guruh', type: 'select', required: true, readonly: () => !!rec, show: (x) => x.course, resets: ['contract'], options: (x) => A.vis('groups').filter((g) => g.course === x.course && (A.groupStatus(g) === 'Faol' || g.id === x.group)).map((g) => [g.id, A.groupName(g)]) },
+        { name: 'contract', label: 'Talaba', type: 'select', required: true, readonly: () => !!rec, show: (x) => x.group, options: (x) => (rec ? [A.get('contracts', rec.contract)] : A.activeContractsOf(x.group)).map((c) => [c.id, A.studentName(c.student)]) },
+        { name: 'phones', label: 'Telefonlar', type: 'computed', show: (x) => x.contract, compute: (x) => { const st = A.get('students', A.get('contracts', x.contract).student); const p = A.get('parents', st.parent); return `<a href="tel:+998${st.phone1}">+998 ${st.phone1}</a>${st.phone2 ? `, <a href="tel:+998${st.phone2}">+998 ${st.phone2}</a>` : ''}${p ? ` · vasiy ${esc(p.first_name)}: <a href="tel:+998${p.phone}">${p.phone}</a>` : ''}`; } },
+        { name: 'date', label: 'Sana', type: 'date', show: (x) => x.contract, validate: (t) => (t > A.today() ? "Kelajak sana bilan kiritib bo'lmaydi" : '') },
         { name: 'comment', label: 'Izoh', type: 'textarea', required: true, show: (x) => x.contract },
+        { name: 'author', type: 'note', show: () => !!rec, text: () => `Qo'shgan: <b>${esc(A.userName(rec.created_by))}</b> · ${A.fdt(rec.created_at)}${rec.updated_by ? `<br>Oxirgi tahrir: <b>${esc(A.userName(rec.updated_by))}</b> · ${A.fdt(rec.updated_at)}` : ''}` },
       ],
       onSubmit(x) {
-        const g = A.get('groups', x.group);
-        A.insert('parentCalls', { branch: g.branch, course: x.course, group: x.group, contract: x.contract, date: x.date, comment: x.comment }, 'Ota-ona bilan aloqa');
+        const label = A.studentName(A.get('contracts', x.contract).student);
+        if (rec) {
+          A.patch('parentCalls', rec.id, { date: x.date, comment: x.comment }, 'Ota-ona bilan aloqa', label);
+          A.toast('Saqlandi');
+        } else {
+          const g = A.get('groups', x.group);
+          A.insert('parentCalls', { branch: g.branch, course: x.course, group: x.group, contract: x.contract, date: x.date, comment: x.comment }, 'Ota-ona bilan aloqa', label);
+        }
         A.refresh();
       },
     });
+  A.act['pcall-new'] = () => pcallForm(null);
+  A.act['pcall-edit'] = (el) => pcallForm(A.get('parentCalls', el.dataset.id));
+  A.act['pcall-del'] = async (el) => {
+    const r = A.get('parentCalls', el.dataset.id);
+    const label = A.studentName(A.get('contracts', r.contract).student);
+    if (!(await A.confirm(`${esc(label)} — ${A.fdate(r.date)} dagi izoh o'chirilsinmi?<br><small class="muted">«${esc(r.comment)}»</small>`, "O'chirish", true))) return;
+    A.softDelete('parentCalls', r.id, 'Ota-ona bilan aloqa', label);
+    A.toast("O'chirildi");
+    A.refresh();
+  };
 
   /* ===================================================== 50% chegirmalar */
   A.page('discount50', {
