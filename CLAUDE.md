@@ -7,18 +7,22 @@
 
 ## 0. Joriy holat (2026-10-11) — yangi kelgan dasturchi shu yerdan boshlasin
 
-**Qisqasi:** Django kodi hali yozilmagan. Tayyor bo'lgani — **bosiladigan HTML prototip** (`prototype/` papkasi). Buyurtmachi uni ko'rib chiqdi va **umumiy holda ma'qulladi**, lekin bir-ikki detalni o'zgartirmoqchi (ro'yxati keyin beriladi, 20.6-bo'limga yoziladi).
+**Qisqasi (2026-10-12 yangilangan):** M1 bajarildi — `backend/` (Django + DRF, `/api/v1/`) va `frontend/` (prototip ekranlari API'ga ulangan). Ishga tushirish: `README.md`, reja: `docs/architecture.md`, server: `docs/deploy_hetzner.md`. Quyidagi matnning bir qismi M1 dan oldingi holatni tasvirlaydi.
+
+**Avvalgi holat:** Django kodi hali yozilmagan edi. Tayyor bo'lgani — **bosiladigan HTML prototip** (`prototype/` papkasi). Buyurtmachi uni ko'rib chiqdi va **umumiy holda ma'qulladi**, lekin bir-ikki detalni o'zgartirmoqchi (ro'yxati keyin beriladi, 20.6-bo'limga yoziladi).
 
 | Bosqich | Holat |
 |---|---|
 | AppSheet tahlili, shu CLAUDE.md | ✅ tayyor |
 | Bosiladigan prototip (dizayn + jarayonlar + hisob-kitob) | ✅ tayyor, buyurtmachi ma'qullagan |
-| Prototipdagi detallarni tuzatish | ⏳ buyurtmachi ro'yxat beradi |
+| Prototipdagi detallarni tuzatish | ✅ tayyor (20.6, 1–11), 2026-10-12 |
+| Arxitektura va ishga tushirish rejasi (`docs/architecture.md`) | ✅ arxitektura va server tasdiqlandi; bosqichlar rejasi va ochiq savollar takliflari ko'rib chiqilmoqda |
 | 18-bo'limdagi ochiq savollarga javob | ⏳ kutilmoqda |
-| Django kodi (M1 → M11) | ⛔ boshlanmagan |
+| M1 — asos (backend + API, kirish/parol, rollar, Sozlamalar, Audit, front-end ulandi) | ✅ kod va testlar tayyor (2026-10-12); Hetzner server kutilmoqda |
+| M2 → M11 | ⏳ navbatda |
 
 - **Saytni ko'rish:** https://ilhomjon1502.github.io/codialERP1/ (GitHub Pages, `main` branch). Lokal: `python -m http.server 5510 --directory prototype` → http://localhost:5510
-- **Buyurtmachi aytmaguncha Django kodini yozishni boshlama.** Hozirgi ish — prototipdagi o'zgarishlar.
+- Django kodi buyurtmachi ruxsati bilan boshlandi (2026-10-12, M1). Keyingi bosqich ham buyurtmachi «boshla» deganda boshlanadi.
 - Kod yozishga ruxsat berilgach, 3-bo'limdagi tartib bilan ish boshlanadi: tuzilma → ER-diagramma → bosqichlar rejasi → ochiq savollar → tasdiq → M1.
 - Prototip haqida hamma narsa — **20-bo'limda**.
 
@@ -69,7 +73,8 @@ JSON tuzilmasi: `[{t: "H2"|"H3"|"H4"|"table", text|rows}]` ro'yxati. Jadval blok
 |---|---|
 | Til / framework | Python 3.12, Django 5.x |
 | Ma'lumotlar bazasi | PostgreSQL 16 (asosiy). Kod Django ORM orqali yoziladi va PythonAnywhere bepul tarifidagi MySQL'da ham ishlaydi. PostgreSQL'ga xos funksiyalar faqat zarur bo'lsa va zaxira yechim bilan |
-| Frontend | Django shablonlari + oddiy HTML/CSS/JS. Murakkab sahifalarda (davomat ekrani, dashboard, AI chat) **faqat zarur bo'lsa** React "island" (Vite). SPA emas |
+| Backend API | **Django REST Framework**, `/api/v1/`, sessiya + CSRF (bir domen, CORS yo'q). Tasdiqlangan 2026-10-12, `docs/architecture.md` |
+| Frontend | **Ma'qullangan prototip** (`prototype/` → `frontend/`) API'ga ulanadi: oddiy HTML/CSS/JS, framework va build yo'q. Hisob-kitob front-end'da emas, serverda |
 | Diagrammalar | Chart.js |
 | Dizayn | Responsive (telefon + kompyuter), PWA. Brend ranglari: qora, oq, to'q sariq (Codial logotipi) |
 | PDF / Excel | WeasyPrint yoki xhtml2pdf (chek), openpyxl (Excel) |
@@ -77,7 +82,7 @@ JSON tuzilmasi: `[{t: "H2"|"H3"|"H4"|"table", text|rows}]` ro'yxati. Jadval blok
 | Telegram | aiogram yoki python-telegram-bot |
 | Testlar | pytest + pytest-django, factory_boy |
 | Kod sifati | ruff, black, pre-commit |
-| Deploy | 1: PythonAnywhere bepul (test). 2: Hetzner VPS, Docker Compose |
+| Deploy | Hetzner VPS, Docker Compose: `test.` subdomen (M1 dan) va asosiy domen (M11 dan) bitta serverda |
 | Sozlamalar | `LANGUAGE_CODE="uz"`, `TIME_ZONE="Asia/Tashkent"`, pul butun so'mda: `DecimalField(max_digits=14, decimal_places=0)` |
 
 ## 5. Loyiha tuzilmasi va konventsiyalar

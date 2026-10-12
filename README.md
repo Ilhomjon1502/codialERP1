@@ -2,30 +2,56 @@
 
 Codial IT o'quv markazi (Farg'ona) uchun boshqaruv tizimi. Hozirgi AppSheet ilovasi ("Codial 1.0") o'rniga tez va qulay veb-tizim qurilmoqda.
 
-## 👉 Prototipni ko'rish
-
-**https://ilhomjon1502.github.io/codialERP1/**
-
-Kirish sahifasida xodimni tanlang (parol kerak emas). O'ng yuqoridagi ismni bosib, boshqa rollar bilan ham kirib ko'ring: Bosh menejer, Administrator, Ustoz va boshqalar. Telefonda ham ochiladi.
-
-> Bu — **prototip**: tizim qanday ko'rinishi va ishlashini ko'rsatadi. Ichidagi talabalar, to'lovlar va xodimlar **soxta (sinov) ma'lumotlar**. Siz kiritgan narsalar faqat sizning brauzeringizda saqlanadi.
-
-## Loyiha holati
+## Holat
 
 | Bosqich | Holat |
 |---|---|
-| AppSheet tizimini tahlil qilish | ✅ tayyor |
-| Bosiladigan prototip (dizayn va jarayonlar) | ✅ tayyor, ma'qullangan |
-| Prototipdagi kichik o'zgarishlar | ⏳ jarayonda |
-| Haqiqiy tizim (Django + PostgreSQL) | ⏳ keyingi bosqich |
+| AppSheet tahlili, prototip va uning o'zgarishlari | ✅ tayyor, ma'qullangan |
+| **M1 — asos**: server (Django + API), kirish va parol, rollar va ruxsatlar, Sozlamalar, Audit tarixi | ✅ kod tayyor, serverga joylash kutilmoqda |
+| M2–M7: CRM, o'quv jarayoni, moliya, oyliklar, qo'shimcha modullar, hisobotlar | ⏳ navbatda |
+| M10–M11: AppSheet'dan ko'chirish va ishga tushirish | ⏳ |
 
-## Dasturchilar uchun
+Reja: [docs/architecture.md](docs/architecture.md). Texnik topshiriq: [CLAUDE.md](CLAUDE.md).
 
-- To'liq texnik topshiriq va joriy holat: [CLAUDE.md](CLAUDE.md) (0-bo'lim va 20-bo'limdan boshlang).
-- Prototip kodi: [prototype/](prototype/) — oddiy HTML/CSS/JS. Kompyuterda ochish:
+## Prototip (dizayn namunasi)
 
-```bash
-python -m http.server 5510 --directory prototype
+**https://ilhomjon1502.github.io/codialERP1/** — soxta ma'lumotlar, brauzerda ishlaydi. Haqiqiy tizim ekranlari shunday bo'ladi.
+
+## Tuzilma
+
+```
+backend/    Django 5.2 + Django REST Framework (API: /api/v1/), testlar (pytest)
+frontend/   Ma'qullangan prototip ekranlari, API'ga ulangan (HTML/CSS/JS, build yo'q)
+deploy/     Docker Compose (PostgreSQL + Gunicorn), Nginx sozlamasi, zaxira skriptlari
+docs/       Reja, qarorlar, serverga o'rnatish, foydalanuvchi qo'llanmasi
+prototype/  GitHub Pages'dagi prototip (o'zgarmaydi)
 ```
 
-- AppSheet'ning texnik tavsifi: `codial_appdoc.json`.
+## Kompyuterda ishga tushirish (dasturchi)
+
+Talab: Python 3.12. Lokalda baza — SQLite (serverda PostgreSQL).
+
+```bash
+cd backend
+py -3.12 -m venv .venv
+.venv/Scripts/pip install -r requirements-dev.txt
+.venv/Scripts/python manage.py migrate
+.venv/Scripts/python manage.py seed_demo --password "Sinov-parol-123"
+.venv/Scripts/python manage.py runserver 8000
+```
+
+http://localhost:8000 — kirish: demo xodim pochtasi (masalan `dilshod@codial.test` — Bosh menejer) va yuqoridagi parol. Xatlar (parol o'rnatish havolasi) lokalda server konsoliga chiqadi.
+
+Testlar va kod sifati:
+
+```bash
+cd backend
+.venv/Scripts/python -m pytest
+.venv/Scripts/ruff check .
+```
+
+Linux/macOS'da `.venv/Scripts/` o'rniga `.venv/bin/`.
+
+## Serverga joylash
+
+[docs/deploy_hetzner.md](docs/deploy_hetzner.md) — Hetzner VPS, test (`test.` subdomen) va asosiy muhit, SSL, zaxira, yangilash.

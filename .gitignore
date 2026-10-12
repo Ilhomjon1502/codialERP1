@@ -19,3 +19,8 @@ db.sqlite3
 media/
 staticfiles/
 import_data/
+
+# Server sirlari
+deploy/.env
+.pytest_cache/
+.ruff_cache/
