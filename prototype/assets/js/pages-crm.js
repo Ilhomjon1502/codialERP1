@@ -229,7 +229,7 @@
   A.leadForm = (lead) => {
     const isNew = !lead;
     const B = A.branchIds()[0];
-    const v = lead ? { ...lead } : { branch: B, status: '1', times: [], tags: [], mode: 'new' };
+    const v = lead ? { ...lead } : { branch: B, status: '2', times: [], tags: [], mode: 'new' };
     const freeStudents = () =>
       A.rows('students')
         .filter((s) => s.branch === B && !A.hasContract(s.id) && !A.rows('leads').some((l) => l.student === s.id && (!lead || l.id !== lead.id)))
@@ -239,18 +239,21 @@
       { name: 'student', label: 'Talabani tanlang', type: 'select', options: freeStudents, show: (x) => !isNew || x.mode === 'old', required: true, readonly: () => !isNew, help: "Shartnomasi bor yoki lidi ochilgan talabalar ro'yxatda chiqmaydi" },
       { name: 'first_name', label: 'Ism', show: (x) => isNew && x.mode === 'new', required: true, half: true, validate: (t) => (t.length < 3 || t.length > 20 ? "Eng ozi 3 harf, ko'pi 20" : '') },
       { name: 'last_name', label: 'Familiya', show: (x) => isNew && x.mode === 'new' && x.first_name, required: true, half: true, validate: (t) => (t.length < 3 || t.length > 20 ? "Eng ozi 3 harf, ko'pi 20" : '') },
-      { name: 'phone1', label: '1-telefon (+998)', placeholder: '901234567', show: (x) => isNew && x.mode === 'new' && x.last_name, required: true, validate: (t) => (!/^\d{9}$/.test(t) ? "9 sondan iborat bo'lsin. Masalan, 998883322" : '') },
+      { name: 'phone1', label: '1-telefon (+998)', placeholder: '901234567', show: (x) => isNew && x.mode === 'new' && x.last_name, required: true, half: true, validate: (t) => (!/^\d{9}$/.test(t) ? "9 sondan iborat bo'lsin. Masalan, 998883322" : '') },
       {
-        name: 'father_name', label: 'Sharif (otasining ismi)', placeholder: "Anvar o'g'li", show: (x) => isNew && x.mode === 'new' && x.phone1, required: true,
+        name: 'phone2', label: '2-telefon (+998)', placeholder: '911234567', show: (x) => isNew && x.mode === 'new' && x.last_name, required: true, half: true,
         validate: (t, x) => {
-          if (t.length < 3) return "Eng ozi 3 harfdan iborat bo'lsin!";
-          if (t.includes('.')) return "Nuqta qo'yib bo'lmaydi!";
-          const dup = A.rows('students').some((s) => s.branch === B && s.first_name.trim().toLowerCase() === x.first_name.trim().toLowerCase() && s.last_name.trim().toLowerCase() === x.last_name.trim().toLowerCase() && s.father_name.trim().toLowerCase() === t.trim().toLowerCase());
+          if (!/^\d{9}$/.test(t)) return "9 sondan iborat bo'lsin. Masalan, 998883322";
+          if (t === x.phone1) return "Ikki bir xil nomer kiritib bo'lmaydi!";
+          // Dublikat: shu filialda ism + familiya bir xil va telefonlardan biri mos kelsa
+          const same = (a, b) => (a || '').trim().toLowerCase() === (b || '').trim().toLowerCase();
+          const dup = A.rows('students').some((s) => s.branch === B && same(s.first_name, x.first_name) && same(s.last_name, x.last_name) && [s.phone1, s.phone2].some((p) => p && (p === x.phone1 || p === t)));
           return dup ? "Ushbu o'quvchi avval kiritilgan. Lidlar yoki shartnomalar oynasidan qidiring" : '';
         },
       },
-      { name: 'gender', label: 'Jins', type: 'seg', options: ['Erkak', 'Ayol'], show: (x) => isNew && x.mode === 'new' && x.father_name },
-      { name: 'age_group', label: 'Yosh guruhi', type: 'select', options: ['9-12', '13-15', '16-18', '19-21', '22-24', '25-27', '28-30', '31-33', '34-36', '37-39', '40-42'], show: (x) => x.student || x.father_name, half: true },
+      { name: 'comment', label: 'Izoh', type: 'textarea', placeholder: "Masalan: narxni so'radi, kechki guruh bo'lsa yoziladi", show: (x) => isNew && (x.student || (x.phone1 && x.phone2)) },
+      { name: 'gender', label: 'Jins', type: 'seg', options: ['Erkak', 'Ayol'], show: (x) => isNew && x.mode === 'new' && x.phone1 && x.phone2 },
+      { name: 'age_group', label: 'Yosh guruhi', type: 'select', options: ['9-12', '13-15', '16-18', '19-21', '22-24', '25-27', '28-30', '31-33', '34-36', '37-39', '40-42'], show: (x) => x.student || (x.phone1 && x.phone2), half: true },
       { name: 'social', label: 'Ijtimoiy holati', type: 'select', options: ["Maktab o'quvchisi", 'Oliygoh talabasi', 'Kompaniya xodimi', 'Davlat xizmatchisi', 'Vaqtincha ishsiz'], show: (x) => x.age_group, half: true },
       { name: 'laptop', label: 'Noutbuki bormi?', type: 'seg', options: ['Bor', "Yo'q", 'Sotib oladi'], show: (x) => x.social },
       { name: 'tags', label: 'Teglar', type: 'chips', options: ['VIP', "Chegirma so'radi", "Ota-onasi qo'ng'iroq qiladi", 'Kechki vaqt', 'Hafta oxiri'], show: (x) => x.laptop },
@@ -275,7 +278,7 @@
       onSubmit(x) {
         let studentId = x.student;
         if (isNew && x.mode === 'new') {
-          const s = A.insert('students', { branch: B, first_name: x.first_name.trim(), last_name: x.last_name.trim(), father_name: x.father_name.trim(), gender: x.gender, phone1: x.phone1, phone2: '', birth_date: '', parent: '' }, 'Talaba', `${x.first_name} ${x.last_name}`);
+          const s = A.insert('students', { branch: B, first_name: x.first_name.trim(), last_name: x.last_name.trim(), father_name: '', gender: x.gender, phone1: x.phone1, phone2: x.phone2, birth_date: '', parent: '' }, 'Talaba', `${x.first_name} ${x.last_name}`);
           studentId = s.id;
         }
         const rec = {
@@ -285,6 +288,7 @@
         };
         let id;
         if (isNew) id = A.insert('leads', rec, 'Lid', A.studentName(studentId)).id;
+        if (isNew && x.comment && x.comment.trim()) A.insert('leadComments', { branch: B, lead: id, comment: x.comment.trim() }, 'Lid izohi', A.studentName(studentId));
         else { A.patch('leads', lead.id, rec, 'Lid', A.studentName(studentId)); id = lead.id; }
         A.toast(isNew ? "Lid qo'shildi" : 'Saqlandi');
         A.refresh();

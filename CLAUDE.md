@@ -291,6 +291,7 @@ Diqqat: AppSheet'da `Exchange`, `CommentToCreditors`, `Parent_Comment`, `Discoun
   - `age_group`: 9-12, 13-15, 16-18, 19-21, 22-24, 25-27, 28-30, 31-33, 34-36, 37-39, 40-42;
   - `social_status`: Maktab o'quvchisi, Oliygoh talabasi, Kompaniya xodimi, Davlat xizmatchisi, Vaqtincha ishsiz;
   - `laptop`: Bor, Yo'q, Sotib oladi;
+  - yangi lid formasida yangi talabaning 1- va 2-telefoni majburiy (2-telefon ≠ 1-telefon); standart status — "2. Yangi guruhga kutyapti";
   - formadagi tartib: talaba → yosh guruhi → ijtimoiy holat → noutbuk → teglar;
   - bitta talaba bir filialda faqat bitta lidga ega bo'ladi; shartnomasi bor talabaga yangi lid ochilmaydi;
   - `group` 3, 4, 5-statuslarda ko'rinadi va filial + kurs bo'yicha Faol yoki Rejadagi guruhlardan tanlanadi. `demo_date` guruh tanlangach, `demo_attended` sana kiritilgach chiqadi;
@@ -733,7 +734,10 @@ Buyurtmachi prototipni umumiy holda ma'qulladi, "bir-ikki detal" o'zgaradi. **Ro
 
 | # | Nima o'zgaradi | Sahifa / fayl | Holat |
 |---|---|---|---|
-| — | (buyurtmachidan kutilmoqda) | | |
+| 1 | Yangi lid formasida talabaning **ikkala telefoni** majburiy (1- va 2-telefon yonma-yon; bir xil bo'lmasin). 18-bo'lim 13-savolga javob: lid orqali yangi talabada 2-telefon majburiy | Lidlar → Yangi lid / `pages-crm.js` (`A.leadForm`) | ✅ |
+| 2 | Yangi lidning standart statusi **"2. Yangi guruhga kutyapti"** (avval 1 edi) | Lidlar → Yangi lid / `pages-crm.js` (`A.leadForm`) | ✅ |
+| 3 | Lid formasida "Sharif" o'rniga **"Izoh"** (ixtiyoriy, lidning birinchi izohi bo'lib saqlanadi). Dublikat tekshiruvi endi: shu filialda ism + familiya bir xil **va** telefonlardan biri mos. Sharif keyin "Talaba ma'lumotlarini to'ldirish" formasida kiritiladi | Lidlar → Yangi lid / `pages-crm.js` (`A.leadForm`) | ✅ |
+| — | (qolganlari buyurtmachidan kutilmoqda) | | |
 
 ### 20.7 GitHub
 
