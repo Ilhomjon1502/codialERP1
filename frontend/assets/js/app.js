@@ -43,7 +43,7 @@
     ['payments', "To'lovlar", 'cash'], ['debtors', 'Qarzdorlar', 'alert'], ['attendance', 'Davomatlar', 'check'],
     ['grading', "Baholash bo'limi", 'star'], ['profit', 'Foyda (oyma-oy)', 'trend'], ['expenses', 'Xarajatlar', 'receipt'],
     ['export', 'Shartnoma yuklash', 'download'], ['groupAnalysis', 'Guruhlar tahlili', 'pie'], ['groups', 'Guruhlar', 'grid'],
-    ['discount50', '50% chegirmalar', 'percent'], ['approvals', 'Tasdiqlashlar', 'shield'], ['salaries', 'Oyliklar', 'wallet'],
+    ['approvals', 'Tasdiqlashlar', 'shield'], ['salaries', 'Oyliklar', 'wallet'],
     ['transfers', 'Ichki pul oqimi', 'repeat'], ['creditors', 'Tashqi pul oqimi', 'bank'], ['exchange', 'Pul ayirboshlash', 'swap'],
     ['accounts', "G'aznalar", 'safe'], ['evaluations', 'Baholash (ustozni)', 'thumbs'], ['tasks', 'Talaba vazifalari', 'tasks'],
     ['parentCalls', 'Ota-onalar bilan aloqa', 'phone'], ['settings', 'Sozlamalar', 'sliders'], ['ai', 'AI yordamchi', 'sparkle'],
@@ -170,7 +170,7 @@
   A.CONNECTED = new Set(['dashboard', 'settings', 'audit', 'leads', 'contracts', 'debtors', 'attendance', 'groups', 'groupAnalysis',
     'payments', 'approvals', 'accounts', 'transfers', 'creditors', 'exchange', 'expenses', 'salaries']);
   A.MILESTONE = {
-    grading: 'M6', export: 'M6', discount50: 'M6',
+    grading: 'M6', export: 'M6',
     evaluations: 'M6', tasks: 'M6', parentCalls: 'M6', profit: 'M7', ai: 'M9',
   };
   const PUBLIC = new Set(['set-password']);

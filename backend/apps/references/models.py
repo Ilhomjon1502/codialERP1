@@ -151,7 +151,6 @@ class DiscountType(BaseModel):
     max_amount = models.DecimalField("Eng ko'p miqdori", validators=[MinValueValidator(0)], **Money)
     courses = models.ManyToManyField(Course, blank=True, related_name="discount_types")
     is_system = models.BooleanField("Tizim turi", default=False)
-    is_discount50 = models.BooleanField("50% chegirma turi", default=False)
 
     class Meta:
         verbose_name = "Chegirma turi"

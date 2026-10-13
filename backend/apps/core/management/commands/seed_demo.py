@@ -38,9 +38,9 @@ PATTERNS = [("p1", [1, 3, 5]), ("p2", [2, 4, 6]), ("p3", [6, 7])]
 TIMES = [("t1", "08:00", "10:00"), ("t2", "10:00", "12:00"), ("t3", "14:00", "16:00"), ("t4", "16:00", "18:00"), ("t5", "18:00", "20:00")]
 PRICES = [("cp1", "c1", "2026-01", 550000), ("cp2", "c1", "2026-09", 600000), ("cp3", "c2", "2026-01", 650000),
           ("cp4", "c3", "2026-01", 650000), ("cp5", "c4", "2026-03", 700000), ("cp6", "c5", "2026-01", 400000)]
-DISCOUNTS = [("d1", "50% Chegirma", 500000, False, True), ("d2", "Rag'batlantiruvchi", 350000, False, False),
-             ("d3", "Boshlang'ich balansga", 500000, True, False), ("d4", "Ikki va undan ortiq farzand", 100000, False, False),
-             ("d5", "Avvaldan to'lov", 75000, False, False)]
+DISCOUNTS = [("d1", "50% Chegirma", 500000, False), ("d2", "Rag'batlantiruvchi", 350000, False),
+             ("d3", "Boshlang'ich balansga", 500000, True), ("d4", "Ikki va undan ortiq farzand", 100000, False),
+             ("d5", "Avvaldan to'lov", 75000, False)]
 ALL_FIN = ["ADMIN", "BOSH_MENEJER", "ADMINISTRATOR_HISOBCHI", "HISOBCHI"]
 EXPENSES = [("e1", "Ijara", "Xarajat", ["ADMIN", "BOSH_MENEJER"]), ("e2", "Kommunal", "Xarajat", ALL_FIN),
             ("e3", "Internet va aloqa", "Xarajat", ALL_FIN), ("e4", "Marketing", "Xarajat", ["ADMIN", "BOSH_MENEJER", "HISOBCHI"]),
@@ -106,8 +106,8 @@ class Command(BaseCommand):
         times = [self.upsert(LessonTime, k, {"branch": branch, "start_time": a, "end_time": b}) for k, a, b in TIMES]
         for k, c, m, price in PRICES:
             self.upsert(CoursePrice, k, {"branch": branch, "course": courses[c], "effective_from": ym(m), "price": price})
-        for k, n, mx, system, d50 in DISCOUNTS:
-            self.upsert(DiscountType, k, {"name": n, "max_amount": mx, "is_system": system, "is_discount50": d50})
+        for k, n, mx, system in DISCOUNTS:
+            self.upsert(DiscountType, k, {"name": n, "max_amount": mx, "is_system": system})
         for k, n, kind, rs in EXPENSES:
             self.upsert(ExpenseCategory, k, {"name": n, "kind": kind}, {"allowed_roles": [roles[r] for r in rs]})
         sources = [self.upsert(LeadSource, k, {"name": n}) for k, n in SOURCES]

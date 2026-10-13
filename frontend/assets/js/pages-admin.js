@@ -66,12 +66,11 @@
   CRUD.discounts = {
     coll: 'discountTypes', title: 'Chegirma turlari',
     note: "Limit majburiy tekshiriladi: to'lovdagi chegirma «Eng ko'p miqdori»dan oshmaydi. Tizim turi oddiy tanlovda ko'rinmaydi.",
-    cols: [{ h: 'Nomi', f: (r) => `<b>${esc(r.name)}</b>` }, { h: "Eng ko'p miqdori", f: (r) => A.num(r.max), cls: 'num' }, { h: 'Belgilar', f: (r) => (r.is_system ? A.badge('tizim', 'gray') : '') + (r.is_d50 ? A.badge('50% chegirma', 'orange') : '') }],
+    cols: [{ h: 'Nomi', f: (r) => `<b>${esc(r.name)}</b>` }, { h: "Eng ko'p miqdori", f: (r) => A.num(r.max), cls: 'num' }, { h: 'Belgilar', f: (r) => (r.is_system ? A.badge('tizim', 'gray') : '') }],
     fields: [
       { name: 'name', label: 'Nomi', required: true },
       { name: 'max', label: "Eng ko'p miqdori", type: 'money', required: true },
       { name: 'is_system', label: 'Tizim turi (oddiy tanlovda ko\'rinmaydi)', type: 'checkbox' },
-      { name: 'is_d50', label: '«50% chegirmalar» bo\'limi uchun tur', type: 'checkbox' },
     ],
   };
   CRUD.expcats = {
@@ -401,7 +400,7 @@
     ['M3', "Guruhlar, shartnomalar, davomat, qarz va KPI hisobi", true],
     ['M4', "To'lovlar, g'aznalar, o'tkazmalar, xarajatlar, kreditorlar", true],
     ['M5', 'Oyliklar va KPI stavkalari'],
-    ['M6', "Vazifalar, baholash, ota-onalar bilan aloqa, 50% chegirma, Excel"],
+    ['M6', "Vazifalar, baholash, ota-onalar bilan aloqa, Excel"],
     ['M7', 'Bosh sahifa statistikasi, foyda, guruhlar tahlili'],
   ];
   let dash = {};

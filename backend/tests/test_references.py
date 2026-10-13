@@ -135,7 +135,6 @@ def test_bootstrap_shape_and_query_count(api, admin, branch, django_assert_max_n
     assert data["me"]["role"] == "ADMIN"
     assert data["edit_days"]["ADMINISTRATOR"]["payments"] == 0
     assert {d["name"] for d in data["discountTypes"]} >= {"50% Chegirma"}
-    assert next(d for d in data["discountTypes"] if d["name"] == "50% Chegirma")["is_d50"] is True
 
 
 def test_lead_source_and_expense_category_unique(api, admin):

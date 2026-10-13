@@ -1,4 +1,4 @@
-"""Maydon nomlari front-end (prototip) bilan bir xil: start/end, max, is_d50, pattern, effective_from='YYYY-MM' va h.k."""
+"""Maydon nomlari front-end (prototip) bilan bir xil: start/end, max, pattern, effective_from='YYYY-MM' va h.k."""
 
 import datetime
 
@@ -131,12 +131,11 @@ class LessonFrequencySerializer(BranchScopedSerializerMixin, serializers.ModelSe
 
 class DiscountTypeSerializer(serializers.ModelSerializer):
     max = serializers.DecimalField(source="max_amount", max_digits=14, decimal_places=0, min_value=0)
-    is_d50 = serializers.BooleanField(source="is_discount50", required=False)
     courses = serializers.PrimaryKeyRelatedField(many=True, queryset=Course.objects.all(), required=False)
 
     class Meta:
         model = DiscountType
-        fields = ["id", "name", "max", "is_system", "is_d50", "courses"]
+        fields = ["id", "name", "max", "is_system", "courses"]
 
     def validate_name(self, v):
         return unique_name(DiscountType, v, self.instance, "Avval qo'shilgan nom!")

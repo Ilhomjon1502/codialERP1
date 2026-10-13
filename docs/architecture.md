@@ -32,7 +32,7 @@ backend/
                           DiscountType, ExpenseCategory, LeadSource, AttendanceStatus
     crm/                  Parent, Student, Lead, LeadComment
     education/            Group, Contract, Attendance, MakeupRequest, StudentTask, TeacherEvaluation,
-                          GradingSession, StudentGrade, ParentCall, Discount50
+                          GradingSession, StudentGrade, ParentCall
     finance/              Account, CashMovement, Payment, Transfer, Exchange, Expense,
                           Creditor, CreditorTransaction, CreditorComment
     payroll/              KPIRate, SalaryAssignment, SalaryPayout
@@ -125,7 +125,7 @@ erDiagram
 | M3 | O'quv jarayoni | Guruhlar, shartnomalar, davomat ekrani, qarz va KPI servislari, kelmaganlar, qoldirilgan darslar, oydagi dars soni (cron bilan taklif) |
 | M4 | Moliya | Ledger, g'aznalar, to'lovlar (tasdiqlar, chegirma limiti, PDF chek), o'tkazmalar, ayirboshlash, xarajatlar, kreditorlar |
 | M5 | Oyliklar | KPI stavkalari, oylik belgilash/berish, KPI daraxti, xodim balansi |
-| M6 | Qo'shimcha | Vazifalar, baholash (ikki yo'nalish), ota-onalar bilan aloqa, 50% chegirma, Excel eksport |
+| M6 | Qo'shimcha | Vazifalar, baholash (ikki yo'nalish), ota-onalar bilan aloqa, Excel eksport |
 | M7 | Hisobotlar | Bosh sahifa, statistika, voronka, foyda, guruhlar tahlili, audit tarixi |
 | M10 | Migratsiya | AppSheet `.xlsx` import, `--dry-run`, tekshiruv hisoboti |
 | M11 | Ishga tushirish | Asosiy server, domen, SSL, kunlik backup, monitoring, o'tish kuni |
@@ -158,7 +158,7 @@ Javob bermasangiz, quyidagi taklif qabul qilingan deb hisoblanadi va `docs/decis
 |---|---|---|
 | 1 | Shartnoma statusi | end < bugun → Nofaol; start > bugun → Rejada; aks holda Faol |
 | 2 | Kreditor amali sanasi | Oxirgi 7 kun ichida, kelajak sana mumkin emas (Admin/BM cheklovsiz) |
-| 3 | 50% chegirma qoidasi | **Sizdan aniq qoida kerak** (kimga, qachon, to'lovga qanday ta'sir qiladi). Hozircha prototipdagidek ro'yxat |
+| 3 | 50% chegirma qoidasi | ✅ Javob: bo'lim butunlay olib tashlanadi (2026-10-13) |
 | 4 | "Nofaol (–)" davomatni kim qo'yadi | Faqat Admin, BM, Filial menejeri (masalan, talaba vaqtincha to'xtatganda) |
 | 5 | "All" g'azna balansi | Ha, to'lov turlari bo'yicha alohida ko'rsatiladi (prototipdagidek) |
 | 6 | Davomat eslatmasi | Dars boshlanganidan 30 daqiqa keyin (M8) |

@@ -56,3 +56,4 @@
 | 2026-10-13 | «O'tgan oy stavkalarini nusxalash» tugmasi faqat tushuntirish beradi: «amal qilish oyi» mantiqida eski stavka keyingi oylarda o'zi amal qiladi | Prototipdagidek, dublikat yozuvlar kerak emas |
 | 2026-10-13 | «O'tgan oydan nusxa» (oylik belgilash) faqat belgilangan summani faol xodimlarga ko'chiradi | Bonus va jarima har oy alohida |
 | 2026-10-13 | Front-end JS fayllari sintaksisi testlarda tekshiriladi (`tests/test_frontend_syntax.py`, node bo'lsa) | 2026-10-13 da qo'shtirnoq xatosi serverga chiqib ketgan edi |
+| 2026-10-13 | «50% chegirmalar» bo'limi butunlay olib tashlandi: menyu, ruxsat bo'limi (`discount50`, eski ruxsat yozuvlari migratsiya bilan o'chirildi), sahifa va `DiscountType.is_discount50`. AppSheet'dagi Discount50 jadvali ko'chirilmaydi. «50% Chegirma» chegirma turi oddiy to'lov chegirmasi sifatida qoldi | Buyurtmachi qarori (18-bo'lim 3-savol yopildi) |

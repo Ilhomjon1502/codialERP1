@@ -17,7 +17,7 @@
     ['dashboard', 'Bosh sahifa'], ['leads', 'Lidlar'], ['contracts', 'Shartnomalar'], ['payments', "To'lovlar"],
     ['debtors', 'Qarzdorlar'], ['attendance', 'Davomatlar'], ['grading', "Baholash bo'limi"], ['profit', 'Foyda'],
     ['expenses', 'Xarajatlar'], ['export', 'Shartnoma yuklash'], ['groupAnalysis', 'Guruhlar tahlili'], ['groups', 'Guruhlar'],
-    ['discount50', '50% chegirmalar'], ['approvals', 'Tasdiqlashlar'], ['salaries', 'Oyliklar'], ['transfers', 'Ichki pul oqimi'],
+    ['approvals', 'Tasdiqlashlar'], ['salaries', 'Oyliklar'], ['transfers', 'Ichki pul oqimi'],
     ['creditors', 'Tashqi pul oqimi'], ['exchange', 'Pul ayirboshlash'], ['accounts', "G'aznalar"], ['evaluations', 'Baholash'],
     ['tasks', 'Talaba vazifalari'], ['parentCalls', 'Ota-onalar bilan aloqa'], ['settings', 'Sozlamalar'], ['ai', 'AI yordamchi'], ['audit', 'Audit tarixi'],
   ];
@@ -28,7 +28,7 @@
     'discountTypes', 'expenseCats', 'leadSources', 'accounts', 'attendanceStatuses',
     'parents', 'students', 'leads', 'leadComments', 'groups', 'contracts', 'attendance', 'makeups',
     'payments', 'transfers', 'exchanges', 'expenses', 'creditors', 'creditorTx', 'creditorComments',
-    'salaryAssign', 'salaryPayouts', 'tasks', 'evaluations', 'gradings', 'parentCalls', 'discount50', 'audit',
+    'salaryAssign', 'salaryPayouts', 'tasks', 'evaluations', 'gradings', 'parentCalls', 'audit',
   ];
   A.emptyStore = () => Object.assign(Object.fromEntries(COLLECTIONS.map((c) => [c, []])), { me: null, currentUser: null, edit_days: {} });
   A.S = A.emptyStore();

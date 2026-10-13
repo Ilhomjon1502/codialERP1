@@ -7,7 +7,7 @@
 
 ## 0. Joriy holat (2026-10-13) — yangi kelgan dasturchi shu yerdan boshlasin
 
-**Qisqasi:** prototip ma'qullandi va muzlatildi. **M1–M5 tayyor**: haqiqiy tizim (`backend/` — Django + DRF API, `frontend/` — prototip ekranlari API'ga ulangan) **Hetzner serverida ishlayapti**. Keyingi ish — **M6 (vazifalar, ikki yo'nalishli baholash, ota-onalar bilan aloqa, 50% chegirma, Excel eksport)**, buyurtmachi «boshla» deganda boshlanadi. **M6 dan oldin 18-bo'lim 3-savol (50% chegirma qoidasi) ga javob kerak.**
+**Qisqasi:** prototip ma'qullandi va muzlatildi. **M1–M5 tayyor**: haqiqiy tizim (`backend/` — Django + DRF API, `frontend/` — prototip ekranlari API'ga ulangan) **Hetzner serverida ishlayapti**. Keyingi ish — **M6 (vazifalar, ikki yo'nalishli baholash, ota-onalar bilan aloqa, Excel eksport)**, buyurtmachi «boshla» deganda boshlanadi. **50% chegirmalar bo'limi olib tashlangan** (buyurtmachi qarori 2026-10-13).
 
 | Bosqich | Holat |
 |---|---|
@@ -21,7 +21,7 @@
 | **M5** — oyliklar: KPI stavkalari (qayta hisoblash bilan), oylik belgilash (nusxa), hisoblangan KPI daraxti, oylik berish (g'azna jurnaliga), xodim balansi | ✅ 2026-10-13, 100 test (9 tasi JS sintaksis) |
 | M6 qo'shimcha modullar → M7 hisobotlar, M10 import, M11 asosiy muhit | ⏳ navbatda (17-bo'lim) |
 | M8 Telegram bot, M9 AI | ⏳ tizim ishga tushgandan keyin |
-| 18-bo'limdagi ochiq savollar | ⏳ takliflar `docs/architecture.md` 7-bo'limda; buyurtmachi javob bermasa takliflar qo'llanadi. **3-savol (50% chegirma qoidasi)** ga aniq javob M6 dan oldin kerak |
+| 18-bo'limdagi ochiq savollar | ⏳ takliflar `docs/architecture.md` 7-bo'limda; buyurtmachi javob bermasa takliflar qo'llanadi. 3-savol yopildi: 50% chegirma bo'limi olib tashlandi |
 | Domen `codialinfo.uz` | ✅ buyurtmachiniki (ahost.uz). DNS: A `erp` → `77.42.9.23` (2026-10-13), Let's Encrypt SSL. Asosiy sayt (`@`, `www` — Vercel) va pochta yozuvlariga tegilmaydi |
 | Pochta (SMTP) | ✅ 2026-10-13: Gmail (`ilhomjonibragimov1502@gmail.com`, App password `deploy/.env` da). Qayta sozlash: serverda `bash /srv/codial-test/deploy/set-smtp.sh` (parolni o'zi so'raydi) |
 
@@ -44,7 +44,7 @@
 - `tests/test_frontend_syntax.py` — barcha `frontend/assets/js/*.js` node bilan tekshiriladi (node yo'q joyda o'tkazib yuboriladi). **Front-end'ni o'zgartirgach testlarni albatta ishga tushiring.**
 - Qarorlar: `docs/decisions.md` (M5). Qo'llanma: `docs/user_guide/m5_oyliklar.md`.
 
-**Keyingi ish — M6.** `apps/education/` ga StudentTask, TeacherEvaluation, GradingSession/StudentGrade, ParentCall, Discount50 (7.4); Excel eksport (openpyxl, 7.6); front-end `pages-edu.js` dagi Vazifalar, Baholash (ikkala), Ota-onalar bilan aloqa, 50% chegirma, Eksport — 21.4 tartibida. 50% chegirma qoidasini (18-bo'lim 3) buyurtmachidan so'rang.
+**Keyingi ish — M6.** `apps/education/` ga StudentTask, TeacherEvaluation, GradingSession/StudentGrade, ParentCall (7.4); Excel eksport (openpyxl, 7.6); front-end `pages-edu.js` dagi Vazifalar, Baholash (ikkala), Ota-onalar bilan aloqa, Eksport — 21.4 tartibida. 50% chegirma — **qilinmaydi** (olib tashlangan).
 
 **Oxirgi holat (M4 dan keyin):** M1–M4 `main` da va https://erp.codialinfo.uz da ishlayapti (2026-10-13). Sinov ma'lumotlariga to'lovlar, xarajatlar, o'tkazmalar, kreditor qo'shildi; 84 test yashil.
 
@@ -79,7 +79,7 @@
 
 **Buyurtmachi qarori (M3):** eski shartnomani to'xtatish (tugash sanasi, sabab, izoh) muddatdan qat'i nazar mumkin, tugash sanasi oxirgi 30 kun ichida (`education.services.check_contract_edit`). Boshqa maydonlar — 6.4 muddati, boshlanish sanasi bo'yicha.
 
-**Ochiq:** 18-bo'lim savollari (3-savol — 50% chegirma — M6 dan oldin shart); lokal `C:\DSKEYS` (E-IMZO kaliti nusxasi) — buyurtmachi so'rasa o'chiriladi.
+**Ochiq:** 18-bo'lim savollari (3-savol yopildi — 50% chegirma olib tashlandi); lokal `C:\DSKEYS` (E-IMZO kaliti nusxasi) — buyurtmachi so'rasa o'chiriladi.
 
 ### Yangi kelgan dasturchi uchun qadamlar
 
@@ -157,7 +157,7 @@ backend/
     finance/       ✅ M4  Account, CashMovement (ledger), Payment, Transfer, Exchange, Expense, Creditor…; receipt.py (PDF), demo.py
     crm/           ✅ M2  Parent, Student, Lead, LeadComment; voronka va statistika (services.board/stats)
     education/     ✅ M3  Group, Contract, Attendance, MakeupRequest; calc.py (qarz, KPI, qayta hisoblash), demo.py
-                         (+ M6: StudentTask, baholash, ParentCall, Discount50)
+                         (+ M6: StudentTask, baholash, ParentCall)
     payroll/       ✅ M5  KPIRate, SalaryAssignment, SalaryPayout; compute() (oylik hisobi), demo.py
     reports/       ⏳ M7  dashboard, statistika, foyda, Excel
     importer/      ⏳ M10 AppSheet .xlsx import
@@ -224,7 +224,7 @@ Qoidalar:
 | Baholash (talaba → ustoz) | A | A | A | A | A | K | K | K | K |
 | Baholash bo'limi (ustoz → talaba) | A | A | A | A | A | K | A | A | A |
 
-Diqqat: AppSheet'da `Exchange`, `CommentToCreditors`, `Parent_Comment`, `Discount50`, `Exel` jadvallarida cheklov ifodasi yo'q edi (hamma hammasini qila olardi). Yangi tizimda ular uchun ruxsat aniq belgilanadi. Taklif: Parent_Comment va Discount50 administratorlar va menejerlarga; Exchange va Creditor bo'limlari faqat Admin va Bosh menejerga.
+Diqqat: AppSheet'da `Exchange`, `CommentToCreditors`, `Parent_Comment`, `Discount50`, `Exel` jadvallarida cheklov ifodasi yo'q edi (hamma hammasini qila olardi). Yangi tizimda ular uchun ruxsat aniq belgilanadi. Taklif: Parent_Comment administratorlar va menejerlarga (Discount50 — bo'lim olib tashlangan); Exchange va Creditor bo'limlari faqat Admin va Bosh menejerga.
 
 ### 6.3 Ma'lumotlarga kirish doirasi (scoping)
 
@@ -291,7 +291,7 @@ Diqqat: AppSheet'da `Exchange`, `CommentToCreditors`, `Parent_Comment`, `Discoun
 | Baholash | `TeacherEvaluation` | talaba ustozni baholaydi |
 | Baholash_tizimi + B_Students | `GradingSession` + `StudentGrade` | ustoz talabani baholaydi |
 | Parent_Comment | `ParentCall` | |
-| Discount50 | `Discount50` | |
+| Discount50 | — | **ko'chirilmaydi**: bo'lim olib tashlangan (2026-10-13) |
 | Accounts | `Account` | |
 | — | `CashMovement` | yangi ledger |
 | Payments | `Payment` | |
@@ -338,7 +338,7 @@ Diqqat: AppSheet'da `Exchange`, `CommentToCreditors`, `Parent_Comment`, `Discoun
   - oy uchun stavka = shu oyda amalda bo'lgan oxirgi yozuv;
   - "O'tgan oy stavkalarini nusxalash" tugmasi bor;
   - yordamchiga menejer alohida (odatda arzonroq) stavka belgilaydi.
-- **DiscountType:** `name` (unique, xato: "Avval qo'shilgan nom!"), `max_amount` (≥ 0), `courses` (M2M, ixtiyoriy), `is_system` (masalan "Boshlang'ich balansga", oddiy tanlovda ko'rinmaydi), `is_discount50` (50% chegirma turi; qattiq yozilgan `914bea1a` o'rniga). Hozirgi turlar: 50% Chegirma (500 000), Rag'batlantiruvchi (350 000), Boshlang'ich balansga (500 000), Ikki va undan ortiq farzand (100 000), Avvaldan to'lov (75 000).
+- **DiscountType:** `name` (unique, xato: "Avval qo'shilgan nom!"), `max_amount` (≥ 0), `courses` (M2M, ixtiyoriy), `is_system` (masalan "Boshlang'ich balansga", oddiy tanlovda ko'rinmaydi). (`is_discount50` belgisi 50% chegirmalar bo'limi bilan birga olib tashlangan.) Hozirgi turlar: 50% Chegirma (500 000), Rag'batlantiruvchi (350 000), Boshlang'ich balansga (500 000), Ikki va undan ortiq farzand (100 000), Avvaldan to'lov (75 000).
 - **ExpenseCategory:** `name`, `kind` (Xarajat / Qayta investitsiya / Dividend / Tashqi qarz), `allowed_roles` (M2M). AppSheet'da `kind` faqat 3 qiymatli edi, "Tashqi qarz" yangi.
 - **LeadSource:** `name`, `status` (Faol/Nofaol, standart Faol). Nofaol manba yangi lid formasida chiqmaydi, eski lidlar, filtrlar va statistikada qoladi.
 - **CashType:** `CASH` (Naqd), `BANK` (Bank), `CARD` (Karta). `ALL` faqat g'azna turi sifatida ishlatiladi, to'lov yoki xarajatda tanlanmaydi.
@@ -409,7 +409,7 @@ Diqqat: AppSheet'da `Exchange`, `CommentToCreditors`, `Parent_Comment`, `Discoun
   - har bir talaba (guruhdagi faol shartnoma): davomat bali (1–20), vazifa bali (1–40), oy yakuniy bali (1–500), jami, izoh;
   - bir sessiyada bir talaba bir marta baholanadi.
 - **ParentCall** (Parent_Comment): `branch`, `course`, `group`, `contract`, `date`, `comment`. Telefonlar (1- va 2-telefon, vasiy) talabadan olinadi, qo'ng'iroq (`tel:`) va SMS (`sms:`) havolalari ko'rsatiladi. Ro'yxat sahifasida chapda AppSheet'dagidek daraxt: **Barchasi → (filial) → kurs → guruh**, har birida yozuvlar soni; bosilgan tugun bo'yicha jadval filtrlanadi (filial bitta bo'lsa filial darajasi ko'rinmaydi). Izohni tahrirlash (sana va izoh; kurs, guruh, talaba o'zgarmaydi) va o'chirish (soft delete) mumkin. Tahrirlangan izoh ostida kichik yozuv: "✎ {kim} · {sana vaqt}", "Kim" ustunida qo'shgan shaxs va vaqti. Muddatlar 6.4 bo'yicha; o'chirish hozircha faqat Admin va Bosh menejerda. Ota-ona sahifasida farzandlari va qo'ng'iroqlar tarixi chiqadi.
-- **Discount50:** `branch`, `date`, `group` (faol), `contract` (guruhdagi faol), `month`, `discount_type` (faqat `is_discount50`). Guruhda ≥ 3 faol o'quvchi bo'lishi shart (xato: "Guruhdagi o'quvchilar soni 3 tadan kam bo'lmasligi kerak"). Bir shartnomaga bir oyda bitta yozuv. Batafsil qoida 18-bo'limda so'raladi.
+- **Discount50** — **50% chegirmalar bo'limi olib tashlangan** (buyurtmachi qarori 2026-10-13): model, menyu va ruxsat bo'limi yo'q. «50% Chegirma» nomli chegirma turi oddiy to'lov chegirmasi sifatida qolgan (Sozlamalarda o'chirish mumkin).
 
 ### 7.5 Moliya
 
@@ -547,8 +547,8 @@ Menyu tartibi va nomlari AppSheet'dagidek saqlanadi, xodimlar qayta o'rganmasin.
 10. **Shartnoma yuklash:** Excel eksport.
 11. **Faol guruhlar tahlili:** to'lish holati, ustoz va kurs bo'yicha.
 12. **Guruhlar.**
-13. **50% chegirmalar.**
-14. **Tasdiqlashlar:** chegirmalar, 50% chegirmalar, naqdsiz to'lovlar, o'tkazmalar, qoldirilgan darslar.
+13. ~~50% chegirmalar~~ — olib tashlangan (2026-10-13).
+14. **Tasdiqlashlar:** chegirmalar, naqdsiz to'lovlar, o'tkazmalar, qoldirilgan darslar, oydagi dars soni.
 15. **Oyliklar:** KPI belgilash, hisoblangan KPI (ustozlar, yordamchilar), oylik belgilash, oylik berish, xodim balansi.
 16. **Ichki pul oqimi:** g'aznalar orasida o'tkazma.
 17. **Tashqi pul oqimi:** kreditorlar (Admin, Bosh menejer).
@@ -676,7 +676,7 @@ Real ishga tushirish uchun minimal to'plam: **M1–M7 + M10 + M11** (xodimlar Ap
 | M3 | O'quv jarayoni | Guruhlar, shartnomalar, qarzdorlar, davomat ekrani, qarz va KPI servislari, kelmaganlar, qoldirilgan darslar, qayta hisoblash; lidda guruh va «Shartnoma tuzish», shartnoma konversiyasi, Shartnomalar → «Talabalar» | ✅ 2026-10-13 |
 | M4 | Moliya | CashMovement ledger, g'aznalar balansi, to'lovlar (tasdiqlar, chegirma limiti, PDF chek), o'tkazmalar, almashtirish, xarajatlar, kreditorlar, Tasdiqlashlar; shartnoma balansiga to'lovlar | ✅ 2026-10-13 |
 | M5 | Oyliklar | KPI stavkalari (o'zgarsa qayta hisoblash), oylik belgilash va berish (g'aznaga `CashMovement` SALARY), KPI daraxti, xodim balansi | ✅ 2026-10-13 |
-| M6 | Qo'shimcha modullar | Vazifalar, ikki yo'nalishli baholash, ota-onalar bilan aloqa, 50% chegirma, Excel eksport | ⏳ keyingi |
+| M6 | Qo'shimcha modullar | Vazifalar, ikki yo'nalishli baholash, ota-onalar bilan aloqa, Excel eksport (50% chegirma — olib tashlangan) | ⏳ keyingi |
 | M7 | Hisobot va dashboard | Bosh sahifa, oylik statistika, voronka, birinchi to'lovchilar, foyda, guruh tahlili | ⏳ |
 | M8 | Telegram bot | Bog'lash, xabarlar, kunlik hisobot | ⏳ keyin |
 | M9 | AI yordamchi | Faqat o'qish view'lari, SQL xavfsizligi, provayder abstraksiyasi | ⏳ keyin |
@@ -690,7 +690,7 @@ Har bir bosqichda bo'ladi: algoritm va ruxsatlar uchun testlar, `seed_demo` buyr
 Asl topshiriqdan:
 1. **Shartnoma statusi:** AppSheet formulasi buzilgan (`IFS([EndDate]=TODAY()), "Faol", …`). Taxmin: end < bugun → Nofaol, start > bugun → Rejada, aks holda Faol. Tasdiqlansin.
 2. **Kreditor amali sanasi:** formula buzilgan (`[_THIS]TODAY()`). Xato matni "bir hafta avvalgi sanagacha" deydi. Taxmin: oxirgi 7 kun ichida, kelajak sana mumkin emas.
-3. **50% chegirma:** aniq qoidasi qanday? Kimga, qachon beriladi va to'lovdagi chegirma bilan qanday bog'lanadi? AppSheet'da Discount50 to'lovga bog'lanmagan, faqat ro'yxat edi. Guruhda ≥ 3 o'quvchi sharti nimani anglatadi?
+3. ~~**50% chegirma:**~~ **Yopildi (2026-10-13): bo'lim butunlay olib tashlandi.** Eski savol: aniq qoidasi qanday? Kimga, qachon beriladi va to'lovdagi chegirma bilan qanday bog'lanadi? AppSheet'da Discount50 to'lovga bog'lanmagan, faqat ro'yxat edi. Guruhda ≥ 3 o'quvchi sharti nimani anglatadi?
 4. **"Nofaol (–)" davomat statusini** kim va qachon qo'yadi?
 5. **"All" turidagi g'azna:** balans har bir to'lov turi bo'yicha alohida ko'rsatilsinmi?
 6. **Davomat olinmagani haqidagi eslatma:** dars boshlanganidan necha daqiqa keyin? (standart 30)
@@ -704,7 +704,7 @@ JSON tahlilidan yangi savollar:
 11. **Shartnoma PDF fayli:** AppSheet'da `Contracts/{ContractID}.pdf` yo'li bor. Shartnoma shablondan avtomatik yaratilsinmi yoki qo'lda yuklanadimi? Shablon bormi?
 12. **Oylik belgilash noyobligi:** AppSheet'da (filial, xodim, yil, oy) bo'yicha edi. Xodim bir necha filialda ishlasa, har filial uchun alohida oylik bo'ladimi?
 13. **Talabaning 2-telefoni** majburiymi? AppSheet formasida tug'ilgan sana faqat 2-telefon kiritilgandan keyin chiqardi.
-14. **Ota-onalar bilan aloqa, 50% chegirma va Excel eksport** bo'limlarini qaysi rollar ishlatadi? AppSheet'da ular uchun cheklov yo'q edi.
+14. **Ota-onalar bilan aloqa va Excel eksport** bo'limlarini qaysi rollar ishlatadi? AppSheet'da ular uchun cheklov yo'q edi.
 
 ## 19. AppSheet'da topilgan va tuzatilishi kerak bo'lgan xatolar
 
@@ -715,7 +715,7 @@ JSON tahlilidan yangi savollar:
 5. Foiz-KPI'da (ustoz va yordamchi) va yordamchining O'zgarmas KPI'sida oydagi dars soni dars kunlarisiz qidirilgan (`ANY(SELECT(...))` tasodifiy qiymat olishi mumkin).
 6. Oylik qoldig'i (`FromLastMonth`) faqat bir yil ichida o'tkaziladi, yillar oralig'ida yo'qoladi.
 7. Rol nomlaridagi xatolar ("Ustoz-Yordamchi", "Yordmachi", "Filial menejer") tufayli ba'zi shartlar hech qachon ishlamagan. Endi rollar FK yoki enum bilan.
-8. Kodga qattiq yozilgan ID'lar: `cb4963b4` (naqdsiz g'azna), `914bea1a` (50% chegirma), `10f01992` (foydadan chiqariladigan kategoriya). Endi `Branch.noncash_cashbox`, `DiscountType.is_discount50`, `ExpenseCategory.kind` ishlatiladi.
+8. Kodga qattiq yozilgan ID'lar: `cb4963b4` (naqdsiz g'azna), `914bea1a` (50% chegirma), `10f01992` (foydadan chiqariladigan kategoriya). Endi `Branch.noncash_cashbox`, `ExpenseCategory.kind` ishlatiladi (50% chegirma bo'limi olib tashlangan).
 9. `Baholash_tizimi.CreatedBy` va `B_Students.CreatedBy` boshlang'ich qiymati aniq bir email bilan qattiq yozilgan. `request.user` ishlatilsin.
 10. Yordamchi KPI oylikka filial bo'yicha filtrlanmasdan yig'ilgan.
 11. Sekinlik: g'azna balansi, guruh statistikasi va shartnoma qarzi har ochilishda butun jadvallar bo'yicha qayta hisoblanardi. Endi ledger va saqlanadigan maydonlar.
@@ -845,7 +845,7 @@ Brauzer ──HTTPS──► Nginx (serverda) ──┬── /            → f
 | Mavzu | Qoida |
 |---|---|
 | ID | Barcha modellar **UUID** (`BaseModel.id`), JSON'da satr |
-| Maydon nomlari | Model — CLAUDE.md 7-bo'limdagi nomlar (`max_amount`, `start_time`…). **Serializer — prototipdagi nomlar** (`max`, `start`, `pattern`, `is_d50`…, `source=` orqali), shunda front-end kodi deyarli o'zgarmaydi |
+| Maydon nomlari | Model — CLAUDE.md 7-bo'limdagi nomlar (`max_amount`, `start_time`…). **Serializer — prototipdagi nomlar** (`max`, `start`, `pattern`…, `source=` orqali), shunda front-end kodi deyarli o'zgarmaydi |
 | Pul | `DecimalField(14, 0)`; JSON'da son (`COERCE_DECIMAL_TO_STRING=False`) |
 | Oy | Model — oyning 1-kuni (`DateField`); API — `"YYYY-MM"` (`YearMonthField`) |
 | Vaqt | API — `"HH:MM"` |
@@ -870,7 +870,7 @@ Brauzer ──HTTPS──► Nginx (serverda) ──┬── /            → f
 | `forms.js` | `onSubmit` async; server xatosi tegishli maydon ostida chiqadi |
 | `pages-admin.js` | Sozlamalar, Audit tarixi, Bosh sahifa (M1) — **namuna sifatida o'qing** |
 | `pages-crm.js` | Lidlar (M2), Shartnomalar, Qarzdorlar (M3) — API'ga ulangan. Ichidagi eski `A.page('dashboard')` ishlatilmaydi (`pages-admin.js` dagisi uni almashtiradi) |
-| `pages-edu.js` | Guruhlar, Guruhlar tahlili, Davomat (M3) — API'ga ulangan; Vazifalar, Baholash, Ota-onalar, 50% chegirma, Eksport — hali prototip kodi (M6) |
+| `pages-edu.js` | Guruhlar, Guruhlar tahlili, Davomat (M3) — API'ga ulangan; Vazifalar, Baholash, Ota-onalar, Eksport — hali prototip kodi (M6) |
 | `pages-fin.js` | To'lovlar, Tasdiqlashlar, G'aznalar, O'tkazmalar, Ayirboshlash, Xarajatlar, Kreditorlar (M4), Oyliklar (M5) — API'ga ulangan; Foyda (M7) — hali prototip kodi |
 
 Sahifa serverdan ma'lumot olishi kerak bo'lsa: `A.page('route', { section, async load(p, q) {...}, render(p, q) {...} })` — `load` har chizishdan oldin (filtr o'zgarganda ham) chaqiriladi. Namuna: `A.page('audit')`.

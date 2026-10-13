@@ -1,4 +1,4 @@
-/* Guruhlar, Davomat, Vazifalar, Baholash, Ota-onalar, 50% chegirma, Eksport */
+/* Guruhlar, Davomat, Vazifalar, Baholash, Ota-onalar, Eksport */
 (function (A) {
   const esc = A.esc;
   const fail = (e) => A.toast(e.message, 'warn');
@@ -629,46 +629,6 @@
     A.softDelete('parentCalls', r.id, 'Ota-ona bilan aloqa', label);
     A.toast("O'chirildi");
     A.refresh();
-  };
-
-  /* ===================================================== 50% chegirmalar */
-  A.page('discount50', {
-    title: '50% chegirmalar',
-    section: 'discount50',
-    render() {
-      const rows = A.sortBy(A.vis('discount50'), (r) => r.date, true);
-      return `${A.head('50% chegirmalar', 'Guruhda kamida 3 ta faol talaba bo\'lishi shart. Bitta shartnomaga bir oyda bitta yozuv', A.can('discount50', 'a') ? A.btn("Qo'shish", 'd50-new', { icon: 'plus' }) : '')}
-        <div class="alert warn">${A.icon('alert')}<div>Ochiq savol (CLAUDE.md, 15-bo'lim, 3-savol): 50% chegirmaning aniq qoidasi va to'lovdagi chegirma bilan bog'lanishi hali aniqlanmagan.</div></div>
-        ${A.table(
-          [
-            { h: 'Sana', f: (r) => A.fdate(r.date) },
-            { h: 'Shartnoma', f: (r) => `<a href="#/contracts/${r.contract}">${esc(A.contractName(r.contract))}</a>` },
-            { h: 'Guruh', f: (r) => esc(A.groupName(r.group)) },
-            { h: 'Oy', f: (r) => A.MONTHS[r.month - 1] + ' ' + r.year },
-            { h: 'Guruhdagi talabalar', f: (r) => A.activeContractsOf(r.group).length, cls: 'num' },
-          ],
-          rows,
-          { empty: "Yozuv yo'q" },
-        )}`;
-    },
-  });
-  A.act['d50-new'] = () => {
-    const ym = A.ym(A.today());
-    A.form({
-      title: '50% chegirma',
-      values: { date: A.today(), month: String(Number(ym.slice(5))) },
-      fields: [
-        { name: 'group', label: 'Guruh', type: 'select', required: true, resets: ['contract'], options: () => A.vis('groups').filter((g) => A.groupStatus(g) === 'Faol').map((g) => [g.id, `${A.groupName(g)} (${A.activeContractsOf(g.id).length} talaba)`]), validate: (g) => (A.activeContractsOf(g).length < 3 ? "Guruhdagi o'quvchilar soni 3 tadan kam bo'lmasligi kerak" : '') },
-        { name: 'contract', label: 'Shartnoma', type: 'select', required: true, show: (x) => x.group, options: (x) => A.activeContractsOf(x.group).map((c) => [c.id, A.contractName(c)]) },
-        { name: 'month', label: 'Oy', type: 'select', required: true, show: (x) => x.contract, options: A.MONTHS.map((m, i) => [String(i + 1), m]), validate: (m, x) => (A.rows('discount50').some((d) => d.contract === x.contract && d.month === Number(m) && d.year === Number(ym.slice(0, 4))) ? 'Bu shartnomaga shu oyda 50% chegirma berilgan' : '') },
-        { name: 'type', label: 'Chegirma turi', type: 'computed', show: (x) => x.contract, compute: () => esc((A.rows('discountTypes').find((d) => d.is_d50) || {}).name) + ' <span class="muted small">(sozlamadagi «50% chegirma» belgisi bo\'yicha)</span>' },
-      ],
-      onSubmit(x) {
-        const g = A.get('groups', x.group);
-        A.insert('discount50', { branch: g.branch, date: A.today(), group: x.group, contract: x.contract, month: Number(x.month), year: Number(ym.slice(0, 4)), discount_type: (A.rows('discountTypes').find((d) => d.is_d50) || {}).id }, '50% chegirma', A.contractName(x.contract));
-        A.refresh();
-      },
-    });
   };
 
   /* ===================================================== Shartnoma yuklash (Excel) */
