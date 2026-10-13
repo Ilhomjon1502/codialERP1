@@ -241,3 +241,10 @@ def test_leads_paid_tab(api, fin):
     pay(api(fin["cashier"]), fin)
     r = bm.get("/api/v1/leads/?paid=1").json()
     assert r["count"] == 1 and r["results"][0]["paid_total"] == 300000 and r["results"][0]["first_paid"] == TODAY.isoformat()
+
+
+def test_boss_can_use_any_cashbox(api, fin):
+    assert not fin["cash"].responsible.filter(pk=fin["boss"].pk).exists()
+    r = pay(api(fin["boss"]), fin)
+    assert r.status_code == 201, r.content
+    assert r.json()["cashbox"] == str(fin["cash"].pk) and r.json()["accountant"] in (str(fin["cashier"].pk), str(fin["accountant"].pk))

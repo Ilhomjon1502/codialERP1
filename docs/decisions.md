@@ -47,3 +47,4 @@
 | 2026-10-13 | Chekka filial bo'yicha tartib raqami (`Payment.number`) beriladi | Chek va to'lovni topish oson |
 | 2026-10-13 | O'tkazmalar doirasi: Admin va Bosh menejer — hammasi; boshqalar — o'zi mas'ul bo'lgan yoki o'z filiali g'aznalari (standart, naqdsiz) ishtirok etgan o'tkazmalar (6.3) | G'aznada filial maydoni yo'q; filial bilan bog'lanish — `Branch.default_cashbox/noncash_cashbox` |
 | 2026-10-13 | Tasdiq kutayotganlar soni serverda (`GET /approvals/`) — faqat foydalanuvchi o'zi tasdiqlay oladiganlari | Qo'ng'iroqcha to'g'ri son ko'rsatsin |
+| 2026-10-13 | Admin **va Bosh menejer** istalgan faol g'azna bilan pul amali qiladi (naqd to'lov, o'tkazma, xarajat, ayirboshlash, kreditor); boshqalar — faqat mas'ul bo'lgan g'aznalari. Hisobchi maydoni g'azna mas'ullaridan (Bosh menejer mas'ul bo'lmasa — birinchi mas'ul) | Buyurtmachi qarori: «Bosh menejer naqd ham qila olsin» |

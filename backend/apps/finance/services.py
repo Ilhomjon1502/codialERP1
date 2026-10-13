@@ -45,9 +45,10 @@ def fmt(n):
 # ------------------------------------------------------------------ g'aznalar va balans
 
 def my_accounts(user):
-    """Foydalanuvchi pul qabul qila/chiqara oladigan faol g'aznalar: Admin — hammasi, boshqalar — mas'ul bo'lganlari."""
+    """Foydalanuvchi pul qabul qila/chiqara oladigan faol g'aznalar: Admin va Bosh menejer — hammasi (buyurtmachi qarori 2026-10-13),
+    boshqalar — mas'ul bo'lganlari."""
     qs = Account.objects.filter(status=Status.ACTIVE)
-    return qs if role_code(user) == RoleCode.ADMIN else qs.filter(responsible=user)
+    return qs if is_top(user) else qs.filter(responsible=user)
 
 
 def scoped_account_ids(user):

@@ -418,7 +418,7 @@ Diqqat: AppSheet'da `Exchange`, `CommentToCreditors`, `Parent_Comment`, `Discoun
   - chegirma: `discount_type`, `discount`. **Limit majburiy:** `|discount| ≤ discount_type.max_amount`. Xato: "Bu chegirma turiga X so'mdan ortiqcha chegirma kiritib bo'lmaydi";
   - `discount_confirmation` (Tasdiqlashga / Tasdiqlandi), `discount_confirmed_by`, `discount_confirmed_at`: Admin istalgan vaqtda, Bosh menejer yaratilganidan keyin 30 kun ichida tasdiqlaydi;
   - `noncash_confirmation`, `noncash_confirmed_by`, `noncash_confirmed_at`: Cash bo'lmagan to'lovni Admin istalgan vaqtda, Bosh menejer 360 kun, Filial menejeri 7 kun ichida tasdiqlaydi;
-  - `cashbox`: Cash bo'lsa foydalanuvchi mas'ul bo'lgan faol g'azna, naqdsiz bo'lsa `branch.noncash_cashbox`;
+  - `cashbox`: Cash bo'lsa foydalanuvchi mas'ul bo'lgan faol g'azna (Admin va Bosh menejer — istalgan faol g'azna, buyurtmachi qarori 2026-10-13), naqdsiz bo'lsa `branch.noncash_cashbox`;
   - `accountant`: g'azna mas'ullaridan biri;
   - naqdsiz to'lov tasdiqlanmaguncha g'azna balansiga qo'shilmaydi;
   - **PDF chek** avtomatik yaratiladi, to'lov o'zgarsa qayta yaratiladi va qayta yuklab olinadi;
