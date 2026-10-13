@@ -13,7 +13,10 @@ Kod bir martalik. Uzish — shu oynada «Bog'lanishni uzish» yoki botga `/stop`
 
 ## Qaysi xabarlar keladi
 
-| Xabar | Kimga |
+Har bir xodim o'zi belgilagan xabarlarni oladi — faqat tizimda ko'rish huquqi bor bo'limlar bo'yicha va o'z filiali doirasida.
+Hali hech narsa tanlamagan xodimga standart holda quyidagilar keladi:
+
+| Xabar | Standart holda kimga |
 |---|---|
 | Yangi lid | Filial administratorlari, Bosh menejer, Filial menejeri |
 | Tasdiq kutayotgan chegirma yoki naqdsiz to'lov | Bosh menejer, Filial menejeri |
@@ -22,7 +25,7 @@ Kod bir martalik. Uzish — shu oynada «Bog'lanishni uzish» yoki botga `/stop`
 | Dars boshlanganiga 30 daqiqa bo'ldi, davomat olinmagan | Guruh ustozi va administratorlar (guruhga kuniga bir marta) |
 | Kunlik hisobot (har kuni 20:00): to'lovlar, yangi lidlar, yangi shartnomalar, kelmaganlar, g'azna qoldiqlari | Bosh menejer |
 
-«✈️ Telegram» oynasida har bir xabar turini o'chirib qo'yish mumkin.
+«✈️ Telegram» oynasida har bir xabar turini yoqish yoki o'chirish mumkin. Ustoz «Davomat olinmagan» xabarini faqat o'z guruhlari bo'yicha oladi.
 
 ## Texnik
 

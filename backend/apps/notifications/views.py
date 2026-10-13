@@ -3,10 +3,11 @@ from rest_framework.decorators import api_view
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
-from .models import EVENT_KEYS, EVENTS, TelegramLink, new_code
+from . import services
+from .models import EVENT_KEYS, TelegramLink, new_code
 
 
-def _payload(link):
+def _payload(link, user):
     bot = settings.TELEGRAM_BOT_USERNAME
     return {
         "configured": bool(settings.TELEGRAM_BOT_TOKEN),
@@ -16,7 +17,7 @@ def _payload(link):
         "linked_at": link.linked_at,
         "code": link.code,
         "url": f"https://t.me/{bot}?start={link.code}" if bot else "",
-        "events": [{"key": k, "label": label, "on": link.wants(k)} for k, label in EVENTS],
+        "events": services.events_for(user, link),
     }
 
 
@@ -27,7 +28,7 @@ def me(request):
     if request.method == "PATCH":
         prefs = request.data.get("prefs")
         if prefs is not None:
-            if not isinstance(prefs, dict) or any(k not in EVENT_KEYS for k in prefs):
+            if not isinstance(prefs, dict) or any(k not in EVENT_KEYS or not services.allowed(request.user, k) for k in prefs):
                 raise ValidationError({"prefs": "Noma'lum xabar turi"})
             link.prefs = {**link.prefs, **{k: bool(v) for k, v in prefs.items()}}
         if request.data.get("new_code"):
@@ -36,4 +37,4 @@ def me(request):
     elif request.method == "DELETE":
         link.chat_id, link.linked_at, link.username = None, None, ""
         link.save()
-    return Response(_payload(link))
+    return Response(_payload(link, request.user))

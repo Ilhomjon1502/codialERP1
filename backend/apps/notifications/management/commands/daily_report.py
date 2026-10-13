@@ -8,8 +8,6 @@ from django.core.management.base import BaseCommand
 from django.db.models import Sum
 from django.utils import timezone
 
-from apps.accounts.models import User
-from apps.core.roles import RoleCode
 from apps.crm.models import Lead
 from apps.education.models import Attendance, Contract
 from apps.finance import services as fin
@@ -36,6 +34,5 @@ class Command(BaseCommand):
 
     def handle(self, *args, **opts):
         day = timezone.localdate()
-        bosses = User.objects.filter(role__code=RoleCode.BOSH_MENEJER, employment_status=User.Employment.ACTIVE)
-        services.notify(bosses, "daily_report", build(day), key=f"daily:{day}")
-        self.stdout.write(f"Kunlik hisobot navbatga qo'yildi: {bosses.count()} ta Bosh menejer")
+        services.daily_report(build(day), key=f"daily:{day}")
+        self.stdout.write("Kunlik hisobot navbatga qo'yildi (tanlagan va huquqi bor xodimlarga)")

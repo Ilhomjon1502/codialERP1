@@ -462,7 +462,7 @@
              <p class="muted small">Kod bir martalik. Bog'langach oynani yangilang.</p>`}
         <h4>Qaysi xabarlarni olaman</h4>
         <div class="tg-prefs">${d.events.map((e) => `<label class="check"><input type="checkbox" data-ev="${e.key}" ${e.on ? 'checked' : ''}> ${esc(e.label)}</label>`).join('<br>')}</div>
-        <p class="muted small">Xabar faqat sizga tegishli bo'lsa keladi (masalan yangi lid — administratorlarga, kunlik hisobot — Bosh menejerga).</p>`;
+        <p class="muted small">Belgilangan xabarlar keladi. Ro'yxatda faqat sizga tizimda ko'rish huquqi bor bo'limlar bo'yicha xabarlar bor (masalan to'lovlarni ko'rmaydigan xodimga to'lov xabarlari chiqmaydi).</p>`;
     const m = A.modal({
       title: 'Telegram xabarlari',
       body,

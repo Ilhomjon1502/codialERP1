@@ -1,4 +1,9 @@
-"""Xabarlar: kimga, nima (CLAUDE.md 12). Hamma funksiyalar xatoga chidamli — xabar yuborilmasa ham asosiy amal buzilmaydi."""
+"""Xabarlar: kimga, nima (CLAUDE.md 12). Hamma funksiyalar xatoga chidamli — xabar yuborilmasa ham asosiy amal buzilmaydi.
+
+Kim oladi (buyurtmachi qarori 2026-10-13): xodim «Telegram» oynasida o'zi belgilagan xabar turlari keladi, lekin faqat
+tizimda **ko'rish huquqi** bor narsa haqida (EVENT_PERM) va o'z filiali doirasida. Xodim hali tanlamagan bo'lsa — rol bo'yicha
+standart (DEFAULT_ROLES) yoki hodisaga bevosita aloqador bo'lsa (g'azna mas'uli, guruh ustozi).
+"""
 
 import json
 import logging
@@ -8,37 +13,75 @@ from html import escape
 
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Q
 from django.utils import timezone
 
 from apps.accounts.models import User
-from apps.core.roles import RoleCode
+from apps.core.permissions import can, is_top, role_code
+from apps.core.roles import TEACHER_ROLES, RoleCode
 
-from .models import Outbox, TelegramLink, new_code
+from .models import EVENTS, Outbox, TelegramLink, new_code
 
 log = logging.getLogger(__name__)
 R = RoleCode
 
+# Xabar turini olish uchun kerakli ko'rish huquqi (bo'lim, amal)
+EVENT_PERM = {
+    "new_lead": ("leads", "v"),
+    "approval": ("payments", "v"),
+    "transfer": ("transfers", "v"),
+    "makeup": ("attendance", "p"),
+    "attendance_missing": ("attendance", "v"),
+    "daily_report": ("payments", "v"),
+}
+# Xodim hali tanlamagan bo'lsa — kimga standart holda boradi
+DEFAULT_ROLES = {
+    "new_lead": {R.ADMINISTRATOR, R.ADMINISTRATOR_HISOBCHI, R.BOSH_MENEJER, R.FILIAL_MENEJERI},
+    "approval": {R.ADMIN, R.BOSH_MENEJER, R.FILIAL_MENEJERI},
+    "transfer": set(),  # standart — faqat qabul qiluvchi g'azna mas'ullari (default_users)
+    "makeup": {R.BOSH_MENEJER, R.FILIAL_MENEJERI, R.ADMINISTRATOR, R.ADMINISTRATOR_HISOBCHI},
+    "attendance_missing": {R.ADMINISTRATOR, R.ADMINISTRATOR_HISOBCHI},  # + guruh ustozi (default_users)
+    "daily_report": {R.BOSH_MENEJER},
+}
 
-def staff(branch, roles):
-    """Filial xodimlari (Admin va Bosh menejer — barcha filiallar), faol, ko'rsatilgan rollarda."""
-    q = Q(role__code__in=[r for r in roles if r in (R.ADMIN, R.BOSH_MENEJER)]) | Q(role__code__in=roles, branches=branch)
-    return User.objects.filter(q, employment_status=User.Employment.ACTIVE).distinct()
+
+def allowed(user, event):
+    sec, op = EVENT_PERM[event]
+    return can(user, sec, op)
 
 
-def notify(users, event, text, key=""):
-    """Bog'langan va shu xabarni olishni xohlagan xodimlarga navbatga qo'yadi (tranzaksiya muvaffaqiyatli tugagach).
-    key — takrorlanmaslik uchun (masalan bir guruhga bir kunda bitta «davomat olinmagan»)."""
-    ids = list({u.pk for u in users if u})
-    if not ids:
-        return
+def wants(link, event, default=False):
+    """Xodimning tanlovi; tanlamagan bo'lsa — standart."""
+    v = link.prefs.get(event)
+    return v if v is not None else (default or role_code(link.user) in DEFAULT_ROLES[event])
+
+
+def events_for(user, link):
+    """«Telegram» oynasi uchun: xodimga ruxsat etilgan xabar turlari va hozirgi holati."""
+    return [{"key": k, "label": label, "on": wants(link, k)} for k, label in EVENTS if allowed(user, k)]
+
+
+def in_branch(user, branch):
+    return branch is None or is_top(user) or user.branches.filter(pk=branch.pk).exists()
+
+
+def notify(event, text, branch=None, default_users=(), key="", only=None):
+    """Bog'langan, huquqi bor, filial doirasidagi va shu xabarni tanlagan xodimlarga navbatga qo'yadi (tranzaksiya tugagach).
+    default_users — hodisaga bevosita aloqador xodimlar (standart holda oladi); only(user) — qo'shimcha cheklov (masalan ustoz faqat o'z guruhi);
+    key — takrorlanmaslik uchun."""
+    default_ids = {u.pk for u in default_users if u}
 
     def enqueue():
         try:
-            links = TelegramLink.objects.filter(user_id__in=ids, chat_id__isnull=False)
-            done = set(Outbox.objects.filter(key=key, user_id__in=ids).values_list("user_id", flat=True)) if key else set()
-            Outbox.objects.bulk_create([Outbox(user_id=lk.user_id, chat_id=lk.chat_id, event=event, key=key, text=text)
-                                        for lk in links if lk.wants(event) and lk.user_id not in done])
+            links = TelegramLink.objects.filter(chat_id__isnull=False, user__employment_status=User.Employment.ACTIVE).select_related("user__role")
+            done = set(Outbox.objects.filter(key=key).values_list("user_id", flat=True)) if key else set()
+            rows = []
+            for lk in links:
+                u = lk.user
+                if u.pk in done or not allowed(u, event) or not in_branch(u, branch) or (only and not only(u)):
+                    continue
+                if wants(lk, event, default=u.pk in default_ids):
+                    rows.append(Outbox(user=u, chat_id=lk.chat_id, event=event, key=key, text=text))
+            Outbox.objects.bulk_create(rows)
         except Exception:  # noqa: BLE001 — xabar asosiy amalni buzmasin
             log.exception("Telegram navbatiga yozilmadi")
 
@@ -53,9 +96,8 @@ def money(n):
 
 def lead_created(lead):
     st = lead.student
-    # Administratorlar va menejerlar (buyurtmachi qarori 2026-10-13: Bosh menejer ham oladi; keraksiz bo'lsa «Telegram» oynasida o'chiradi)
-    notify(staff(lead.branch, [R.ADMINISTRATOR, R.ADMINISTRATOR_HISOBCHI, R.BOSH_MENEJER, R.FILIAL_MENEJERI]), "new_lead",
-           f"🆕 <b>Yangi lid</b>\n{escape(st.full_name)} · +998{st.phone1}\nKurs: {escape(str(lead.course))} · manba: {escape(str(lead.source))}")
+    notify("new_lead", f"🆕 <b>Yangi lid</b>\n{escape(st.full_name)} · +998{st.phone1}\nKurs: {escape(str(lead.course))} · manba: {escape(str(lead.source))}",
+           branch=lead.branch)
 
 
 def payment_pending(p):
@@ -65,20 +107,38 @@ def payment_pending(p):
     if p.noncash_status == "Tasdiqlashga":
         parts.append(f"naqdsiz to'lov {money(p.amount)} ({p.get_cash_type_display()})")
     if parts:
-        notify(staff(p.branch, [R.BOSH_MENEJER, R.FILIAL_MENEJERI]), "approval",
-               f"⏳ <b>Tasdiq kutilmoqda</b>: {', '.join(parts)}\n{escape(p.contract.name)}")
+        notify("approval", f"⏳ <b>Tasdiq kutilmoqda</b>: {', '.join(parts)}\n{escape(p.contract.name)}", branch=p.branch)
 
 
 def transfer_created(t):
-    notify(t.receiver_account.responsible.all(), "transfer",
-           f"🔁 <b>O'tkazma kutilmoqda</b>: {money(t.amount)}\n{escape(str(t.sender_account))} → {escape(str(t.receiver_account))}")
+    from apps.finance.services import scoped_account_ids
+
+    def sees(u):
+        ids = scoped_account_ids(u)
+        return ids is None or t.sender_account_id in ids or t.receiver_account_id in ids
+
+    notify("transfer", f"🔁 <b>O'tkazma kutilmoqda</b>: {money(t.amount)}\n{escape(str(t.sender_account))} → {escape(str(t.receiver_account))}",
+           default_users=list(t.receiver_account.responsible.all()), only=sees)
 
 
 def makeup_requested(m):
     a = m.attendance
-    notify(staff(a.branch, [R.BOSH_MENEJER, R.FILIAL_MENEJERI, R.ADMINISTRATOR, R.ADMINISTRATOR_HISOBCHI]), "makeup",
-           f"📚 <b>Dars yetkazildi — so'rov</b>\n{escape(str(m.teacher))}: {escape(a.contract.student.full_name)}, {a.date:%d.%m.%Y} "
-           f"(yetkazildi {m.makeup_date:%d.%m.%Y})\n{escape(m.comment)}")
+    notify("makeup", f"📚 <b>Dars yetkazildi — so'rov</b>\n{escape(str(m.teacher))}: {escape(a.contract.student.full_name)}, {a.date:%d.%m.%Y} "
+                     f"(yetkazildi {m.makeup_date:%d.%m.%Y})\n{escape(m.comment)}", branch=a.branch)
+
+
+def attendance_missing(group, text, key):
+    """Ustoz va yordamchilar — faqat o'z guruhi haqida; boshqalar — filial doirasida."""
+    mine = {group.teacher_id, group.supporter_id}
+
+    def only(u):
+        return role_code(u) not in TEACHER_ROLES or u.pk in mine
+
+    notify("attendance_missing", text, branch=group.branch, default_users=[group.teacher], key=key, only=only)
+
+
+def daily_report(text, key):
+    notify("daily_report", text, key=key)
 
 
 # ------------------------------------------------------------------ Telegram API

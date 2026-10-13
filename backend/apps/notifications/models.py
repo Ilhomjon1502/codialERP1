@@ -32,9 +32,6 @@ class TelegramLink(models.Model):
         verbose_name = "Telegram bog'lanishi"
         verbose_name_plural = "Telegram bog'lanishlari"
 
-    def wants(self, event):
-        return self.prefs.get(event, True)
-
     def __str__(self):
         return f"{self.user} → {self.chat_id or 'bog`lanmagan'}"
 

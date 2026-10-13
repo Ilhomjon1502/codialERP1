@@ -26,7 +26,7 @@ def test_link_flow_and_prefs(api, make_user):
     u = make_user("ADMINISTRATOR")
     c = api(u)
     d = c.get("/api/v1/notifications/me/").json()
-    assert d["linked"] is False and len(d["code"]) == 8 and {e["key"] for e in d["events"]} >= {"new_lead", "daily_report"}
+    assert d["linked"] is False and len(d["code"]) == 8 and {"new_lead", "attendance_missing"} <= {e["key"] for e in d["events"]} and "daily_report" not in {e["key"] for e in d["events"]}
     assert "Kod topilmadi" in services.handle_message(111, "/start XXXXXXX")
     assert "Bog'landi" in services.handle_message(111, f"/start {d['code']}", "ali")
     d2 = c.get("/api/v1/notifications/me/").json()
@@ -49,7 +49,7 @@ def test_new_lead_goes_to_branch_administrators(api, make_user, world, django_ca
     with django_capture_on_commit_callbacks(execute=True):
         assert api(make_user("FILIAL_MENEJERI")).post("/api/v1/leads/", body, format="json").status_code == 201
     msgs = list(Outbox.objects.all())
-    assert {m.user_id for m in msgs} == {adm.pk, bm.pk} and "Yangi Lidov" in msgs[0].text  # ustoz va o'chirib qo'ygan xodim olmaydi
+    assert {m.user_id for m in msgs} == {adm.pk, bm.pk} and "Yangi Lidov" in msgs[0].text  # ustoz (standart o'chiq) va o'chirib qo'ygan xodim olmaydi
     sent = []
     assert services.send_pending(sender=lambda chat, text: sent.append(chat)) == 2
     assert sorted(sent) == [100, 103] and set(Outbox.objects.values_list("status", flat=True)) == {"sent"}
@@ -90,3 +90,22 @@ def test_daily_report_to_boss(make_user, world, django_capture_on_commit_callbac
         call_command("daily_report")
     m = Outbox.objects.get(event="daily_report")
     assert m.user == bm and "Yangi lidlar: 1" in m.text and f"{timezone.localdate():%d.%m.%Y}" in m.text
+
+
+def test_user_choice_and_permission_limit(api, make_user, world, django_capture_on_commit_callbacks):  # noqa: F811
+    teacher, hisobchi = make_user("USTOZ"), make_user("HISOBCHI")
+    link(teacher, 700)
+    link(hisobchi, 701)
+    t = api(teacher).get("/api/v1/notifications/me/").json()
+    keys = {e["key"] for e in t["events"]}
+    assert "approval" not in keys and "daily_report" not in keys and "new_lead" in keys  # ustoz to'lovlarni ko'rmaydi
+    assert api(teacher).patch("/api/v1/notifications/me/", {"prefs": {"approval": True}}, format="json").status_code == 400
+    assert api(teacher).patch("/api/v1/notifications/me/", {"prefs": {"new_lead": True}}, format="json").status_code == 200
+    api(hisobchi).patch("/api/v1/notifications/me/", {"prefs": {"daily_report": True}}, format="json")
+    from apps.notifications import services as sv
+
+    with django_capture_on_commit_callbacks(execute=True):
+        sv.notify("new_lead", "x", branch=world["branch"])
+        sv.daily_report("hisobot", key="d1")
+    got = set(Outbox.objects.values_list("user_id", "event"))
+    assert (teacher.pk, "new_lead") in got and (hisobchi.pk, "daily_report") in got  # o'zi tanlagan xabar keldi

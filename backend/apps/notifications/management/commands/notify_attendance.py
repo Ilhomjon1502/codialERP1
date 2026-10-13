@@ -10,7 +10,6 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from apps.core.roles import RoleCode
 from apps.education.models import Attendance, Group
 from apps.education.services import FAOL, has_lesson, status_q
 from apps.notifications import services
@@ -31,9 +30,8 @@ class Command(BaseCommand):
             start = timezone.make_aware(datetime.datetime.combine(today, g.time.start_time))
             if now < start + delay:
                 continue
-            users = [g.teacher, *services.staff(g.branch, [RoleCode.ADMINISTRATOR, RoleCode.ADMINISTRATOR_HISOBCHI])]
-            services.notify(users, "attendance_missing",
-                            f"⚠️ <b>Davomat olinmagan</b>: {g.name} ({g.time}, ustoz {g.teacher}). Dars boshlanganiga {int(delay.total_seconds() // 60)} daqiqadan oshdi.",
-                            key=f"att:{g.pk}:{today}")
+            services.attendance_missing(
+                g, f"⚠️ <b>Davomat olinmagan</b>: {g.name} ({g.time}, ustoz {g.teacher}). Dars boshlanganiga {int(delay.total_seconds() // 60)} daqiqadan oshdi.",
+                key=f"att:{g.pk}:{today}")
             n += 1
         self.stdout.write(f"Davomati olinmagan guruhlar: {n}")
