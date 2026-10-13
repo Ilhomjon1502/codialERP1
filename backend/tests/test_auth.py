@@ -51,14 +51,14 @@ def test_password_link_and_set(api, make_user):
     assert link.startswith("https://test.example.uz/#/set-password?uid=")
     uid, token = re.search(r"uid=([^&]+)&token=(\S+)", link).groups()
     c = api()
-    weak = c.post("/api/v1/auth/password/set/", {"uid": uid, "token": token, "password": "12345678"}, format="json")
+    weak = c.post("/api/v1/auth/password/set/", {"uid": uid, "token": token, "password": "123"}, format="json")
     assert weak.status_code == 400 and "password" in weak.json()
-    ok = c.post("/api/v1/auth/password/set/", {"uid": uid, "token": token, "password": "Yangi-Parol-77"}, format="json")
+    ok = c.post("/api/v1/auth/password/set/", {"uid": uid, "token": token, "password": "1234"}, format="json")  # oddiy parol ham mumkin
     assert ok.status_code == 200
     # Havola bir marta ishlaydi
     again = c.post("/api/v1/auth/password/set/", {"uid": uid, "token": token, "password": "Boshqa-Parol-88"}, format="json")
     assert again.status_code == 400
-    assert c.post("/api/v1/auth/login/", {"email": "yangi@codial.test", "password": "Yangi-Parol-77"}, format="json").status_code == 200
+    assert c.post("/api/v1/auth/login/", {"email": "yangi@codial.test", "password": "1234"}, format="json").status_code == 200
 
 
 def test_password_reset_does_not_reveal_email(api, make_user):

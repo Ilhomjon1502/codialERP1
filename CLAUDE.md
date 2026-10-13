@@ -20,7 +20,7 @@
 | M8 Telegram bot, M9 AI | ⏳ tizim ishga tushgandan keyin |
 | 18-bo'limdagi ochiq savollar | ⏳ takliflar `docs/architecture.md` 7-bo'limda; buyurtmachi javob bermasa takliflar qo'llanadi. **3-savol (50% chegirma qoidasi)** ga aniq javob M6 dan oldin kerak |
 | Domen `codialinfo.uz` | ✅ buyurtmachiniki (ahost.uz). DNS: A `erp` → `77.42.9.23` (2026-10-13), Let's Encrypt SSL. Asosiy sayt (`@`, `www` — Vercel) va pochta yozuvlariga tegilmaydi |
-| Pochta (SMTP) | ⏳ berilmagan: test serverda xatlar konsolga (`docker compose logs web`) yoziladi |
+| Pochta (SMTP) | ✅ 2026-10-13: Gmail (`ilhomjonibragimov1502@gmail.com`, App password `deploy/.env` da). Qayta sozlash: serverda `bash /srv/codial-test/deploy/set-smtp.sh` (parolni o'zi so'raydi) |
 
 **Manzillar:**
 
@@ -45,7 +45,7 @@
 5. Testlar (8-bo'lim formulalari, muddatlar, rollar, doira, so'rovlar soni), `seed_demo` ga guruh/shartnoma/davomat, `docs/user_guide/m3_*.md`, shu bo'lim va 17-bo'lim holati.
 6. Joylash: 21.5 (`git pull` + `docker compose up -d --build` + `seed_demo`).
 
-**Ochiq:** SMTP (pochta) berilmagan — xatlar `docker compose logs web` da; 18-bo'lim savollari (3-savol — 50% chegirma — M6 dan oldin shart); lokal `C:\DSKEYS` (E-IMZO kaliti nusxasi) — buyurtmachi so'rasa o'chiriladi.
+**Ochiq:** 18-bo'lim savollari (3-savol — 50% chegirma — M6 dan oldin shart); lokal `C:\DSKEYS` (E-IMZO kaliti nusxasi) — buyurtmachi so'rasa o'chiriladi.
 
 ### Yangi kelgan dasturchi uchun qadamlar
 

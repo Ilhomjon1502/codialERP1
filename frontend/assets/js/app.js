@@ -387,7 +387,7 @@
         <div class="brand big"><span class="logo">codial<i>.</i></span><span class="brand-sub">Parol o'rnatish</span></div>
         <form class="login-form" id="sp-form" novalidate>
           <label class="lbl" for="sp-p1">Yangi parol</label><input id="sp-p1" type="password" autocomplete="new-password" required>
-          <div class="help">Kamida 8 belgi; faqat raqamlardan iborat yoki juda oddiy bo'lmasin.</div>
+          <div class="help">Kamida 4 belgi.</div>
           <label class="lbl" for="sp-p2">Parolni takrorlang</label><input id="sp-p2" type="password" autocomplete="new-password" required>
           <div class="form-error" id="sp-err" hidden></div>
           <button class="btn primary block" id="sp-btn">Parolni saqlash</button>

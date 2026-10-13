@@ -21,3 +21,4 @@
 | 2026-10-13 | Lidda guruh, sinov dars kuni va «Shartnoma tuzish» M3 da (Group va Contract modellari bilan) ulanadi; M2 da forma 3–5 statuslarda shu haqda eslatma ko'rsatadi | Bosqichlar tartibi: guruhlar M3 da |
 | 2026-10-13 | Voronka va statistika serverda hisoblanadi; voronka har ustunda oxirgi 40 ta lidni beradi, qolgani «Ro'yxat» tabida 50 tadan | AppSheet'dagi «hammasini yuklash» sekinligini takrorlamaslik uchun |
 | 2026-10-13 | Servis xatolari ham `{"maydon": ["xato"]}` shaklida qaytadi (umumiy exception handler) | Front-end xatoni tegishli maydon ostida ko'rsatishi uchun |
+| 2026-10-13 | Parol siyosati yumshatildi: faqat kamida 4 belgi (o'xshashlik, oddiy parol va faqat raqam cheklovlari olib tashlandi). Login urinishlari limiti qoladi | Buyurtmachi talabi: xodim istalgan, oson parolni ham qo'ya olsin. Xavf buyurtmachiga tushuntirildi |
