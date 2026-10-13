@@ -7,7 +7,7 @@
 
 ## 0. Joriy holat (2026-10-13) — yangi kelgan dasturchi shu yerdan boshlasin
 
-**Qisqasi:** prototip ma'qullandi va muzlatildi. **M1, M2 va M3 tayyor**: haqiqiy tizim (`backend/` — Django + DRF API, `frontend/` — prototip ekranlari API'ga ulangan) **Hetzner serverida ishlayapti**. Keyingi ish — **M4 (moliya: to'lovlar, g'aznalar ledger, o'tkazmalar, xarajatlar, kreditorlar)**, buyurtmachi «boshla» deganda boshlanadi.
+**Qisqasi:** prototip ma'qullandi va muzlatildi. **M1–M4 tayyor**: haqiqiy tizim (`backend/` — Django + DRF API, `frontend/` — prototip ekranlari API'ga ulangan) **Hetzner serverida ishlayapti**. Keyingi ish — **M5 (oyliklar: KPI stavkalari ekrani, oylik belgilash va berish, xodim balansi)**, buyurtmachi «boshla» deganda boshlanadi.
 
 | Bosqich | Holat |
 |---|---|
@@ -17,7 +17,8 @@
 | **M1** — backend, kirish/parol, rollar va ruxsatlar, filial doirasi, audit, Sozlamalar, Audit tarixi, front-end ulandi | ✅ 2026-10-12, 37 test, https://erp.codialinfo.uz da |
 | **M2** — CRM: talabalar, ota-onalar, lidlar (voronka, ro'yxat, statistika, kartochka, izohlar, talaba ma'lumotlarini to'ldirish) | ✅ 2026-10-13, 52 test |
 | **M3** — guruhlar, shartnomalar, qarzdorlar, davomat (olish, kelmaganlar, statistika, qoldirilgan darslar), qarz va KPI hisobi va qayta hisoblash, lid → shartnoma | ✅ 2026-10-13, 70 test |
-| M4 moliya → M7 hisobotlar, M10 import, M11 asosiy muhit | ⏳ navbatda (17-bo'lim) |
+| **M4** — moliya: to'lovlar (chegirma limiti, tasdiqlar, PDF chek), CashMovement ledger va g'azna balansi, o'tkazmalar, ayirboshlash, xarajatlar, kreditorlar, Tasdiqlashlar, «To'lov qilganlar» | ✅ 2026-10-13, 84 test |
+| M5 oyliklar → M7 hisobotlar, M10 import, M11 asosiy muhit | ⏳ navbatda (17-bo'lim) |
 | M8 Telegram bot, M9 AI | ⏳ tizim ishga tushgandan keyin |
 | 18-bo'limdagi ochiq savollar | ⏳ takliflar `docs/architecture.md` 7-bo'limda; buyurtmachi javob bermasa takliflar qo'llanadi. **3-savol (50% chegirma qoidasi)** ga aniq javob M6 dan oldin kerak |
 | Domen `codialinfo.uz` | ✅ buyurtmachiniki (ahost.uz). DNS: A `erp` → `77.42.9.23` (2026-10-13), Let's Encrypt SSL. Asosiy sayt (`@`, `www` — Vercel) va pochta yozuvlariga tegilmaydi |
@@ -36,7 +37,9 @@
 
 ### Ishni topshirish (2026-10-13) — keyingi dasturchi shundan davom etadi
 
-**Oxirgi holat:** M1, M2 va M3 `main` da, https://erp.codialinfo.uz da ishlayapti (sinov ma'lumotlari: 13 demo xodim + buyurtmachi akkaunti `ilhomjon.office@gmail.com` (Bosh menejer), ~80 lid, 7 guruh, ~58 shartnoma, o'tgan va joriy oy davomati, 8 ta KPI stavkasi). 70 test yashil, ruff toza. Pochta (Gmail SMTP) ishlayapti — parol o'rnatish xatlari haqiqatan yetib boradi. **Parol siyosati: faqat kamida 4 belgi** (buyurtmachi qarori, `docs/decisions.md`).
+**Oxirgi holat (M4 dan keyin):** M1–M4 `main` da va https://erp.codialinfo.uz da ishlayapti (2026-10-13). Sinov ma'lumotlariga to'lovlar, xarajatlar, o'tkazmalar, kreditor qo'shildi; 84 test yashil.
+
+**M3 dagi holat:** M1, M2 va M3 `main` da, https://erp.codialinfo.uz da ishlayapti (sinov ma'lumotlari: 13 demo xodim + buyurtmachi akkaunti `ilhomjon.office@gmail.com` (Bosh menejer), ~80 lid, 7 guruh, ~58 shartnoma, o'tgan va joriy oy davomati, 8 ta KPI stavkasi). 70 test yashil, ruff toza. Pochta (Gmail SMTP) ishlayapti — parol o'rnatish xatlari haqiqatan yetib boradi. **Parol siyosati: faqat kamida 4 belgi** (buyurtmachi qarori, `docs/decisions.md`).
 
 **M3 rejasi (bajarildi, tarix uchun):**
 1. `apps/education/`: `Group`, `Contract`, `Attendance`, `MakeupRequest` (7.4, 9-bo'lim). Pul `DecimalField(14,0)`, bo'lish `ROUND_HALF_UP` (5-bo'lim).
@@ -55,7 +58,15 @@
 - Front-end: `A.CONNECTED` ga contracts, debtors, attendance, groups, groupAnalysis qo'shildi; guruhlar bootstrap'da (`A.reloadGroups()`); umumiy `A.pager(key, data)` va `A.keepContract()`. Bosh sahifa (`pages-admin.js`) — faol talabalar, qarzdorlik, bugun davomati olinmagan guruhlar, ustoz uchun KPI.
 - Qarorlar: `docs/decisions.md` (2026-10-13, M3). Qo'llanma: `docs/user_guide/m3_guruhlar_shartnomalar_davomat.md`.
 
-**Keyingi ish — M4 (moliya).** Buyurtmachi «M4 ni boshla» desa: `CashMovement` ledger, g'azna balansi, to'lovlar (chegirma limiti, tasdiqlar, PDF chek), o'tkazmalar, ayirboshlash, xarajatlar, kreditorlar (7.5); `with_balance()` ga to'lovlar; front-end `pages-fin.js` 21.4 tartibida; shartnoma sahifasi va qarzdorlardagi «To'lov» tugmasi `paymentsReady()` orqali o'zi chiqadi (`A.CONNECTED` da `payments` bo'lsa).
+**M4 da nima qilindi (keyingi dasturchi bilsin):**
+- `apps/finance/`: `models.py` (Account, **CashMovement**, Payment, Transfer, Exchange, Expense, Creditor, CreditorTransaction, CreditorComment); **`services.py`** — `sync_movements` (manba → jurnal qatorlari), `balances()`/`balance()`, `check_funds` (qoldiqdan oshmasin), `my_accounts`, `scoped_account_ids`, to'lov/o'tkazma/xarajat/ayirboshlash/kreditor qoidalari, tasdiqlar (`can_approve_discount`, `can_approve_noncash`, `can_confirm_transfer`), `pending_counts`; `receipt.py` — PDF chek (reportlab); `views.py` — `/payments/` (+ `approve_discount`, `approve_noncash`, `receipt`, `summary`), `/transfers/` (+ `confirm`), `/exchanges/`, `/expenses/` (+ `names`, `summary`), `/creditors/` (+ `comments`), `/creditor-transactions/`, `/approvals/`; `demo.py` — sinov ma'lumotlari.
+- G'azna balansi: `AccountSerializer` da `balance`, `by_type`, `pending` (bootstrap va `/accounts/`), jurnal — `/accounts/{id}/ledger/`.
+- Shartnoma balansi endi to'lovlar bilan (`education.services.with_balance`), shartnoma sahifasida «To'lovlar» tabi, Lidlar → «To'lov qilganlar» (`?paid=1`).
+- **M5 uchun:** `SalaryPayout` saqlanganda `sync_movements(CashMovement.Source.SALARY, payout, [(account, cash_type, -amount, True, user)])` va `check_funds`; KPI stavkasi o'zgarsa `education.calc.recalc_from`.
+- Front-end: `pages-fin.js` boshidagi bo'limlar API'ga ulangan (Foyda va Oyliklar — hali prototip kodi, M5/M7); `A.reloadMoney()` (g'aznalar + tasdiqlar soni), `A.reloadPending()`, `A.accBal()`.
+- Ochiq: pulni qaytarish (18-bo'lim 9-savol) — hali yo'q.
+
+**M4 rejasi (bajarildi):** Buyurtmachi «M4 ni boshla» desa: `CashMovement` ledger, g'azna balansi, to'lovlar (chegirma limiti, tasdiqlar, PDF chek), o'tkazmalar, ayirboshlash, xarajatlar, kreditorlar (7.5); `with_balance()` ga to'lovlar; front-end `pages-fin.js` 21.4 tartibida; shartnoma sahifasi va qarzdorlardagi «To'lov» tugmasi `paymentsReady()` orqali o'zi chiqadi (`A.CONNECTED` da `payments` bo'lsa).
 
 **Buyurtmachi qarori (M3):** eski shartnomani to'xtatish (tugash sanasi, sabab, izoh) muddatdan qat'i nazar mumkin, tugash sanasi oxirgi 30 kun ichida (`education.services.check_contract_edit`). Boshqa maydonlar — 6.4 muddati, boshlanish sanasi bo'yicha.
 
@@ -67,7 +78,7 @@
 2. Biznes qoidalar: 6-bo'lim (rollar), 7-bo'lim (modellar), 8-bo'lim (hisob-kitob). Ekranlar va matnlar — prototipda (20-bo'lim).
 3. Lokalda ishga tushiring (`README.md`): `backend` da `seed_demo` → `runserver` → http://localhost:8000.
 4. Testlar: `backend` da `.venv/Scripts/python -m pytest` va `.venv/Scripts/ruff check .` yashil bo'lsin.
-5. Keyingi bosqich (M4) rejasi: shu bo'limdagi «Keyingi ish», `docs/architecture.md` 5-bo'lim va 17-bo'lim.
+5. Keyingi bosqich (M5) rejasi: shu bo'limdagi «M4 da nima qilindi → M5 uchun», `docs/architecture.md` 5-bo'lim va 17-bo'lim.
 
 ## 1. Manbalar
 
@@ -134,7 +145,7 @@ backend/
     accounts/      ✅    User (pochta bilan kirish), Role, RolePermission, RolePower; login, parol havolasi
     references/    ✅    Branch, Course, Room, DayPattern, LessonTime, CoursePrice, LessonFrequency,
                          DiscountType, ExpenseCategory, LeadSource, AttendanceStatus; bootstrap
-    finance/       ✅/⏳ Account (M1); CashMovement, Payment, Transfer, Exchange, Expense, Creditor… (M4)
+    finance/       ✅ M4  Account, CashMovement (ledger), Payment, Transfer, Exchange, Expense, Creditor…; receipt.py (PDF), demo.py
     crm/           ✅ M2  Parent, Student, Lead, LeadComment; voronka va statistika (services.board/stats)
     education/     ✅ M3  Group, Contract, Attendance, MakeupRequest; calc.py (qarz, KPI, qayta hisoblash), demo.py
                          (+ M6: StudentTask, baholash, ParentCall, Discount50)
@@ -654,8 +665,8 @@ Real ishga tushirish uchun minimal to'plam: **M1–M7 + M10 + M11** (xodimlar Ap
 | M1 | Loyiha asosi | Django + DRF, Docker, User/Role/ruxsatlar, filial doirasi, audit, login va parol havolasi, Sozlamalar, Audit tarixi, front-end ulandi, test server | ✅ 2026-10-12 |
 | M2 | CRM | Talabalar, ota-onalar, lidlar (voronka, forma, izohlar, statistika), "Shartnoma tuzish" tugmasi (shartnoma o'zi M3 da) | ✅ 2026-10-13 |
 | M3 | O'quv jarayoni | Guruhlar, shartnomalar, qarzdorlar, davomat ekrani, qarz va KPI servislari, kelmaganlar, qoldirilgan darslar, qayta hisoblash; lidda guruh va «Shartnoma tuzish», shartnoma konversiyasi, Shartnomalar → «Talabalar» | ✅ 2026-10-13 |
-| M4 | Moliya | CashMovement ledger, g'aznalar balansi, to'lovlar (tasdiqlar, chegirma limiti, PDF chek), o'tkazmalar, almashtirish, xarajatlar, kreditorlar; shartnoma balansiga to'lovlar (`education.services.with_balance`) | ⏳ keyingi |
-| M5 | Oyliklar | KPI stavkalari (API + ekran; model M3 da bor, o'zgarsa `calc.recalc_from`), oylik belgilash va berish, KPI daraxti, xodim balansi | ⏳ |
+| M4 | Moliya | CashMovement ledger, g'aznalar balansi, to'lovlar (tasdiqlar, chegirma limiti, PDF chek), o'tkazmalar, almashtirish, xarajatlar, kreditorlar, Tasdiqlashlar; shartnoma balansiga to'lovlar | ✅ 2026-10-13 |
+| M5 | Oyliklar | KPI stavkalari (API + ekran; model M3 da bor, o'zgarsa `calc.recalc_from`), oylik belgilash va berish (g'aznaga `CashMovement` SALARY), KPI daraxti, xodim balansi | ⏳ keyingi |
 | M6 | Qo'shimcha modullar | Vazifalar, ikki yo'nalishli baholash, ota-onalar bilan aloqa, 50% chegirma, Excel eksport | ⏳ |
 | M7 | Hisobot va dashboard | Bosh sahifa, oylik statistika, voronka, birinchi to'lovchilar, foyda, guruh tahlili | ⏳ |
 | M8 | Telegram bot | Bog'lash, xabarlar, kunlik hisobot | ⏳ keyin |
@@ -851,7 +862,7 @@ Brauzer ──HTTPS──► Nginx (serverda) ──┬── /            → f
 | `pages-admin.js` | Sozlamalar, Audit tarixi, Bosh sahifa (M1) — **namuna sifatida o'qing** |
 | `pages-crm.js` | Lidlar (M2), Shartnomalar, Qarzdorlar (M3) — API'ga ulangan. Ichidagi eski `A.page('dashboard')` ishlatilmaydi (`pages-admin.js` dagisi uni almashtiradi) |
 | `pages-edu.js` | Guruhlar, Guruhlar tahlili, Davomat (M3) — API'ga ulangan; Vazifalar, Baholash, Ota-onalar, 50% chegirma, Eksport — hali prototip kodi (M6) |
-| `pages-fin.js` | Prototip ekranlari — hali eski mahalliy kod; M4–M5 da API'ga o'tkaziladi |
+| `pages-fin.js` | To'lovlar, Tasdiqlashlar, G'aznalar, O'tkazmalar, Ayirboshlash, Xarajatlar, Kreditorlar (M4) — API'ga ulangan; Foyda (M7) va Oyliklar (M5) — hali prototip kodi |
 
 Sahifa serverdan ma'lumot olishi kerak bo'lsa: `A.page('route', { section, async load(p, q) {...}, render(p, q) {...} })` — `load` har chizishdan oldin (filtr o'zgarganda ham) chaqiriladi. Namuna: `A.page('audit')`.
 

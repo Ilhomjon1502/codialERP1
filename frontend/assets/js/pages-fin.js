@@ -1,77 +1,113 @@
-/* Moliya: To'lovlar, Tasdiqlashlar, G'aznalar, O'tkazmalar, Ayirboshlash, Xarajatlar, Kreditorlar, Foyda, Oyliklar */
+/* Moliya: To'lovlar, Tasdiqlashlar, G'aznalar, O'tkazmalar, Ayirboshlash, Xarajatlar, Kreditorlar (M4, server API), Foyda, Oyliklar */
 (function (A) {
   const esc = A.esc;
   const ncBadge = (p) => (p.nc_status ? A.badge(p.nc_status, p.nc_status === 'Tasdiqlandi' ? 'green' : 'orange') : '');
   const cashOpts = [['CASH', 'Naqd'], ['CARD', 'Karta'], ['BANK', 'Bank']];
+  const qsOf = (key, names, extra = {}) => {
+    const qs = new URLSearchParams(extra);
+    for (const k of names) if (A.q(`${key}:${k}`, '')) qs.set(k, A.q(`${key}:${k}`));
+    return qs;
+  };
+  /** Pul amalidan keyin: g'azna balanslari va tasdiqlar soni serverdan yangilanadi */
+  A.reloadMoney = async () => {
+    const [accounts] = await Promise.all([A.http.get('/accounts/'), A.reloadPending()]);
+    A.S.accounts = accounts;
+    A.version++;
+  };
+  A.accBal = (id, type) => {
+    const a = A.get('accounts', id) || {};
+    return type ? Number((a.by_type || {})[type] || 0) : Number(a.balance || 0);
+  };
 
-  /* ===================================================== To'lovlar */
+  /* ===================================================== To'lovlar (server API: /payments/) */
+  let pData = { results: [], by_day: {}, by_month: {}, total: 0 };
   A.page('payments', {
     title: "To'lovlar",
     section: 'payments',
-    render() {
-      return `${A.head("To'lovlar", 'Guruhlash: yil → oy → sana, jami summalar bilan', (A.can('payments', 'a') ? A.btn("To'lov qabul qilish", 'pay-new', { icon: 'plus' }) : '') + A.btn('Excel', 'payments-csv', { cls: 'ghost', icon: 'download' }))}
-        ${A.filterBar('payments', [A.fSearch('payments', 'Talaba yoki shartnoma…'), A.fSelect('payments', 'month', A.monthOptions(), 'Barcha oylar'), A.fSelect('payments', 'type', cashOpts, 'Barcha turlar')])}
-        <div data-results>${this.results()}</div>`;
+    async load() {
+      pData = await A.http.get('/payments/?' + qsOf('payments', ['search', 'month', 'type'], { page: A.q('payments:page', 1) }));
     },
-    results() {
-      const s = A.q('payments:search', ''), m = A.q('payments:month', ''), t = A.q('payments:type', '');
-      const rows = A.vis('payments').filter((p) => (!m || A.ym(p.date) === m) && (!t || p.cash_type === t) && A.match(A.contractName(p.contract), s));
-      if (!rows.length) return A.empty("To'lov topilmadi");
-      const byM = A.groupBy(A.sortBy(rows, (p) => p.date + p.created_at, true), (p) => A.ym(p.date));
-      return [...byM]
-        .map(([ym, list]) => {
-          const byD = A.groupBy(list, (p) => p.date);
-          return `<section class="group-block"><h3>${A.ymLabel(ym)} <span class="muted">· ${list.length} ta · ${A.money(A.sum(list, 'amount'))}</span></h3>
+    render() {
+      return `${A.head("To'lovlar", `Guruhlash: oy → sana, jami summalar bilan · filtr bo'yicha jami: <b>${A.money(pData.total)}</b>`, (A.can('payments', 'a') ? A.btn("To'lov qabul qilish", 'pay-new', { icon: 'plus' }) : '') + A.btn('Excel', 'payments-csv', { cls: 'ghost', icon: 'download' }))}
+        ${A.filterBar('payments', [A.fSearch('payments', 'Talaba, shartnoma yoki chek raqami…'), A.fSelect('payments', 'month', A.monthOptions(), 'Barcha oylar'), A.fSelect('payments', 'type', cashOpts, 'Barcha turlar')])}
+        <div>${paymentGroups(pData)}${A.pager('payments', pData)}</div>`;
+    },
+  });
+  function paymentGroups(d) {
+    if (!d.results.length) return A.empty("To'lov topilmadi");
+    const byM = A.groupBy(d.results, (p) => A.ym(p.date));
+    return [...byM]
+      .map(([ym, list]) => {
+        const byD = A.groupBy(list, (p) => p.date);
+        return `<section class="group-block"><h3>${A.ymLabel(ym)} <span class="muted">· ${A.money(d.by_month[ym] || 0)}</span></h3>
           ${[...byD]
-            .map(([d, dl]) => `<div class="day-h">${A.fdate(d)} <span class="muted">${A.WD[A.isoWeekday(d)]}</span><b>${A.money(A.sum(dl, 'amount'))}</b></div>${A.table(
+            .map(([day, dl]) => `<div class="day-h">${A.fdate(day)} <span class="muted">${A.WD[A.isoWeekday(day)]}</span><b>${A.money(d.by_day[day] || 0)}</b></div>${A.table(
               [
-                { h: 'Shartnoma', f: (p) => `<a href="#/contracts/${p.contract}">${esc(A.contractName(p.contract))}</a>` },
+                { h: '№', f: (p) => `<span class="muted">${p.number}</span>` },
+                { h: 'Shartnoma', f: (p) => `<a href="#/contracts/${p.contract}">${esc(p.contract_name)}</a>` },
                 { h: 'Summa', f: (p) => `<b>${A.num(p.amount)}</b>`, cls: 'num' },
-                { h: 'Turi', f: (p) => `${A.CASH[p.cash_type]} ${ncBadge(p)}` },
-                { h: 'Chegirma', f: (p) => (p.discount ? `${A.num(p.discount)} ${A.badge(p.disc_status, p.disc_status === 'Tasdiqlandi' ? 'green' : 'orange')}` : ''), cls: 'num' },
-                { h: "G'azna / hisobchi", f: (p) => `${esc(A.accName(p.cashbox))}<br><small class="muted">${esc(A.userName(p.accountant))}</small>` },
+                { h: 'Turi', f: (p) => `${p.amount ? A.CASH[p.cash_type] : '—'} ${ncBadge(p)}` },
+                { h: 'Chegirma', f: (p) => (Number(p.discount) ? `${A.num(p.discount)} ${A.badge(p.disc_status, p.disc_status === 'Tasdiqlandi' ? 'green' : 'orange')}` : ''), cls: 'num' },
+                { h: "G'azna / hisobchi", f: (p) => (p.cashbox ? `${esc(A.accName(p.cashbox))}<br><small class="muted">${esc(A.userName(p.accountant))}</small>` : '—') },
                 { h: '', f: (p) => payActions(p) },
               ],
               dl,
             )}`)
             .join('')}</section>`;
-        })
-        .join('');
-    },
-  });
-  const payLocked = (p) => p.disc_status === 'Tasdiqlandi' || p.nc_status === 'Tasdiqlandi';
+      })
+      .join('');
+  }
   function payActions(p) {
-    const ed = A.canEdit('payments', { ...p, locked: payLocked(p) });
-    const del = A.canEdit('payments', { ...p, locked: payLocked(p) }, 'date', 'd');
+    const ed = A.canEdit('payments', p);
+    const del = A.canEdit('payments', p, 'date', 'd');
     return `<div class="row gap nowrap"><button class="btn sm ghost" data-act="receipt" data-id="${p.id}">Chek</button>
       ${A.can('payments', 'e') ? `<button class="btn sm ghost" data-act="pay-edit" data-id="${p.id}" ${ed.ok ? '' : `disabled title="${esc(ed.why)}"`}>✎</button>` : ''}
       ${A.can('payments', 'd') ? `<button class="btn sm ghost" data-act="pay-del" data-id="${p.id}" ${del.ok ? '' : `disabled title="${esc(del.why)}"`}>🗑</button>` : ''}</div>`;
   }
-  A.act['payments-csv'] = () =>
-    A.downloadCSV('tolovlar.csv', [['Sana', 'Shartnoma', 'Summa', 'Turi', 'Chegirma', "G'azna"], ...A.vis('payments').map((p) => [p.date, A.contractName(p.contract), p.amount, A.CASH[p.cash_type], p.discount, A.accName(p.cashbox)])]);
+  const fetchAll = async (path, qs) => {
+    qs.set('page_size', 200);
+    let page = 1, out = [];
+    for (;;) {
+      qs.set('page', page);
+      const d = await A.http.get(path + qs);
+      out = out.concat(d.results);
+      if (page >= (d.pages || 1)) return out;
+      page++;
+    }
+  };
+  A.act['payments-csv'] = async () => {
+    const rows = await fetchAll('/payments/?', qsOf('payments', ['search', 'month', 'type']));
+    A.downloadCSV('tolovlar.csv', [['№', 'Sana', 'Shartnoma', 'Summa', 'Turi', 'Chegirma', "G'azna"], ...rows.map((p) => [p.number, p.date, p.contract_name, p.amount, p.amount ? A.CASH[p.cash_type] : '', p.discount, A.accName(p.cashbox)])]);
+  };
 
-  A.paymentForm = (p, contractId) => {
+  /* ---- To'lov formasi. Tekshiruvlar serverda (finance.services._validate_payment) ---- */
+  A.paymentForm = async (p, contractId) => {
     const isNew = !p;
     const top = A.isTop();
-    const B = A.branchIds()[0];
-    const branch = A.get('branches', B);
+    let contracts = [];
+    if (isNew && !contractId) contracts = (await A.http.get('/contracts/?page_size=200')).results;
+    const cur = contractId ? await A.http.get(`/contracts/${contractId}/`) : p ? await A.http.get(`/contracts/${p.contract}/`) : null;
+    if (cur) contracts = [cur];
+    const cById = (id) => contracts.find((c) => c.id === id);
+    const branchOf = (x) => A.get('branches', (cById(x.contract) || {}).branch) || {};
     const cashboxOpts = (x) => {
       if (!x.cash_type) return [];
-      if (x.cash_type === 'CASH') return A.myAccounts().map((a) => [a.id, a.name]);
-      return [[branch.noncash_cashbox, A.accName(branch.noncash_cashbox) + ' (naqdsiz g\'azna — sozlamadan)']];
+      if (x.cash_type === 'CASH') return A.myAccounts().filter((a) => ['CASH', 'ALL'].includes(a.cash_type)).map((a) => [a.id, a.name]);
+      const nc = branchOf(x).noncash_cashbox;
+      return nc ? [[nc, A.accName(nc) + " (naqdsiz g'azna — filial sozlamasidan)"]] : [];
     };
     A.form({
-      title: isNew ? "To'lov qabul qilish" : "To'lovni tahrirlash",
-      values: p ? { ...p } : { contract: contractId || '', date: A.today(), cash_type: 'CASH', discount_type: '', accountant: A.S.currentUser },
+      title: isNew ? "To'lov qabul qilish" : `To'lov №${p.number}`,
+      values: p ? { ...p, amount: Number(p.amount), discount: Number(p.discount) || '' } : { contract: contractId || '', date: A.today(), cash_type: 'CASH', discount_type: '' },
       fields: [
-        { name: 'contract', label: 'Shartnoma', type: 'select', required: true, readonly: () => !isNew, options: () => A.sortBy(A.vis('contracts'), (c) => (A.contractStatus(c) === 'Nofaol' ? 'z' : 'a') + A.contractName(c)).map((c) => [c.id, `${A.contractName(c)} · ${A.groupName(c.group)} · balans ${A.num(A.debtOf(c.id))}${A.contractStatus(c) === 'Nofaol' ? ' (nofaol)' : ''}`]) },
-        { name: 'bal', type: 'note', tone: 'info', show: (x) => x.contract, text: (x) => { const d = A.debtOf(x.contract); const c = A.get('contracts', x.contract); return `Joriy balans: <b class="${d > 0 ? 't-red' : 't-green'}">${A.money(d)}</b> · oylik narx: ${A.money(A.priceFor(c.branch, c.course, A.ym(A.today())))}`; } },
-        { name: 'amount', label: "To'lov miqdori", type: 'money', show: (x) => x.contract, min: 0, validate: (n) => (n < 0 ? "Manfiy summa — ochiq savol (15-bo'lim, 8). Prototipda ruxsat yo'q" : '') },
+        { name: 'contract', label: 'Shartnoma', type: 'select', required: true, readonly: () => !isNew || !!contractId, options: () => A.sortBy(contracts, (c) => (c.status === 'Nofaol' ? 'z' : 'a') + c.name).map((c) => [c.id, `${c.name} · ${A.groupName(c.group)} · balans ${A.num(c.balance)}${c.status === 'Nofaol' ? ' (nofaol)' : ''}`]) },
+        { name: 'bal', type: 'note', tone: 'info', show: (x) => x.contract, text: (x) => { const c = cById(x.contract); return c ? `Joriy balans: <b class="${c.balance > 0 ? 't-red' : 't-green'}">${A.money(c.balance)}</b> · ${esc(A.courseName(c.course))}` : ''; } },
+        { name: 'amount', label: "To'lov miqdori", type: 'money', show: (x) => x.contract, min: 0, validate: (n) => (n < 0 ? "Manfiy summa kiritib bo'lmaydi" : '') },
         { name: 'cash_type', label: "To'lov shakli", type: 'seg', options: cashOpts, show: (x) => x.amount > 0, resets: ['cashbox', 'accountant'] },
         { name: 'cashbox', label: "G'azna", type: 'select', auto: true, required: (x) => x.amount > 0, show: (x) => x.amount > 0 && x.cash_type, options: cashboxOpts, resets: ['accountant'], help: (x) => (x.cash_type === 'CASH' ? "Siz mas'ul bo'lgan faol g'aznalar" : '') },
         { name: 'accountant', label: 'Hisobchi', type: 'select', auto: true, show: (x) => x.cashbox, options: (x) => ((A.get('accounts', x.cashbox) || {}).responsible || []).map((u) => [u, A.userName(u)]) },
         { name: 'nc_note', type: 'note', tone: 'warn', show: (x) => x.amount > 0 && x.cash_type && x.cash_type !== 'CASH', text: "Naqdsiz to'lov <b>tasdiqlanmaguncha g'azna balansiga qo'shilmaydi</b>. Tasdiqlash: Admin; Bosh menejer 360 kun, Filial menejeri 7 kun ichida." },
-        { name: 'discount_type', label: 'Chegirma turi (ixtiyoriy)', type: 'select', show: (x) => x.contract, placeholder: "Chegirmasiz", options: () => A.rows('discountTypes').filter((d) => top || !d.is_system).map((d) => [d.id, `${d.name} (max ${A.num(d.max)})`]) },
+        { name: 'discount_type', label: 'Chegirma turi (ixtiyoriy)', type: 'select', show: (x) => x.contract, placeholder: 'Chegirmasiz', options: (x) => A.rows('discountTypes').filter((d) => (top || !d.is_system) && (!d.courses.length || d.courses.includes((cById(x.contract) || {}).course))).map((d) => [d.id, `${d.name} (max ${A.num(d.max)})`]) },
         {
           name: 'discount', label: 'Chegirma summasi', type: 'money', show: (x) => x.discount_type, required: (x) => !!x.discount_type,
           validate: (n, x) => { const d = A.get('discountTypes', x.discount_type); return d && n > d.max ? `Bu chegirma turiga ${A.num(d.max)} so'mdan ortiqcha chegirma kiritib bo'lmaydi` : n <= 0 ? "Chegirma 0 dan katta bo'lsin" : ''; },
@@ -81,177 +117,150 @@
         { name: 'comment', label: "Qo'shimcha izoh", type: 'textarea', show: (x) => x.amount > 0 || x.discount > 0 },
       ],
       submit: isNew ? 'Qabul qilish va chek' : 'Saqlash',
-      onSubmit(x) {
+      async onSubmit(x) {
         if (!(x.amount > 0) && !(x.discount > 0)) return "To'lov summasi yoki chegirma kiritilishi kerak";
-        const c = A.get('contracts', x.contract);
         const amount = Number(x.amount) || 0;
         const rec = {
-          branch: c.branch, contract: c.id, date: x.date, amount, cash_type: amount ? x.cash_type : '',
-          discount_type: x.discount_type, discount: Number(x.discount) || 0,
-          cashbox: amount ? x.cashbox : '', accountant: amount ? x.accountant : '', comment: x.comment,
+          amount, cash_type: amount ? x.cash_type : '', cashbox: amount && x.cash_type === 'CASH' ? x.cashbox : null, accountant: amount ? x.accountant || null : null,
+          discount_type: x.discount_type || null, discount: x.discount_type ? Number(x.discount) || 0 : 0, comment: x.comment || '',
         };
-        if (isNew || p.discount !== rec.discount || p.discount_type !== rec.discount_type) {
-          rec.disc_status = rec.discount ? 'Tasdiqlashga' : '';
-          rec.disc_by = '';
-        }
-        if (isNew || p.cash_type !== rec.cash_type || p.amount !== rec.amount) {
-          rec.nc_status = amount && rec.cash_type !== 'CASH' ? 'Tasdiqlashga' : '';
-          rec.nc_by = '';
-        }
-        let id;
-        if (isNew) id = A.insert('payments', rec, "To'lov", `${A.contractName(c)}: ${A.num(amount)}`).id;
-        else { A.patch('payments', p.id, rec, "To'lov", A.contractName(c)); id = p.id; }
-        A.toast(isNew ? "To'lov qabul qilindi" : 'Saqlandi');
+        if (top || isNew) rec.date = x.date;
+        const saved = isNew ? await A.http.post('/payments/', { ...rec, contract: x.contract }) : await A.http.patch(`/payments/${p.id}/`, rec);
+        await A.reloadMoney();
+        A.toast(isNew ? `To'lov qabul qilindi (chek №${saved.number})` : 'Saqlandi');
         A.refresh();
-        if (isNew) setTimeout(() => A.receipt(id), 60);
+        if (isNew && saved.nc_status !== 'Tasdiqlashga' && saved.disc_status !== 'Tasdiqlashga') setTimeout(() => A.receipt(saved.id), 60);
       },
     });
   };
   A.act['pay-new'] = (el) => A.paymentForm(null, el.dataset.id);
-  A.act['pay-edit'] = (el) => A.paymentForm(A.get('payments', el.dataset.id));
+  A.act['pay-edit'] = async (el) => A.paymentForm(await A.http.get(`/payments/${el.dataset.id}/`));
   A.act['pay-del'] = async (el) => {
-    const p = A.get('payments', el.dataset.id);
-    if (!(await A.confirm(`${A.contractName(p.contract)} — ${A.money(p.amount)} to'lovini o'chirasizmi? Moliyaviy yozuv bazadan o'chmaydi (soft delete), audit'da qoladi.`, "O'chirish", true))) return;
-    A.softDelete('payments', p.id, "To'lov", A.contractName(p.contract));
+    const p = await A.http.get(`/payments/${el.dataset.id}/`);
+    if (!(await A.confirm(`${esc(p.contract_name)} — ${A.money(p.amount)} to'lovini o'chirasizmi? Moliyaviy yozuv bazadan o'chmaydi (soft delete), audit'da qoladi.`, "O'chirish", true))) return;
+    await A.http.del(`/payments/${p.id}/`);
+    await A.reloadMoney();
     A.refresh();
   };
 
-  /* ---- PDF chek (prototipda chop etiladigan ko'rinish) ---- */
-  A.receipt = (id) => {
-    const p = A.get('payments', id);
-    const c = A.get('contracts', p.contract);
-    const pending = p.nc_status === 'Tasdiqlashga' || p.disc_status === 'Tasdiqlashga';
-    if (pending && !['ADMIN', 'BOSH_MENEJER', 'FILIAL_MENEJERI'].includes(A.role())) {
+  /* ---- PDF chek (serverda yaratiladi, har ochilganda joriy ma'lumot bilan) ---- */
+  A.receipt = (id) => window.open(`/api/v1/payments/${id}/receipt/`, '_blank');
+  A.act.receipt = async (el) => {
+    const p = await A.http.get(`/payments/${el.dataset.id}/`);
+    if ((p.nc_status === 'Tasdiqlashga' || p.disc_status === 'Tasdiqlashga') && !A.isManager()) {
       A.modal({ title: 'Chek', body: `<div class="alert warn">${A.icon('alert')}<div>Bu to'lov hali tasdiqlanmagan (naqdsiz yoki chegirma). Chek tasdiqlangandan keyin chiqadi. Admin, Bosh menejer va Filial menejeri uni hozir ham ko'ra oladi.</div></div>` });
       return;
     }
-    const m = A.modal({
-      title: "To'lov cheki",
-      body: `<div class="receipt" id="receipt">
-        <div class="r-head"><span class="logo">codial<i>.</i></span><div>IT o'quv markazi · ${esc(A.branchName(p.branch))} filiali<br>Farg'ona sh.</div></div>
-        <h3>TO'LOV CHEKI № ${esc(p.id.toUpperCase())}</h3>
-        <table>
-          <tr><td>Sana</td><td>${A.fdate(p.date)} ${A.fdt(p.created_at).slice(11)}</td></tr>
-          <tr><td>Talaba</td><td>${esc(A.studentName(c.student))}</td></tr>
-          <tr><td>Shartnoma</td><td>№${c.number} · ${esc(A.groupName(c.group))}</td></tr>
-          <tr><td>To'lov shakli</td><td>${p.amount ? A.CASH[p.cash_type] : '—'}</td></tr>
-          ${p.discount ? `<tr><td>Chegirma</td><td>${A.money(p.discount)} (${esc((A.get('discountTypes', p.discount_type) || {}).name)})</td></tr>` : ''}
-          <tr class="big"><td>Summa</td><td>${A.money(p.amount)}</td></tr>
-          <tr><td>To'lovdan keyingi balans</td><td>${A.money(A.debtOf(c.id))}</td></tr>
-          <tr><td>Qabul qildi</td><td>${esc(A.userName(p.created_by))}</td></tr>
-        </table>
-        ${pending ? '<p class="r-warn">TASDIQLANMAGAN</p>' : ''}
-        <p class="r-foot">Rahmat! Savollar bo'yicha: +998 73 000 00 00</p>
-      </div>`,
-      footer: `<button class="btn ghost" data-close>Yopish</button><button class="btn primary" id="r-print">${A.icon('download')}PDF / chop etish</button>`,
-    });
-    m.el.querySelector('#r-print').onclick = () => {
-      document.body.classList.add('printing');
-      window.print();
-      setTimeout(() => document.body.classList.remove('printing'), 500);
-    };
+    A.receipt(p.id);
   };
-  A.act.receipt = (el) => A.receipt(el.dataset.id);
 
   /* ===================================================== Tasdiqlashlar */
+  let apData = {};
   A.page('approvals', {
     title: 'Tasdiqlashlar',
     section: 'approvals',
-    render(p, q) {
-      const P = A.pending();
+    async load(p, q) {
       const tab = q.tab || 'disc';
-      const items = [
-        ['disc', 'Chegirmalar', P.discounts.length],
-        ['nc', "Naqdsiz to'lovlar", P.noncash.length],
-        ['tr', "O'tkazmalar", P.transfers.length],
-        ['mk', 'Qoldirilgan darslar', P.makeups.length],
-        ['freq', 'Oydagi dars soni', P.freqs.length],
-      ];
-      let body = '';
+      await A.reloadPending();
+      apData = {};
+      if (tab === 'disc' && A.can('payments')) apData.rows = (await A.http.get('/payments/?disc_status=Tasdiqlashga&page_size=200')).results;
+      else if (tab === 'nc' && A.can('payments')) apData.rows = (await A.http.get('/payments/?nc_status=Tasdiqlashga&page_size=200')).results;
+      else if (tab === 'tr' && A.can('transfers')) apData.rows = (await A.http.get('/transfers/?status=Tasdiqlashga&page_size=200')).results;
+      else if (tab === 'mk' && A.can('attendance')) apData.rows = await A.http.get('/makeups/?status=Kutilmoqda');
+      else apData.rows = tab === 'freq' ? A.rows('lessonFreqs').filter((f) => f.status === 'Taklif' && A.branchIds().includes(f.branch)) : [];
+    },
+    render(p, q) {
+      const P = A.S.pendingCounts || {};
+      const tab = q.tab || 'disc';
+      const items = [['disc', 'Chegirmalar', P.discounts], ['nc', "Naqdsiz to'lovlar", P.noncash], ['tr', "O'tkazmalar", P.transfers], ['mk', 'Qoldirilgan darslar', P.makeups], ['freq', 'Oydagi dars soni', P.freqs]];
+      const rows = apData.rows || [];
       const btn = (act, id, ok, why) => (ok ? `<button class="btn sm primary" data-act="${act}" data-id="${id}">Tasdiqlash</button>` : `<span class="muted small" title="${esc(why)}">${esc(why)}</span>`);
+      let body = '';
       if (tab === 'disc') {
         body = `<p class="muted">Chegirmani Admin tasdiqlaydi, Bosh menejer — yaratilganidan keyin 30 kun ichida.</p>` + A.table(
           [
             { h: 'Sana', f: (x) => A.fdate(x.date) },
-            { h: 'Shartnoma', f: (x) => `<a href="#/contracts/${x.contract}">${esc(A.contractName(x.contract))}</a>` },
+            { h: 'Shartnoma', f: (x) => `<a href="#/contracts/${x.contract}">${esc(x.contract_name)}</a>` },
             { h: 'Chegirma turi', f: (x) => esc((A.get('discountTypes', x.discount_type) || {}).name) },
             { h: 'Summa', f: (x) => `<b>${A.num(x.discount)}</b>`, cls: 'num' },
             { h: 'Izoh', f: (x) => esc(x.comment) },
             { h: 'Kiritdi', f: (x) => esc(A.userName(x.created_by)) },
-            { h: '', f: (x) => btn('ok-disc', x.id, A.canApproveDiscount(x), 'Faqat Admin / Bosh menejer (30 kun)') },
+            { h: '', f: (x) => btn('ok-disc', x.id, x.can_approve_disc, 'Faqat Admin / Bosh menejer (30 kun)') },
           ],
-          P.discounts,
+          rows,
           { empty: "Tasdiq kutayotgan chegirma yo'q" },
         );
       } else if (tab === 'nc') {
         body = `<p class="muted">Admin istalgan vaqtda; Bosh menejer 360 kun, Filial menejeri 7 kun ichida tasdiqlaydi. Tasdiqlangach summa g'azna balansiga qo'shiladi.</p>` + A.table(
           [
             { h: 'Sana', f: (x) => A.fdate(x.date) },
-            { h: 'Shartnoma', f: (x) => `<a href="#/contracts/${x.contract}">${esc(A.contractName(x.contract))}</a>` },
+            { h: 'Shartnoma', f: (x) => `<a href="#/contracts/${x.contract}">${esc(x.contract_name)}</a>` },
             { h: 'Turi', f: (x) => A.CASH[x.cash_type] },
             { h: 'Summa', f: (x) => `<b>${A.num(x.amount)}</b>`, cls: 'num' },
             { h: "G'azna", f: (x) => esc(A.accName(x.cashbox)) },
-            { h: '', f: (x) => btn('ok-nc', x.id, A.canApproveNoncash(x), "Ruxsat yo'q yoki muddat o'tgan") },
+            { h: '', f: (x) => btn('ok-nc', x.id, x.can_approve_nc, "Ruxsat yo'q yoki muddat o'tgan") },
           ],
-          P.noncash,
+          rows,
           { empty: "Tasdiq kutayotgan naqdsiz to'lov yo'q" },
         );
       } else if (tab === 'tr') {
-        body = `<p class="muted">O'tkazmani qabul qiluvchi g'azna mas'uli yoki Admin tasdiqlaydi. Tasdiqlanmaguncha ikkala g'aznada ham hisobga olinmaydi.</p>` + transfersTable(P.transfers);
+        body = `<p class="muted">O'tkazmani qabul qiluvchi g'azna mas'uli yoki Admin tasdiqlaydi. Tasdiqlanmaguncha ikkala g'aznada ham hisobga olinmaydi.</p>` + transfersTable(rows);
       } else if (tab === 'mk') {
-        body = `<p class="muted">Tasdiqlansa davomat «Besabab»dan «Sababli»ga o'zgaradi va ustozga KPI yoziladi.</p>` + A.makeupTable(P.makeups);
+        body = `<p class="muted">Tasdiqlansa davomat «Besabab»dan «Sababli»ga o'zgaradi va ustozga KPI yoziladi.</p>` + A.makeupTable(rows);
       } else {
-        body = `<p class="muted">Har oy 1-kuni tizim kalendar bo'yicha taklif tayyorlaydi. Menejer tekshiradi (bayramlar) va tasdiqlaydi — shundan keyin qarz va KPI hisoblanadi.</p>` + A.freqTable(P.freqs);
+        body = `<p class="muted">Har oy 1-kuni tizim kalendar bo'yicha taklif tayyorlaydi. Menejer tekshiradi (bayramlar) va tasdiqlaydi — shundan keyin qarz va KPI hisoblanadi. <a href="#/settings?tab=freq">Sozlamalar → Oydagi dars soni →</a></p>` + A.freqTable(rows);
       }
-      return `${A.head('Tasdiqlashlar', `Sizning tasdiqingiz kerak: <b>${A.pendingCount()}</b> ta`)}${A.tabs(items, tab, 'approvals')}${body}`;
+      return `${A.head('Tasdiqlashlar', `Sizning tasdiqingiz kerak: <b>${P.total || 0}</b> ta`)}${A.tabs(items, tab, 'approvals')}${body}`;
     },
   });
-  A.act['ok-disc'] = (el) => {
-    const p = A.get('payments', el.dataset.id);
-    A.patch('payments', p.id, { disc_status: 'Tasdiqlandi', disc_by: A.S.currentUser, disc_at: Date.now() }, 'Chegirma tasdiqlandi', A.contractName(p.contract));
+  A.act['ok-disc'] = async (el) => {
+    await A.http.post(`/payments/${el.dataset.id}/approve_discount/`);
     A.toast('Chegirma tasdiqlandi');
     A.refresh();
   };
-  A.act['ok-nc'] = (el) => {
-    const p = A.get('payments', el.dataset.id);
-    A.patch('payments', p.id, { nc_status: 'Tasdiqlandi', nc_by: A.S.currentUser, nc_at: Date.now() }, "Naqdsiz to'lov tasdiqlandi", A.contractName(p.contract));
+  A.act['ok-nc'] = async (el) => {
+    const p = await A.http.post(`/payments/${el.dataset.id}/approve_noncash/`);
+    await A.reloadMoney();
     A.toast(`${A.money(p.amount)} «${A.accName(p.cashbox)}» balansiga qo'shildi`);
     A.refresh();
   };
 
-  /* ===================================================== G'aznalar */
+  /* ===================================================== G'aznalar (balans serverda: boshlang'ich + Σ tasdiqlangan harakatlar) */
   A.page('accounts', {
     title: "G'aznalar",
     section: 'accounts',
+    load: () => A.reloadMoney(),
     render() {
-      const accs = A.rows('accounts');
-      return `${A.head("G'aznalar", "Balans = boshlang'ich qoldiq + barcha tasdiqlangan pul harakatlari (yagona jurnal)", A.can('accounts', 'a') ? A.btn("G'azna qo'shish", 'acc-new', { icon: 'plus' }) : '')}
+      const accs = A.rows('accounts').filter((a) => a.balance !== null);
+      return `${A.head("G'aznalar", "Balans = boshlang'ich qoldiq + barcha tasdiqlangan pul harakatlari (yagona jurnal)", A.can('settings', 'e') ? `<a class="btn ghost" href="#/settings?tab=accounts">G'aznalarni sozlash</a>` : '')}
         <div class="cards">${accs
           .map((a) => {
-            const types = a.cash_type === 'ALL' ? ['CASH', 'CARD', 'BANK'] : [...new Set([a.cash_type, ...A.ledger().filter((m) => m.account === a.id).map((m) => m.type)])];
-            const pend = A.pendingOf(a.id);
+            const types = Object.keys(a.by_type || {});
             return `<a class="gcard acc" href="#/accounts/${a.id}">
               <div class="gcard-h"><b>${esc(a.name)}</b>${A.badge(A.CASH[a.cash_type], 'gray')}</div>
-              <div class="big-num">${A.money(A.balance(a.id))}</div>
-              ${types.map((t) => `<div class="small row between"><span>${A.CASH[t]}</span><span>${A.num(A.balance(a.id, t))}</span></div>`).join('')}
-              ${pend ? `<div class="small t-orange">Tasdiqlanmagan: ${A.num(pend)}</div>` : ''}
-              <div class="muted small">Mas'ullar: ${a.responsible.map(A.userName).map(esc).join(', ')}</div>
+              <div class="big-num">${A.money(a.balance)}</div>
+              ${types.map((t) => `<div class="small row between"><span>${A.CASH[t]}</span><span>${A.num(a.by_type[t])}</span></div>`).join('')}
+              ${Number(a.pending) ? `<div class="small t-orange">Tasdiqlanmagan: ${A.num(a.pending)}</div>` : ''}
+              <div class="muted small">Mas'ullar: ${a.responsible.map(A.userName).map(esc).join(', ') || '—'}</div>
             </a>`;
           })
-          .join('')}</div>
-        <div class="alert info">${A.icon('alert')}<div>Ochiq savol (15-bo'lim, 5): «Hammasi» (All) turidagi g'aznada balans har bir to'lov turi bo'yicha alohida ko'rsatilsinmi? Prototipda ikkalasi ham ko'rsatilgan.</div></div>`;
+          .join('') || A.empty("G'azna yo'q")}</div>`;
     },
   });
+  let ledger = { results: [] };
   A.page('accounts/:id', {
     title: "G'azna",
     section: 'accounts',
+    async load({ id }) {
+      await A.reloadMoney();
+      ledger = await A.http.get(`/accounts/${id}/ledger/?` + qsOf('led', ['month'], { page: A.q('led:page', 1) }));
+    },
     render({ id }) {
       const a = A.get('accounts', id);
       const m = A.q('led:month', '');
-      const rows = A.ledger().filter((x) => x.account === id && (!m || A.ym(x.date) === m));
       return `<a class="back" href="#/accounts">← G'aznalar</a>
-        ${A.head(a.name, `${A.CASH[a.cash_type]} · mas'ullar: ${a.responsible.map(A.userName).map(esc).join(', ')}`, A.can('accounts', 'e') ? A.btn('Tahrirlash', 'acc-edit', { id, cls: 'ghost' }) : '')}
-        <div class="stats">${A.stat('Joriy balans', A.money(A.balance(id)))}${A.stat("Boshlang'ich qoldiq", A.money(a.initial), 'import sanasi: ' + A.fdate(a.start))}${A.stat('Tasdiqlanmagan', A.money(A.pendingOf(id)), "balansga kirmagan", A.pendingOf(id) ? 'warn' : '')}</div>
+        ${A.head(a.name, `${A.CASH[a.cash_type]} · mas'ullar: ${a.responsible.map(A.userName).map(esc).join(', ') || '—'}`)}
+        <div class="stats">${A.stat('Joriy balans', A.money(a.balance))}${A.stat("Boshlang'ich qoldiq", A.money(a.initial), a.start ? 'sana: ' + A.fdate(a.start) : '')}${A.stat('Tasdiqlanmagan', A.money(a.pending), 'balansga kirmagan', Number(a.pending) ? 'warn' : '')}</div>
         <div class="filters"><select class="f-input" data-filter="led:month"><option value="">Barcha oylar</option>${A.monthOptions().map(([k, l]) => `<option value="${k}" ${k === m ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
         ${A.table(
           [
@@ -259,98 +268,83 @@
             { h: 'Manba', f: (x) => esc(x.src) },
             { h: 'Tafsilot', f: (x) => esc(x.ref) },
             { h: 'Turi', f: (x) => A.CASH[x.type] },
-            { h: 'Summa', f: (x) => `<span class="${x.amount < 0 ? 't-red' : 't-green'}">${x.amount > 0 ? '+' : ''}${A.num(x.amount)}</span>`, cls: 'num', sum: (r) => A.num(A.sum(r.filter((x) => x.confirmed), 'amount')) },
+            { h: 'Summa', f: (x) => `<span class="${x.amount < 0 ? 't-red' : 't-green'}">${x.amount > 0 ? '+' : ''}${A.num(x.amount)}</span>`, cls: 'num' },
             { h: 'Holat', f: (x) => (x.confirmed ? '' : A.badge('tasdiqlanmagan', 'orange')) },
           ],
-          rows,
+          ledger.results,
           { empty: "Harakat yo'q" },
-        )}`;
+        )}${A.pager('led', ledger)}`;
     },
   });
-  A.accountForm = (a) =>
-    A.form({
-      title: a ? a.name : "Yangi g'azna",
-      values: a ? { ...a } : { cash_type: 'CASH', responsible: [], status: 'Faol', initial: 0, start: A.today() },
-      fields: [
-        { name: 'name', label: 'Nomi', required: true, validate: (n) => (A.rows('accounts').some((x) => x.name === n && (!a || x.id !== a.id)) ? "Avval qo'shilgan" : '') },
-        { name: 'cash_type', label: 'Pul shakli', type: 'seg', options: [['CASH', 'Naqd'], ['CARD', 'Karta'], ['BANK', 'Bank'], ['ALL', 'Hammasi']] },
-        { name: 'responsible', label: "Mas'ul shaxslar", type: 'chips', readonly: () => !A.isTop(), options: () => A.S.users.filter((u) => ['ADMIN', 'BOSH_MENEJER', 'ADMINISTRATOR_HISOBCHI', 'HISOBCHI'].includes(u.role)).map((u) => [u.id, u.full_name]), help: () => (A.isTop() ? '' : "Mas'ullarni faqat Admin va Bosh menejer o'zgartiradi") },
-        { name: 'initial', label: "Boshlang'ich balans", type: 'money' },
-        { name: 'start', label: 'Boshlanish sana', type: 'date', validate: (d) => (d > A.today() ? 'Faqat bugun yoki avvalgi sanalarni tanlang' : '') },
-        { name: 'status', label: 'Status', type: 'seg', options: ['Faol', 'Nofaol'] },
-      ],
-      onSubmit(x) {
-        const rec = { name: x.name, cash_type: x.cash_type, responsible: x.responsible, initial: Number(x.initial) || 0, start: x.start, status: x.status };
-        if (a) A.patch('accounts', a.id, rec, "G'azna", a.name); else A.insert('accounts', rec, "G'azna", x.name);
-        A.refresh();
-      },
-    });
-  A.act['acc-new'] = () => A.accountForm(null);
-  A.act['acc-edit'] = (el) => A.accountForm(A.get('accounts', el.dataset.id));
 
-  /* ===================================================== Ichki pul oqimi */
-  const direction = (t) => {
-    const me = A.S.currentUser;
-    if ((A.get('accounts', t.sender) || {}).responsible.includes(me)) return ['Chiquvchi', 'red'];
-    if ((A.get('accounts', t.receiver) || {}).responsible.includes(me)) return ['Kiruvchi', 'green'];
-    return ['Boshqa', 'gray'];
-  };
+  /* ===================================================== Ichki pul oqimi (/transfers/) */
+  const DIR_TONE = { Chiquvchi: 'red', Kiruvchi: 'green', Boshqa: 'gray' };
   function transfersTable(rows) {
     return A.table(
       [
         { h: 'Sana', f: (t) => A.fdate(t.date) },
-        { h: "Yo'nalish", f: (t) => { const [d, c] = direction(t); return A.badge(d, c); } },
+        { h: "Yo'nalish", f: (t) => A.badge(t.direction, DIR_TONE[t.direction]) },
         { h: 'Kimdan', f: (t) => `${esc(A.accName(t.sender))}<br><small class="muted">${esc(A.userName(t.sender_cashier))}</small>` },
         { h: 'Kimga', f: (t) => `${esc(A.accName(t.receiver))}<br><small class="muted">${esc(A.userName(t.receiver_cashier))}</small>` },
         { h: 'Summa', f: (t) => `<b>${A.num(t.amount)}</b>`, cls: 'num' },
         { h: 'Holat', f: (t) => A.badge(t.status, t.status === 'Tasdiqlandi' ? 'green' : 'orange') + (t.confirmed_by ? `<br><small class="muted">${esc(A.userName(t.confirmed_by))}</small>` : '') },
         { h: 'Izoh', f: (t) => esc(t.comment) },
-        { h: '', f: (t) => (t.status === 'Tasdiqlashga' ? (A.canApproveTransfer(t) ? `<button class="btn sm primary" data-act="ok-tr" data-id="${t.id}">Qabul qildim</button>` : '<span class="muted small">Qabul qiluvchi tasdiqlaydi</span>') : '') },
+        { h: '', f: (t) => (t.status === 'Tasdiqlashga' ? (t.can_confirm ? `<button class="btn sm primary" data-act="ok-tr" data-id="${t.id}">Qabul qildim</button>` : '<span class="muted small">Qabul qiluvchi tasdiqlaydi</span>') : '') },
       ],
       rows,
       { empty: "O'tkazma yo'q" },
     );
   }
+  let trData = { results: [] };
   A.page('transfers', {
     title: 'Ichki pul oqimi',
     section: 'transfers',
+    async load() {
+      trData = await A.http.get(`/transfers/?page=${A.q('tr:page', 1)}`);
+    },
     render() {
-      return `${A.head("Ichki pul oqimi", "G'aznalar orasida naqd pul o'tkazish", A.can('transfers', 'a') ? A.btn("O'tkazma", 'tr-new', { icon: 'plus' }) : '')}${transfersTable(A.sortBy(A.rows('transfers'), (t) => t.date, true))}`;
+      return `${A.head('Ichki pul oqimi', "G'aznalar orasida naqd pul o'tkazish", A.can('transfers', 'a') ? A.btn("O'tkazma", 'tr-new', { icon: 'plus' }) : '')}${transfersTable(trData.results)}${A.pager('tr', trData)}`;
     },
   });
-  A.act['ok-tr'] = (el) => {
-    const t = A.get('transfers', el.dataset.id);
-    A.patch('transfers', t.id, { status: 'Tasdiqlandi', confirmed_by: A.S.currentUser, confirmed_at: Date.now() }, "O'tkazma tasdiqlandi", `${A.accName(t.sender)} → ${A.accName(t.receiver)}`);
+  A.act['ok-tr'] = async (el) => {
+    await A.http.post(`/transfers/${el.dataset.id}/confirm/`);
+    await A.reloadMoney();
     A.toast("O'tkazma tasdiqlandi — ikkala g'azna balansi yangilandi");
     A.refresh();
   };
-  A.act['tr-new'] = () => {
+  A.act['tr-new'] = async () => {
+    await A.reloadMoney();
     const top = A.isTop();
     A.form({
       title: "G'aznalar orasida o'tkazma",
-      values: { date: A.today(), cash_type: 'CASH' },
+      values: { date: A.today() },
       fields: [
-        { name: 'sender', label: "Yuboruvchi g'azna", type: 'select', required: true, auto: true, options: () => A.myAccounts().map((a) => [a.id, `${a.name} (naqd: ${A.num(A.balance(a.id, 'CASH'))})`]), resets: ['sender_cashier', 'amount'], onChange: (x) => { if (x.sender) x.amount = A.balance(x.sender, 'CASH'); } },
+        { name: 'sender', label: "Yuboruvchi g'azna", type: 'select', required: true, auto: true, options: () => A.myAccounts().map((a) => [a.id, `${a.name} (naqd: ${A.num(A.accBal(a.id, 'CASH'))})`]), resets: ['sender_cashier', 'amount'], onChange: (x) => { if (x.sender) x.amount = A.accBal(x.sender, 'CASH'); } },
         { name: 'sender_cashier', label: "Yuboruvchi g'aznachi", type: 'select', auto: true, show: (x) => x.sender, options: (x) => (A.get('accounts', x.sender) || { responsible: [] }).responsible.map((u) => [u, A.userName(u)]) },
-        { name: 'cash_type', label: 'Pul shakli', type: 'computed', show: (x) => x.sender, compute: () => 'Naqd (o\'tkazma faqat naqd pul uchun)' },
-        { name: 'amount', label: 'Summa', type: 'money', required: true, show: (x) => x.sender, help: (x) => `G'aznada naqd: ${A.money(A.balance(x.sender, 'CASH'))}`, validate: (n, x) => (n <= 0 ? "0 dan katta bo'lsin" : !top && n > A.balance(x.sender, 'CASH') ? `G'aznada ${A.num(A.balance(x.sender, 'CASH'))} so'm pul bor` : '') },
+        { name: 'cash_type', label: 'Pul shakli', type: 'computed', show: (x) => x.sender, compute: () => "Naqd (o'tkazma faqat naqd pul uchun)" },
+        { name: 'amount', label: 'Summa', type: 'money', required: true, show: (x) => x.sender, help: (x) => `G'aznada naqd: ${A.money(A.accBal(x.sender, 'CASH'))}`, validate: (n, x) => (n <= 0 ? "0 dan katta bo'lsin" : !top && n > A.accBal(x.sender, 'CASH') ? `G'aznada ${A.num(A.accBal(x.sender, 'CASH'))} so'm pul bor` : '') },
         { name: 'receiver', label: "Qabul qiluvchi g'azna", type: 'select', required: true, show: (x) => x.amount > 0, options: (x) => A.rows('accounts').filter((a) => a.status === 'Faol' && a.id !== x.sender).map((a) => [a.id, a.name]), resets: ['receiver_cashier'] },
         { name: 'receiver_cashier', label: "Qabul qiluvchi g'aznachi", type: 'select', auto: true, show: (x) => x.receiver, options: (x) => (A.get('accounts', x.receiver) || { responsible: [] }).responsible.map((u) => [u, A.userName(u)]) },
         { name: 'date', label: 'Sana', type: 'date', readonly: () => !top, show: (x) => x.receiver, help: () => (top ? '' : "Sanani faqat Admin va Bosh menejer o'zgartiradi") },
         { name: 'comment', label: 'Izoh', type: 'textarea', show: (x) => x.receiver },
       ],
-      onSubmit(x) {
-        A.insert('transfers', { date: x.date, sender: x.sender, sender_cashier: x.sender_cashier, cash_type: 'CASH', amount: x.amount, receiver: x.receiver, receiver_cashier: x.receiver_cashier, status: 'Tasdiqlashga', confirmed_by: '', comment: x.comment }, "O'tkazma", `${A.accName(x.sender)} → ${A.accName(x.receiver)}`);
+      async onSubmit(x) {
+        await A.http.post('/transfers/', { date: x.date, sender: x.sender, sender_cashier: x.sender_cashier || null, amount: x.amount, receiver: x.receiver, receiver_cashier: x.receiver_cashier || null, comment: x.comment || '' });
+        await A.reloadMoney();
         A.toast("Yuborildi. Qabul qiluvchi tasdiqlaguncha balanslar o'zgarmaydi");
         A.refresh();
       },
     });
   };
 
-  /* ===================================================== Pul ayirboshlash */
+  /* ===================================================== Pul ayirboshlash (/exchanges/) */
+  let xData = { results: [] };
   A.page('exchange', {
     title: 'Pul ayirboshlash',
     section: 'exchange',
+    async load() {
+      xData = await A.http.get(`/exchanges/?page=${A.q('xc:page', 1)}`);
+    },
     render() {
       return `${A.head('Pul ayirboshlash', "Masalan kartadagi pulni naqdga aylantirish. Yo'qotish = berilgan − olingan", A.can('exchange', 'a') ? A.btn('Ayirboshlash', 'xc-new', { icon: 'plus' }) : '')}
         ${A.table(
@@ -359,11 +353,12 @@
             { h: "G'azna", f: (x) => esc(A.accName(x.account)) },
             { h: 'Berildi', f: (x) => `${A.num(x.amount)} ${A.CASH[x.from_type]}`, cls: 'num' },
             { h: 'Olindi', f: (x) => `${A.num(x.amount_to)} ${A.CASH[x.to_type]}`, cls: 'num' },
-            { h: "Yo'qotish", f: (x) => `<span class="t-red">${A.num(x.amount - x.amount_to)}</span>`, cls: 'num', sum: (r) => A.num(A.sum(r, (x) => x.amount - x.amount_to)) },
+            { h: "Yo'qotish", f: (x) => `<span class="t-red">${A.num(x.loss)}</span>`, cls: 'num', sum: (r) => A.num(A.sum(r, (x) => Number(x.loss))) },
+            { h: 'Izoh', f: (x) => esc(x.comment) },
             { h: 'Kim', f: (x) => esc(A.userName(x.created_by)) },
           ],
-          A.sortBy(A.rows('exchanges'), (x) => x.date, true),
-        )}`;
+          xData.results,
+        )}${A.pager('xc', xData)}`;
     },
   });
   A.act['xc-new'] = () =>
@@ -372,119 +367,143 @@
       fields: [
         { name: 'account', label: "G'azna", type: 'select', required: true, auto: true, options: () => A.myAccounts().map((a) => [a.id, a.name]) },
         { name: 'from_type', label: 'Pul shakli (dan)', type: 'seg', required: true, options: cashOpts, resets: ['to_type'] },
-        { name: 'amount', label: 'Summa', type: 'money', required: true, show: (x) => x.from_type, onChange: (x) => (x.amount_to = x.amount) },
+        { name: 'amount', label: 'Summa', type: 'money', required: true, show: (x) => x.from_type, help: (x) => (x.account ? `G'aznada: ${A.money(A.accBal(x.account, x.from_type))}` : ''), onChange: (x) => (x.amount_to = x.amount) },
         { name: 'to_type', label: 'Pul shakli (ga)', type: 'seg', required: true, show: (x) => x.amount, options: (x) => cashOpts.filter(([k]) => k !== x.from_type) },
         { name: 'amount_to', label: 'Olingan summa', type: 'money', required: true, show: (x) => x.to_type, validate: (n, x) => (n > x.amount ? `${A.num(x.amount)} dan katta bo'lolmaydi` : '') },
         { name: 'loss', label: "Yo'qotish", type: 'computed', show: (x) => x.to_type, compute: (x) => A.money((x.amount || 0) - (x.amount_to || 0)) },
+        { name: 'comment', label: 'Izoh', type: 'textarea', show: (x) => x.to_type },
       ],
-      onSubmit(x) {
-        A.insert('exchanges', { account: x.account, date: A.today(), from_type: x.from_type, amount: x.amount, to_type: x.to_type, amount_to: x.amount_to }, 'Ayirboshlash');
+      async onSubmit(x) {
+        await A.http.post('/exchanges/', { account: x.account, from_type: x.from_type, amount: x.amount, to_type: x.to_type, amount_to: x.amount_to, comment: x.comment || '' });
+        await A.reloadMoney();
         A.refresh();
       },
     });
 
-  /* ===================================================== Xarajatlar */
+  /* ===================================================== Xarajatlar (/expenses/) */
+  let eData = { results: [] };
   A.page('expenses', {
     title: 'Xarajatlar',
     section: 'expenses',
+    async load(p, q) {
+      const tab = q.tab || 'date';
+      const qs = qsOf('expenses', ['month', 'category']);
+      if (tab === 'cat') eData = { summary: await A.http.get('/expenses/summary/?' + qs) };
+      else { qs.set('page', A.q('expenses:page', 1)); eData = await A.http.get('/expenses/?' + qs); }
+    },
     render(p, q) {
       const tab = q.tab || 'date';
-      return `${A.head('Xarajatlar', "G'azna qoldig'idan ko'p xarajat qilib bo'lmaydi (Admin va Bosh menejerdan tashqari)", A.can('expenses', 'a') ? A.btn('Xarajat qo\'shish', 'exp-new', { icon: 'plus' }) : '')}
-        ${A.tabs([['date', "Sana bo'yicha"], ['cat', "Oy → kategoriya"]], tab, 'expenses')}
-        ${A.filterBar('expenses', [A.fSelect('expenses', 'month', A.monthOptions(), 'Barcha oylar'), A.fSelect('expenses', 'cat', A.optList('expenseCats'), 'Barcha kategoriyalar')])}
-        <div data-results>${this.results(p, q)}</div>`;
-    },
-    results(p, q) {
-      const tab = q.tab || 'date';
-      const m = A.q('expenses:month', ''), cat = A.q('expenses:cat', '');
-      const rows = A.vis('expenses').filter((e) => (!m || `${e.period_year}-${String(e.period_month).padStart(2, '0')}` === m) && (!cat || e.category === cat));
-      const total = (e) => e.quantity * e.price;
-      if (tab === 'cat') {
-        const byM = A.groupBy(A.sortBy(rows, (e) => e.period_year * 100 + e.period_month, true), (e) => `${e.period_year}-${String(e.period_month).padStart(2, '0')}`);
-        return [...byM]
-          .map(([ym, list]) => `<section class="group-block"><h3>${A.ymLabel(ym)} <span class="muted">· ${A.money(A.sum(list, total))}</span></h3>${A.table(
-            [
-              { h: 'Kategoriya', f: (r) => esc(r.name) },
-              { h: 'Turi', f: (r) => A.badge(r.kind, r.kind === 'Xarajat' ? 'gray' : 'blue') },
-              { h: 'Soni', f: (r) => r.n, cls: 'num' },
-              { h: 'Summa', f: (r) => `<b>${A.num(r.sum)}</b>`, cls: 'num', sum: (rr) => A.num(A.sum(rr, 'sum')) },
-            ],
-            A.sortBy([...A.groupBy(list, (e) => e.category)].map(([c, l]) => { const ct = A.get('expenseCats', c); return { name: ct.name, kind: ct.kind, n: l.length, sum: A.sum(l, total) }; }), (r) => r.sum, true),
-          )}</section>`)
-          .join('') || A.empty("Xarajat yo'q");
-      }
-      return A.table(
-        [
-          { h: 'Sana', f: (e) => A.fdate(e.date) },
-          { h: 'Kategoriya', f: (e) => esc((A.get('expenseCats', e.category) || {}).name) },
-          { h: 'Nomi', f: (e) => esc(e.name) },
-          { h: 'Soni × narx', f: (e) => `${e.quantity} × ${A.num(e.price)}`, cls: 'num' },
-          { h: 'Jami', f: (e) => `<b>${A.num(total(e))}</b>`, cls: 'num', sum: (r) => A.num(A.sum(r, total)) },
-          { h: "G'azna", f: (e) => `${esc(A.accName(e.account))} · ${A.CASH[e.cash_type]}` },
-          { h: 'Hisob davri', f: (e) => `${A.MONTHS[e.period_month - 1]} ${e.period_year}` },
-          { h: '', f: (e) => { const ed = A.canEdit('expenses', e); return A.can('expenses', 'e') ? `<button class="btn sm ghost" data-act="exp-edit" data-id="${e.id}" ${ed.ok ? '' : `disabled title="${esc(ed.why)}"`}>✎</button>` : ''; } },
-        ],
-        A.sortBy(rows, (e) => e.date, true),
-        { empty: "Xarajat yo'q" },
-      );
+      return `${A.head('Xarajatlar', "G'azna qoldig'idan ko'p xarajat qilib bo'lmaydi (Admin va Bosh menejerdan tashqari)", A.can('expenses', 'a') ? A.btn("Xarajat qo'shish", 'exp-new', { icon: 'plus' }) : '')}
+        ${A.tabs([['date', "Sana bo'yicha"], ['cat', 'Oy → kategoriya']], tab, 'expenses')}
+        ${A.filterBar('expenses', [A.fSelect('expenses', 'month', A.monthOptions(), 'Barcha oylar'), A.fSelect('expenses', 'category', A.optList('expenseCats'), 'Barcha kategoriyalar')])}
+        <div>${tab === 'cat' ? expenseSummary(eData.summary) : expenseTable(eData)}</div>`;
     },
   });
-  A.expenseForm = (e) => {
+  function expenseSummary(rows) {
+    const byM = A.groupBy(A.sortBy(rows, (r) => r.month, true), (r) => r.month);
+    return [...byM]
+      .map(([ym, list]) => `<section class="group-block"><h3>${A.ymLabel(ym)} <span class="muted">· ${A.money(A.sum(list, (r) => Number(r.sum)))}</span></h3>${A.table(
+        [
+          { h: 'Kategoriya', f: (r) => esc(r.name) },
+          { h: 'Turi', f: (r) => A.badge(r.kind, r.kind === 'Xarajat' ? 'gray' : 'blue') },
+          { h: 'Soni', f: (r) => r.n, cls: 'num' },
+          { h: 'Summa', f: (r) => `<b>${A.num(r.sum)}</b>`, cls: 'num', sum: (rr) => A.num(A.sum(rr, (r) => Number(r.sum))) },
+        ],
+        A.sortBy(list, (r) => Number(r.sum), true),
+      )}</section>`)
+      .join('') || A.empty("Xarajat yo'q");
+  }
+  function expenseTable(d) {
+    return `${d.results.length ? `<p class="muted small">Filtr bo'yicha jami: <b>${A.money(d.total)}</b></p>` : ''}${A.table(
+      [
+        { h: 'Sana', f: (e) => A.fdate(e.date) },
+        { h: 'Kategoriya', f: (e) => esc((A.get('expenseCats', e.category) || {}).name) },
+        { h: 'Nomi', f: (e) => esc(e.name) },
+        { h: 'Soni × narx', f: (e) => `${e.quantity} × ${A.num(e.price)}`, cls: 'num' },
+        { h: 'Jami', f: (e) => `<b>${A.num(e.total)}</b>`, cls: 'num' },
+        { h: "G'azna", f: (e) => `${esc(A.accName(e.account))} · ${A.CASH[e.cash_type]}` },
+        { h: 'Hisob davri', f: (e) => `${A.MONTHS[e.period_month - 1]} ${e.period_year}` },
+        {
+          h: '',
+          f: (e) => {
+            const ed = A.canEdit('expenses', e), del = A.canEdit('expenses', e, 'date', 'd');
+            return `<div class="row gap nowrap">${A.can('expenses', 'e') ? `<button class="btn sm ghost" data-act="exp-edit" data-id="${e.id}" ${ed.ok ? '' : `disabled title="${esc(ed.why)}"`}>✎</button>` : ''}${A.can('expenses', 'd') ? `<button class="btn sm ghost" data-act="exp-del" data-id="${e.id}" ${del.ok ? '' : `disabled title="${esc(del.why)}"`}>🗑</button>` : ''}</div>`;
+          },
+        },
+      ],
+      d.results,
+      { empty: "Xarajat yo'q" },
+    )}${A.pager('expenses', d)}`;
+  }
+  A.expenseForm = async (e) => {
+    await A.reloadMoney();
     const top = A.isTop();
-    const B = A.branchIds()[0];
+    let names = [];
+    const loadNames = async (cat) => { names = cat ? await A.http.get(`/expenses/names/?category=${cat}`) : []; };
+    if (e) await loadNames(e.category);
     A.form({
       title: e ? 'Xarajat' : 'Yangi xarajat',
-      values: e ? { ...e } : { date: A.today(), quantity: 1, cash_type: 'CASH', cashier: A.S.currentUser },
+      values: e ? { ...e, price: Number(e.price), period_month: String(e.period_month) } : { date: A.today(), quantity: 1, cash_type: 'CASH' },
       fields: [
-        { name: 'date', label: 'Sana', type: 'date', required: true, half: true, validate: (d) => (d > A.today() ? "Kelajak sana bo'lishi mumkin emas" : ''), onChange: (x) => { x.period_year = Number(x.date.slice(0, 4)); x.period_month = Number(x.date.slice(5, 7)); } },
-        { name: 'category', label: 'Kategoriya', type: 'select', required: true, half: true, resets: ['name'], options: () => A.rows('expenseCats').filter((c) => c.allowed_roles.includes(A.role())).map((c) => [c.id, `${c.name}${c.kind !== 'Xarajat' ? ' · ' + c.kind : ''}`]), help: "Faqat sizning rolingizga ruxsat berilgan kategoriyalar" },
-        { name: 'name', label: 'Nomi', required: true, show: (x) => x.category, suggest: (x) => [...new Set(A.rows('expenses').filter((y) => y.category === x.category).map((y) => y.name))], help: "Shu kategoriyadagi oldingi nomlar taklif qilinadi" },
-        { name: 'quantity', label: 'Soni', type: 'number', min: 1, required: true, show: (x) => x.name, half: true, validate: (n) => (n < 1 ? "Kamida 1" : '') },
+        { name: 'date', label: 'Sana', type: 'date', required: true, half: true, validate: (d) => (d > A.today() ? "Kelajak sana bo'lishi mumkin emas" : ''), onChange: (x) => { x.period_year = Number(x.date.slice(0, 4)); x.period_month = String(Number(x.date.slice(5, 7))); } },
+        { name: 'category', label: 'Kategoriya', type: 'select', required: true, half: true, resets: ['name'], onChange: (x) => loadNames(x.category), options: (x) => A.rows('expenseCats').filter((c) => c.allowed_roles.includes(A.role()) || c.id === x.category).map((c) => [c.id, `${c.name}${c.kind !== 'Xarajat' ? ' · ' + c.kind : ''}`]), help: 'Faqat sizning rolingizga ruxsat berilgan kategoriyalar' },
+        { name: 'name', label: 'Nomi', required: true, show: (x) => x.category, suggest: () => names, help: 'Shu kategoriyadagi oldingi nomlar taklif qilinadi' },
+        { name: 'quantity', label: 'Soni', type: 'number', min: 1, required: true, show: (x) => x.name, half: true, validate: (n) => (n < 1 ? 'Kamida 1' : '') },
         { name: 'price', label: 'Narxi', type: 'money', required: true, show: (x) => x.name, half: true },
         { name: 'total', label: 'Jami summa', type: 'computed', show: (x) => x.price, compute: (x) => `<b>${A.money((x.quantity || 0) * (x.price || 0))}</b>` },
         { name: 'cash_type', label: "To'lov shakli", type: 'seg', options: cashOpts, show: (x) => x.price },
-        { name: 'account', label: "G'azna", type: 'select', required: true, auto: true, show: (x) => x.price, options: () => A.myAccounts().map((a) => [a.id, a.name]), resets: ['cashier'] },
+        { name: 'account', label: "G'azna", type: 'select', required: true, auto: true, show: (x) => x.price, options: (x) => A.myAccounts().filter((a) => a.cash_type === 'ALL' || a.cash_type === x.cash_type || a.id === x.account).map((a) => [a.id, a.name]), resets: ['cashier'] },
         { name: 'cashier', label: "G'aznachi", type: 'select', auto: true, show: (x) => x.account, options: (x) => (A.get('accounts', x.account) || { responsible: [] }).responsible.map((u) => [u, A.userName(u)]) },
-        { name: 'bal', type: 'note', tone: 'info', show: (x) => x.account && x.cash_type, text: (x) => `G'aznada ${A.CASH[x.cash_type].toLowerCase()}: <b>${A.money(A.balance(x.account, x.cash_type))}</b>` },
+        { name: 'bal', type: 'note', tone: 'info', show: (x) => x.account && x.cash_type, text: (x) => `G'aznada ${A.CASH[x.cash_type].toLowerCase()}: <b>${A.money(A.accBal(x.account, x.cash_type))}</b>` },
         { name: 'period_year', label: 'Hisob davri: yil', type: 'number', show: (x) => x.price && top, half: true, default: Number(A.today().slice(0, 4)) },
         { name: 'period_month', label: 'Hisob davri: oy', type: 'select', show: (x) => x.price && top, half: true, options: A.MONTHS.map((m, i) => [String(i + 1), m]), default: String(Number(A.today().slice(5, 7))), help: "Faqat Admin va Bosh menejer o'zgartiradi" },
         { name: 'comment', label: "Qo'shimcha izoh", type: 'textarea', show: (x) => x.price },
       ],
-      onSubmit(x) {
-        const total = x.quantity * x.price;
-        const bal = A.balance(x.account, x.cash_type) + (e && e.account === x.account && e.cash_type === x.cash_type ? e.quantity * e.price : 0);
-        if (!top && total > bal) return bal <= 0 ? "G'aznada pul yo'q" : `G'aznada ${A.num(bal)} so'm pul bor`;
-        const py = top ? Number(x.period_year) : Number(x.date.slice(0, 4));
-        const pm = top ? Number(x.period_month) : Number(x.date.slice(5, 7));
-        const rec = { branch: B, date: x.date, category: x.category, name: x.name, quantity: x.quantity, price: x.price, cash_type: x.cash_type, account: x.account, cashier: x.cashier, period_year: py, period_month: pm, comment: x.comment };
-        if (e) A.patch('expenses', e.id, rec, 'Xarajat', x.name); else A.insert('expenses', rec, 'Xarajat', `${x.name}: ${A.num(total)}`);
+      async onSubmit(x) {
+        const rec = { date: x.date, category: x.category, name: x.name, quantity: x.quantity, price: x.price, cash_type: x.cash_type, account: x.account, cashier: x.cashier || null, comment: x.comment || '' };
+        if (top) Object.assign(rec, { period_year: Number(x.period_year), period_month: Number(x.period_month) });
+        if (e) await A.http.patch(`/expenses/${e.id}/`, rec);
+        else await A.http.post('/expenses/', rec);
+        await A.reloadMoney();
+        A.toast('Saqlandi');
         A.refresh();
       },
     });
   };
   A.act['exp-new'] = () => A.expenseForm(null);
-  A.act['exp-edit'] = (el) => A.expenseForm(A.get('expenses', el.dataset.id));
+  A.act['exp-edit'] = async (el) => A.expenseForm(await A.http.get(`/expenses/${el.dataset.id}/`));
+  A.act['exp-del'] = async (el) => {
+    if (!(await A.confirm("Xarajatni o'chirasizmi? Yozuv bazada qoladi (soft delete), g'azna balansi tiklanadi.", "O'chirish", true))) return;
+    await A.http.del(`/expenses/${el.dataset.id}/`);
+    await A.reloadMoney();
+    A.refresh();
+  };
 
-  /* ===================================================== Kreditorlar */
-  const creditorNow = (c) => c.initial - A.sum(A.rows('creditorTx').filter((t) => t.creditor === c.id), 'amount');
+  /* ===================================================== Kreditorlar (/creditors/, /creditor-transactions/) */
+  let crData = [];
+  let crDetail = null;
   A.page('creditors', {
     title: 'Tashqi pul oqimi',
     section: 'creditors',
+    async load() {
+      crData = await A.http.get('/creditors/');
+    },
     render() {
-      return `${A.head('Tashqi pul oqimi (kreditorlar)', 'Joriy haqqi = boshlang\'ich haqqi − Σ amallar', (A.can('creditors', 'a') ? A.btn('Amal kiritish', 'ctx-new', { icon: 'plus' }) + A.btn('Kreditor', 'cred-new', { cls: 'ghost', icon: 'plus' }) : ''))}
-        <div class="cards">${A.rows('creditors')
-          .map((c) => `<a class="gcard" href="#/creditors/${c.id}"><div class="gcard-h"><b>${esc(c.name)}</b></div><div class="muted small">Joriy haqqi</div><div class="big-num">${A.money(creditorNow(c))}</div><div class="muted small">Boshlang'ich: ${A.num(c.initial)}</div></a>`)
-          .join('')}</div>`;
+      return `${A.head('Tashqi pul oqimi (kreditorlar)', "Joriy haqqi = boshlang'ich haqqi − Σ amallar", A.can('creditors', 'a') ? A.btn('Amal kiritish', 'ctx-new', { icon: 'plus' }) + A.btn('Kreditor', 'cred-new', { cls: 'ghost', icon: 'plus' }) : '')}
+        <div class="cards">${crData
+          .map((c) => `<a class="gcard" href="#/creditors/${c.id}"><div class="gcard-h"><b>${esc(c.name)}</b></div><div class="muted small">Joriy haqqi</div><div class="big-num">${A.money(c.current)}</div><div class="muted small">Boshlang'ich: ${A.num(c.initial)}</div></a>`)
+          .join('') || A.empty("Kreditor yo'q")}</div>`;
     },
   });
   A.page('creditors/:id', {
     title: 'Kreditor',
     section: 'creditors',
+    async load({ id }) {
+      crDetail = await A.http.get(`/creditors/${id}/`);
+    },
     render({ id }) {
-      const c = A.get('creditors', id);
-      const tx = A.sortBy(A.rows('creditorTx').filter((t) => t.creditor === id), (t) => t.date, true);
-      const cm = A.sortBy(A.rows('creditorComments').filter((t) => t.creditor === id), (t) => t.created_at, true);
-      return `<a class="back" href="#/creditors">← Kreditorlar</a>${A.head(c.name, `Joriy haqqi: <b>${A.money(creditorNow(c))}</b>`, A.btn('Amal kiritish', 'ctx-new', { id, icon: 'plus' }))}
+      const c = crDetail;
+      return `<a class="back" href="#/creditors">← Kreditorlar</a>${A.head(c.name, `Joriy haqqi: <b>${A.money(c.current)}</b> · boshlang'ich: ${A.num(c.initial)}`, A.can('creditors', 'a') ? A.btn('Amal kiritish', 'ctx-new', { id, icon: 'plus' }) : '')}
         <h3>Oldi-berdilar</h3>${A.table(
           [
             { h: 'Sana', f: (t) => A.fdate(t.date) },
@@ -492,48 +511,59 @@
             { h: 'Amal', f: (t) => (t.amount < 0 ? 'Qarz olindi' : 'Qarz qaytarildi') },
             { h: "G'azna", f: (t) => `${esc(A.accName(t.account))} · ${A.CASH[t.cash_type]}` },
             { h: 'Izoh', f: (t) => esc(t.comment) },
+            { h: 'Kim', f: (t) => esc(A.userName(t.created_by)) },
           ],
-          tx,
+          c.transactions,
+          { empty: "Amal yo'q" },
         )}
-        <h3>Izohlar</h3><div class="row gap"><input class="f-input grow" id="cc-text" placeholder="Izoh…"><button class="btn" id="cc-add">Qo'shish</button></div>
-        <ul class="comments">${cm.map((x) => `<li><p>${esc(x.comment)}</p><small class="muted">${esc(A.userName(x.created_by))} · ${A.fdt(x.created_at)}</small></li>`).join('')}</ul>`;
+        <h3>Izohlar</h3>${A.can('creditors', 'a') ? `<div class="row gap"><input class="f-input grow" id="cc-text" placeholder="Izoh…"><button class="btn" id="cc-add">Qo'shish</button></div>` : ''}
+        <ul class="comments">${c.comments.map((x) => `<li><p>${esc(x.comment)}</p><small class="muted">${esc(A.userName(x.created_by))} · ${A.fdt(x.created_at)}</small></li>`).join('') || '<li class="muted">Izoh yo\'q</li>'}</ul>`;
     },
     mount({ id }) {
-      document.getElementById('cc-add').onclick = () => {
-        const t = document.getElementById('cc-text').value.trim();
-        if (!t) return;
-        A.insert('creditorComments', { creditor: id, comment: t }, 'Kreditor izohi');
-        A.refresh();
-      };
+      const b = document.getElementById('cc-add');
+      if (b)
+        b.onclick = async () => {
+          const t = document.getElementById('cc-text').value.trim();
+          if (!t) return;
+          await A.http.post(`/creditors/${id}/comments/`, { comment: t }).catch((e) => A.toast(e.message, 'warn'));
+          A.refresh();
+        };
     },
   });
   A.act['cred-new'] = () =>
     A.form({
       title: 'Yangi kreditor',
       fields: [
-        { name: 'name', label: 'Nomi', required: true, validate: (n) => (A.rows('creditors').some((c) => c.name === n) ? "Avval qo'shilgan nom" : '') },
+        { name: 'name', label: 'Nomi', required: true },
         { name: 'initial', label: "Boshlang'ich haqqi", type: 'money', help: "Yaratilgandan keyin faqat Admin o'zgartiradi" },
       ],
-      onSubmit(x) { A.insert('creditors', { name: x.name, initial: Number(x.initial) || 0 }, 'Kreditor', x.name); A.refresh(); },
-    });
-  A.act['ctx-new'] = (el) =>
-    A.form({
-      title: 'Kreditor amali',
-      values: { creditor: el.dataset.id || '', date: A.today(), cash_type: 'CASH', cashier: A.S.currentUser },
-      fields: [
-        { name: 'creditor', label: 'Qarz beruvchi', type: 'select', required: true, options: () => A.optList('creditors') },
-        { name: 'warn', type: 'note', tone: 'warn', show: (x) => x.creditor, text: '<b>Diqqat:</b> «−» belgisi — <b>qarz olish</b> (g\'aznaga pul kiradi), «+» belgisi — <b>qarz qaytarish</b> (g\'aznadan pul chiqadi).' },
-        { name: 'amount', label: 'Summa (− olish / + qaytarish)', type: 'number', required: true, show: (x) => x.creditor, help: (x) => (x.amount < 0 ? `Qarz olinyapti: g'aznaga +${A.num(-x.amount)}` : x.amount > 0 ? `Qarz qaytarilyapti: g'aznadan −${A.num(x.amount)}` : '') },
-        { name: 'cash_type', label: 'Pul shakli', type: 'seg', options: cashOpts, show: (x) => x.amount },
-        { name: 'account', label: "G'azna", type: 'select', required: true, auto: true, show: (x) => x.amount, options: () => A.myAccounts().map((a) => [a.id, a.name]) },
-        { name: 'date', label: 'Sana', type: 'date', show: (x) => x.amount, validate: (d) => (d > A.today() ? "Kelajak sana bilan kiritib bo'lmaydi" : A.diffDays(d, A.today()) > 7 ? 'Bir hafta avvalgi sanagacha kiritish mumkin, xolos' : ''), help: "Taxmin: oxirgi 7 kun (AppSheet formulasi buzilgan — 15-bo'lim, 2-savol)" },
-        { name: 'comment', label: 'Izoh', type: 'textarea', show: (x) => x.amount },
-      ],
-      onSubmit(x) {
-        A.insert('creditorTx', { date: x.date, creditor: x.creditor, amount: Number(x.amount), cash_type: x.cash_type, account: x.account, cashier: A.S.currentUser, comment: x.comment }, 'Kreditor amali', (A.get('creditors', x.creditor) || {}).name);
+      async onSubmit(x) {
+        await A.http.post('/creditors/', { name: x.name, initial: Number(x.initial) || 0 });
         A.refresh();
       },
     });
+  A.act['ctx-new'] = async (el) => {
+    await A.reloadMoney();
+    const creditors = crData.length ? crData : await A.http.get('/creditors/');
+    A.form({
+      title: 'Kreditor amali',
+      values: { creditor: el.dataset.id || '', date: A.today(), cash_type: 'CASH' },
+      fields: [
+        { name: 'creditor', label: 'Qarz beruvchi', type: 'select', required: true, options: () => creditors.map((c) => [c.id, c.name]) },
+        { name: 'warn', type: 'note', tone: 'warn', show: (x) => x.creditor, text: "<b>Diqqat:</b> «−» belgisi — <b>qarz olish</b> (g'aznaga pul kiradi), «+» belgisi — <b>qarz qaytarish</b> (g'aznadan pul chiqadi)." },
+        { name: 'amount', label: 'Summa (− olish / + qaytarish)', type: 'number', required: true, show: (x) => x.creditor, help: (x) => (x.amount < 0 ? `Qarz olinyapti: g'aznaga +${A.num(-x.amount)}` : x.amount > 0 ? `Qarz qaytarilyapti: g'aznadan −${A.num(x.amount)}` : '') },
+        { name: 'cash_type', label: 'Pul shakli', type: 'seg', options: cashOpts, show: (x) => x.amount },
+        { name: 'account', label: "G'azna", type: 'select', required: true, auto: true, show: (x) => x.amount, options: (x) => A.myAccounts().filter((a) => a.cash_type === 'ALL' || a.cash_type === x.cash_type).map((a) => [a.id, a.name]) },
+        { name: 'date', label: 'Sana', type: 'date', show: (x) => x.amount, validate: (d) => (d > A.today() ? "Kelajak sana bilan kiritib bo'lmaydi" : !A.isTop() && A.diffDays(d, A.today()) > 7 ? 'Bir hafta avvalgi sanagacha kiritish mumkin, xolos' : '') },
+        { name: 'comment', label: 'Izoh', type: 'textarea', show: (x) => x.amount },
+      ],
+      async onSubmit(x) {
+        await A.http.post('/creditor-transactions/', { date: x.date, creditor: x.creditor, amount: Number(x.amount), cash_type: x.cash_type, account: x.account, comment: x.comment || '' });
+        await A.reloadMoney();
+        A.refresh();
+      },
+    });
+  };
 
   /* ===================================================== Foyda */
   A.page('profit', {

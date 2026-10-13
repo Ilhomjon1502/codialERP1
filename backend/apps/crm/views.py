@@ -69,6 +69,8 @@ class LeadViewSet(AuditedModelViewSet):
         for key, field in (("course", "course"), ("source", "source"), ("status", "status")):
             if p.get(key):
                 qs = qs.filter(**{field: p[key]})
+        if p.get("paid"):
+            qs = services.with_payments(qs).filter(paid_total__gt=0)
         return qs
 
     def list(self, request, *args, **kwargs):

@@ -169,9 +169,18 @@ def charged_subquery():
     ), ZERO)
 
 
+def _payments_sum(field):
+    from apps.finance.models import Payment
+
+    return Coalesce(Subquery(
+        Payment.objects.filter(contract=OuterRef("pk"), is_deleted=False).order_by().values("contract").annotate(s=Sum(field)).values("s")
+    ), ZERO)
+
+
 def with_balance(qs):
-    """Balans = boshlang'ich qoldiq + Σ dars narxi − Σ to'lov − Σ chegirma (to'lovlar M4 da qo'shiladi)."""
-    qs = qs.annotate(charged=charged_subquery(), paid=ZERO, discount_sum=ZERO)
+    """Balans = boshlang'ich qoldiq + Σ dars narxi − Σ to'lov − Σ chegirma (7.4). To'lov va chegirma kiritilgan zahoti hisobga olinadi
+    (tasdiq g'azna balansiga ta'sir qiladi, talaba qarziga emas — docs/decisions.md)."""
+    qs = qs.annotate(charged=charged_subquery(), paid=_payments_sum("amount"), discount_sum=_payments_sum("discount"))
     return qs.annotate(balance=Coalesce("opening_balance", ZERO) + Coalesce("charged", ZERO) - Coalesce("paid", ZERO) - Coalesce("discount_sum", ZERO))
 
 

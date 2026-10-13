@@ -5,8 +5,10 @@ import datetime
 from rest_framework import serializers
 
 from apps.accounts.models import Role, User
+from apps.core.permissions import can
 from apps.core.roles import RoleCode
 from apps.core.viewsets import BranchScopedSerializerMixin
+from apps.finance import services as fin
 from apps.finance.models import Account
 
 from . import services
@@ -178,9 +180,34 @@ class AccountSerializer(serializers.ModelSerializer):
     initial = serializers.DecimalField(source="initial_balance", max_digits=14, decimal_places=0, min_value=0, required=False)
     start = serializers.DateField(source="start_date", required=False, allow_null=True)
 
+    balance = serializers.SerializerMethodField()
+    by_type = serializers.SerializerMethodField()
+    pending = serializers.SerializerMethodField()
+
     class Meta:
         model = Account
-        fields = ["id", "name", "responsible", "cash_type", "initial", "start", "status"]
+        fields = ["id", "name", "responsible", "cash_type", "initial", "start", "status", "balance", "by_type", "pending"]
+
+    def _bal(self, a):
+        """Balanslar context['balances'] da bir yo'la hisoblanadi; doiradan tashqari g'azna balansi ko'rsatilmaydi (None)."""
+        req = self.context.get("request")
+        if req is None or not can(req.user, "accounts"):
+            return None
+        if "balances" not in self.context:
+            self.context["balances"] = fin.balances(fin.scoped_account_ids(req.user))
+        return self.context["balances"].get(a.pk)
+
+    def get_balance(self, a):
+        b = self._bal(a)
+        return b and b["balance"]
+
+    def get_by_type(self, a):
+        b = self._bal(a)
+        return b and b["by_type"]
+
+    def get_pending(self, a):
+        b = self._bal(a)
+        return b and b["pending"]
 
     def validate_name(self, v):
         return unique_name(Account, v, self.instance, "Avval qo'shilgan nom!")

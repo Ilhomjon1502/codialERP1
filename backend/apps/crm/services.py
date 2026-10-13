@@ -3,8 +3,8 @@
 import re
 
 from django.db import transaction
-from django.db.models import Count, Exists, OuterRef, Q
-from django.db.models.functions import TruncMonth
+from django.db.models import Count, DecimalField, Exists, Min, OuterRef, Q, Subquery, Sum, Value
+from django.db.models.functions import Coalesce, TruncMonth
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
@@ -68,6 +68,17 @@ def contract_exists():
     from apps.education.models import Contract
 
     return Exists(Contract.objects.filter(student=OuterRef("student")))
+
+
+def with_payments(qs):
+    """«To'lov qilganlar» tabi: talabasining barcha shartnomalari bo'yicha to'lovlar jami va birinchi to'lov sanasi."""
+    from apps.finance.models import Payment
+
+    pays = Payment.objects.filter(contract__student=OuterRef("student"), is_deleted=False).order_by().values("contract__student")
+    return qs.annotate(
+        paid_total=Coalesce(Subquery(pays.annotate(s=Sum("amount")).values("s")), Value(0), output_field=DecimalField(max_digits=14, decimal_places=0)),
+        first_paid=Subquery(pays.annotate(m=Min("date")).values("m")),
+    )
 
 
 def check_lead_group(lead_branch, course, group, instance=None):

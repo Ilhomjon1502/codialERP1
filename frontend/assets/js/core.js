@@ -310,14 +310,6 @@
         freqs: A.rows('lessonFreqs').filter((f) => f.status === 'Taklif' && A.branchIds().includes(f.branch)),
       };
     });
-  A.pendingCount = () => {
-    const p = A.pending();
-    let n = 0;
-    n += p.discounts.filter(A.canApproveDiscount).length;
-    n += p.noncash.filter(A.canApproveNoncash).length;
-    n += p.transfers.filter(A.canApproveTransfer).length;
-    if (A.canApproveMakeup()) n += p.makeups.length;
-    if (A.canApproveFreq()) n += p.freqs.length;
-    return n;
-  };
+  /** Serverdan (A.reloadPending): faqat shu foydalanuvchi tasdiqlay oladiganlari */
+  A.pendingCount = () => (A.S.pendingCounts || {}).total || 0;
 })(window.App);

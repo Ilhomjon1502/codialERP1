@@ -17,6 +17,7 @@ from django.utils import timezone
 from apps.accounts.models import Role, User
 from apps.crm.models import AGE_GROUPS, LAPTOP_CHOICES, SOCIAL_STATUSES, Lead, LeadComment, Student
 from apps.education import demo as edu_demo
+from apps.finance import demo as fin_demo
 from apps.finance.models import Account
 from apps.references import services
 from apps.references.models import Branch, Course, CoursePrice, DayPattern, DiscountType, ExpenseCategory, LeadSource, LessonFrequency, LessonTime, Room
@@ -120,6 +121,7 @@ class Command(BaseCommand):
         self.seed_leads(branch, list(courses.values()), list(patterns.values()), times, sources, [users[k] for k in ("u3", "u4", "u5")])
         rooms = {k: Room.objects.get(legacy_id=f"demo:{k}") for k, *_ in ROOMS}
         edu_demo.seed(self, branch, users, courses, patterns, {k: t for (k, *_), t in zip(TIMES, times, strict=False)}, rooms, sources)
+        fin_demo.seed(self, branch, users)
         self.stdout.write(self.style.SUCCESS(f"Tayyor: {self.created} ta yangi yozuv."))
         if not password:
             self.stdout.write(self.style.WARNING("Parol berilmadi: demo xodimlar parolsiz. --password yoki DEMO_PASSWORD bilan qayta ishga tushiring."))

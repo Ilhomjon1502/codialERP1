@@ -143,6 +143,12 @@
         leadData = await A.http.get('/leads/?' + qs);
         leadData.results.forEach(keepStudent);
       } else if (tab === 'stats') leadData = await A.http.get('/leads/stats/?' + qs);
+      else if (tab === 'paid') {
+        qs.set('paid', 1);
+        qs.set('page', A.q('leads:page', 1));
+        leadData = await A.http.get('/leads/?' + qs);
+        leadData.results.forEach(keepStudent);
+      }
     },
     render(p, q) {
       const tab = q.tab || 'funnel';
@@ -151,10 +157,10 @@
       if (tab === 'funnel') body = funnel(leadData);
       else if (tab === 'list') body = leadTable(leadData.results) + pager(leadData);
       else if (tab === 'stats') body = leadStats(leadData);
-      else body = `<div class="empty">Talabasi to'lov qilgan lidlar «To'lovlar» bo'limi bilan birga (M4 bosqichida) ulanadi.</div>`;
+      else body = paidTable(leadData.results) + pager(leadData);
       return `${A.head('Lidlar', 'Murojaatlar voronkasi: birinchi qo\'ng\'iroqdan shartnomagacha', actions)}
         ${A.tabs([['funnel', 'Voronka', tab === 'funnel' ? leadData.total : undefined], ['list', "Ro'yxat"], ['stats', 'Statistika'], ['paid', "To'lov qilganlar"]], tab, 'leads')}
-        ${tab === 'paid' ? '' : A.filterBar('leads', [A.fSearch('leads', 'Ism yoki telefon…'), A.fSelect('leads', 'course', A.optList('courses'), 'Barcha kurslar'), A.fSelect('leads', 'source', A.optList('leadSources'), 'Barcha manbalar')])}
+        ${A.filterBar('leads', [A.fSearch('leads', 'Ism yoki telefon…'), A.fSelect('leads', 'course', A.optList('courses'), 'Barcha kurslar'), A.fSelect('leads', 'source', A.optList('leadSources'), 'Barcha manbalar')])}
         <div>${body}</div>`;
     },
   });
@@ -214,6 +220,21 @@
       ],
       leads,
       { empty: "Lid topilmadi" },
+    );
+  }
+
+  function paidTable(leads) {
+    return A.table(
+      [
+        { h: 'Murojaatchi', f: (l) => `<a href="#" data-act="lead-open" data-id="${l.id}">${esc(l.student_data.full_name)}</a>` },
+        { h: 'Kurs', f: (l) => esc(A.courseName(l.course)) },
+        { h: 'Manba', f: (l) => esc(A.sourceName(l.source)) },
+        { h: 'Status', f: (l) => A.badge(`${l.status}. ${LS[l.status]}`, leadStatusTone[l.status]) },
+        { h: "Birinchi to'lov", f: (l) => A.fdate(l.first_paid) },
+        { h: "To'lovlar jami", f: (l) => `<b>${A.num(l.paid_total)}</b>`, cls: 'num', sum: (r) => A.num(A.sum(r, (l) => Number(l.paid_total))) },
+      ],
+      leads,
+      { empty: "Talabasi to'lov qilgan lid yo'q" },
     );
   }
 
@@ -604,12 +625,23 @@
             <tr><td>− To'lovlar</td><td class="num">${A.num(c.paid)}</td></tr>
             <tr><td>− Chegirmalar</td><td class="num">${A.num(c.discount)}</td></tr>
             <tr class="tot"><td>= Balans</td><td class="num">${A.num(c.balance)}</td></tr></table>
-            <p class="muted small">Bir dars narxi = kurs narxi ÷ oydagi dars soni. Talaba kelmasa ham dars uchun qarz yoziladi ("Nofaol" va Grant bundan mustasno).${A.CONNECTED.has('payments') ? '' : " To'lovlar M4 bosqichida ulanadi."}</p>
+            <p class="muted small">Bir dars narxi = kurs narxi ÷ oydagi dars soni. Talaba kelmasa ham dars uchun qarz yoziladi ("Nofaol" va Grant bundan mustasno).</p>
           </section>
         </div>
-        ${A.tabs([['att', 'Davomat', att.length], ['pay', "To'lovlar", pays.length]], tab, 'contracts/' + id)}
+        ${A.tabs([['att', 'Davomat', att.length], ...(A.can('payments') ? [['pay', "To'lovlar", pays.length]] : [])], tab, 'contracts/' + id)}
         ${tab === 'pay'
-          ? A.empty(A.CONNECTED.has('payments') ? "To'lov yo'q" : "To'lovlar bo'limi M4 bosqichida ulanadi")
+          ? A.table(
+              [
+                { h: 'Sana', f: (p) => A.fdate(p.date) },
+                { h: '№', f: (p) => p.number },
+                { h: 'Summa', f: (p) => A.num(p.amount), cls: 'num', sum: (r) => A.num(A.sum(r, (p) => Number(p.amount))) },
+                { h: 'Turi', f: (p) => (p.amount ? A.CASH[p.cash_type] : '—') + (p.nc_status ? ' ' + A.badge(p.nc_status, p.nc_status === 'Tasdiqlandi' ? 'green' : 'orange') : '') },
+                { h: 'Chegirma', f: (p) => (Number(p.discount) ? `${A.num(p.discount)} ${A.badge(p.disc_status, p.disc_status === 'Tasdiqlandi' ? 'green' : 'orange')}` : '—'), cls: 'num' },
+                { h: 'Chek', f: (p) => `<a href="#" data-act="receipt" data-id="${p.id}">Chek</a>` },
+              ],
+              pays,
+              { empty: "To'lov yo'q" },
+            )
           : A.table(
               [
                 { h: 'Sana', f: (a) => `${A.fdate(a.date)} <span class="muted small">${A.WD[A.isoWeekday(a.date)]}</span>` },

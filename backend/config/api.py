@@ -6,6 +6,7 @@ from rest_framework.routers import DefaultRouter
 from apps.accounts import views as acc
 from apps.crm import views as crm
 from apps.education import views as edu
+from apps.finance import views as fin
 from apps.references import views as ref
 
 router = DefaultRouter(trailing_slash=True)
@@ -33,6 +34,12 @@ router.register("contracts", edu.ContractViewSet, basename="contract")
 router.register("debtors", edu.DebtorViewSet, basename="debtor")
 router.register("attendance", edu.AttendanceViewSet, basename="attendance")
 router.register("makeups", edu.MakeupViewSet, basename="makeup")
+router.register("payments", fin.PaymentViewSet, basename="payment")
+router.register("transfers", fin.TransferViewSet, basename="transfer")
+router.register("exchanges", fin.ExchangeViewSet, basename="exchange")
+router.register("expenses", fin.ExpenseViewSet, basename="expense")
+router.register("creditors", fin.CreditorViewSet, basename="creditor")
+router.register("creditor-transactions", fin.CreditorTxViewSet, basename="creditor-transaction")
 
 urlpatterns = [
     path("auth/csrf/", acc.CsrfView.as_view()),
@@ -42,5 +49,6 @@ urlpatterns = [
     path("auth/password/reset/", acc.PasswordResetView.as_view()),
     path("auth/password/set/", acc.PasswordSetView.as_view()),
     path("bootstrap/", ref.bootstrap),
+    path("approvals/", fin.approvals),
     *router.urls,
 ]

@@ -83,11 +83,13 @@ class LeadSerializer(serializers.ModelSerializer):
     group = serializers.PrimaryKeyRelatedField(queryset=Group.objects.all(), required=False, allow_null=True)
     has_contract = serializers.SerializerMethodField()
     comments_count = serializers.IntegerField(read_only=True, default=0)
+    paid_total = serializers.DecimalField(max_digits=14, decimal_places=0, read_only=True, default=None)
+    first_paid = serializers.DateField(read_only=True, default=None)
 
     class Meta:
         model = Lead
         fields = ["id", "branch", "student", "student_data", "source", "course", "pattern", "times", "status", "group", "demo_date", "demo_attended",
-                  "age_group", "social", "laptop", "tags", "has_contract", "comments_count", "created_at", "created_by", "updated_at", "updated_by"]
+                  "age_group", "social", "laptop", "tags", "has_contract", "comments_count", "paid_total", "first_paid", "created_at", "created_by", "updated_at", "updated_by"]
         read_only_fields = ["branch", "student", "created_at", "created_by", "updated_at", "updated_by"]
 
     def get_has_contract(self, lead):

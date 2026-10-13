@@ -59,6 +59,7 @@
     leadSources: 'lead-sources', attendanceStatuses: 'attendance-statuses', accounts: 'accounts', users: 'users', roles: 'roles',
     leads: 'leads', students: 'students', parents: 'parents',
     groups: 'groups', contracts: 'contracts', attendance: 'attendance', makeups: 'makeups',
+    payments: 'payments', transfers: 'transfers', exchanges: 'exchanges', expenses: 'expenses', creditors: 'creditors',
   };
   const url = (coll, id) => `/${A.ENDPOINT[coll]}/${id !== undefined ? encodeURIComponent(id) + '/' : ''}`;
   const keyOf = (coll) => (coll === 'roles' ? 'code' : 'id');
@@ -81,10 +82,17 @@
     A.version++;
   };
 
+  /** Tasdiq kutayotganlar soni (qo'ng'iroqcha va Tasdiqlashlar) — serverda, foydalanuvchi tasdiqlay oladiganlari */
+  A.reloadPending = async () => {
+    A.S.pendingCounts = await A.http.get('/approvals/');
+    A.version++;
+  };
+
   /** Kirgandan keyin: joriy xodim, rollar, muddatlar va barcha ma'lumotnomalar */
   A.boot = async () => {
     const b = await A.http.get('/bootstrap/');
     A.S = Object.assign(A.emptyStore(), b, { currentUser: b.me.id });
     A.version++;
+    await A.reloadPending().catch(() => {});
   };
 })(window.App);

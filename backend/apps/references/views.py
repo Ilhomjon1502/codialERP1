@@ -15,7 +15,9 @@ from apps.core.serializers import AuditLogSerializer
 from apps.core.viewsets import AuditedModelViewSet
 from apps.education.serializers import GroupSerializer
 from apps.education.views import scoped_groups
-from apps.finance.models import Account
+from apps.finance import services as fin
+from apps.finance.models import Account, CashMovement
+from apps.finance.serializers import MovementSerializer
 
 from . import serializers as s
 from . import services
@@ -160,6 +162,7 @@ class AccountViewSet(AuditedModelViewSet):
     section = "accounts"
     queryset = Account.objects.prefetch_related("responsible")
     serializer_class = s.AccountSerializer
+    action_ops = {"ledger": "v"}
 
     def perform_update(self, serializer):
         if "responsible" in serializer.validated_data and not is_top(self.request.user):
@@ -170,6 +173,21 @@ class AccountViewSet(AuditedModelViewSet):
         if serializer.validated_data.get("responsible") and not is_top(self.request.user):
             raise PermissionDenied("G'azna mas'ullarini faqat Admin va Bosh menejer o'zgartiradi")
         super().perform_create(serializer)
+
+    @action(detail=True)
+    def ledger(self, request, pk=None):
+        """G'azna pul harakatlari jurnali (?month=YYYY-MM), sahifalangan."""
+        acc = self.get_object()
+        ids = fin.scoped_account_ids(request.user)
+        if ids is not None and acc.pk not in ids:
+            raise PermissionDenied("Bu g'azna sizning doirangizda emas")
+        qs = CashMovement.objects.filter(account=acc).order_by("-date", "-created_at")
+        if request.query_params.get("month"):
+            start, end = fin.month_bounds(request.query_params["month"])
+            qs = qs.filter(date__gte=start, date__lt=end)
+        pg = Pagination()
+        page = pg.paginate_queryset(qs, request, view=self)
+        return pg.get_paginated_response(MovementSerializer(page, many=True).data)
 
 
 class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):

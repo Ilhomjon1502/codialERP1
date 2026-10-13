@@ -7,7 +7,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
 from apps.core.pagination import Pagination
-from apps.core.permissions import check_edit_window, today
+from apps.core.permissions import can, check_edit_window, today
 from apps.core.scoping import scope_branch
 from apps.core.viewsets import AuditedModelViewSet
 from apps.crm.views import default_branch, search_q
@@ -156,7 +156,11 @@ class ContractViewSet(BranchDefaultMixin, AuditedModelViewSet):
         data = self.get_serializer(c).data
         att = ATT_QS.filter(contract=c).order_by("-date")
         data["attendance"] = AttendanceSerializer(att, many=True).data
-        data["payments"] = []  # M4
+        from apps.finance.serializers import PaymentSerializer
+        from apps.finance.views import PAYMENT_QS
+
+        pays = PAYMENT_QS.filter(contract=c) if can(request.user, "payments") else PAYMENT_QS.none()
+        data["payments"] = PaymentSerializer(pays, many=True, context=self.get_serializer_context()).data
         lead = c.student.leads.order_by("-created_at").first()
         data["age_group"] = lead.age_group if lead else ""
         p = c.student.parent

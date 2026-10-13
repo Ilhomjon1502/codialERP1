@@ -399,7 +399,7 @@
     ['M1', "Asos: kirish, rollar va ruxsatlar, Sozlamalar, Audit tarixi", true],
     ['M2', 'Lidlar, talabalar, ota-onalar', true],
     ['M3', "Guruhlar, shartnomalar, davomat, qarz va KPI hisobi", true],
-    ['M4', "To'lovlar, g'aznalar, o'tkazmalar, xarajatlar, kreditorlar"],
+    ['M4', "To'lovlar, g'aznalar, o'tkazmalar, xarajatlar, kreditorlar", true],
     ['M5', 'Oyliklar va KPI stavkalari'],
     ['M6', "Vazifalar, baholash, ota-onalar bilan aloqa, 50% chegirma, Excel"],
     ['M7', 'Bosh sahifa statistikasi, foyda, guruhlar tahlili'],
@@ -410,13 +410,16 @@
     section: 'dashboard',
     async load() {
       const get = (ok, path) => (ok ? A.http.get(path) : Promise.resolve(null));
-      const [, debt, contracts, summary] = await Promise.all([
+      const [, debt, contracts, summary, pays] = await Promise.all([
         A.reloadGroups(),
         get(A.can('debtors'), '/debtors/'),
         get(A.can('contracts'), '/contracts/?page_size=1'),
         get(A.isTeacherRole(), '/attendance/summary/'),
+        get(A.can('payments'), '/payments/summary/'),
+        A.can('accounts') ? A.reloadMoney() : null,
+        A.reloadPending(),
       ]);
-      dash = { debt, counts: contracts ? contracts.counts : null, summary };
+      dash = { debt, counts: contracts ? contracts.counts : null, summary, pays };
     },
     render() {
       const me = A.me();
@@ -433,6 +436,9 @@
         ${notTaken.length && A.can('attendance') ? `<div class="alert info">${A.icon('check')}<div><b>Bugun davomati olinmagan guruhlar (${notTaken.length}):</b> ${notTaken
           .map((g) => `<a href="#/attendance?tab=take&group=${g.id}">${esc(A.groupName(g))}</a> <span class="muted">(${A.timeName(g.time)}, ${esc(A.userName(g.teacher))})</span>`).join(' · ')}</div></div>` : ''}
         <div class="stats">
+          ${dash.pays ? A.stat("Bugungi to'lovlar", A.money(Number(dash.pays.cash) + Number(dash.pays.noncash)), `Naqd: ${A.num(dash.pays.cash)} · Naqdsiz: ${A.num(dash.pays.noncash)}`, '', '#/payments') : ''}
+          ${dash.pays ? A.stat('Shu oy tushum', A.money(dash.pays.month), A.ymLabel(A.ym(today)), '', '#/payments') : ''}
+          ${A.can('approvals') ? A.stat('Tasdiq kutmoqda', A.pendingCount(), A.pendingCount() ? 'sizning tasdiqingiz kerak' : 'hammasi tasdiqlangan', A.pendingCount() ? 'warn' : '', '#/approvals') : ''}
           ${dash.counts ? A.stat('Faol talabalar', dash.counts.Faol, `${activeGroups.length} ta faol guruh`, '', '#/contracts') : A.stat('Faol guruhlar', mine.length, '', '', '#/groups')}
           ${dash.debt ? A.stat('Jami qarzdorlik', A.money(dash.debt.total), `${dash.debt.count} ta qarzdor`, 'danger', '#/debtors') : ''}
           ${sm ? A.stat('Shu oy KPI (hisoblangan)', A.money(sm.kpi), `${sm.rows} ta dars qatori${sm.no_freq ? ` · ${sm.no_freq} tasi hisoblanmagan` : ''}`) : ''}
@@ -444,6 +450,9 @@
           ${A.stat('Xonalar', A.rows('rooms').filter(isActive).length)}
           ${A.stat("G'aznalar", A.rows('accounts').filter(isActive).length)}
         </div>
+        ${A.can('accounts') ? `<section class="card"><h2>G'azna qoldiqlari</h2>${A.rows('accounts').filter((a) => a.status === 'Faol' && a.balance !== null)
+          .map((a) => `<a class="acc-row" href="#/accounts/${a.id}"><span>${A.icon('safe')} ${esc(a.name)} <small class="muted">${A.CASH[a.cash_type]}</small></span><b>${A.money(a.balance)}</b>${Number(a.pending) ? `<small class="muted">tasdiqlanmagan: ${A.num(a.pending)}</small>` : ''}</a>`)
+          .join('') || A.empty("G'azna yo'q")}</section>` : ''}
         <section class="card"><h2>Tizimni ishga tushirish bosqichlari</h2>
           <p class="muted small">Bo'limlar bosqichma-bosqich serverga ulanadi. Menyudagi xira bo'limlar keyingi bosqichlarda ishlaydi.</p>
           ${A.table([{ h: 'Bosqich', f: (r) => `<b>${r[0]}</b>` }, { h: 'Nima', f: (r) => esc(r[1]) }, { h: 'Holat', f: (r) => (r[2] ? A.badge('ishlayapti', 'green') : A.badge('tez orada', 'gray')) }], PLAN)}
