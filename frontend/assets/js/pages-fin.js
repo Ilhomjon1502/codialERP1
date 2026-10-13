@@ -588,54 +588,160 @@
     });
   };
 
-  /* ===================================================== Foyda */
+  /* ===================================================== Foyda (server: /reports/profit/) */
+  let prData = [];
+  const profitMonths = () => {
+    const all = A.monthOptions().map(([k]) => k).reverse();
+    const sel = (A.ui.q['profit:months'] || all).filter((m) => all.includes(m));
+    return { all, sel };
+  };
   A.page('profit', {
     title: 'Foyda (oyma-oy)',
     section: 'profit',
+    async load() {
+      const { sel } = profitMonths();
+      prData = sel.length ? await A.http.get(`/reports/profit/?months=${sel.join(',')}`) : [];
+    },
     render() {
-      const all = A.monthOptions().map(([k]) => k).reverse();
-      let sel = A.ui.q['profit:months'] || all;
-      sel = sel.filter((m) => all.includes(m));
-      const pays = A.rows('payments');
-      const exps = A.rows('expenses');
-      const per = (ym) => {
-        const y = Number(ym.slice(0, 4)), m = Number(ym.slice(5, 7));
-        const e = exps.filter((x) => x.period_year === y && x.period_month === m);
-        const byKind = (k) => A.sum(e.filter((x) => (A.get('expenseCats', x.category) || {}).kind === k), (x) => x.quantity * x.price);
-        const p = A.sum(pays.filter((x) => A.ym(x.date) === ym), 'amount');
-        const sal = A.sum(A.rows('salaryAssign').filter((s) => s.year === y && s.month === m), (s) => A.salaryBase(s).total);
-        const exp = byKind('Xarajat');
-        return { ym, p, exp, sal, profit: p - exp - sal, reinv: byKind('Qayta investitsiya'), div: byKind('Dividend'), debt: byKind('Tashqi qarz') };
-      };
-      const rows = sel.map(per);
+      const { all, sel } = profitMonths();
+      const rows = prData.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, k === 'ym' ? v : Number(v)])));
       const tot = (k) => A.sum(rows, k);
       const cls = (n) => (n > 0 ? 't-green' : n < 0 ? 't-red' : '');
       return `${A.head('Foyda (oyma-oy)', "Foyda = to'lovlar − xarajatlar (faqat «Xarajat» turi) − hisoblangan oyliklar")}
         <div class="filters"><span class="muted">Oylar:</span><div class="chips">${all.map((m) => `<button class="chip ${sel.includes(m) ? 'on' : ''}" data-act="profit-month" data-id="${m}">${A.ymLabel(m)}</button>`).join('')}</div></div>
-        <div class="stats">${A.stat("To'lovlar", `<span class="t-blue">${A.money(tot('p'))}</span>`)}${A.stat('Xarajatlar', `<span class="t-pink">${A.money(tot('exp'))}</span>`)}${A.stat('Hisoblangan oyliklar', A.money(tot('sal')))}${A.stat("Ko'rilgan foyda", `<span class="${cls(tot('profit'))}">${A.money(tot('profit'))}</span>`)}</div>
+        <div class="stats">${A.stat("To'lovlar", `<span class="t-blue">${A.money(tot('payments'))}</span>`)}${A.stat('Xarajatlar', `<span class="t-pink">${A.money(tot('expenses'))}</span>`)}${A.stat('Hisoblangan oyliklar', A.money(tot('salaries')))}${A.stat("Ko'rilgan foyda", `<span class="${cls(tot('profit'))}">${A.money(tot('profit'))}</span>`)}</div>
         <section class="card">${A.table(
           [
             { h: 'Oy', f: (r) => `<b>${A.ymLabel(r.ym)}</b>` },
-            { h: "To'lovlar", f: (r) => `<span class="t-blue">${A.num(r.p)}</span>`, cls: 'num', sum: () => A.num(tot('p')) },
-            { h: 'Xarajatlar', f: (r) => `<span class="t-pink">${A.num(r.exp)}</span>`, cls: 'num', sum: () => A.num(tot('exp')) },
-            { h: 'Oyliklar', f: (r) => A.num(r.sal), cls: 'num', sum: () => A.num(tot('sal')) },
+            { h: "To'lovlar", f: (r) => `<span class="t-blue">${A.num(r.payments)}</span>`, cls: 'num', sum: () => A.num(tot('payments')) },
+            { h: 'Xarajatlar', f: (r) => `<span class="t-pink">${A.num(r.expenses)}</span>`, cls: 'num', sum: () => A.num(tot('expenses')) },
+            { h: 'Oyliklar', f: (r) => A.num(r.salaries), cls: 'num', sum: () => A.num(tot('salaries')) },
             { h: 'Foyda', f: (r) => `<b class="${cls(r.profit)}">${A.num(r.profit)}</b>`, cls: 'num', sum: () => `<span class="${cls(tot('profit'))}">${A.num(tot('profit'))}</span>` },
-            { h: 'Qayta investitsiya', f: (r) => A.num(r.reinv), cls: 'num muted', sum: () => A.num(tot('reinv')) },
-            { h: 'Dividend', f: (r) => A.num(r.div), cls: 'num muted', sum: () => A.num(tot('div')) },
+            { h: 'Qayta investitsiya', f: (r) => A.num(r.reinvest), cls: 'num muted', sum: () => A.num(tot('reinvest')) },
+            { h: 'Dividend', f: (r) => A.num(r.dividend), cls: 'num muted', sum: () => A.num(tot('dividend')) },
             { h: 'Tashqi qarz', f: (r) => A.num(r.debt), cls: 'num muted', sum: () => A.num(tot('debt')) },
           ],
           rows,
-        )}<p class="muted small">Qayta investitsiya, dividend va tashqi qarz foydaga kirmaydi — alohida ko'rsatiladi (AppSheet'dagi qattiq yozilgan «10f01992» kategoriyasi o'rniga kategoriya turi ishlatiladi).</p></section>
-        <section class="card">${A.chart({ type: 'bar', data: { labels: rows.map((r) => A.ymLabel(r.ym)), datasets: [{ label: "To'lovlar", data: rows.map((r) => r.p), backgroundColor: '#2f80ed' }, { label: 'Xarajatlar', data: rows.map((r) => r.exp), backgroundColor: '#e86fa6' }, { label: 'Oyliklar', data: rows.map((r) => r.sal), backgroundColor: '#9b9ba3' }, { label: 'Foyda', data: rows.map((r) => r.profit), backgroundColor: A.PALETTE[3], type: 'line' }] } })}</section>`;
+          { empty: 'Oy tanlang' },
+        )}<p class="muted small">Qayta investitsiya, dividend va tashqi qarz foydaga kirmaydi — alohida ko'rsatiladi. To'lovlar — sana bo'yicha, xarajatlar — hisob davri bo'yicha, oyliklar — oylik belgilashdagi «Jami» (jarima ayirilgan).</p></section>
+        <section class="card">${A.chart({ type: 'bar', data: { labels: rows.map((r) => A.ymLabel(r.ym)), datasets: [{ label: "To'lovlar", data: rows.map((r) => r.payments), backgroundColor: '#2f80ed' }, { label: 'Xarajatlar', data: rows.map((r) => r.expenses), backgroundColor: '#e86fa6' }, { label: 'Oyliklar', data: rows.map((r) => r.salaries), backgroundColor: '#9b9ba3' }, { label: 'Foyda', data: rows.map((r) => r.profit), backgroundColor: A.PALETTE[3], borderColor: A.PALETTE[3], type: 'line' }] } })}</section>`;
     },
   });
   A.act['profit-month'] = (el) => {
-    const all = A.monthOptions().map(([k]) => k);
-    let sel = A.ui.q['profit:months'] || all;
-    sel = sel.includes(el.dataset.id) ? sel.filter((m) => m !== el.dataset.id) : [...sel, el.dataset.id];
-    A.ui.q['profit:months'] = sel.sort();
+    const { all, sel } = profitMonths();
+    const next = sel.includes(el.dataset.id) ? sel.filter((m) => m !== el.dataset.id) : [...sel, el.dataset.id];
+    A.ui.q['profit:months'] = all.filter((m) => next.includes(m));
     A.refresh();
   };
+
+  /* ===================================================== Statistika (server: /reports/stats/, /reports/funnel/, /reports/first-payers/) */
+  let stData = {};
+  A.page('stats', {
+    title: 'Statistika',
+    section: 'dashboard',
+    async load(p, q) {
+      const tab = q.tab || 'month';
+      stData = {};
+      if (!A.isManager()) return;
+      if (tab === 'month') stData = await A.http.get(`/reports/stats/?count=${A.q('st:count', 6)}`);
+      else if (tab === 'funnel') {
+        const qs = new URLSearchParams();
+        for (const k of ['from', 'to', 'source', 'course', 'owner']) if (A.q('fn:' + k, '')) qs.set(k, A.q('fn:' + k));
+        stData = await A.http.get('/reports/funnel/?' + qs);
+      } else stData = await A.http.get(`/reports/first-payers/?month=${A.q('fp:month', A.ym(A.today()))}`);
+    },
+    render(p, q) {
+      const tab = q.tab || 'month';
+      if (!A.isManager()) return A.head('Statistika') + A.empty("Hisobotlarni Admin, Bosh menejer va Filial menejeri ko'radi");
+      const body = tab === 'month' ? monthStats(stData) : tab === 'funnel' ? funnelView(stData) : firstPayers(stData);
+      return `${A.head('Statistika', 'Oyma-oy taqqoslash, sotuv voronkasi va birinchi marta to\'lov qilganlar')}
+        ${A.tabs([['month', 'Oylik statistika'], ['funnel', 'Sotuv voronkasi'], ['first', "Birinchi to'lovchilar"]], tab, 'stats')}${body}`;
+    },
+  });
+
+  function monthStats(s) {
+    const months = s.months || [];
+    const labels = months.map(A.ymLabel);
+    const n = A.q('st:count', 6);
+    const sel = `<div class="filters"><select class="f-input" data-filter="st:count">${[3, 6, 12].map((k) => `<option value="${k}" ${String(k) === String(n) ? 'selected' : ''}>Oxirgi ${k} oy</option>`).join('')}</select></div>`;
+    const series = (rows, key, nameOf) => {
+      const names = [...new Set(rows.map((r) => r[key]))];
+      return names.map((nm, i) => ({ label: nameOf(nm), data: months.map((m) => A.sum(rows.filter((r) => r.ym === m && r[key] === nm), 'n')), backgroundColor: A.PALETTE[i % A.PALETTE.length] }));
+    };
+    const stacked = { scales: { x: { stacked: true }, y: { stacked: true } } };
+    const reasons = [...new Set((s.contracts_stopped || []).map((r) => r.reason))];
+    return `${sel}<div class="grid-2">
+      <section class="card"><h2>Yangi lidlar (manba bo'yicha)</h2>${A.chart({ type: 'bar', data: { labels, datasets: series(s.leads_by_source || [], 'source', A.sourceName) }, options: stacked })}</section>
+      <section class="card"><h2>Yangi lidlar (kurs bo'yicha)</h2>${A.chart({ type: 'bar', data: { labels, datasets: series(s.leads_by_course || [], 'course', A.courseName) }, options: stacked })}</section>
+      <section class="card"><h2>Yangi va to'xtatilgan shartnomalar</h2>${A.chart({ type: 'bar', data: { labels, datasets: [
+        { label: 'Yangi', data: s.contracts_new || [], backgroundColor: A.PALETTE[3] },
+        ...reasons.map((r, i) => ({ label: `To'xtatildi: ${r}`, data: months.map((m) => A.sum((s.contracts_stopped || []).filter((x) => x.ym === m && x.reason === r), 'n')), backgroundColor: ['#eb5757', '#f2994a', '#f2c94c', '#bb6bd9', '#9b9ba3', '#6fcf97', '#56ccf2'][i % 7], stack: 'stop' }))] } })}</section>
+      <section class="card"><h2>O'rtacha davomat foizi</h2>${A.chart({ type: 'line', data: { labels, datasets: [{ label: 'Keldi, %', data: (s.attendance_pct || []).map((x) => Math.round(x * 100)), borderColor: A.PALETTE[0], backgroundColor: 'rgba(242,106,27,.15)', fill: true, tension: 0.3 }] }, options: { scales: { y: { min: 0, max: 100 } } } })}
+        <p class="muted small">Guruh va ustoz bo'yicha batafsil — <a href="#/attendance?tab=stats">Davomatlar → Statistika</a></p></section>
+      ${s.money ? `<section class="card wide"><h2>To'lovlar, xarajatlar va foyda</h2>${A.chart({ type: 'bar', data: { labels, datasets: [
+        { label: "To'lovlar", data: s.money.map((r) => Number(r.payments)), backgroundColor: '#2f80ed' },
+        { label: 'Xarajatlar', data: s.money.map((r) => Number(r.expenses)), backgroundColor: '#e86fa6' },
+        { label: 'Oyliklar', data: s.money.map((r) => Number(r.salaries)), backgroundColor: '#9b9ba3' },
+        { label: 'Foyda', data: s.money.map((r) => Number(r.profit)), type: 'line', borderColor: A.PALETTE[3], backgroundColor: A.PALETTE[3] }] } })}
+        <p class="muted small">Batafsil — <a href="#/profit">Foyda (oyma-oy)</a></p></section>` : ''}
+    </div>`;
+  }
+
+  function funnelView(f) {
+    const LS = A.LEAD_STATUSES;
+    const owners = A.S.users.filter((u) => ['ADMIN', 'BOSH_MENEJER', 'FILIAL_MENEJERI', 'ADMINISTRATOR', 'ADMINISTRATOR_HISOBCHI'].includes(u.role)).map((u) => [u.id, u.full_name]);
+    const fdate = (k, ph) => `<input type="date" class="f-input" data-filter="fn:${k}" value="${A.q('fn:' + k, '')}" title="${ph}">`;
+    const bar = (n, max) => `<div class="bar"><i class="bg-orange" style="width:${max ? (n / max) * 100 : 0}%"></i></div>`;
+    const max = Math.max(1, ...(f.steps || []).map((s) => s.n));
+    return `<div class="filters">${fdate('from', 'Dan')}${fdate('to', 'Gacha')}${A.fSelect('fn', 'source', A.optList('leadSources'), 'Barcha manbalar')}${A.fSelect('fn', 'course', A.optList('courses'), 'Barcha kurslar')}${A.fSelect('fn', 'owner', owners, 'Barcha xodimlar')}</div>
+      <div class="stats">${A.stat('Lidlar', f.total || 0)}${A.stat('Lid → shartnoma', A.pct(f.contract_rate), `${f.contracts || 0} ta`)}${A.stat("Lid → to'lov", A.pct(f.pay_rate), `${f.paid || 0} ta`)}</div>
+      <div class="grid-2"><section class="card"><h2>Bosqichlar</h2>${A.table(
+        [
+          { h: 'Status', f: (s) => `${s.status}. ${esc(LS[s.status])}` },
+          { h: 'Lidlar', f: (s) => `<b>${s.n}</b>`, cls: 'num' },
+          { h: '', f: (s) => bar(s.n, max) },
+        ],
+        f.steps || [],
+      )}</section>
+      <section class="card"><h2>O'tish foizi</h2>${A.table(
+        [
+          { h: 'Bosqichga yetgan', f: (s) => `${s.status}. ${esc(LS[s.status])}` },
+          { h: 'Soni', f: (s) => s.reached, cls: 'num' },
+          { h: 'Foiz', f: (s) => `<b>${A.pct(s.rate)}</b>`, cls: 'num' },
+        ],
+        f.stages || [],
+      )}<p class="muted small">«Yetgan» — shu bosqich yoki undan keyingi (5-gacha) statusdagi lidlar.</p></section>
+      <section class="card wide"><h2>Mas'ul xodim bo'yicha</h2>${A.table(
+        [
+          { h: 'Lidni kiritgan', f: (r) => esc(A.userName(r.user)) },
+          { h: 'Lidlar', f: (r) => r.n, cls: 'num' },
+          { h: 'Shartnoma', f: (r) => `${r.contracts} <small class="muted">(${A.pct(r.n ? r.contracts / r.n : 0)})</small>`, cls: 'num' },
+          { h: "To'lov", f: (r) => `${r.paid} <small class="muted">(${A.pct(r.n ? r.paid / r.n : 0)})</small>`, cls: 'num' },
+        ],
+        f.by_owner || [],
+        { empty: "Lid yo'q" },
+      )}</section></div>`;
+  }
+
+  function firstPayers(d) {
+    const m = A.q('fp:month', A.ym(A.today()));
+    const kv = (o) => Object.entries(o || {}).sort((a, b) => b[1] - a[1]);
+    return `<div class="filters"><select class="f-input" data-filter="fp:month">${A.monthOptions().map(([k, l]) => `<option value="${k}" ${k === m ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+      <div class="stats">${A.stat("Birinchi marta to'lov qilganlar", d.count || 0, A.ymLabel(m))}</div>
+      <div class="grid-2"><section class="card"><h2>Manba bo'yicha</h2>${A.table([{ h: 'Manba', f: (r) => esc(r[0]) }, { h: 'Soni', f: (r) => r[1], cls: 'num' }], kv(d.by_source))}</section>
+      <section class="card"><h2>Kurs bo'yicha</h2>${A.table([{ h: 'Kurs', f: (r) => esc(r[0]) }, { h: 'Soni', f: (r) => r[1], cls: 'num' }], kv(d.by_course))}</section>
+      <section class="card wide"><h2>Ro'yxat</h2>${A.table(
+        [
+          { h: 'Sana', f: (r) => A.fdate(r.date) },
+          { h: 'Talaba', f: (r) => `<a href="#/contracts/${r.contract}">${esc(r.student_name)}</a>` },
+          { h: 'Kurs / guruh', f: (r) => `${esc(A.courseName(r.course))}<br><small class="muted">${esc(A.groupName(r.group))}</small>` },
+          { h: 'Manba', f: (r) => esc(r.source_name) },
+          { h: "Birinchi to'lov", f: (r) => `<b>${A.num(r.amount)}</b>`, cls: 'num', sum: (rr) => A.num(A.sum(rr, (r) => Number(r.amount))) },
+        ],
+        d.rows || [],
+        { empty: "Bu oyda birinchi marta to'lov qilgan talaba yo'q" },
+      )}</section></div>`;
+  }
 
   /* ===================================================== Oyliklar (server API: /salary-assignments/, /salary-payouts/, /kpi-rates/, /kpi/) */
   let salData = {};

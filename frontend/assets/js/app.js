@@ -169,8 +169,8 @@
   /** API'ga ulangan bo'limlar. Qolganlari o'z bosqichida ulanadi (docs/architecture.md, 5-bo'lim) */
   A.CONNECTED = new Set(['dashboard', 'settings', 'audit', 'leads', 'contracts', 'debtors', 'attendance', 'groups', 'groupAnalysis',
     'payments', 'approvals', 'accounts', 'transfers', 'creditors', 'exchange', 'expenses', 'salaries',
-    'evaluations', 'parentCalls', 'export']);
-  A.MILESTONE = { profit: 'M7', ai: 'M9' };
+    'evaluations', 'parentCalls', 'export', 'profit']);
+  A.MILESTONE = { ai: 'M9' };
   const PUBLIC = new Set(['set-password']);
 
   const parseHash = () => {

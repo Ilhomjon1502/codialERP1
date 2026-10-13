@@ -401,7 +401,7 @@
     ['M4', "To'lovlar, g'aznalar, o'tkazmalar, xarajatlar, kreditorlar", true],
     ['M5', 'Oyliklar va KPI stavkalari'],
     ['M6', "Ustozni baholash, ota-onalar bilan aloqa, Excel", true],
-    ['M7', 'Bosh sahifa statistikasi, foyda, guruhlar tahlili'],
+    ['M7', 'Bosh sahifa statistikasi, foyda, guruhlar tahlili', true],
   ];
   let dash = {};
   A.page('dashboard', {
@@ -452,6 +452,9 @@
         ${A.can('accounts') ? `<section class="card"><h2>G'azna qoldiqlari</h2>${A.rows('accounts').filter((a) => a.status === 'Faol' && a.balance !== null)
           .map((a) => `<a class="acc-row" href="#/accounts/${a.id}"><span>${A.icon('safe')} ${esc(a.name)} <small class="muted">${A.CASH[a.cash_type]}</small></span><b>${A.money(a.balance)}</b>${Number(a.pending) ? `<small class="muted">tasdiqlanmagan: ${A.num(a.pending)}</small>` : ''}</a>`)
           .join('') || A.empty("G'azna yo'q")}</section>` : ''}
+        ${activeGroups.length ? `<section class="card"><div class="row between"><h2>Faol guruhlar to'lishi</h2>${A.isManager() ? '<a href="#/stats">Statistika →</a>' : ''}</div>${A.sortBy(activeGroups, (g) => A.groupFill(g).pct, true)
+          .map((g) => { const f = A.groupFill(g); return `<div class="fill-row"><a href="#/groups/${g.id}" class="t-${f.cls}">${esc(A.groupName(g))}</a><div class="bar"><i class="bg-${f.cls}" style="width:${Math.min(100, f.pct * 100)}%"></i></div><span class="muted">${f.n}/${f.cap}</span></div>`; })
+          .join('')}</section>` : ''}
         <section class="card"><h2>Tizimni ishga tushirish bosqichlari</h2>
           <p class="muted small">Bo'limlar bosqichma-bosqich serverga ulanadi. Menyudagi xira bo'limlar keyingi bosqichlarda ishlaydi.</p>
           ${A.table([{ h: 'Bosqich', f: (r) => `<b>${r[0]}</b>` }, { h: 'Nima', f: (r) => esc(r[1]) }, { h: 'Holat', f: (r) => (r[2] ? A.badge('ishlayapti', 'green') : A.badge('tez orada', 'gray')) }], PLAN)}

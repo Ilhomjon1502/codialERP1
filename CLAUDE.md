@@ -7,7 +7,7 @@
 
 ## 0. Joriy holat (2026-10-13) — yangi kelgan dasturchi shu yerdan boshlasin
 
-**Qisqasi:** prototip ma'qullandi va muzlatildi. **M1–M6 tayyor**: haqiqiy tizim (`backend/` — Django + DRF API, `frontend/` — prototip ekranlari API'ga ulangan) **Hetzner serverida ishlayapti**. Keyingi ish — **M7 (bosh sahifa, oylik statistika, voronka, birinchi to'lovchilar, foyda, guruh tahlili)**, buyurtmachi «boshla» deganda boshlanadi. **«50% chegirmalar», «Talaba vazifalari» va «Baholash bo'limi» (ustoz → talaba) olib tashlangan** (buyurtmachi qarori 2026-10-13).
+**Qisqasi:** prototip ma'qullandi va muzlatildi. **M1–M7 tayyor**: haqiqiy tizim (`backend/` — Django + DRF API, `frontend/` — prototip ekranlari API'ga ulangan) **Hetzner serverida ishlayapti**. Keyingi ish — **M10 (AppSheet'dan import)** va **M11 (haqiqiy ishga tushirish)**; M8 (Telegram) va M9 (AI) — keyin. Buyurtmachi «boshla» deganda boshlanadi. **«50% chegirmalar», «Talaba vazifalari» va «Baholash bo'limi» (ustoz → talaba) olib tashlangan** (buyurtmachi qarori 2026-10-13).
 
 | Bosqich | Holat |
 |---|---|
@@ -20,7 +20,8 @@
 | **M4** — moliya: to'lovlar (chegirma limiti, tasdiqlar, PDF chek), CashMovement ledger va g'azna balansi, o'tkazmalar, ayirboshlash, xarajatlar, kreditorlar, Tasdiqlashlar, «To'lov qilganlar» | ✅ 2026-10-13, 84 test |
 | **M5** — oyliklar: KPI stavkalari (qayta hisoblash bilan), oylik belgilash (nusxa), hisoblangan KPI daraxti, oylik berish (g'azna jurnaliga), xodim balansi | ✅ 2026-10-13, 100 test (9 tasi JS sintaksis) |
 | **M6** — ustozni baholash (talaba → ustoz), ota-onalar bilan aloqa (daraxt), Excel (.xlsx) eksport; vazifalar, baholash bo'limi va 50% chegirma — olib tashlangan | ✅ 2026-10-13, 104 test |
-| M7 hisobotlar → M10 import, M11 asosiy muhit | ⏳ navbatda (17-bo'lim) |
+| **M7** — bosh sahifa (guruhlar to'lishi), foyda oyma-oy, statistika (oylik, voronka, birinchi to'lovchilar) | ✅ 2026-10-13, 106 test |
+| M10 import → M11 asosiy muhit | ⏳ navbatda (17-bo'lim) |
 | M8 Telegram bot, M9 AI | ⏳ tizim ishga tushgandan keyin |
 | 18-bo'limdagi ochiq savollar | ⏳ takliflar `docs/architecture.md` 7-bo'limda; buyurtmachi javob bermasa takliflar qo'llanadi. 3-savol yopildi: 50% chegirma bo'limi olib tashlandi |
 | Domen `codialinfo.uz` | ✅ buyurtmachiniki (ahost.uz). DNS: A `erp` → `77.42.9.23` (2026-10-13), Let's Encrypt SSL. Asosiy sayt (`@`, `www` — Vercel) va pochta yozuvlariga tegilmaydi |
@@ -47,7 +48,9 @@
 
 **M6 da nima qilindi:** `apps/education/models.py` — TeacherEvaluation (s1–s5), ParentCall; `services.py` oxirida `save_evaluation`, `save_parent_call`; `export.py` — `contracts_xlsx()` (openpyxl); `views.py` — `/evaluations/`, `/parent-calls/`, `GET /export/contracts/`; `demo_m6.py`. Front-end `pages-edu.js` oxiri (Baholash (ustozni), Ota-onalar bilan aloqa, Shartnoma yuklash), `A.activeContracts()`, `A.downloadXlsx()`. «Talaba vazifalari», «Baholash bo'limi» (GradingSession/StudentGrade) va «50% chegirmalar» — **olib tashlangan**, qaytarmang. Qo'llanma: `docs/user_guide/m6_baholash_aloqa_eksport.md`.
 
-**Keyingi ish — M7 (hisobotlar).** 11-bo'lim: bosh sahifa (rolga mos), oylik statistika (Chart.js), sotuv voronkasi, birinchi to'lovchilar, foyda (8.6, `pages-fin.js` dagi «Foyda» hali prototip kodi), guruh tahlili; aggregatsiya + kesh. Keyin M10 (import), M11 (ishga tushirish).
+**M7 da nima qilindi:** `apps/reports/` (modelsiz): `services.py` — `profit()` (8.6), `monthly_stats()`, `funnel()`, `first_payers()`; `views.py` — `/reports/profit/`, `/reports/stats/`, `/reports/funnel/`, `/reports/first-payers/`. Front-end: `pages-fin.js` — «Foyda» (API) va yangi `A.page('stats')` (`#/stats`, 3 tab, Chart.js); bosh sahifada faol guruhlar to'lishi. Qo'llanma: `docs/user_guide/m7_hisobotlar.md`.
+
+**Keyingi ish — M10 (import).** 16-bo'lim: `python manage.py import_appsheet --dry-run` → `import_data/*.xlsx` (Emirat), `legacy_id` bilan idempotent, boshlang'ich qoldiqlar (`Contract.opening_balance`, `Account.initial_balance`, `SalaryAssignment.opening_balance`, kreditorlar), tekshiruv hisoboti. Buyurtmachidan AppSheet Excel eksport fayllari kerak. Keyin M11 (sinov ma'lumotlarini tozalash, o'tish kuni, monitoring).
 
 **Oxirgi holat (M4 dan keyin):** M1–M4 `main` da va https://erp.codialinfo.uz da ishlayapti (2026-10-13). Sinov ma'lumotlariga to'lovlar, xarajatlar, o'tkazmalar, kreditor qo'shildi; 84 test yashil.
 
@@ -90,7 +93,7 @@
 2. Biznes qoidalar: 6-bo'lim (rollar), 7-bo'lim (modellar), 8-bo'lim (hisob-kitob). Ekranlar va matnlar — prototipda (20-bo'lim).
 3. Lokalda ishga tushiring (`README.md`): `backend` da `seed_demo` → `runserver` → http://localhost:8000.
 4. Testlar: `backend` da `.venv/Scripts/python -m pytest` va `.venv/Scripts/ruff check .` yashil bo'lsin.
-5. Keyingi bosqich (M7) rejasi: shu bo'limdagi «Keyingi ish — M7», `docs/architecture.md` 5-bo'lim va 17-bo'lim.
+5. Keyingi bosqich (M10) rejasi: shu bo'limdagi «Keyingi ish — M10», 16-bo'lim va 17-bo'lim.
 
 ## 1. Manbalar
 
@@ -162,7 +165,7 @@ backend/
     education/     ✅ M3  Group, Contract, Attendance, MakeupRequest; calc.py (qarz, KPI, qayta hisoblash), demo.py
                          + M6: TeacherEvaluation, ParentCall; export.py (.xlsx)
     payroll/       ✅ M5  KPIRate, SalaryAssignment, SalaryPayout; compute() (oylik hisobi), demo.py
-    reports/       ⏳ M7  dashboard, statistika, foyda, Excel
+    reports/       ✅ M7  foyda, oylik statistika, voronka, birinchi to'lovchilar (modelsiz)
     importer/      ⏳ M10 AppSheet .xlsx import
     notifications/, ai_assistant/   ⏳ M8, M9
   tests/                 pytest (conftest: make_user, api)
@@ -680,10 +683,10 @@ Real ishga tushirish uchun minimal to'plam: **M1–M7 + M10 + M11** (xodimlar Ap
 | M4 | Moliya | CashMovement ledger, g'aznalar balansi, to'lovlar (tasdiqlar, chegirma limiti, PDF chek), o'tkazmalar, almashtirish, xarajatlar, kreditorlar, Tasdiqlashlar; shartnoma balansiga to'lovlar | ✅ 2026-10-13 |
 | M5 | Oyliklar | KPI stavkalari (o'zgarsa qayta hisoblash), oylik belgilash va berish (g'aznaga `CashMovement` SALARY), KPI daraxti, xodim balansi | ✅ 2026-10-13 |
 | M6 | Qo'shimcha modullar | Ustozni baholash, ota-onalar bilan aloqa, Excel eksport (vazifalar, baholash bo'limi, 50% chegirma — olib tashlangan) | ✅ 2026-10-13 |
-| M7 | Hisobot va dashboard | Bosh sahifa, oylik statistika, voronka, birinchi to'lovchilar, foyda, guruh tahlili | ⏳ keyingi |
+| M7 | Hisobot va dashboard | Bosh sahifa, oylik statistika, voronka, birinchi to'lovchilar, foyda, guruh tahlili | ✅ 2026-10-13 |
 | M8 | Telegram bot | Bog'lash, xabarlar, kunlik hisobot | ⏳ keyin |
 | M9 | AI yordamchi | Faqat o'qish view'lari, SQL xavfsizligi, provayder abstraksiyasi | ⏳ keyin |
-| M10 | Migratsiya | Import skripti, sinov rejimi, tekshiruv hisoboti | ⏳ |
+| M10 | Migratsiya | Import skripti, sinov rejimi, tekshiruv hisoboti | ⏳ keyingi |
 | M11 | Ishga tushirish | Asosiy muhit (`erp.codialinfo.uz`), o'tish kuni, monitoring | ⏳ |
 
 Har bir bosqichda bo'ladi: algoritm va ruxsatlar uchun testlar, `seed_demo` buyrug'i (sinov ma'lumotlari), qisqa foydalanuvchi qo'llanmasi (`docs/user_guide/`).
@@ -874,7 +877,7 @@ Brauzer ──HTTPS──► Nginx (serverda) ──┬── /            → f
 | `pages-admin.js` | Sozlamalar, Audit tarixi, Bosh sahifa (M1) — **namuna sifatida o'qing** |
 | `pages-crm.js` | Lidlar (M2), Shartnomalar, Qarzdorlar (M3) — API'ga ulangan. Ichidagi eski `A.page('dashboard')` ishlatilmaydi (`pages-admin.js` dagisi uni almashtiradi) |
 | `pages-edu.js` | Guruhlar, Guruhlar tahlili, Davomat (M3), Baholash (ustozni), Ota-onalar bilan aloqa, Shartnoma yuklash (M6) — hammasi API'ga ulangan |
-| `pages-fin.js` | To'lovlar, Tasdiqlashlar, G'aznalar, O'tkazmalar, Ayirboshlash, Xarajatlar, Kreditorlar (M4), Oyliklar (M5) — API'ga ulangan; Foyda (M7) — hali prototip kodi |
+| `pages-fin.js` | To'lovlar, Tasdiqlashlar, G'aznalar, O'tkazmalar, Ayirboshlash, Xarajatlar, Kreditorlar (M4), Oyliklar (M5), Foyda va Statistika (M7) — hammasi API'ga ulangan |
 
 Sahifa serverdan ma'lumot olishi kerak bo'lsa: `A.page('route', { section, async load(p, q) {...}, render(p, q) {...} })` — `load` har chizishdan oldin (filtr o'zgarganda ham) chaqiriladi. Namuna: `A.page('audit')`.
 

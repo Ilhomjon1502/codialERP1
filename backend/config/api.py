@@ -9,6 +9,7 @@ from apps.education import views as edu
 from apps.finance import views as fin
 from apps.payroll import views as pay
 from apps.references import views as ref
+from apps.reports import views as rep
 
 router = DefaultRouter(trailing_slash=True)
 router.include_root_view = False
@@ -58,6 +59,10 @@ urlpatterns = [
     path("approvals/", fin.approvals),
     path("kpi/", pay.kpi_tree),
     path("export/contracts/", edu.export_contracts),
+    path("reports/profit/", rep.profit),
+    path("reports/stats/", rep.stats),
+    path("reports/funnel/", rep.funnel),
+    path("reports/first-payers/", rep.first_payers),
     path("kpi/rows/", pay.kpi_rows),
     *router.urls,
 ]

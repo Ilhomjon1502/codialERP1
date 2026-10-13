@@ -13,8 +13,8 @@ Codial IT o'quv markazi (Farg'ona) uchun boshqaruv tizimi. Hozirgi AppSheet ilov
 | **M4 — Moliya**: to'lovlar (chegirma limiti, tasdiqlar, PDF chek), g'aznalar va pul harakatlari jurnali, o'tkazmalar, ayirboshlash, xarajatlar, kreditorlar, Tasdiqlashlar | ✅ |
 | **M5 — Oyliklar**: KPI stavkalari, oylik belgilash, hisoblangan KPI (daraxt), oylik berish, xodim balansi | ✅ |
 | **M6 — Qo'shimcha**: ustozni baholash, ota-onalar bilan aloqa, Excel (.xlsx) eksport. «Talaba vazifalari», «Baholash bo'limi» va «50% chegirmalar» — olib tashlangan | ✅ |
-| M7: hisobotlar va bosh sahifa | ⏳ navbatda |
-| M10–M11: AppSheet'dan ko'chirish va ishga tushirish | ⏳ |
+| **M7 — Hisobotlar**: bosh sahifa, foyda (oyma-oy), oylik statistika, sotuv voronkasi, birinchi to'lovchilar | ✅ |
+| M10–M11: AppSheet'dan ko'chirish va ishga tushirish | ⏳ navbatda |
 
 Reja: [docs/architecture.md](docs/architecture.md). Texnik topshiriq: [CLAUDE.md](CLAUDE.md).
 
