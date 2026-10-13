@@ -7,7 +7,7 @@
 3. Xatdagi havolani oching, parolni ikki marta yozing va saqlang. Havola 3 kun amal qiladi va bir marta ishlaydi.
 4. Kirish sahifasida pochtangiz va yangi parolingiz bilan kiring.
 
-Parol kamida 8 belgidan iborat bo'lsin, faqat raqamlar yoki juda oddiy so'z bo'lmasin.
+Parol kamida 4 belgidan iborat bo'lsin (oson parol ham mumkin).
 
 ## Parolni unutsangiz
 
