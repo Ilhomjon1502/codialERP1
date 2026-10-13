@@ -18,11 +18,10 @@ from apps.references.models import LessonFrequency
 from apps.references.services import month_start
 
 from . import calc, export, services
-from .models import Attendance, Contract, GradingSession, Group, MakeupRequest, ParentCall, StudentGrade, TeacherEvaluation
+from .models import Attendance, Contract, Group, MakeupRequest, ParentCall, TeacherEvaluation
 from .serializers import (
     AttendanceSerializer,
     ContractSerializer,
-    GradingSessionSerializer,
     GroupSerializer,
     MakeupSerializer,
     ParentCallSerializer,
@@ -357,7 +356,7 @@ class MakeupViewSet(AuditedModelViewSet):
         return Response(self.get_serializer(services.reject_makeup(request.user, self.get_object(), request.data.get("reason"))).data)
 
 
-# ------------------------------------------------------------------ M6: baholash (ikki yo'nalish), ota-onalar bilan aloqa, Excel eksport
+# ------------------------------------------------------------------ M6: baholash (talaba → ustoz), ota-onalar bilan aloqa, Excel eksport
 
 def scoped_contracts(user):
     return services.teacher_scope(scope_branch(Contract.objects.select_related("group", "course", "branch", "student"), user), user)
@@ -395,38 +394,6 @@ class TeacherEvaluationViewSet(AuditedModelViewSet):
         d = dict(ser.validated_data)
         d["contract"] = _contract_in_scope(request.user, d["contract"])
         return Response(self.get_serializer(services.save_evaluation(request.user, d)).data, status=status.HTTP_201_CREATED)
-
-
-class GradingSessionViewSet(AuditedModelViewSet):
-    """Baholash bo'limi: ustoz guruh talabalarini baholaydi (bo'lim «grading»). Ustoz — faqat o'z guruhlari."""
-
-    section = "grading"
-    queryset = GradingSession.objects.prefetch_related(Prefetch("grades", queryset=StudentGrade.objects.select_related("contract__student")))
-    serializer_class = GradingSessionSerializer
-    branch_field = "branch"
-    http_method_names = ["get", "post", "delete", "head", "options"]
-
-    def get_queryset(self):
-        qs = services.teacher_scope(super().get_queryset(), self.request.user)
-        if self.request.query_params.get("group"):
-            qs = qs.filter(group=self.request.query_params["group"])
-        return qs.order_by("-date", "-created_at")
-
-    def create(self, request, *args, **kwargs):
-        ser = self.get_serializer(data=request.data)
-        ser.is_valid(raise_exception=True)
-        d = dict(ser.validated_data)
-        g = scoped_groups(request.user).filter(pk=d["group"].pk).first()
-        if g is None:
-            raise ValidationError({"group": "Guruh topilmadi"})
-        rows = [{"contract": r["contract"], **{k: r[k] for k in ("attendance_score", "task_score", "final_score")}, "comment": r.get("comment", "")}
-                for r in d.pop("grades", [])]
-        s = services.save_grading(request.user, g, d, rows)
-        return Response(self.get_serializer(self.get_queryset().get(pk=s.pk)).data, status=status.HTTP_201_CREATED)
-
-    def perform_destroy(self, instance):
-        check_edit_window(self.request.user, "grading", instance.date, op="d")
-        super().perform_destroy(instance)
 
 
 class ParentCallViewSet(AuditedModelViewSet):

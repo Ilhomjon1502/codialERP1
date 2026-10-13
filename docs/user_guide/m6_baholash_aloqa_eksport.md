@@ -1,14 +1,6 @@
 # Baholash, ota-onalar bilan aloqa, Excel eksport (M6)
 
-> «Talaba vazifalari» va «50% chegirmalar» bo'limlari buyurtmachi qarori bilan olib tashlangan (2026-10-13).
-
-## Baholash bo'limi (ustoz → talaba)
-
-Menyu → **Baholash bo'limi** → **Yangi baholash**: guruh (ustozda — faqat o'z guruhlari), sana, izoh; har bir faol talaba uchun:
-**davomat (1–20)**, **vazifa (1–40)**, **oy yakuni (1–500)**. Bo'sh qoldirilgan talaba baholanmaydi; bir baholashda talaba bir marta.
-Ro'yxatda har baholash guruh va sana bilan, talabalar jami ball bo'yicha saralangan.
-
-Kim: Admin, Bosh menejer, Filial menejeri; ustoz va Ustoz+Yordamchi — o'z guruhlari. Administratorlar va hisobchi — ko'radi.
+> «Talaba vazifalari», «Baholash bo'limi» (ustoz → talaba) va «50% chegirmalar» bo'limlari buyurtmachi qarori bilan olib tashlangan (2026-10-13).
 
 ## Baholash (talaba → ustoz)
 

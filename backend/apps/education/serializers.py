@@ -8,7 +8,7 @@ from apps.crm.models import Student
 from apps.references.models import Course, DayPattern, LessonTime, Room
 
 from . import services
-from .models import Attendance, Contract, GradingSession, Group, MakeupRequest, ParentCall, StudentGrade, TeacherEvaluation
+from .models import Attendance, Contract, Group, MakeupRequest, ParentCall, TeacherEvaluation
 
 Money = dict(max_digits=14, decimal_places=0)
 
@@ -154,30 +154,6 @@ class TeacherEvaluationSerializer(serializers.ModelSerializer):
 
     def get_scores(self, e):
         return [e.s1, e.s2, e.s3, e.s4, e.s5]
-
-
-class StudentGradeSerializer(serializers.ModelSerializer):
-    contract = serializers.PrimaryKeyRelatedField(queryset=Contract.objects.all())
-    att = serializers.IntegerField(source="attendance_score")
-    task = serializers.IntegerField(source="task_score")
-    final = serializers.IntegerField(source="final_score")
-    total = serializers.IntegerField(read_only=True)
-    student_name = serializers.CharField(source="contract.student.full_name", read_only=True)
-
-    class Meta:
-        model = StudentGrade
-        fields = ["id", "contract", "student_name", "att", "task", "final", "total", "comment"]
-
-
-class GradingSessionSerializer(serializers.ModelSerializer):
-    group = serializers.PrimaryKeyRelatedField(queryset=Group.objects.all())
-    date = serializers.DateField(required=False)
-    rows = StudentGradeSerializer(source="grades", many=True)
-
-    class Meta:
-        model = GradingSession
-        fields = ["id", "branch", "teacher", "course", "group", "date", "comment", "rows", "created_by", "created_at"]
-        read_only_fields = ["branch", "teacher", "course", "created_by", "created_at"]
 
 
 class ParentCallSerializer(serializers.ModelSerializer):

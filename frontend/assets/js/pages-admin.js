@@ -400,7 +400,7 @@
     ['M3', "Guruhlar, shartnomalar, davomat, qarz va KPI hisobi", true],
     ['M4', "To'lovlar, g'aznalar, o'tkazmalar, xarajatlar, kreditorlar", true],
     ['M5', 'Oyliklar va KPI stavkalari'],
-    ['M6', "Baholash (ikki yo'nalish), ota-onalar bilan aloqa, Excel", true],
+    ['M6', "Ustozni baholash, ota-onalar bilan aloqa, Excel", true],
     ['M7', 'Bosh sahifa statistikasi, foyda, guruhlar tahlili'],
   ];
   let dash = {};

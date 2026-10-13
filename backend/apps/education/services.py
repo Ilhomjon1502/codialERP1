@@ -459,11 +459,7 @@ def attendance_stats(qs):
     }
 
 
-# ------------------------------------------------------------------ M6: baholash (ikki yo'nalish), ota-onalar bilan aloqa
-
-GRADE_LIMITS = {"attendance_score": 20, "task_score": 40, "final_score": 500}
-GRADE_LABELS = {"attendance_score": "Davomat", "task_score": "Vazifa", "final_score": "Oy yakuni"}
-
+# ------------------------------------------------------------------ M6: baholash (talaba → ustoz), ota-onalar bilan aloqa
 
 def _active_contract(contract, on, field="contract"):
     if contract.start_date > on or (contract.end_date and contract.end_date < on):
@@ -487,41 +483,6 @@ def save_evaluation(user, d):
     e = TeacherEvaluation.objects.create(**d, created_by=user, updated_by=user)
     audit.log_create(user, e)
     return e
-
-
-@transaction.atomic
-def save_grading(user, group, d, rows):
-    """Ustoz guruh talabalarini baholaydi. rows: [{contract, attendance_score, task_score, final_score, comment}].
-    Ustoz faqat o'z guruhini baholaydi; bir sessiyada talaba bir marta (7.4)."""
-    from .models import GradingSession, StudentGrade
-
-    if is_teacher_mode(user) and group.teacher_id != user.pk:
-        raise PermissionDenied("Faqat o'z guruhingizni baholaysiz")
-    on = d.get("date") or today()
-    if on > today():
-        raise ValidationError({"date": "Kelajak sana bo'lishi mumkin emas"})
-    if not rows:
-        raise ValidationError({"rows": "Kamida bitta talabani baholang"})
-    active = {c.pk: c for c in roster(group, on)}
-    seen = set()
-    for r in rows:
-        cid = r["contract"].pk
-        if cid not in active:
-            raise ValidationError({"rows": "Talaba shu sanada guruhda faol emas"})
-        if cid in seen:
-            raise ValidationError({"rows": "Bir talaba bir baholashda bir marta"})
-        seen.add(cid)
-        for k, mx in GRADE_LIMITS.items():
-            if not 1 <= int(r.get(k) or 0) <= mx:
-                raise ValidationError({"rows": f"{GRADE_LABELS[k]} bali 1–{mx} oralig'ida bo'lsin"})
-    s = GradingSession.objects.create(branch=group.branch, teacher=group.teacher, course=group.course, group=group, date=on,
-                                      comment=d.get("comment", ""), created_by=user, updated_by=user)
-    audit.log_create(user, s)
-    for r in rows:
-        g = StudentGrade.objects.create(session=s, contract=r["contract"], comment=r.get("comment", ""), created_by=user, updated_by=user,
-                                        **{k: int(r[k]) for k in GRADE_LIMITS})
-        audit.log_create(user, g)
-    return s
 
 
 @transaction.atomic

@@ -9,15 +9,16 @@ from openpyxl import load_workbook
 from apps.accounts.models import RolePermission
 from apps.core.models import AuditLog
 from apps.core.roles import SECTION_KEYS
-from apps.education.models import GradingSession, ParentCall, StudentGrade
+from apps.education.models import ParentCall
 from tests.test_education import TODAY, world  # noqa: F401 — fixture
 
 pytestmark = pytest.mark.django_db
 
 
 def test_removed_sections():
-    assert "tasks" not in SECTION_KEYS and "discount50" not in SECTION_KEYS
-    assert not RolePermission.objects.filter(section__in=["tasks", "discount50"]).exists()
+    for gone in ("tasks", "discount50", "grading"):
+        assert gone not in SECTION_KEYS
+    assert not RolePermission.objects.filter(section__in=["tasks", "discount50", "grading"]).exists()
 
 
 def test_teacher_evaluation(api, make_user, world):  # noqa: F811
@@ -30,23 +31,6 @@ def test_teacher_evaluation(api, make_user, world):  # noqa: F811
     assert adm.post("/api/v1/evaluations/", {**body, "s1": 11}, format="json").status_code == 400
     assert api(world["teacher"]).post("/api/v1/evaluations/", body, format="json").status_code == 403  # ustoz o'zini baholamaydi
     assert len(api(make_user("BOSH_MENEJER")).get(f"/api/v1/evaluations/?teacher={world['teacher'].pk}").json()) == 1
-
-
-def test_grading_session(api, make_user, world):  # noqa: F811
-    t = api(world["teacher"])
-    c0, c1 = world["contracts"][:2]
-    rows = [{"contract": str(c0.pk), "att": 18, "task": 35, "final": 420}, {"contract": str(c1.pk), "att": 15, "task": 30, "final": 380}]
-    r = t.post("/api/v1/gradings/", {"group": str(world["group"].pk), "comment": "Oy yakuni", "rows": rows}, format="json")
-    assert r.status_code == 201, r.content
-    assert len(r.json()["rows"]) == 2 and {x["total"] for x in r.json()["rows"]} == {473, 425}
-    assert StudentGrade.objects.count() == 2 and GradingSession.objects.get().teacher == world["teacher"]
-    bad = t.post("/api/v1/gradings/", {"group": str(world["group"].pk), "rows": [{**rows[0], "final": 501}]}, format="json")
-    assert bad.json()["rows"] == ["Oy yakuni bali 1–500 oralig'ida bo'lsin"]
-    assert t.post("/api/v1/gradings/", {"group": str(world["group"].pk), "rows": [rows[0], rows[0]]}, format="json").status_code == 400
-    assert t.post("/api/v1/gradings/", {"group": str(world["group"].pk), "rows": []}, format="json").status_code == 400
-    other = api(make_user("USTOZ"))
-    assert other.post("/api/v1/gradings/", {"group": str(world["group"].pk), "rows": rows}, format="json").status_code == 400  # guruh ko'rinmaydi
-    assert other.get("/api/v1/gradings/").json() == []
 
 
 def test_parent_calls(api, make_user, world):  # noqa: F811

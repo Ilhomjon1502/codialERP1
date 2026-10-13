@@ -12,7 +12,7 @@ Codial IT o'quv markazi (Farg'ona) uchun boshqaruv tizimi. Hozirgi AppSheet ilov
 | **M3 — O'quv jarayoni**: guruhlar, shartnomalar, qarzdorlar, davomat (olish, kelmaganlar, statistika, qoldirilgan darslar), qarz va KPI hisobi | ✅ |
 | **M4 — Moliya**: to'lovlar (chegirma limiti, tasdiqlar, PDF chek), g'aznalar va pul harakatlari jurnali, o'tkazmalar, ayirboshlash, xarajatlar, kreditorlar, Tasdiqlashlar | ✅ |
 | **M5 — Oyliklar**: KPI stavkalari, oylik belgilash, hisoblangan KPI (daraxt), oylik berish, xodim balansi | ✅ |
-| **M6 — Qo'shimcha**: ikki yo'nalishli baholash, ota-onalar bilan aloqa, Excel (.xlsx) eksport. «Talaba vazifalari» va «50% chegirmalar» — olib tashlangan | ✅ |
+| **M6 — Qo'shimcha**: ustozni baholash, ota-onalar bilan aloqa, Excel (.xlsx) eksport. «Talaba vazifalari», «Baholash bo'limi» va «50% chegirmalar» — olib tashlangan | ✅ |
 | M7: hisobotlar va bosh sahifa | ⏳ navbatda |
 | M10–M11: AppSheet'dan ko'chirish va ishga tushirish | ⏳ |
 

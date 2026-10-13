@@ -29,7 +29,7 @@ OP_LABELS = {"v": "ko'rish", "a": "qo'shish", "e": "tahrirlash", "d": "o'chirish
 
 SECTIONS = [
     ("dashboard", "Bosh sahifa"), ("leads", "Lidlar"), ("contracts", "Shartnomalar"), ("payments", "To'lovlar"),
-    ("debtors", "Qarzdorlar"), ("attendance", "Davomatlar"), ("grading", "Baholash bo'limi"), ("profit", "Foyda"),
+    ("debtors", "Qarzdorlar"), ("attendance", "Davomatlar"), ("profit", "Foyda"),
     ("expenses", "Xarajatlar"), ("export", "Shartnoma yuklash"), ("groupAnalysis", "Guruhlar tahlili"),
     ("groups", "Guruhlar"), ("approvals", "Tasdiqlashlar"),
     ("salaries", "Oyliklar"), ("transfers", "Ichki pul oqimi"), ("creditors", "Tashqi pul oqimi"),
@@ -48,7 +48,6 @@ _MATRIX = {
     "payments": {"AD": "vaedp", "BM": "vaedp", "FM": "vp", "AH": "vaed", "H": "vaed"},
     "debtors": {"AD": "v", "BM": "v", "FM": "v", "AH": "v", "H": "v"},
     "attendance": {"AD": "vaedp", "BM": "vaedp", "FM": "vaedp", "A": "vaedp", "AH": "vaedp", "U": "vae", "UY": "vae", "Y": "v"},
-    "grading": {"AD": "vaed", "BM": "vaed", "FM": "vaed", "A": "v", "AH": "v", "H": "v", "U": "vae", "UY": "vae"},
     "profit": {"AD": "v", "BM": "v"},
     "expenses": {"AD": "vaed", "BM": "vaed", "FM": "v", "AH": "vaed", "H": "vaed"},
     "export": {"AD": "v", "BM": "v", "FM": "v", "A": "v", "AH": "v", "H": "v"},

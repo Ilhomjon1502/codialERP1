@@ -41,7 +41,7 @@
   A.NAV = [
     ['dashboard', 'Bosh sahifa', 'home'], ['leads', 'Lidlar', 'leads'], ['contracts', 'Shartnomalar', 'file'],
     ['payments', "To'lovlar", 'cash'], ['debtors', 'Qarzdorlar', 'alert'], ['attendance', 'Davomatlar', 'check'],
-    ['grading', "Baholash bo'limi", 'star'], ['profit', 'Foyda (oyma-oy)', 'trend'], ['expenses', 'Xarajatlar', 'receipt'],
+    ['profit', 'Foyda (oyma-oy)', 'trend'], ['expenses', 'Xarajatlar', 'receipt'],
     ['export', 'Shartnoma yuklash', 'download'], ['groupAnalysis', 'Guruhlar tahlili', 'pie'], ['groups', 'Guruhlar', 'grid'],
     ['approvals', 'Tasdiqlashlar', 'shield'], ['salaries', 'Oyliklar', 'wallet'],
     ['transfers', 'Ichki pul oqimi', 'repeat'], ['creditors', 'Tashqi pul oqimi', 'bank'], ['exchange', 'Pul ayirboshlash', 'swap'],
@@ -169,7 +169,7 @@
   /** API'ga ulangan bo'limlar. Qolganlari o'z bosqichida ulanadi (docs/architecture.md, 5-bo'lim) */
   A.CONNECTED = new Set(['dashboard', 'settings', 'audit', 'leads', 'contracts', 'debtors', 'attendance', 'groups', 'groupAnalysis',
     'payments', 'approvals', 'accounts', 'transfers', 'creditors', 'exchange', 'expenses', 'salaries',
-    'grading', 'evaluations', 'parentCalls', 'export']);
+    'evaluations', 'parentCalls', 'export']);
   A.MILESTONE = { profit: 'M7', ai: 'M9' };
   const PUBLIC = new Set(['set-password']);
 
@@ -221,7 +221,7 @@
       html = A.head("Ruxsat yo'q") + `<div class="empty">Bu bo'lim <b>${esc(A.ROLES[A.role()])}</b> roli uchun yopiq.</div>`;
     } else if (page.section && !A.CONNECTED.has(page.section)) {
       html = A.head(page.title || '') + `<div class="empty">${A.icon('history')}<p><b>Bu bo'lim ${A.MILESTONE[page.section] || 'keyingi'} bosqichida serverga ulanadi.</b></p>
-        <p class="muted">Ekranlar ma'qullangan prototipdagidek bo'ladi. Hozircha Sozlamalar, Lidlar, Shartnomalar, Qarzdorlar, Davomat, Guruhlar, moliya, Oyliklar, Baholash, Ota-onalar bilan aloqa, Shartnoma yuklash va Audit tarixi ishlaydi.</p></div>`;
+        <p class="muted">Ekranlar ma'qullangan prototipdagidek bo'ladi. Hozircha Sozlamalar, Lidlar, Shartnomalar, Qarzdorlar, Davomat, Guruhlar, moliya, Oyliklar, Baholash (ustozni), Ota-onalar bilan aloqa, Shartnoma yuklash va Audit tarixi ishlaydi.</p></div>`;
     } else {
       try {
         if (page.load) {

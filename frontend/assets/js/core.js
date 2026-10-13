@@ -15,7 +15,7 @@
   };
   A.SECTIONS = [
     ['dashboard', 'Bosh sahifa'], ['leads', 'Lidlar'], ['contracts', 'Shartnomalar'], ['payments', "To'lovlar"],
-    ['debtors', 'Qarzdorlar'], ['attendance', 'Davomatlar'], ['grading', "Baholash bo'limi"], ['profit', 'Foyda'],
+    ['debtors', 'Qarzdorlar'], ['attendance', 'Davomatlar'], ['profit', 'Foyda'],
     ['expenses', 'Xarajatlar'], ['export', 'Shartnoma yuklash'], ['groupAnalysis', 'Guruhlar tahlili'], ['groups', 'Guruhlar'],
     ['approvals', 'Tasdiqlashlar'], ['salaries', 'Oyliklar'], ['transfers', 'Ichki pul oqimi'],
     ['creditors', 'Tashqi pul oqimi'], ['exchange', 'Pul ayirboshlash'], ['accounts', "G'aznalar"], ['evaluations', 'Baholash'],
@@ -28,7 +28,7 @@
     'discountTypes', 'expenseCats', 'leadSources', 'accounts', 'attendanceStatuses',
     'parents', 'students', 'leads', 'leadComments', 'groups', 'contracts', 'attendance', 'makeups',
     'payments', 'transfers', 'exchanges', 'expenses', 'creditors', 'creditorTx', 'creditorComments',
-    'salaryAssign', 'salaryPayouts', 'evaluations', 'gradings', 'parentCalls', 'audit',
+    'salaryAssign', 'salaryPayouts', 'evaluations', 'parentCalls', 'audit',
   ];
   A.emptyStore = () => Object.assign(Object.fromEntries(COLLECTIONS.map((c) => [c, []])), { me: null, currentUser: null, edit_days: {} });
   A.S = A.emptyStore();
@@ -93,7 +93,7 @@
     const me = A.S.currentUser;
     const r = A.role();
     if (['groups'].includes(coll)) return rows;
-    if (['contracts', 'gradings', 'parentCalls'].includes(coll) && A.isTeacherRole()) {
+    if (['contracts', 'parentCalls'].includes(coll) && A.isTeacherRole()) {
       const ids = A.myGroupIds();
       return rows.filter((x) => ids.includes(x.group) || x.created_by === me);
     }
