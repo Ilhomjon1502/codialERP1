@@ -7,6 +7,7 @@ from apps.accounts import views as acc
 from apps.crm import views as crm
 from apps.education import views as edu
 from apps.finance import views as fin
+from apps.notifications import views as notif
 from apps.payroll import views as pay
 from apps.references import views as ref
 from apps.reports import views as rep
@@ -59,6 +60,7 @@ urlpatterns = [
     path("approvals/", fin.approvals),
     path("kpi/", pay.kpi_tree),
     path("export/contracts/", edu.export_contracts),
+    path("notifications/me/", notif.me),
     path("reports/profit/", rep.profit),
     path("reports/stats/", rep.stats),
     path("reports/funnel/", rep.funnel),

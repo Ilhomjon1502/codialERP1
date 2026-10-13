@@ -18,6 +18,7 @@ from apps.core.permissions import NO_PERMISSION, can, check_edit_window, is_top,
 from apps.core.roles import RoleCode
 from apps.core.scoping import branch_ids
 from apps.core.services import soft_delete
+from apps.notifications import services as notif
 
 from .models import (
     Account,
@@ -224,6 +225,8 @@ def save_payment(user, d, instance=None):
         p.save()
         audit.log_update(user, p, before)
     sync_movements(S.PAYMENT, p, payment_rows(p))
+    if instance is None or (p.discount_status == Confirm.PENDING and p.discount_confirmed_by is None and "discount" in d) or "amount" in d:
+        notif.payment_pending(p)
     return p
 
 
@@ -316,6 +319,7 @@ def save_transfer(user, d, instance=None):
     if instance is None:
         t = Transfer.objects.create(**d, created_by=user, updated_by=user)
         audit.log_create(user, t)
+        notif.transfer_created(t)
     else:
         t = instance
         before = _update(t, user, d)

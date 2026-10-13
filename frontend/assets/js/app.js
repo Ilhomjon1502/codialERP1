@@ -437,8 +437,9 @@
       body: `<dl class="kv"><dt>Lavozim</dt><dd>${esc(A.ROLES[me.role])}</dd><dt>Pochta</dt><dd>${esc(me.email || '—')}</dd>
         <dt>Filial</dt><dd>${esc(branchLabel())}</dd></dl>
         <p class="muted small">Parolni o'zgartirish uchun «Chiqish»dan keyin kirish sahifasidagi «Parolni unutdingizmi?» havolasidan foydalaning.</p>`,
-      footer: `<button class="btn ghost" data-logout>${A.icon('logout')} Chiqish</button>`,
+      footer: `<button class="btn ghost" data-telegram>✈️ Telegram</button><button class="btn ghost" data-logout>${A.icon('logout')} Chiqish</button>`,
     });
+    m.el.querySelector('[data-telegram]').onclick = () => { m.close(); A.telegramPanel(); };
     m.el.querySelector('[data-logout]').onclick = async () => {
       try {
         await A.http.post('/auth/logout/');
@@ -448,6 +449,36 @@
         A.render();
       }
     };
+  };
+  /** Telegram bot: akkauntni bog'lash va qaysi xabarlarni olish (CLAUDE.md 12). Server: /notifications/me/ */
+  A.telegramPanel = async () => {
+    const d = await A.http.get('/notifications/me/');
+    const body = !d.configured
+      ? `<div class="alert info">${A.icon('alert')}<div>Telegram bot hali sozlanmagan (administrator serverda bot tokenini kiritadi). Sozlangach shu yerda bog'lash kodi chiqadi.</div></div>`
+      : `${d.linked
+          ? `<div class="alert info">${A.icon('check')}<div><b>Bog'langan</b>${d.username ? ` (@${esc(d.username)})` : ''} · ${A.fdt(d.linked_at)}. Tizim xabarlari Telegram'ga keladi.</div></div>`
+          : `<p>1. Telegram'da botni oching: ${d.url ? `<a href="${esc(d.url)}" target="_blank" rel="noopener"><b>@${esc(d.bot)}</b> — bog'lash havolasi</a>` : '<b>bot</b>'}</p>
+             <p>2. Havola ochilmasa, botga shu kodni yuboring: <b style="font-size:1.3em;letter-spacing:2px">${esc(d.code)}</b></p>
+             <p class="muted small">Kod bir martalik. Bog'langach oynani yangilang.</p>`}
+        <h4>Qaysi xabarlarni olaman</h4>
+        <div class="tg-prefs">${d.events.map((e) => `<label class="check"><input type="checkbox" data-ev="${e.key}" ${e.on ? 'checked' : ''}> ${esc(e.label)}</label>`).join('<br>')}</div>
+        <p class="muted small">Xabar faqat sizga tegishli bo'lsa keladi (masalan yangi lid — administratorlarga, kunlik hisobot — Bosh menejerga).</p>`;
+    const m = A.modal({
+      title: 'Telegram xabarlari',
+      body,
+      footer: d.configured ? `${d.linked ? '<button class="btn ghost" data-unlink>Bog\'lanishni uzish</button>' : '<button class="btn ghost" data-code>Yangi kod</button>'}<button class="btn primary" data-save>Saqlash</button>` : '',
+    });
+    const save = m.el.querySelector('[data-save]');
+    if (save) save.onclick = async () => {
+      const prefs = Object.fromEntries([...m.el.querySelectorAll('[data-ev]')].map((c) => [c.dataset.ev, c.checked]));
+      await A.http.patch('/notifications/me/', { prefs }).catch((e) => A.toast(e.message, 'warn'));
+      m.close();
+      A.toast('Saqlandi');
+    };
+    const un = m.el.querySelector('[data-unlink]');
+    if (un) un.onclick = async () => { await A.http.del('/notifications/me/'); m.close(); A.telegramPanel(); };
+    const nc = m.el.querySelector('[data-code]');
+    if (nc) nc.onclick = async () => { await A.http.patch('/notifications/me/', { new_code: true }); m.close(); A.telegramPanel(); };
   };
   /** Sessiya tugasa (401) — kirish sahifasiga */
   A.onSessionLost = () => {

@@ -10,6 +10,7 @@ from rest_framework.exceptions import ValidationError
 
 from apps.core import audit
 from apps.core.models import Status
+from apps.notifications import services as notif
 
 from .models import Lead, LeadComment, Parent, Student
 
@@ -198,6 +199,7 @@ def create_lead(user, branch, data, *, new_student=None, student=None, comment="
     audit.log_create(user, lead)
     if clean(comment):
         add_comment(user, lead, comment)
+    notif.lead_created(lead)
     return lead
 
 

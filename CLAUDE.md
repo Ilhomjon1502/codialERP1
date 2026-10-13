@@ -7,7 +7,7 @@
 
 ## 0. Joriy holat (2026-10-13) — yangi kelgan dasturchi shu yerdan boshlasin
 
-**Qisqasi:** prototip ma'qullandi va muzlatildi. **M1–M7 tayyor**: haqiqiy tizim (`backend/` — Django + DRF API, `frontend/` — prototip ekranlari API'ga ulangan) **Hetzner serverida ishlayapti**. Keyingi ish — **M10 (AppSheet'dan import)** va **M11 (haqiqiy ishga tushirish)**; M8 (Telegram) va M9 (AI) — keyin. Buyurtmachi «boshla» deganda boshlanadi. **«50% chegirmalar», «Talaba vazifalari» va «Baholash bo'limi» (ustoz → talaba) olib tashlangan** (buyurtmachi qarori 2026-10-13).
+**Qisqasi:** prototip ma'qullandi va muzlatildi. **M1–M8 tayyor**: haqiqiy tizim (`backend/` — Django + DRF API, `frontend/` — prototip ekranlari API'ga ulangan) **Hetzner serverida ishlayapti**. Keyingi ish — **M10 (AppSheet'dan import)** va **M11 (haqiqiy ishga tushirish)**; M9 (AI) — keyin. Telegram bot tokeni buyurtmachi tomonidan `deploy/set-telegram.sh` bilan kiritiladi. Buyurtmachi «boshla» deganda boshlanadi. **«50% chegirmalar», «Talaba vazifalari» va «Baholash bo'limi» (ustoz → talaba) olib tashlangan** (buyurtmachi qarori 2026-10-13).
 
 | Bosqich | Holat |
 |---|---|
@@ -21,6 +21,7 @@
 | **M5** — oyliklar: KPI stavkalari (qayta hisoblash bilan), oylik belgilash (nusxa), hisoblangan KPI daraxti, oylik berish (g'azna jurnaliga), xodim balansi | ✅ 2026-10-13, 100 test (9 tasi JS sintaksis) |
 | **M6** — ustozni baholash (talaba → ustoz), ota-onalar bilan aloqa (daraxt), Excel (.xlsx) eksport; vazifalar, baholash bo'limi va 50% chegirma — olib tashlangan | ✅ 2026-10-13, 104 test |
 | **M7** — bosh sahifa (guruhlar to'lishi), foyda oyma-oy, statistika (oylik, voronka, birinchi to'lovchilar) | ✅ 2026-10-13, 106 test |
+| **M8** — Telegram bot: bog'lash, xabarlar navbati, 6 xil xabar, davomat eslatmasi va kunlik hisobot (cron) | ✅ 2026-10-13, 111 test |
 | M10 import → M11 asosiy muhit | ⏳ navbatda (17-bo'lim) |
 | M8 Telegram bot, M9 AI | ⏳ tizim ishga tushgandan keyin |
 | 18-bo'limdagi ochiq savollar | ⏳ takliflar `docs/architecture.md` 7-bo'limda; buyurtmachi javob bermasa takliflar qo'llanadi. 3-savol yopildi: 50% chegirma bo'limi olib tashlandi |
@@ -49,6 +50,8 @@
 **M6 da nima qilindi:** `apps/education/models.py` — TeacherEvaluation (s1–s5), ParentCall; `services.py` oxirida `save_evaluation`, `save_parent_call`; `export.py` — `contracts_xlsx()` (openpyxl); `views.py` — `/evaluations/`, `/parent-calls/`, `GET /export/contracts/`; `demo_m6.py`. Front-end `pages-edu.js` oxiri (Baholash (ustozni), Ota-onalar bilan aloqa, Shartnoma yuklash), `A.activeContracts()`, `A.downloadXlsx()`. «Talaba vazifalari», «Baholash bo'limi» (GradingSession/StudentGrade) va «50% chegirmalar» — **olib tashlangan**, qaytarmang. Qo'llanma: `docs/user_guide/m6_baholash_aloqa_eksport.md`.
 
 **M7 da nima qilindi:** `apps/reports/` (modelsiz): `services.py` — `profit()` (8.6), `monthly_stats()`, `funnel()`, `first_payers()`; `views.py` — `/reports/profit/`, `/reports/stats/`, `/reports/funnel/`, `/reports/first-payers/`. Front-end: `pages-fin.js` — «Foyda» (API) va yangi `A.page('stats')` (`#/stats`, 3 tab, Chart.js); bosh sahifada faol guruhlar to'lishi. Qo'llanma: `docs/user_guide/m7_hisobotlar.md`.
+
+**M8 da nima qilindi:** `apps/notifications/`: `models.py` (TelegramLink — kod, chat_id, prefs; Outbox — navbat); `services.py` — `notify()` (on_commit, takrorlanmaslik kaliti), hodisalar (`lead_created`, `payment_pending`, `transfer_created`, `makeup_requested`), `api()` (Bot API), `send_pending()`, `handle_message()`; buyruqlar `run_bot` (Docker `bot` xizmati), `notify_attendance` (cron */10), `daily_report` (cron 20:00); `/notifications/me/`. Hodisalar crm/finance/education servislariga ulangan. Front-end: profil → «✈️ Telegram» (`A.telegramPanel`). Token: `deploy/set-telegram.sh`. Qo'llanma: `docs/user_guide/m8_telegram.md`.
 
 **Keyingi ish — M10 (import).** 16-bo'lim: `python manage.py import_appsheet --dry-run` → `import_data/*.xlsx` (Emirat), `legacy_id` bilan idempotent, boshlang'ich qoldiqlar (`Contract.opening_balance`, `Account.initial_balance`, `SalaryAssignment.opening_balance`, kreditorlar), tekshiruv hisoboti. Buyurtmachidan AppSheet Excel eksport fayllari kerak. Keyin M11 (sinov ma'lumotlarini tozalash, o'tish kuni, monitoring).
 
@@ -167,7 +170,8 @@ backend/
     payroll/       ✅ M5  KPIRate, SalaryAssignment, SalaryPayout; compute() (oylik hisobi), demo.py
     reports/       ✅ M7  foyda, oylik statistika, voronka, birinchi to'lovchilar (modelsiz)
     importer/      ⏳ M10 AppSheet .xlsx import
-    notifications/, ai_assistant/   ⏳ M8, M9
+    notifications/ ✅ M8  Telegram: TelegramLink, Outbox; run_bot, notify_attendance, daily_report
+    ai_assistant/  ⏳ M9
   tests/                 pytest (conftest: make_user, api)
 frontend/          ✅    prototip ekranlari, API'ga ulangan (21.3)
 deploy/            ✅    docker-compose.yml, .env.example, nginx/, backup.sh, restore.sh
@@ -684,7 +688,7 @@ Real ishga tushirish uchun minimal to'plam: **M1–M7 + M10 + M11** (xodimlar Ap
 | M5 | Oyliklar | KPI stavkalari (o'zgarsa qayta hisoblash), oylik belgilash va berish (g'aznaga `CashMovement` SALARY), KPI daraxti, xodim balansi | ✅ 2026-10-13 |
 | M6 | Qo'shimcha modullar | Ustozni baholash, ota-onalar bilan aloqa, Excel eksport (vazifalar, baholash bo'limi, 50% chegirma — olib tashlangan) | ✅ 2026-10-13 |
 | M7 | Hisobot va dashboard | Bosh sahifa, oylik statistika, voronka, birinchi to'lovchilar, foyda, guruh tahlili | ✅ 2026-10-13 |
-| M8 | Telegram bot | Bog'lash, xabarlar, kunlik hisobot | ⏳ keyin |
+| M8 | Telegram bot | Bog'lash, xabarlar, kunlik hisobot | ✅ 2026-10-13 |
 | M9 | AI yordamchi | Faqat o'qish view'lari, SQL xavfsizligi, provayder abstraksiyasi | ⏳ keyin |
 | M10 | Migratsiya | Import skripti, sinov rejimi, tekshiruv hisoboti | ⏳ keyingi |
 | M11 | Ishga tushirish | Asosiy muhit (`erp.codialinfo.uz`), o'tish kuni, monitoring | ⏳ |
@@ -917,6 +921,7 @@ Front-end fayllari `git pull` bilan darhol yangilanadi (Nginx papkadan beradi).
 - Nginx'da ichki `location` da `add_header` bo'lsa, server darajasidagi xavfsizlik sarlavhalari bekor bo'ladi — ularni o'sha `location` ichida takrorlang.
 - Lokal kompyuterda Docker va PostgreSQL yo'q: lokal SQLite, serverda PostgreSQL. Faqat ORM ishlating; partial unique constraint'lar ikkalasida ishlaydi.
 - Repo **ochiq**: sirlar, parollar, haqiqiy talaba ma'lumotlari git'ga tushmasin (`deploy/.env`, `deploy/*.local.md`, `import_data/` — `.gitignore` da).
+- Telegram bot tokeni ham shunday: faqat `bash /srv/codial-test/deploy/set-telegram.sh` orqali, buyurtmachining o'zi kiritadi.
 - Gmail App password va boshqa sirlarni **hech qachon chatga yozdirmang va o'zingiz kiritmang**: buyurtmachi serverda `bash /srv/codial-test/deploy/set-smtp.sh` ni o'zi ishga tushirib kiritadi (terminalda parol ekrandan o'chiriladi). Sir chatga yoki terminal tarixiga tushib qolsa — darhol bekor qildiring va yangisini yaratdiring.
 - Serverdagi checkout'ga fayllarni `scp` bilan qo'lda qo'ymang — keyingi `git pull` to'xtaydi. O'zgarish faqat git orqali.
 

@@ -12,6 +12,7 @@ from apps.core import audit
 from apps.core.models import Status
 from apps.core.permissions import can, check_edit_window, is_top, role_code, today
 from apps.core.roles import RoleCode
+from apps.notifications import services as notif
 from apps.references.models import AttendanceStatus
 
 from . import calc
@@ -404,7 +405,7 @@ def request_makeup(user, a, makeup_date, comment):
         raise ValidationError({"comment": "Izoh majburiy"})
     m = MakeupRequest.objects.create(attendance=a, teacher=user, makeup_date=makeup_date, comment=comment.strip(), created_by=user, updated_by=user)
     audit.log_create(user, m)
-    # M8: menejerlarga Telegram xabar
+    notif.makeup_requested(m)
     return m
 
 

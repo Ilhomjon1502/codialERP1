@@ -33,6 +33,20 @@ services:
     volumes:
       - media:/app/media
 
+  # Telegram bot (M8): long polling — deyarli protsessor ishlatmaydi; xotira chegarasi bilan
+  bot:
+    build: ../backend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.prod
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    command: python manage.py run_bot
+    depends_on:
+      db:
+        condition: service_healthy
+    mem_limit: 200m
+
 volumes:
   db:
   media:

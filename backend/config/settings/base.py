@@ -63,6 +63,7 @@ INSTALLED_APPS = [
     "apps.crm",
     "apps.education",
     "apps.payroll",
+    "apps.notifications",
 ]
 
 MIDDLEWARE = [
@@ -149,6 +150,11 @@ EMAIL_HOST_USER = env("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", "")
 EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", True)
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", "Codial ERP <noreply@localhost>")
+
+# Telegram bot (CLAUDE.md 12). Token — deploy/set-telegram.sh bilan .env ga
+TELEGRAM_BOT_TOKEN = env("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_BOT_USERNAME = env("TELEGRAM_BOT_USERNAME", "")
+TELEGRAM_ATTENDANCE_DELAY_MIN = int(env("TELEGRAM_ATTENDANCE_DELAY_MIN", "30"))
 
 LOGGING = {
     "version": 1,

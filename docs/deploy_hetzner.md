@@ -113,3 +113,11 @@ Tiklashni ishga tushirishdan oldin **bir marta test muhitida sinab ko'ring**.
 | Kirishda "CSRF" xatosi | `.env` da `CSRF_TRUSTED_ORIGINS=https://domen` va `ALLOWED_HOSTS=domen` |
 | SSL'dan oldin cheksiz yo'naltirish | avval certbot'ni ishga tushiring (prod sozlama HTTPS'ga yo'naltiradi) |
 | Xat kelmaydi | `.env` dagi `EMAIL_*`; Gmail uchun "App password"; `logs web` da xato |
+
+
+## Telegram bot (M8)
+
+- `docker-compose.yml` dagi `bot` xizmati (`python manage.py run_bot`, xotira 200 MB). Token yo'q bo'lsa kutish rejimida turadi.
+- Token: `bash /srv/codial-test/deploy/set-telegram.sh` (buyurtmachi o'zi kiritadi).
+- Cron (host): `*/10 * * * *` — `notify_attendance`; `0 20 * * *` — `daily_report` (ikkalasi `docker compose exec -T web python manage.py ...`, log `/var/log/codial-cron.log`).
+- Navbat holati: Django admin → «Telegram xabarlari».
