@@ -512,19 +512,32 @@
     },
     render({ id }) {
       const c = crDetail;
+      // Oldi-berdilar: chapda daraxt (Barchasi → yil → oy, har tugunda summa), standart — oxirgi oy (Hisoblangan KPI dagidek)
+      const latest = c.transactions[0];
+      const opts = {
+        levels: [
+          { key: (t) => t.date.slice(0, 4), label: (k) => k, desc: true },
+          { key: (t) => t.date.slice(0, 7), label: (k) => A.ymLabel(k).split(' ')[0], sort: (k) => k, desc: true },
+        ],
+        value: (l) => { const v = A.sum(l, (t) => Number(t.amount)); return `<span class="${v < 0 ? 't-red' : v > 0 ? 't-green' : ''}">${v > 0 ? '+' : ''}${A.num(v)}</span>`; },
+        def: latest ? `${latest.date.slice(0, 4)}|${latest.date.slice(0, 7)}` : '',
+      };
+      const key = 'ctx-' + id;
+      const rows = A.treeFilter(key, c.transactions, opts);
       return `<a class="back" href="#/creditors">← Kreditorlar</a>${A.head(c.name, `Joriy haqqi: <b>${A.money(c.current)}</b> · boshlang'ich: ${A.num(c.initial)}`, A.can('creditors', 'a') ? A.btn('Amal kiritish', 'ctx-new', { id, icon: 'plus' }) : '')}
-        <h3>Oldi-berdilar</h3>${A.table(
+        <h3>Oldi-berdilar</h3>
+        <div class="settings tree-layout">${A.treeNav(key, c.transactions, opts)}<div class="settings-body">${A.table(
           [
             { h: 'Sana', f: (t) => A.fdate(t.date) },
-            { h: 'Summa', f: (t) => `<span class="${t.amount < 0 ? 't-red' : 't-green'}">${t.amount > 0 ? '+' : ''}${A.num(t.amount)}</span>`, cls: 'num' },
+            { h: 'Summa', f: (t) => `<span class="${t.amount < 0 ? 't-red' : 't-green'}">${t.amount > 0 ? '+' : ''}${A.num(t.amount)}</span>`, cls: 'num', sum: (r) => { const v = A.sum(r, (t) => Number(t.amount)); return `${v > 0 ? '+' : ''}${A.num(v)}`; } },
             { h: 'Amal', f: (t) => (t.amount < 0 ? 'Qarz olindi' : 'Qarz qaytarildi') },
             { h: "G'azna", f: (t) => `${esc(A.accName(t.account))} · ${A.CASH[t.cash_type]}` },
             { h: 'Izoh', f: (t) => esc(t.comment) },
             { h: 'Kim', f: (t) => esc(A.userName(t.created_by)) },
           ],
-          c.transactions,
+          rows,
           { empty: "Amal yo'q" },
-        )}
+        )}<p class="muted small">«−» — qarz olindi (g'aznaga kirdi), «+» — qarz qaytarildi (g'aznadan chiqdi). Daraxtda tugun summasi — shu davrdagi amallar yig'indisi.</p></div></div>
         <h3>Izohlar</h3>${A.can('creditors', 'a') ? `<div class="row gap"><input class="f-input grow" id="cc-text" placeholder="Izoh…"><button class="btn" id="cc-add">Qo'shish</button></div>` : ''}
         <ul class="comments">${c.comments.map((x) => `<li><p>${esc(x.comment)}</p><small class="muted">${esc(A.userName(x.created_by))} · ${A.fdt(x.created_at)}</small></li>`).join('') || '<li class="muted">Izoh yo\'q</li>'}</ul>`;
     },
