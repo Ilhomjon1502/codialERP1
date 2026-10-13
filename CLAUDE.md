@@ -35,7 +35,7 @@
 
 ### Ishni topshirish (2026-10-13) — keyingi dasturchi shundan davom etadi
 
-**Oxirgi holat:** M1 va M2 `main` da, https://erp.codialinfo.uz da ishlayapti (sinov ma'lumotlari: 13 xodim, 46 lid). 52 test yashil, ruff toza.
+**Oxirgi holat:** M1 va M2 `main` da, https://erp.codialinfo.uz da ishlayapti (sinov ma'lumotlari: 13 demo xodim + buyurtmachi akkaunti `ilhomjon.office@gmail.com` (Bosh menejer), 46 lid). 52 test yashil, ruff toza. Pochta (Gmail SMTP) ishlayapti — parol o'rnatish xatlari haqiqatan yetib boradi. **Parol siyosati: faqat kamida 4 belgi** (buyurtmachi qarori, `docs/decisions.md`).
 
 **Keyingi ish — M3 (o'quv jarayoni).** Buyurtmachi «M3 ni boshla» desa:
 1. `apps/education/`: `Group`, `Contract`, `Attendance`, `MakeupRequest` (7.4, 9-bo'lim). Pul `DecimalField(14,0)`, bo'lish `ROUND_HALF_UP` (5-bo'lim).
@@ -282,6 +282,7 @@ Diqqat: AppSheet'da `Exchange`, `CommentToCreditors`, `Parent_Comment`, `Discoun
   - `teams` (ko'p tanlov: Qabul, Marketing, Moliya, HR, Ta'lim, Boshqa, Qurilish va ta'mirlash, IT, Ta'minot);
   - `employment_status` (Faol / Ishdan ketgan). Ishdan ketgan xodim kira olmaydi, tarixi saqlanadi;
   - `BOSHQA` rolida email va login bo'lmaydi;
+  - **parol talabi (2026-10-13, buyurtmachi qarori):** faqat kamida 4 belgi, oson parol ham mumkin; login urinishlari limiti (10/daqiqa) saqlanadi;
   - **parol (tasdiqlangan, 2026-10-12):** admin xodimga parol bermaydi. Xodim qo'shilganda uning pochtasiga bir martalik "parol o'rnatish" havolasi yuboriladi (Django `PasswordResetTokenGenerator`, muddatli). Xodim parolini o'zi qo'yadi. Admin "Havolani qayta yuborish" tugmasi bilan yangisini jo'nata oladi. Buning uchun SMTP pochta sozlanadi (`.env`).
 - **Course:** `name` (unique), `branches` (M2M), `status` (Faol/Nofaol, standart Faol).
 - **Room:** `branch`, `name`, `capacity`, `status` (standart Faol).
@@ -589,7 +590,7 @@ Hisobot so'rovlari aggregatsiya bilan bajariladi. Og'ir hisobotlar uchun kesh (1
 - Indekslar: filial, sana, (yil, oy), guruh, shartnoma, status, `created_by`, `legacy_id`.
 - Hisoblangan qiymatlar (qarz, KPI, balans) saqlanadi yoki indeksli aggregatsiya bilan olinadi. Butun jadvalni Python'da aylanib chiqish taqiqlanadi.
 - Statik fayllar siqiladi va keshlanadi (WhiteNoise yoki Nginx).
-- CSRF, HTTPS, xavfsiz cookie'lar, login urinishlariga limit, kuchli parol siyosati, sirlar `.env` da, prod'da `DEBUG=False`.
+- CSRF, HTTPS, xavfsiz cookie'lar, login urinishlariga limit, parol kamida 4 belgi (buyurtmachi qarori 2026-10-13; kuchaytirish kerak bo'lsa — `config/settings/base.py` `AUTH_PASSWORD_VALIDATORS`), sirlar `.env` da, prod'da `DEBUG=False`.
 - Kodga hech qanday ID, email yoki parol qattiq yozilmaydi.
 
 ## 15. Deploy
@@ -870,4 +871,6 @@ Front-end fayllari `git pull` bilan darhol yangilanadi (Nginx papkadan beradi).
 - Nginx'da ichki `location` da `add_header` bo'lsa, server darajasidagi xavfsizlik sarlavhalari bekor bo'ladi — ularni o'sha `location` ichida takrorlang.
 - Lokal kompyuterda Docker va PostgreSQL yo'q: lokal SQLite, serverda PostgreSQL. Faqat ORM ishlating; partial unique constraint'lar ikkalasida ishlaydi.
 - Repo **ochiq**: sirlar, parollar, haqiqiy talaba ma'lumotlari git'ga tushmasin (`deploy/.env`, `deploy/*.local.md`, `import_data/` — `.gitignore` da).
+- Gmail App password va boshqa sirlarni **hech qachon chatga yozdirmang va o'zingiz kiritmang**: buyurtmachi serverda `bash /srv/codial-test/deploy/set-smtp.sh` ni o'zi ishga tushirib kiritadi (terminalda parol ekrandan o'chiriladi). Sir chatga yoki terminal tarixiga tushib qolsa — darhol bekor qildiring va yangisini yaratdiring.
+- Serverdagi checkout'ga fayllarni `scp` bilan qo'lda qo'ymang — keyingi `git pull` to'xtaydi. O'zgarish faqat git orqali.
 
