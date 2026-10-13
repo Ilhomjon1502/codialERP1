@@ -4,6 +4,7 @@ from django.urls import path
 from rest_framework.routers import DefaultRouter
 
 from apps.accounts import views as acc
+from apps.crm import views as crm
 from apps.references import views as ref
 
 router = DefaultRouter(trailing_slash=True)
@@ -23,6 +24,9 @@ router.register("lead-sources", ref.LeadSourceViewSet, basename="lead-source")
 router.register("attendance-statuses", ref.AttendanceStatusViewSet, basename="attendance-status")
 router.register("accounts", ref.AccountViewSet, basename="account")
 router.register("audit-log", ref.AuditLogViewSet, basename="audit-log")
+router.register("leads", crm.LeadViewSet, basename="lead")
+router.register("students", crm.StudentViewSet, basename="student")
+router.register("parents", crm.ParentViewSet, basename="parent")
 
 urlpatterns = [
     path("auth/csrf/", acc.CsrfView.as_view()),

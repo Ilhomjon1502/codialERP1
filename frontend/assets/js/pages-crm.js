@@ -113,77 +113,94 @@
       </div>`;
   }
 
-  /* ===================================================== Lidlar */
+  /* ===================================================== Lidlar (server API: /leads/, /leads/board/, /leads/stats/) */
   const LS = A.LEAD_STATUSES;
   const leadStatusTone = { 1: 'gray', 2: 'blue', 3: 'orange', 4: 'orange', 5: 'green', 6: 'red', 7: 'red', 8: 'gray' };
+  const keepStudent = (l) => l && l.student_data && A.putLocal('students', l.student_data);
+  const leadFilters = () => {
+    const qs = new URLSearchParams();
+    for (const k of ['search', 'course', 'source']) if (A.q('leads:' + k, '')) qs.set(k, A.q('leads:' + k));
+    return qs;
+  };
+  let leadData = {};
 
   A.page('leads', {
     title: 'Lidlar',
     section: 'leads',
+    async load(p, q) {
+      const tab = q.tab || 'funnel';
+      const qs = leadFilters();
+      if (tab === 'funnel') {
+        leadData = await A.http.get('/leads/board/?' + qs);
+        Object.values(leadData.columns).flat().forEach(keepStudent);
+      } else if (tab === 'list') {
+        qs.set('page', A.q('leads:page', 1));
+        leadData = await A.http.get('/leads/?' + qs);
+        leadData.results.forEach(keepStudent);
+      } else if (tab === 'stats') leadData = await A.http.get('/leads/stats/?' + qs);
+    },
     render(p, q) {
       const tab = q.tab || 'funnel';
-      const leads = A.vis('leads');
       const actions = A.can('leads', 'a') ? A.btn('Yangi lid', 'lead-new', { icon: 'plus' }) : '';
+      let body = '';
+      if (tab === 'funnel') body = funnel(leadData);
+      else if (tab === 'list') body = leadTable(leadData.results) + pager(leadData);
+      else if (tab === 'stats') body = leadStats(leadData);
+      else body = `<div class="empty">Talabasi to'lov qilgan lidlar «To'lovlar» bo'limi bilan birga (M4 bosqichida) ulanadi.</div>`;
       return `${A.head('Lidlar', 'Murojaatlar voronkasi: birinchi qo\'ng\'iroqdan shartnomagacha', actions)}
-        ${A.tabs([['funnel', 'Voronka', leads.length], ['list', "Ro'yxat"], ['stats', 'Statistika'], ['paid', "To'lov qilganlar"]], tab, 'leads')}
-        ${tab === 'stats' ? '' : A.filterBar('leads', [A.fSearch('leads', 'Ism yoki telefon…'), A.fSelect('leads', 'course', A.optList('courses'), 'Barcha kurslar'), A.fSelect('leads', 'source', A.optList('leadSources'), 'Barcha manbalar')])}
-        <div data-results>${this.results(p, q)}</div>`;
-    },
-    results(p, q) {
-      const tab = q.tab || 'funnel';
-      let leads = A.vis('leads');
-      const s = A.q('leads:search', ''), c = A.q('leads:course', ''), src = A.q('leads:source', '');
-      leads = leads.filter((l) => {
-        const st = A.get('students', l.student) || {};
-        return A.match(A.studentName(st) + ' ' + st.phone1, s) && (!c || l.course === c) && (!src || l.source === src);
-      });
-      if (tab === 'funnel') return funnel(leads);
-      if (tab === 'list') return leadTable(A.sortBy(leads, (l) => l.created_at, true));
-      if (tab === 'paid') {
-        const paid = leads.filter((l) => A.rows('payments').some((pay) => (A.get('contracts', pay.contract) || {}).student === l.student));
-        return `<p class="muted">Talabasi kamida bitta to'lov qilgan lidlar (AppSheet: Lead_payments slice).</p>` + leadTable(paid);
-      }
-      return leadStats(A.vis('leads'));
+        ${A.tabs([['funnel', 'Voronka', tab === 'funnel' ? leadData.total : undefined], ['list', "Ro'yxat"], ['stats', 'Statistika'], ['paid', "To'lov qilganlar"]], tab, 'leads')}
+        ${tab === 'paid' ? '' : A.filterBar('leads', [A.fSearch('leads', 'Ism yoki telefon…'), A.fSelect('leads', 'course', A.optList('courses'), 'Barcha kurslar'), A.fSelect('leads', 'source', A.optList('leadSources'), 'Barcha manbalar')])}
+        <div>${body}</div>`;
     },
   });
+  document.addEventListener('input', (e) => {
+    if (e.target.closest('[data-filter^="leads:"]')) A.ui.q['leads:page'] = 1;
+  }, true);
+  A.act['leads-page'] = (el) => {
+    A.ui.q['leads:page'] = Number(el.dataset.id);
+    A.refresh();
+  };
+  const pager = (d) =>
+    d.pages > 1
+      ? `<div class="row gap pager"><button class="btn sm ghost" data-act="leads-page" data-id="${d.page - 1}" ${d.page <= 1 ? 'disabled' : ''}>← Oldingi</button><span class="muted small">${d.page} / ${d.pages} · jami ${d.count}</span><button class="btn sm ghost" data-act="leads-page" data-id="${d.page + 1}" ${d.page >= d.pages ? 'disabled' : ''}>Keyingi →</button></div>`
+      : '';
 
   function contractStatusOf(l) {
-    const has = A.hasContract(l.student);
+    const has = l.has_contract;
     const tone = has ? 'green' : l.status === '5' ? 'red' : 'orange';
     return `<span class="t-${tone}">${has ? 'Tuzilgan' : 'Tuzilmagan'}</span>`;
   }
 
-  function funnel(leads) {
+  function funnel(b) {
     const cols = Object.keys(LS).map((k) => {
-      const list = A.sortBy(leads.filter((l) => l.status === k), (l) => l.created_at, true);
-      return `<div class="kcol"><div class="kcol-h"><span class="badge ${leadStatusTone[k]}">${k}</span> ${esc(LS[k])} <b>${list.length}</b></div>
+      const list = b.columns[k] || [];
+      const n = b.counts[k] || 0;
+      return `<div class="kcol"><div class="kcol-h"><span class="badge ${leadStatusTone[k]}">${k}</span> ${esc(LS[k])} <b>${n}</b></div>
         ${list
-          .slice(0, 40)
           .map((l) => {
-            const st = A.get('students', l.student) || {};
+            const st = l.student_data;
             return `<button class="kcard" data-act="lead-open" data-id="${l.id}">
               <b>${esc(st.first_name)} ${esc(st.last_name)}</b>
               <span class="muted small">${esc(A.courseName(l.course))} · ${esc(A.sourceName(l.source))}</span>
               ${l.demo_date && ['3', '4'].includes(l.status) ? `<span class="small">Sinov: ${A.fdate(l.demo_date)}</span>` : ''}
-              ${l.status === '5' || A.hasContract(l.student) ? `<span class="small">Shartnoma: ${contractStatusOf(l)}</span>` : ''}
+              ${l.status === '5' || l.has_contract ? `<span class="small">Shartnoma: ${contractStatusOf(l)}</span>` : ''}
             </button>`;
           })
           .join('') || '<div class="muted small pad">—</div>'}
+        ${n > list.length ? `<div class="muted small pad">… yana ${n - list.length} ta («Ro'yxat» tabida)</div>` : ''}
       </div>`;
     });
-    const total = leads.length || 1;
-    const reached = (k) => leads.filter((l) => Number(l.status) >= Number(k) && Number(l.status) <= 5).length;
     const conv = `<div class="conv">${['3', '4', '5']
-      .map((k) => `<div><span class="muted small">${k}-bosqichga yetgan (${esc(LS[k]).toLowerCase()})</span><b>${A.pct(reached(k) / total)}</b></div>`)
-      .join('')}<div><span class="muted small">Lid → shartnoma</span><b>${A.pct(leads.filter((l) => A.hasContract(l.student)).length / total)}</b></div></div>`;
+      .map((k) => `<div><span class="muted small">${k}-bosqichga yetgan (${esc(LS[k]).toLowerCase()})</span><b>${A.pct(b.reached[k])}</b></div>`)
+      .join('')}<div><span class="muted small">Lid → shartnoma</span><b>${A.pct(b.contract_rate)}</b></div></div>`;
     return conv + `<div class="kanban">${cols.join('')}</div>`;
   }
 
   function leadTable(leads) {
     return A.table(
       [
-        { h: 'Murojaatchi', f: (l) => `<a href="#" data-act="lead-open" data-id="${l.id}">${esc(A.studentName(l.student))}</a>` },
-        { h: 'Telefon', f: (l) => esc((A.get('students', l.student) || {}).phone1) },
+        { h: 'Murojaatchi', f: (l) => `<a href="#" data-act="lead-open" data-id="${l.id}">${esc(l.student_data.full_name)}</a>` },
+        { h: 'Telefon', f: (l) => esc(l.student_data.phone1) },
         { h: 'Kurs', f: (l) => esc(A.courseName(l.course)) },
         { h: 'Manba', f: (l) => esc(A.sourceName(l.source)) },
         { h: 'Status', f: (l) => A.badge(`${l.status}. ${LS[l.status]}`, leadStatusTone[l.status]) },
@@ -191,19 +208,14 @@
         { h: "Qo'shilgan", f: (l) => A.fdate(A.iso(new Date(l.created_at))) },
       ],
       leads,
+      { empty: "Lid topilmadi" },
     );
   }
 
-  function leadStats(leads) {
-    const bySrc = A.groupBy(leads, (l) => l.source);
-    const srcRows = A.rows('leadSources').map((s) => {
-      const list = bySrc.get(s.id) || [];
-      const conv = list.filter((l) => A.hasContract(l.student)).length;
-      return { name: s.name, n: list.length, conv, rate: list.length ? conv / list.length : 0 };
-    });
-    const months = [...new Set(leads.map((l) => A.ym(A.iso(new Date(l.created_at)))))].sort();
-    const byStatus = Object.keys(LS).map((k) => leads.filter((l) => l.status === k).length);
-    const ages = [...new Set(leads.map((l) => l.age_group))].sort((a, b) => parseInt(a) - parseInt(b));
+  function leadStats(s) {
+    const months = [...new Set(s.by_month.map((r) => r.month))].sort();
+    const ages = Object.keys(s.by_age).sort((a, b) => parseInt(a) - parseInt(b));
+    const srcRows = s.by_source.map((r) => ({ name: A.sourceName(r.source), n: r.n, conv: r.contracts, rate: r.n ? r.contracts / r.n : 0 }));
     return `<div class="grid-2">
       <section class="card"><h2>Manba bo'yicha konversiya</h2>${A.table(
         [
@@ -212,45 +224,36 @@
           { h: 'Shartnoma', f: (r) => r.conv, cls: 'num' },
           { h: 'Konversiya', f: (r) => `<b>${A.pct(r.rate)}</b>`, cls: 'num' },
         ],
-        A.sortBy(srcRows, (r) => r.n, true),
-      )}</section>
-      <section class="card"><h2>Status bo'yicha</h2>${A.chart({ type: 'doughnut', data: { labels: Object.values(LS), datasets: [{ data: byStatus, backgroundColor: A.PALETTE }] } }, 260)}</section>
+        srcRows,
+      )}<p class="muted small">Shartnomalar soni M3 bosqichidan keyin hisoblanadi.</p></section>
+      <section class="card"><h2>Status bo'yicha</h2>${A.chart({ type: 'doughnut', data: { labels: Object.values(LS), datasets: [{ data: Object.keys(LS).map((k) => s.by_status[k] || 0), backgroundColor: A.PALETTE }] } }, 260)}</section>
       <section class="card"><h2>Oylar bo'yicha yangi lidlar (manba kesimida)</h2>${A.chart({
         type: 'bar',
-        data: { labels: months.map(A.ymLabel), datasets: A.rows('leadSources').map((s, i) => ({ label: s.name, data: months.map((m) => leads.filter((l) => l.source === s.id && A.ym(A.iso(new Date(l.created_at))) === m).length), backgroundColor: A.PALETTE[i] })) },
+        data: { labels: months.map(A.ymLabel), datasets: A.rows('leadSources').map((src, i) => ({ label: src.name, data: months.map((m) => A.sum(s.by_month.filter((r) => r.month === m && r.source === src.id), 'n')), backgroundColor: A.PALETTE[i % A.PALETTE.length] })) },
         options: { scales: { x: { stacked: true }, y: { stacked: true } } },
       })}</section>
-      <section class="card"><h2>Yosh guruhi va ijtimoiy holat</h2>${A.chart({ type: 'bar', data: { labels: ages, datasets: [{ label: 'Lidlar', data: ages.map((a) => leads.filter((l) => l.age_group === a).length), backgroundColor: A.PALETTE[0] }] }, options: { plugins: { legend: { display: false } } } }, 200)}
-      ${A.table([{ h: 'Ijtimoiy holat', f: (r) => esc(r[0]) }, { h: 'Soni', f: (r) => r[1], cls: 'num' }], [...A.groupBy(leads, (l) => l.social)].map(([k, v]) => [k, v.length]))}</section>
+      <section class="card"><h2>Yosh guruhi va ijtimoiy holat</h2>${A.chart({ type: 'bar', data: { labels: ages, datasets: [{ label: 'Lidlar', data: ages.map((a) => s.by_age[a]), backgroundColor: A.PALETTE[0] }] }, options: { plugins: { legend: { display: false } } } }, 200)}
+      ${A.table([{ h: 'Ijtimoiy holat', f: (r) => esc(r[0]) }, { h: 'Soni', f: (r) => r[1], cls: 'num' }], Object.entries(s.by_social))}</section>
     </div>`;
   }
 
-  /* ---- Lid formasi (AppSheet Show_If zanjiri bo'yicha) ---- */
-  A.leadForm = (lead) => {
+  /* ---- Lid formasi (AppSheet Show_If zanjiri bo'yicha). Tekshiruvlar serverda ham bor ---- */
+  A.leadForm = (lead, freeStudents = []) => {
     const isNew = !lead;
-    const B = A.branchIds()[0];
-    const v = lead ? { ...lead } : { branch: B, status: '2', times: [], tags: [], mode: 'new' };
-    const freeStudents = () =>
-      A.rows('students')
-        .filter((s) => s.branch === B && !A.hasContract(s.id) && !A.rows('leads').some((l) => l.student === s.id && (!lead || l.id !== lead.id)))
-        .map((s) => [s.id, `${A.studentName(s)} · ${s.phone1}`]);
+    const B = lead ? lead.branch : A.branchIds()[0];
+    const v = lead ? { ...lead } : { status: '2', times: [], tags: [], mode: 'new' };
+    const phone = (t) => (!/^\d{9}$/.test(t) ? "9 sondan iborat bo'lsin. Masalan, 998883322" : '');
     const fields = [
       { name: 'mode', label: 'Murojaatchi', type: 'seg', options: [['new', 'Yangi talaba'], ['old', "Bazadagi talaba"]], show: () => isNew },
-      { name: 'student', label: 'Talabani tanlang', type: 'select', options: freeStudents, show: (x) => !isNew || x.mode === 'old', required: true, readonly: () => !isNew, help: "Shartnomasi bor yoki lidi ochilgan talabalar ro'yxatda chiqmaydi" },
-      { name: 'first_name', label: 'Ism', show: (x) => isNew && x.mode === 'new', required: true, half: true, validate: (t) => (t.length < 3 || t.length > 20 ? "Eng ozi 3 harf, ko'pi 20" : '') },
-      { name: 'last_name', label: 'Familiya', show: (x) => isNew && x.mode === 'new' && x.first_name, required: true, half: true, validate: (t) => (t.length < 3 || t.length > 20 ? "Eng ozi 3 harf, ko'pi 20" : '') },
-      { name: 'phone1', label: '1-telefon (+998)', placeholder: '901234567', show: (x) => isNew && x.mode === 'new' && x.last_name, required: true, half: true, validate: (t) => (!/^\d{9}$/.test(t) ? "9 sondan iborat bo'lsin. Masalan, 998883322" : '') },
       {
-        name: 'phone2', label: '2-telefon (+998)', placeholder: '911234567', show: (x) => isNew && x.mode === 'new' && x.last_name, required: true, half: true,
-        validate: (t, x) => {
-          if (!/^\d{9}$/.test(t)) return "9 sondan iborat bo'lsin. Masalan, 998883322";
-          if (t === x.phone1) return "Ikki bir xil nomer kiritib bo'lmaydi!";
-          // Dublikat: shu filialda ism + familiya bir xil va telefonlardan biri mos kelsa
-          const same = (a, b) => (a || '').trim().toLowerCase() === (b || '').trim().toLowerCase();
-          const dup = A.rows('students').some((s) => s.branch === B && same(s.first_name, x.first_name) && same(s.last_name, x.last_name) && [s.phone1, s.phone2].some((p) => p && (p === x.phone1 || p === t)));
-          return dup ? "Ushbu o'quvchi avval kiritilgan. Lidlar yoki shartnomalar oynasidan qidiring" : '';
-        },
+        name: 'student', label: 'Talabani tanlang', type: 'select', show: (x) => !isNew || x.mode === 'old', required: true, readonly: () => !isNew,
+        options: () => (isNew ? freeStudents : [lead.student_data]).map((s) => [s.id, `${s.full_name} · ${s.phone1}`]),
+        help: "Shartnomasi bor yoki lidi ochilgan talabalar ro'yxatda chiqmaydi",
       },
+      { name: 'first_name', label: 'Ism', show: (x) => isNew && x.mode === 'new', required: true, half: true, validate: (t) => (t.trim().length < 3 || t.trim().length > 20 ? "Eng ozi 3 harf, ko'pi 20" : '') },
+      { name: 'last_name', label: 'Familiya', show: (x) => isNew && x.mode === 'new' && x.first_name, required: true, half: true, validate: (t) => (t.trim().length < 3 || t.trim().length > 20 ? "Eng ozi 3 harf, ko'pi 20" : '') },
+      { name: 'phone1', label: '1-telefon (+998)', placeholder: '901234567', show: (x) => isNew && x.mode === 'new' && x.last_name, required: true, half: true, validate: phone },
+      { name: 'phone2', label: '2-telefon (+998)', placeholder: '911234567', show: (x) => isNew && x.mode === 'new' && x.last_name, required: true, half: true, validate: (t, x) => phone(t) || (t === x.phone1 ? "Ikki bir xil nomer kiritib bo'lmaydi!" : '') },
       { name: 'comment', label: 'Izoh', type: 'textarea', placeholder: "Masalan: narxni so'radi, kechki guruh bo'lsa yoziladi", show: (x) => isNew && (x.student || (x.phone1 && x.phone2)) },
       { name: 'gender', label: 'Jins', type: 'seg', options: ['Erkak', 'Ayol'], show: (x) => isNew && x.mode === 'new' && x.phone1 && x.phone2 },
       { name: 'age_group', label: 'Yosh guruhi', type: 'select', options: ['9-12', '13-15', '16-18', '19-21', '22-24', '25-27', '28-30', '31-33', '34-36', '37-39', '40-42'], show: (x) => x.student || (x.phone1 && x.phone2), half: true },
@@ -258,153 +261,110 @@
       { name: 'laptop', label: 'Noutbuki bormi?', type: 'seg', options: ['Bor', "Yo'q", 'Sotib oladi'], show: (x) => x.social },
       { name: 'tags', label: 'Teglar', type: 'chips', options: ['VIP', "Chegirma so'radi", "Ota-onasi qo'ng'iroq qiladi", 'Kechki vaqt', 'Hafta oxiri'], show: (x) => x.laptop },
       { name: 'source', label: 'Manba', type: 'select', options: (x) => A.optList('leadSources', 'name', (s) => (s.status || 'Faol') === 'Faol' || s.id === x.source), required: true, half: true },
-      { name: 'course', label: 'Kurs', type: 'select', options: () => A.optList('courses', 'name', (c) => c.status === 'Faol' && c.branches.includes(B)), required: true, half: true, resets: ['group'] },
+      { name: 'course', label: 'Kurs', type: 'select', options: (x) => A.optList('courses', 'name', (c) => (c.status === 'Faol' && c.branches.includes(B)) || c.id === x.course), required: true, half: true },
       { name: 'pattern', label: 'Hafta kunlari', type: 'seg', options: (x) => A.optList('dayPatterns', 'name', (p) => (p.status || 'Faol') === 'Faol' || p.id === x.pattern) },
       { name: 'times', label: "Ma'qul dars vaqti", type: 'chips', options: (x) => A.optList('lessonTimes', (t) => `${t.start}-${t.end}`, (t) => t.branch === B && ((t.status || 'Faol') === 'Faol' || (x.times || []).includes(t.id))) },
       { name: 'status', label: 'Status', type: 'select', options: Object.entries(LS).map(([k, l]) => [k, `${k}. ${l}`]), required: true },
-      {
-        name: 'group', label: 'Guruh', type: 'select', show: (x) => ['3', '4', '5'].includes(x.status) || (x.group && !['1', '2'].includes(x.status)),
-        options: (x) => A.rows('groups').filter((g) => g.branch === B && g.course === x.course && A.groupStatus(g) !== 'Nofaol').map((g) => [g.id, `${A.groupName(g)} · ${A.patternName(g.pattern)} ${A.timeName(g.time)} (${A.groupStatus(g)})`]),
-        help: '3, 4, 5-statuslarda ko\'rinadi. Faqat shu kursning faol yoki rejadagi guruhlari',
-      },
-      { name: 'demo_date', label: 'Sinov dars kuni', type: 'date', show: (x) => x.group && ['3', '4', '5'].includes(x.status), default: A.today() },
-      { name: 'demo_attended', label: 'Sinov darsga qatnashdimi?', type: 'seg', options: [['yes', 'Ha, qatnashdi'], ['no', 'Kelmadi']], show: (x) => x.demo_date && x.group && ['3', '4', '5'].includes(x.status) },
+      { name: 'g', type: 'note', tone: 'info', show: (x) => ['3', '4', '5'].includes(x.status), text: "Guruh va sinov dars kuni guruhlar bo'limi bilan birga (M3 bosqichida) tanlanadi." },
     ];
-    if (lead) v.demo_attended = lead.demo_attended === true ? 'yes' : lead.demo_attended === false ? 'no' : '';
     A.form({
       title: isNew ? 'Yangi lid' : 'Lidni tahrirlash',
       fields,
       values: v,
-      onSubmit(x) {
-        let studentId = x.student;
-        if (isNew && x.mode === 'new') {
-          const s = A.insert('students', { branch: B, first_name: x.first_name.trim(), last_name: x.last_name.trim(), father_name: '', gender: x.gender, phone1: x.phone1, phone2: x.phone2, birth_date: '', parent: '' }, 'Talaba', `${x.first_name} ${x.last_name}`);
-          studentId = s.id;
-        }
-        const rec = {
-          branch: B, student: studentId, source: x.source, course: x.course, pattern: x.pattern, times: x.times, status: x.status,
-          group: x.group, demo_date: x.demo_date, demo_attended: x.demo_attended === 'yes' ? true : x.demo_attended === 'no' ? false : null,
-          age_group: x.age_group, social: x.social, laptop: x.laptop, tags: x.tags,
-        };
-        let id;
-        if (isNew) id = A.insert('leads', rec, 'Lid', A.studentName(studentId)).id;
-        if (isNew && x.comment && x.comment.trim()) A.insert('leadComments', { branch: B, lead: id, comment: x.comment.trim() }, 'Lid izohi', A.studentName(studentId));
-        else { A.patch('leads', lead.id, rec, 'Lid', A.studentName(studentId)); id = lead.id; }
+      async onSubmit(x) {
+        const rec = { source: x.source, course: x.course, pattern: x.pattern || null, times: x.times, status: x.status, age_group: x.age_group, social: x.social, laptop: x.laptop, tags: x.tags };
+        let saved;
+        if (isNew) {
+          const who = x.mode === 'old' ? { mode: 'old', student: x.student } : { mode: 'new', first_name: x.first_name, last_name: x.last_name, phone1: x.phone1, phone2: x.phone2, gender: x.gender };
+          saved = await A.http.post('/leads/', { ...rec, ...who, comment: x.comment || '' });
+        } else saved = await A.http.patch(`/leads/${lead.id}/`, rec);
+        keepStudent(saved);
         A.toast(isNew ? "Lid qo'shildi" : 'Saqlandi');
         A.refresh();
-        if (rec.status === '5') setTimeout(() => A.openLead(id), 50);
+        if (saved.status === '5') setTimeout(() => A.openLead(saved.id), 50);
       },
     });
   };
-  A.act['lead-new'] = () => A.leadForm(null);
+  A.act['lead-new'] = async () => {
+    const free = await A.http.get('/students/?free=1&page_size=200');
+    A.leadForm(null, free.results);
+  };
 
-  A.openLead = (id) => {
-    const l = A.get('leads', id);
-    const st = A.get('students', l.student);
-    const comments = A.sortBy(A.rows('leadComments').filter((c) => c.lead === id), (c) => c.created_at, true);
-    const contract = A.rows('contracts').find((c) => c.student === l.student);
+  A.openLead = async (id) => {
+    const l = await A.http.get(`/leads/${id}/`);
+    keepStudent(l);
+    const st = l.student_data;
     const edit = A.canEdit('leads', l, 'created_at');
-    const canContract = l.status === '5' && !contract && A.can('contracts', 'a');
+    const canContract = l.status === '5' && !l.has_contract && A.can('contracts', 'a');
     const needsBirth = l.status === '5' && !st.birth_date;
     const m = A.modal({
-      title: A.studentName(st),
+      title: st.full_name,
       wide: true,
       body: `
         <div class="detail-top">
           ${A.badge(`${l.status}. ${LS[l.status]}`, leadStatusTone[l.status])}
           <span>Shartnoma: ${contractStatusOf(l)}</span>
-          ${l.tags && l.tags.length ? l.tags.map((t) => A.badge(t, 'gray')).join('') : ''}
+          ${(l.tags || []).map((t) => A.badge(t, 'gray')).join('')}
         </div>
-        ${needsBirth ? `<div class="alert warn">${A.icon('alert')}<div>O'qishni boshladi, lekin talabaning to'liq ma'lumotlari (tug'ilgan sana, vasiy) kiritilmagan. Avval talaba ma'lumotlarini to'ldiring.</div></div>` : ''}
+        ${needsBirth ? `<div class="alert warn">${A.icon('alert')}<div>O'qishni boshladi, lekin talabaning to'liq ma'lumotlari (sharif, tug'ilgan sana, vasiy) kiritilmagan. Avval talaba ma'lumotlarini to'ldiring.</div></div>` : ''}
         <dl class="dl">
           <dt>Telefon</dt><dd><a href="tel:+998${st.phone1}">+998 ${st.phone1}</a>${st.phone2 ? ` · <a href="tel:+998${st.phone2}">+998 ${st.phone2}</a>` : ''}</dd>
           <dt>Kurs</dt><dd>${esc(A.courseName(l.course))}</dd>
           <dt>Manba</dt><dd>${esc(A.sourceName(l.source))}</dd>
           <dt>Hafta kunlari / vaqt</dt><dd>${esc(A.patternName(l.pattern))} · ${(l.times || []).map(A.timeName).join(', ') || '—'}</dd>
-          <dt>Guruh</dt><dd>${l.group ? esc(A.groupName(l.group)) : '—'}</dd>
-          <dt>Sinov darsi</dt><dd>${A.fdate(l.demo_date)} ${l.demo_attended === true ? A.badge('Keldi', 'green') : l.demo_attended === false ? A.badge('Kelmadi', 'red') : ''}</dd>
           <dt>Yosh / holat / noutbuk</dt><dd>${esc(l.age_group || '—')} · ${esc(l.social || '—')} · ${esc(l.laptop || '—')}</dd>
           <dt>Qo'shdi</dt><dd>${esc(A.userName(l.created_by))}, ${A.fdt(l.created_at)}</dd>
         </dl>
         ${A.can('leads', 'e') ? `<h4>Statusni o'zgartirish</h4><div class="seg wrap">${Object.entries(LS)
           .map(([k, t]) => `<button class="${l.status === k ? 'on' : ''}" data-status="${k}" ${edit.ok ? '' : 'disabled'}>${k}. ${esc(t)}</button>`)
           .join('')}</div>${edit.ok ? '' : `<p class="muted small">${esc(edit.why)}</p>`}` : ''}
-        <h4>Izohlar (${comments.length})</h4>
+        <h4>Izohlar (${l.comments.length})</h4>
         ${A.can('leads', 'a') ? `<div class="row gap"><input class="f-input grow" id="lc-text" placeholder="Izoh yozing…"><button class="btn" id="lc-add">Qo'shish</button></div>` : ''}
-        <ul class="comments">${comments.map((c) => `<li><p>${esc(c.comment)}</p><small class="muted">${esc(A.userName(c.created_by))} · ${A.fdt(c.created_at)}</small></li>`).join('') || '<li class="muted">Izoh yo\'q</li>'}</ul>`,
+        <ul class="comments">${l.comments.map((c) => `<li><p>${esc(c.comment)}</p><small class="muted">${esc(A.userName(c.created_by))} · ${A.fdt(c.created_at)}</small></li>`).join('') || '<li class="muted">Izoh yo\'q</li>'}</ul>`,
       footer: `
         ${A.can('leads', 'e') && edit.ok ? `<button class="btn ghost" data-edit>Tahrirlash</button>` : ''}
-        ${needsBirth && A.can('leads', 'e') ? `<button class="btn" data-student>Talaba ma'lumotlarini to'ldirish</button>` : ''}
-        ${contract ? `<a class="btn" href="#/contracts/${contract.id}" data-close>Shartnomani ochish</a>` : ''}
-        ${canContract ? `<button class="btn primary" data-contract ${needsBirth ? 'disabled title="Avval talaba ma\'lumotlarini to\'ldiring"' : ''}>Shartnoma tuzish</button>` : ''}`,
+        ${l.status === '5' && A.can('leads', 'e') ? `<button class="btn" data-student>Talaba ma'lumotlarini to'ldirish</button>` : ''}
+        ${canContract ? `<button class="btn primary" disabled title="Shartnomalar bo'limi M3 bosqichida ulanadi">Shartnoma tuzish</button>` : ''}`,
     });
+    const reopen = () => { m.close(); A.refresh(); A.openLead(id); };
+    const fail = (e) => A.toast(e.message, 'warn');
     m.el.querySelectorAll('[data-status]').forEach((b) =>
-      (b.onclick = () => {
-        A.patch('leads', id, { status: b.dataset.status }, 'Lid', A.studentName(st));
-        m.close();
-        A.refresh();
-        A.openLead(id);
-        if (b.dataset.status === '3' || b.dataset.status === '4' || b.dataset.status === '5') {
-          if (!A.get('leads', id).group) A.toast("Guruhni tanlash uchun «Tahrirlash»ni bosing", 'warn');
-        }
-      }));
+      (b.onclick = () => A.http.patch(`/leads/${id}/`, { status: b.dataset.status }).then(reopen, fail)));
     const add = m.el.querySelector('#lc-add');
     if (add)
       add.onclick = () => {
         const t = m.el.querySelector('#lc-text').value.trim();
-        if (!t) return;
-        A.insert('leadComments', { branch: l.branch, lead: id, comment: t }, 'Lid izohi', A.studentName(st));
-        m.close();
-        A.openLead(id);
+        if (t) A.http.post(`/leads/${id}/comments/`, { comment: t }).then(reopen, fail);
       };
     const e = m.el.querySelector('[data-edit]');
     if (e) e.onclick = () => { m.close(); A.leadForm(l); };
     const sb = m.el.querySelector('[data-student]');
     if (sb) sb.onclick = () => { m.close(); A.studentForm(st, () => A.openLead(id)); };
-    const cb = m.el.querySelector('[data-contract]');
-    if (cb)
-      cb.onclick = () => {
-        if (!l.group) {
-          A.toast('Avval lidga guruh tanlang', 'warn');
-          return;
-        }
-        const g = A.get('groups', l.group);
-        const num = Math.max(0, ...A.rows('contracts').filter((c) => c.branch === l.branch).map((c) => c.number)) + 1;
-        const c = A.insert('contracts', { branch: l.branch, student: l.student, course: l.course, group: l.group, type: 'Pullik', number: num, start: l.demo_date || A.today(), end: '', stop_reason: '', comment: '', opening: 0 }, 'Shartnoma', `${A.studentName(st)} №${num}`);
-        A.recalc((a) => a.contract === c.id);
-        A.save();
-        m.close();
-        A.toast(`Shartnoma №${num} tuzildi: ${A.groupName(g)}`);
-        A.go('contracts/' + c.id);
-      };
   };
   A.act['lead-open'] = (el) => A.openLead(el.dataset.id);
 
-  /* ---- Talaba formasi ---- */
-  A.studentForm = (st, after) => {
-    const B = st ? st.branch : A.branchIds()[0];
+  /* ---- Talaba ma'lumotlarini to'ldirish ---- */
+  A.studentForm = async (st, after) => {
+    const parents = (await A.http.get('/parents/')).filter((p) => p.branch === st.branch);
     A.form({
-      title: st ? "Talaba ma'lumotlari" : 'Yangi talaba',
-      values: st ? { ...st } : { branch: B },
+      title: "Talaba ma'lumotlari",
+      values: { ...st, parent: st.parent || '' },
       fields: [
-        { name: 'first_name', label: 'Ism', required: true, half: true, validate: (t) => (t.length < 3 || t.length > 20 ? "Eng ozi 3 harf, ko'pi 20" : '') },
-        { name: 'last_name', label: 'Familiya', required: true, half: true, validate: (t) => (t.length < 3 || t.length > 20 ? "Eng ozi 3 harf, ko'pi 20" : '') },
+        { name: 'first_name', label: 'Ism', required: true, half: true, validate: (t) => (t.trim().length < 3 || t.trim().length > 20 ? "Eng ozi 3 harf, ko'pi 20" : '') },
+        { name: 'last_name', label: 'Familiya', required: true, half: true, validate: (t) => (t.trim().length < 3 || t.trim().length > 20 ? "Eng ozi 3 harf, ko'pi 20" : '') },
         { name: 'phone1', label: '1-telefon (+998)', required: true, half: true, validate: (t) => (!/^\d{9}$/.test(t) ? "9 sondan iborat bo'lsin" : '') },
-        { name: 'father_name', label: 'Sharif', required: true, half: true, validate: (t) => (t.includes('.') ? "Nuqta qo'yib bo'lmaydi!" : t.length < 3 ? 'Eng ozi 3 harf' : '') },
+        { name: 'father_name', label: 'Sharif', required: true, half: true, validate: (t) => (t.includes('.') ? "Nuqta qo'yib bo'lmaydi!" : t.trim().length < 3 ? 'Eng ozi 3 harf' : '') },
         { name: 'phone2', label: '2-telefon (+998)', half: true, validate: (t, x) => (t === x.phone1 ? "Ikki bir xil nomer kiritib bo'lmaydi!" : !/^\d{9}$/.test(t) ? "9 ta sondan iborat bo'lsin" : '') },
         { name: 'gender', label: 'Jins', type: 'seg', options: ['Erkak', 'Ayol'], half: true },
         { name: 'birth_date', label: "Tug'ilgan sanasi", type: 'date', required: true, half: true },
-        { name: 'parent', label: 'Vasiy (ota-ona)', type: 'select', half: true, options: () => A.rows('parents').filter((p) => p.branch === B).map((p) => [p.id, `${p.first_name} ${p.last_name} · ${p.phone}`]), placeholder: "Tanlang yoki bo'sh qoldiring" },
+        { name: 'parent', label: 'Vasiy (ota-ona)', type: 'select', half: true, options: () => parents.map((p) => [p.id, `${p.first_name} ${p.last_name} · ${p.phone}`]), placeholder: "Tanlang yoki bo'sh qoldiring" },
         { name: 'new_parent', label: "Yangi vasiy qo'shish", type: 'checkbox', show: (x) => !x.parent },
-        { name: 'p_first', label: 'Vasiy ismi', show: (x) => x.new_parent, required: (x) => x.new_parent, half: true, validate: (t) => (t.length < 3 ? 'Eng ozi 3 harf' : '') },
+        { name: 'p_first', label: 'Vasiy ismi', show: (x) => x.new_parent, required: (x) => x.new_parent, half: true, validate: (t) => (t.trim().length < 3 ? 'Eng ozi 3 harf' : '') },
         { name: 'p_phone', label: 'Vasiy telefoni', show: (x) => x.new_parent, required: (x) => x.new_parent, half: true, validate: (t) => (!/^\d{9}$/.test(t) ? "9 sondan iborat bo'lsin" : '') },
       ],
-      onSubmit(x) {
-        let parent = x.parent;
-        if (x.new_parent) parent = A.insert('parents', { branch: B, first_name: x.p_first, last_name: x.last_name, phone: x.p_phone }, 'Ota-ona', x.p_first).id;
-        const rec = { first_name: x.first_name, last_name: x.last_name, father_name: x.father_name, phone1: x.phone1, phone2: x.phone2, gender: x.gender, birth_date: x.birth_date, parent };
-        if (st) A.patch('students', st.id, rec, 'Talaba', A.studentName(st));
-        else A.insert('students', { ...rec, branch: B }, 'Talaba', `${x.first_name} ${x.last_name}`);
+      async onSubmit(x) {
+        const body = { first_name: x.first_name, last_name: x.last_name, father_name: x.father_name, phone1: x.phone1, phone2: x.phone2 || '', gender: x.gender || '', birth_date: x.birth_date, parent: x.parent || null, new_parent: !!x.new_parent, p_first: x.p_first || '', p_phone: x.p_phone || '' };
+        A.putLocal('students', await A.http.patch(`/students/${st.id}/`, body));
         A.toast('Saqlandi');
         A.refresh();
         after && after();

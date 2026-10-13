@@ -1,0 +1,173 @@
+from django.db.models import Count, Q
+from rest_framework import status
+from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
+from rest_framework.response import Response
+
+from apps.core.pagination import Pagination
+from apps.core.permissions import check_edit_window
+from apps.core.scoping import branch_ids, in_scope
+from apps.core.viewsets import AuditedModelViewSet
+from apps.references.models import Branch
+
+from . import services
+from .models import Lead, Parent, Student
+from .serializers import LeadCommentSerializer, LeadCreateSerializer, LeadSerializer, ParentSerializer, StudentSerializer, StudentUpdateSerializer
+
+LEAD_QS = Lead.objects.select_related("student").prefetch_related("preferred_times").annotate(
+    comments_count=Count("comments", filter=Q(comments__is_deleted=False))
+).order_by("-created_at")
+
+
+def search_q(text, prefix=""):
+    q = Q()
+    for word in str(text).split():
+        q &= (Q(**{f"{prefix}first_name__icontains": word}) | Q(**{f"{prefix}last_name__icontains": word}) | Q(**{f"{prefix}father_name__icontains": word})
+              | Q(**{f"{prefix}phone1__contains": word}) | Q(**{f"{prefix}phone2__contains": word}))
+    return q
+
+
+def default_branch(user, requested=None):
+    """Filial bitta bo'lsa — o'zi tanlanadi (CLAUDE.md 2)."""
+    qs = Branch.objects.filter(status="Faol")
+    if requested:
+        b = qs.filter(pk=requested).first()
+        if not b or not in_scope(user, b.pk):
+            raise ValidationError({"branch": "Bu filial sizning doirangizda emas"})
+        return b
+    ids = branch_ids(user)
+    mine = [b for b in qs if ids is None or b.pk in ids]
+    if len(mine) != 1:
+        raise ValidationError({"branch": "Filialni tanlang"})
+    return mine[0]
+
+
+class LeadViewSet(AuditedModelViewSet):
+    """Lidlar: ro'yxat (sahifalangan, filtrli), voronka, statistika, kartochka va izohlar. Bo'lim «leads»."""
+
+    section = "leads"
+    queryset = LEAD_QS
+    branch_field = "branch"
+    pagination_class = Pagination
+    check_usage_on_delete = False
+    action_ops = {"board": "v", "stats": "v", "comments": "a"}
+
+    def get_serializer_class(self):
+        return LeadCreateSerializer if self.action == "create" else LeadSerializer
+
+    def get_serializer_context(self):
+        ctx = super().get_serializer_context()
+        if self.action in ("create",):
+            ctx["branch"] = default_branch(self.request.user, self.request.data.get("branch"))
+        return ctx
+
+    def filtered(self):
+        qs = self.get_queryset()
+        p = self.request.query_params
+        if p.get("search"):
+            qs = qs.filter(search_q(p["search"], "student__"))
+        for key, field in (("course", "course"), ("source", "source"), ("status", "status")):
+            if p.get(key):
+                qs = qs.filter(**{field: p[key]})
+        return qs
+
+    def list(self, request, *args, **kwargs):
+        page = self.paginate_queryset(self.filtered())
+        return self.get_paginated_response(LeadSerializer(page, many=True, context=self.get_serializer_context()).data)
+
+    def retrieve(self, request, *args, **kwargs):
+        lead = self.get_object()
+        data = LeadSerializer(lead, context=self.get_serializer_context()).data
+        data["comments"] = LeadCommentSerializer(lead.comments.order_by("-created_at"), many=True).data
+        return Response(data)
+
+    def create(self, request, *args, **kwargs):
+        ser = self.get_serializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        d = dict(ser.validated_data)
+        branch = self.get_serializer_context()["branch"]
+        mode, comment, student = d.pop("mode", "new"), d.pop("comment", ""), d.pop("student", None)
+        new_student = None
+        fields = ("first_name", "last_name", "phone1", "phone2", "gender")
+        picked = {k: d.pop(k, "") for k in fields}
+        if mode == "new":
+            new_student = picked
+            student = None
+        lead = services.create_lead(request.user, branch, d, new_student=new_student, student=student, comment=comment)
+        return Response(LeadSerializer(LEAD_QS.get(pk=lead.pk), context=self.get_serializer_context()).data, status=status.HTTP_201_CREATED)
+
+    def perform_update(self, serializer):
+        check_edit_window(self.request.user, "leads", serializer.instance.created_at)
+        super().perform_update(serializer)
+
+    def update(self, request, *args, **kwargs):
+        super().update(request, *args, **kwargs)
+        return Response(LeadSerializer(LEAD_QS.get(pk=kwargs["pk"]), context=self.get_serializer_context()).data)
+
+    def perform_destroy(self, instance):
+        check_edit_window(self.request.user, "leads", instance.created_at, op="d")
+        super().perform_destroy(instance)
+
+    @action(detail=False)
+    def board(self, request):
+        b = services.board(self.filtered())
+        ser = lambda items: LeadSerializer(items, many=True, context=self.get_serializer_context()).data  # noqa: E731
+        return Response({**b, "columns": {s: ser(items) for s, items in b["columns"].items()}})
+
+    @action(detail=False)
+    def stats(self, request):
+        return Response(services.stats(self.filtered()))
+
+    @action(detail=True, methods=["post"])
+    def comments(self, request, pk=None):
+        c = services.add_comment(request.user, self.get_object(), request.data.get("comment"))
+        return Response(LeadCommentSerializer(c).data, status=status.HTTP_201_CREATED)
+
+
+class StudentViewSet(AuditedModelViewSet):
+    """Talabalar (yaratish — lid orqali). ?free=1 — lidi ham, shartnomasi ham yo'q talabalar (lid formasi uchun)."""
+
+    section = "leads"
+    queryset = Student.objects.all()
+    serializer_class = StudentSerializer
+    branch_field = "branch"
+    pagination_class = Pagination
+    http_method_names = ["get", "patch", "head", "options"]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        p = self.request.query_params
+        if p.get("search"):
+            qs = qs.filter(search_q(p["search"]))
+        if p.get("free"):
+            qs = qs.exclude(leads__is_deleted=False)
+        return qs
+
+    def partial_update(self, request, *args, **kwargs):
+        student = self.get_object()
+        check_edit_window(request.user, "leads", student.created_at)
+        ser = StudentUpdateSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        d = dict(ser.validated_data)
+        new_parent = {"first_name": d.pop("p_first", ""), "phone": d.pop("p_phone", "")} if d.pop("new_parent", False) else None
+        d.pop("p_first", None), d.pop("p_phone", None)
+        if d.get("parent") and not in_scope(request.user, d["parent"].branch_id):
+            raise ValidationError({"parent": "Bu vasiy sizning doirangizda emas"})
+        student = services.update_student(request.user, student, d, new_parent=new_parent)
+        return Response(StudentSerializer(student).data)
+
+
+class ParentViewSet(AuditedModelViewSet):
+    section = "leads"
+    queryset = Parent.objects.all()
+    serializer_class = ParentSerializer
+    branch_field = "branch"
+    http_method_names = ["get", "post", "patch", "head", "options"]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        s = self.request.query_params.get("search")
+        if s:
+            qs = qs.filter(Q(first_name__icontains=s) | Q(last_name__icontains=s) | Q(phone__contains=s))
+        return qs
+

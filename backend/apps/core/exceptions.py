@@ -29,4 +29,7 @@ def exception_handler(exc, context):
         exc = exceptions.PermissionDenied("Sizning rolingizda bu amalga ruxsat yo'q")
     if isinstance(exc, exceptions.NotFound) and str(exc.detail) == str(exceptions.NotFound.default_detail):
         exc = exceptions.NotFound("Yozuv topilmadi")
+    if isinstance(exc, exceptions.ValidationError) and isinstance(exc.detail, dict):
+        # Servislardan kelgan {"maydon": "xato"} ham serializer kabi {"maydon": ["xato"]} bo'lsin
+        exc.detail = {k: v if isinstance(v, (list, dict)) or k == "detail" else [v] for k, v in exc.detail.items()}
     return drf_handler(exc, context)

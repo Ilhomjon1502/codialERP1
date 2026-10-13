@@ -17,7 +17,7 @@ Har bir muhit: Docker'da **PostgreSQL + Django (Gunicorn)**. Serverning o'zida: 
 |---|---|
 | Server | Hetzner Cloud **CAX11** (Arm64, 2 vCPU, 4 GB RAM, 40 GB), nomi `codial-1`, Helsinki, IP `77.42.9.23`, Ubuntu 24.04 |
 | Kirish | `ssh -i ~/.ssh/codial_hetzner root@77.42.9.23` (faqat kalit; parol bilan kirish o'chirilgan) |
-| Test muhiti | **https://test.77-42-9-23.sslip.io** — vaqtinchalik manzil (sslip.io IP'ni nomga aylantiradi), Let's Encrypt SSL. Domen tayyor bo'lgach `test.<domen>` ga o'tkaziladi |
+| Joriy muhit | **https://erp.codialinfo.uz** (2026-10-13 dan; DNS A `erp` → `77.42.9.23`, ahost.uz), Nginx sayti `/etc/nginx/sites-available/codial-erp`, Let's Encrypt SSL (certbot.timer yangilaydi). Papka `/srv/codial-test`, `ENV_NAME=test`, hozircha sinov ma'lumotlari. Zaxira manzil: https://test.77-42-9-23.sslip.io (sayt `codial-test`) |
 | Pochta | SMTP hali sozlanmagan: test muhitida xatlar `docker compose logs web` ga chiqadi (`EMAIL_BACKEND=console`) |
 | Cron | test bazasi zaxirasi har kuni 03:15 (`/srv/backups/codial-test`), oydagi dars soni takliflari har oy 1-kuni 06:00 |
 | Asosiy muhit | hali o'rnatilmagan (M11) |

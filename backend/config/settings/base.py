@@ -60,6 +60,7 @@ INSTALLED_APPS = [
     "apps.accounts",
     "apps.references",
     "apps.finance",
+    "apps.crm",
 ]
 
 MIDDLEWARE = [

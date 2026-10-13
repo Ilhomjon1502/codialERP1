@@ -16,3 +16,8 @@
 | 2026-10-12 | Server: Hetzner CAX11 (Arm64, 2 vCPU, 4 GB), Helsinki, $7.59/oy + zaxira | Cost-Optimized x86 (CX23) Yevropada mavjud emas edi; Regular CPX22 ~3 baravar qimmat. Tizim Arm64'da to'liq ishlaydi |
 | 2026-10-12 | Test muhiti domen tayyor bo'lguncha `test.77-42-9-23.sslip.io` da (haqiqiy SSL bilan) | Domen hali yo'q; prod sozlama HTTPS talab qiladi (xavfsiz cookie) |
 | 2026-10-12 | Test muhitida pochta konsolga (server jurnaliga) yoziladi, SMTP berilgach almashtiriladi | SMTP ma'lumotlari hali yo'q |
+| 2026-10-13 | `erp.codialinfo.uz` hozirgi (sinov ma'lumotli) muhitga ulandi; haqiqiy ishga tushishda (M10–M11) ma'lumotlar tozalanib import qilinadi, manzil o'zgarmaydi | Buyurtmachi tanlovi |
+| 2026-10-13 | Talabalar va ota-onalar API'si «leads» ruxsat bo'limiga bog'langan (6.2 da ular lidlar bilan bir qatorda) | Alohida bo'lim kerak bo'lsa keyin ajratiladi |
+| 2026-10-13 | Lidda guruh, sinov dars kuni va «Shartnoma tuzish» M3 da (Group va Contract modellari bilan) ulanadi; M2 da forma 3–5 statuslarda shu haqda eslatma ko'rsatadi | Bosqichlar tartibi: guruhlar M3 da |
+| 2026-10-13 | Voronka va statistika serverda hisoblanadi; voronka har ustunda oxirgi 40 ta lidni beradi, qolgani «Ro'yxat» tabida 50 tadan | AppSheet'dagi «hammasini yuklash» sekinligini takrorlamaslik uchun |
+| 2026-10-13 | Servis xatolari ham `{"maydon": ["xato"]}` shaklida qaytadi (umumiy exception handler) | Front-end xatoni tegishli maydon ostida ko'rsatishi uchun |

@@ -7,30 +7,45 @@
 
 ## 0. Joriy holat (2026-10-13) — yangi kelgan dasturchi shu yerdan boshlasin
 
-**Qisqasi:** prototip ma'qullandi va muzlatildi. **M1 tayyor**: haqiqiy tizim (`backend/` — Django + DRF API, `frontend/` — prototip ekranlari API'ga ulangan) **Hetzner test serverida ishlayapti**. Keyingi ish — **M2 (CRM)**, buyurtmachi «boshla» deganda boshlanadi.
+**Qisqasi:** prototip ma'qullandi va muzlatildi. **M1 va M2 tayyor**: haqiqiy tizim (`backend/` — Django + DRF API, `frontend/` — prototip ekranlari API'ga ulangan) **Hetzner serverida ishlayapti**. Keyingi ish — **M3 (guruhlar, shartnomalar, davomat, qarz va KPI)**, buyurtmachi «boshla» deganda boshlanadi.
 
 | Bosqich | Holat |
 |---|---|
 | AppSheet tahlili, shu CLAUDE.md | ✅ |
 | Prototip (`prototype/`) va buyurtmachi so'ragan 11 ta o'zgarish (20.6) | ✅ ma'qullangan, **endi o'zgartirilmaydi** |
 | Arxitektura (`docs/architecture.md`): API + prototip interfeysi, Hetzner | ✅ tasdiqlangan 2026-10-12 |
-| **M1** — backend, kirish/parol, rollar va ruxsatlar, filial doirasi, audit, Sozlamalar, Audit tarixi, front-end ulandi | ✅ 2026-10-12, 37 test, test serverda |
-| M2 CRM → M7 hisobotlar, M10 import, M11 asosiy muhit | ⏳ navbatda (17-bo'lim) |
+| **M1** — backend, kirish/parol, rollar va ruxsatlar, filial doirasi, audit, Sozlamalar, Audit tarixi, front-end ulandi | ✅ 2026-10-12, 37 test, https://erp.codialinfo.uz da |
+| **M2** — CRM: talabalar, ota-onalar, lidlar (voronka, ro'yxat, statistika, kartochka, izohlar, talaba ma'lumotlarini to'ldirish) | ✅ 2026-10-13, 52 test |
+| M3 o'quv jarayoni → M7 hisobotlar, M10 import, M11 asosiy muhit | ⏳ navbatda (17-bo'lim) |
 | M8 Telegram bot, M9 AI | ⏳ tizim ishga tushgandan keyin |
 | 18-bo'limdagi ochiq savollar | ⏳ takliflar `docs/architecture.md` 7-bo'limda; buyurtmachi javob bermasa takliflar qo'llanadi. **3-savol (50% chegirma qoidasi)** ga aniq javob M6 dan oldin kerak |
-| Domen `codialinfo.uz` (`erp.` subdomen) | ⏳ buyurtmachiga o'tkazilmoqda (ahost.uz, ariza ДХ-2442/26-10). O'tgach: DNS A `erp`, `test` → `77.42.9.23`, keyin Nginx + certbot (`docs/deploy_hetzner.md`) |
+| Domen `codialinfo.uz` | ✅ buyurtmachiniki (ahost.uz). DNS: A `erp` → `77.42.9.23` (2026-10-13), Let's Encrypt SSL. Asosiy sayt (`@`, `www` — Vercel) va pochta yozuvlariga tegilmaydi |
 | Pochta (SMTP) | ⏳ berilmagan: test serverda xatlar konsolga (`docker compose logs web`) yoziladi |
 
 **Manzillar:**
 
 | Nima | Qayerda |
 |---|---|
-| Haqiqiy tizim (test, sinov ma'lumotlari) | https://test.77-42-9-23.sslip.io — demo xodimlar va parol `deploy/test-server.local.md` da (faqat buyurtmachi kompyuterida, git'ga kirmaydi) |
+| Haqiqiy tizim | **https://erp.codialinfo.uz** — hozircha **sinov ma'lumotlari** bilan (M1). M10–M11 da sinov ma'lumotlari tozalanib, AppSheet'dan haqiqiy ma'lumot yuklanadi, manzil o'zgarmaydi. Demo xodimlar va parol `deploy/test-server.local.md` da (faqat buyurtmachi kompyuterida, git'ga kirmaydi). Zaxira manzil: https://test.77-42-9-23.sslip.io |
 | Prototip (dizayn namunasi) | https://ilhomjon1502.github.io/codialERP1/ |
 | Server | Hetzner CAX11 «codial-1», `77.42.9.23`, `ssh -i ~/.ssh/codial_hetzner root@77.42.9.23` |
 | Kod | https://github.com/Ilhomjon1502/codialERP1 (`main`) |
 
 **Ish qoidalari (o'zgarmagan):** keyingi bosqich buyurtmachi «boshla» deganda boshlanadi; commit/push faqat u so'raganda; noaniq biznes qoidani so'ra yoki `docs/decisions.md` ga yoz.
+
+### Ishni topshirish (2026-10-13) — keyingi dasturchi shundan davom etadi
+
+**Oxirgi holat:** M1 va M2 `main` da, https://erp.codialinfo.uz da ishlayapti (sinov ma'lumotlari: 13 xodim, 46 lid). 52 test yashil, ruff toza.
+
+**Keyingi ish — M3 (o'quv jarayoni).** Buyurtmachi «M3 ni boshla» desa:
+1. `apps/education/`: `Group`, `Contract`, `Attendance`, `MakeupRequest` (7.4, 9-bo'lim). Pul `DecimalField(14,0)`, bo'lish `ROUND_HALF_UP` (5-bo'lim).
+2. Servislar: guruh statusi/to'lishi, shartnoma statusi va raqami, davomat olish (dars kuni, sana qoidalari, o'rindosh), **qarz va KPI (8.2, 8.3) — `Attendance` qatorida saqlanadi**, qayta hisoblash (8.5): `references/services.py` dagi `# M3:` izohli joylar (narx o'zgarishi, dars soni tasdig'i) shu servisni chaqirsin; `recalculate --month` buyrug'i.
+3. M2 dan qolganlar (17-bo'lim M3 qatori): `Lead.group` FK + migratsiya, `crm.services.has_contract()`, lid kartochkasidagi «Shartnoma tuzish» (`pages-crm.js` → `A.openLead`), statistikadagi shartnoma konversiyasi.
+4. Front-end: `pages-crm.js` (Shartnomalar, Qarzdorlar), `pages-edu.js` (Guruhlar, Davomat, Kelmaganlar, Qoldirilgan darslar) — 21.4 tartibida API'ga ulash, `A.CONNECTED` ga `contracts`, `debtors`, `attendance`, `groups`, `groupAnalysis` qo'shish. Namuna: M2 dagi `A.page('leads')` (`load()` + server hisobi).
+5. Testlar (8-bo'lim formulalari, muddatlar, rollar, doira, so'rovlar soni), `seed_demo` ga guruh/shartnoma/davomat, `docs/user_guide/m3_*.md`, shu bo'lim va 17-bo'lim holati.
+6. Joylash: 21.5 (`git pull` + `docker compose up -d --build` + `seed_demo`).
+
+**Ochiq:** SMTP (pochta) berilmagan — xatlar `docker compose logs web` da; 18-bo'lim savollari (3-savol — 50% chegirma — M6 dan oldin shart); lokal `C:\DSKEYS` (E-IMZO kaliti nusxasi) — buyurtmachi so'rasa o'chiriladi.
 
 ### Yangi kelgan dasturchi uchun qadamlar
 
@@ -106,7 +121,7 @@ backend/
     references/    ✅    Branch, Course, Room, DayPattern, LessonTime, CoursePrice, LessonFrequency,
                          DiscountType, ExpenseCategory, LeadSource, AttendanceStatus; bootstrap
     finance/       ✅/⏳ Account (M1); CashMovement, Payment, Transfer, Exchange, Expense, Creditor… (M4)
-    crm/           ⏳ M2  Parent, Student, Lead, LeadComment
+    crm/           ✅ M2  Parent, Student, Lead, LeadComment; voronka va statistika (services.board/stats)
     education/     ⏳ M3  Group, Contract, Attendance, MakeupRequest (+ M6: StudentTask, baholash, ParentCall, Discount50)
     payroll/       ⏳ M5  KPIRate, SalaryAssignment, SalaryPayout
     reports/       ⏳ M7  dashboard, statistika, foyda, Excel
@@ -621,8 +636,8 @@ Real ishga tushirish uchun minimal to'plam: **M1–M7 + M10 + M11** (xodimlar Ap
 |---|---|---|---|
 | M0 | Prototip | Bosiladigan HTML prototip | ✅ |
 | M1 | Loyiha asosi | Django + DRF, Docker, User/Role/ruxsatlar, filial doirasi, audit, login va parol havolasi, Sozlamalar, Audit tarixi, front-end ulandi, test server | ✅ 2026-10-12 |
-| M2 | CRM | Talabalar, ota-onalar, lidlar (voronka, forma, izohlar, statistika), "Shartnoma tuzish" tugmasi (shartnoma o'zi M3 da) | ⏳ keyingi |
-| M3 | O'quv jarayoni | Guruhlar, shartnomalar, davomat ekrani, qarz va KPI servislari, kelmaganlar, qoldirilgan darslar, dars soni tasdig'ida qayta hisoblash | ⏳ |
+| M2 | CRM | Talabalar, ota-onalar, lidlar (voronka, forma, izohlar, statistika), "Shartnoma tuzish" tugmasi (shartnoma o'zi M3 da) | ✅ 2026-10-13 |
+| M3 | O'quv jarayoni | Guruhlar, shartnomalar, davomat ekrani, qarz va KPI servislari, kelmaganlar, qoldirilgan darslar, dars soni tasdig'ida qayta hisoblash. **M2 dan qolganlari:** `Lead.group` FK (lid formasida guruh va sinov dars kuni), `crm.services.has_contract()` (hozir doim False), lid kartochkasidagi «Shartnoma tuzish», lid statistikasidagi shartnoma konversiyasi, Shartnomalar → «Talabalar» tabi | ⏳ keyingi |
 | M4 | Moliya | CashMovement ledger, g'aznalar balansi, to'lovlar (tasdiqlar, chegirma limiti, PDF chek), o'tkazmalar, almashtirish, xarajatlar, kreditorlar | ⏳ |
 | M5 | Oyliklar | KPI stavkalari, oylik belgilash va berish, KPI daraxti, xodim balansi | ⏳ |
 | M6 | Qo'shimcha modullar | Vazifalar, ikki yo'nalishli baholash, ota-onalar bilan aloqa, 50% chegirma, Excel eksport | ⏳ |

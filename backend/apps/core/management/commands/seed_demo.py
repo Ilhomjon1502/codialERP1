@@ -7,6 +7,7 @@ Xodimlar pochtasi «@codial.test» (haqiqiy pochtaga xat ketmaydi). Parol berilm
 
 import datetime
 import os
+import random
 import zlib
 
 from django.core.management.base import BaseCommand
@@ -14,6 +15,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.accounts.models import Role, User
+from apps.crm.models import AGE_GROUPS, LAPTOP_CHOICES, SOCIAL_STATUSES, Lead, LeadComment, Student
 from apps.finance.models import Account
 from apps.references import services
 from apps.references.models import Branch, Course, CoursePrice, DayPattern, DiscountType, ExpenseCategory, LeadSource, LessonFrequency, LessonTime, Room
@@ -98,16 +100,14 @@ class Command(BaseCommand):
         for k, n, cap in ROOMS:
             self.upsert(Room, k, {"branch": branch, "name": n, "capacity": cap})
         patterns = {k: self.upsert(DayPattern, k, {"name": "", "weekdays": wd}) for k, wd in PATTERNS}
-        for k, a, b in TIMES:
-            self.upsert(LessonTime, k, {"branch": branch, "start_time": a, "end_time": b})
+        times = [self.upsert(LessonTime, k, {"branch": branch, "start_time": a, "end_time": b}) for k, a, b in TIMES]
         for k, c, m, price in PRICES:
             self.upsert(CoursePrice, k, {"branch": branch, "course": courses[c], "effective_from": ym(m), "price": price})
         for k, n, mx, system, d50 in DISCOUNTS:
             self.upsert(DiscountType, k, {"name": n, "max_amount": mx, "is_system": system, "is_discount50": d50})
         for k, n, kind, rs in EXPENSES:
             self.upsert(ExpenseCategory, k, {"name": n, "kind": kind}, {"allowed_roles": [roles[r] for r in rs]})
-        for k, n in SOURCES:
-            self.upsert(LeadSource, k, {"name": n})
+        sources = [self.upsert(LeadSource, k, {"name": n}) for k, n in SOURCES]
         # Joriy va o'tgan oy uchun tasdiqlangan dars soni (kalendar bo'yicha)
         today = timezone.localdate().replace(day=1)
         for d in (services.prev_month(today), today):
@@ -116,6 +116,41 @@ class Command(BaseCommand):
                     "branch": branch, "day_pattern": p, "year": d.year, "month": d.month, "status": "Tasdiqlangan",
                     "frequency": services.lesson_days_in_month(d.year, d.month, p.weekdays), "approved_at": timezone.now(),
                 }, {"courses": list(courses.values())})
+        self.seed_leads(branch, list(courses.values()), list(patterns.values()), times, sources, [users[k] for k in ("u3", "u4", "u5")])
         self.stdout.write(self.style.SUCCESS(f"Tayyor: {self.created} ta yangi yozuv."))
         if not password:
             self.stdout.write(self.style.WARNING("Parol berilmadi: demo xodimlar parolsiz. --password yoki DEMO_PASSWORD bilan qayta ishga tushiring."))
+
+
+    def seed_leads(self, branch, courses, patterns, times, sources, staff, n=45):
+        """Lidlar voronkasi va statistika uchun sinov lidlari (oxirgi ~60 kun, turli status va manbalar)."""
+        R = random.Random(20261013)
+        now = timezone.now()
+        statuses = ["1"] * 6 + ["2"] * 10 + ["3"] * 6 + ["4"] * 5 + ["5"] * 8 + ["6"] * 4 + ["7"] * 2 + ["8"] * 4
+        notes = ["Narxni so'radi, o'ylab ko'radi", "Kechki guruh bo'lsa yoziladi", "Ota-onasi bilan maslahatlashadi",
+                 "Qayta qo'ng'iroq qilish kerak", "Noutbuk sotib olgach keladi"]
+        for i in range(n):
+            if Lead.all_objects.filter(legacy_id=f"demo:ld{i}").exists():
+                continue
+            gender = R.choice(["Erkak", "Ayol"])
+            first = R.choice(DEMO_MALE if gender == "Erkak" else DEMO_FEMALE)
+            last = R.choice(DEMO_LAST) + ("" if gender == "Erkak" else "a")
+            st = Student.objects.create(branch=branch, first_name=first, last_name=last, gender=gender, phone1=f"9{R.randint(10**7, 10**8 - 1):08d}",
+                                        phone2=f"9{R.randint(10**7, 10**8 - 1):08d}", legacy_id=f"demo:st{i}")
+            who = R.choice(staff)
+            lead = Lead.objects.create(branch=branch, student=st, source=R.choice(sources), course=R.choice(courses), day_pattern=R.choice(patterns),
+                                       status=statuses[i % len(statuses)], age_group=R.choice(AGE_GROUPS[:7]), social_status=R.choice(SOCIAL_STATUSES),
+                                       laptop=R.choice(LAPTOP_CHOICES), created_by=who, updated_by=who, legacy_id=f"demo:ld{i}")
+            lead.preferred_times.set(R.sample(times, R.randint(1, 2)))
+            created = now - datetime.timedelta(days=R.randint(0, 60), hours=R.randint(0, 8))
+            Lead.objects.filter(pk=lead.pk).update(created_at=created)
+            Student.objects.filter(pk=st.pk).update(created_at=created)
+            if R.random() < 0.6:
+                c = LeadComment.objects.create(lead=lead, comment=R.choice(notes), created_by=who, updated_by=who, legacy_id=f"demo:lc{i}")
+                LeadComment.objects.filter(pk=c.pk).update(created_at=created + datetime.timedelta(days=1))
+            self.created += 1
+
+
+DEMO_MALE = ["Abdulloh", "Jasurbek", "Sardor", "Doniyor", "Behruz", "Ibrohim", "Diyorbek", "Ozodbek", "Temur", "Islom", "Asadbek", "Ulug'bek"]
+DEMO_FEMALE = ["Zarina", "Kamola", "Nilufar", "Robiya", "Dilnoza", "Mubina", "Muslima", "Gulruh", "Mohinur", "Sevara"]
+DEMO_LAST = ["Karimov", "Aliyev", "Sobirov", "Tursunov", "Yusupov", "Nazarov", "Rahimov", "Olimov", "Sultonov", "Qodirov", "Ismoilov", "Hasanov"]

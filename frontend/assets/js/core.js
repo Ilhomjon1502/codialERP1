@@ -72,7 +72,7 @@
     const days = A.editDays(A.role(), section);
     if (days === Infinity) return { ok: true };
     let d = rec[dateField] || rec.created_at || A.today();
-    if (typeof d === 'number') d = A.iso(new Date(d));
+    if (typeof d === 'number' || (typeof d === 'string' && d.length > 10)) d = A.iso(new Date(d)); // vaqt belgisi yoki ISO datetime
     const diff = A.diffDays(d, A.today());
     if (diff > days) return { ok: false, why: `Tahrirlash muddati o'tgan (${A.editRule(A.role(), section)})` };
     return { ok: true };
