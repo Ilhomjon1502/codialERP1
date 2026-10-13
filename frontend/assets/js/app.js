@@ -167,11 +167,11 @@
   A.page = (route, def) => (A.pages[route] = def);
 
   /** API'ga ulangan bo'limlar. Qolganlari o'z bosqichida ulanadi (docs/architecture.md, 5-bo'lim) */
-  A.CONNECTED = new Set(['dashboard', 'settings', 'audit', 'leads']);
+  A.CONNECTED = new Set(['dashboard', 'settings', 'audit', 'leads', 'contracts', 'debtors', 'attendance', 'groups', 'groupAnalysis']);
   A.MILESTONE = {
-    contracts: 'M3', debtors: 'M3', attendance: 'M3', groups: 'M3', payments: 'M4', expenses: 'M4', approvals: 'M4',
+    payments: 'M4', expenses: 'M4', approvals: 'M4',
     transfers: 'M4', creditors: 'M4', exchange: 'M4', accounts: 'M4', salaries: 'M5', grading: 'M6', export: 'M6', discount50: 'M6',
-    evaluations: 'M6', tasks: 'M6', parentCalls: 'M6', profit: 'M7', groupAnalysis: 'M7', ai: 'M9',
+    evaluations: 'M6', tasks: 'M6', parentCalls: 'M6', profit: 'M7', ai: 'M9',
   };
   const PUBLIC = new Set(['set-password']);
 
@@ -223,7 +223,7 @@
       html = A.head("Ruxsat yo'q") + `<div class="empty">Bu bo'lim <b>${esc(A.ROLES[A.role()])}</b> roli uchun yopiq.</div>`;
     } else if (page.section && !A.CONNECTED.has(page.section)) {
       html = A.head(page.title || '') + `<div class="empty">${A.icon('history')}<p><b>Bu bo'lim ${A.MILESTONE[page.section] || 'keyingi'} bosqichida serverga ulanadi.</b></p>
-        <p class="muted">Ekranlar ma'qullangan prototipdagidek bo'ladi. Hozircha Sozlamalar, Lidlar va Audit tarixi ishlaydi.</p></div>`;
+        <p class="muted">Ekranlar ma'qullangan prototipdagidek bo'ladi. Hozircha Sozlamalar, Lidlar, Shartnomalar, Qarzdorlar, Davomat, Guruhlar va Audit tarixi ishlaydi.</p></div>`;
     } else {
       try {
         if (page.load) {

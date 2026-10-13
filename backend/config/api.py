@@ -5,6 +5,7 @@ from rest_framework.routers import DefaultRouter
 
 from apps.accounts import views as acc
 from apps.crm import views as crm
+from apps.education import views as edu
 from apps.references import views as ref
 
 router = DefaultRouter(trailing_slash=True)
@@ -27,6 +28,11 @@ router.register("audit-log", ref.AuditLogViewSet, basename="audit-log")
 router.register("leads", crm.LeadViewSet, basename="lead")
 router.register("students", crm.StudentViewSet, basename="student")
 router.register("parents", crm.ParentViewSet, basename="parent")
+router.register("groups", edu.GroupViewSet, basename="group")
+router.register("contracts", edu.ContractViewSet, basename="contract")
+router.register("debtors", edu.DebtorViewSet, basename="debtor")
+router.register("attendance", edu.AttendanceViewSet, basename="attendance")
+router.register("makeups", edu.MakeupViewSet, basename="makeup")
 
 urlpatterns = [
     path("auth/csrf/", acc.CsrfView.as_view()),

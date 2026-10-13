@@ -1,11 +1,11 @@
 from django.db.models import Count, Q
 from rest_framework import status
 from rest_framework.decorators import action
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 
 from apps.core.pagination import Pagination
-from apps.core.permissions import check_edit_window
+from apps.core.permissions import NO_PERMISSION, can, check_edit_window
 from apps.core.scoping import branch_ids, in_scope
 from apps.core.viewsets import AuditedModelViewSet
 from apps.references.models import Branch
@@ -15,7 +15,7 @@ from .models import Lead, Parent, Student
 from .serializers import LeadCommentSerializer, LeadCreateSerializer, LeadSerializer, ParentSerializer, StudentSerializer, StudentUpdateSerializer
 
 LEAD_QS = Lead.objects.select_related("student").prefetch_related("preferred_times").annotate(
-    comments_count=Count("comments", filter=Q(comments__is_deleted=False))
+    comments_count=Count("comments", filter=Q(comments__is_deleted=False)), has_contract_flag=services.contract_exists(),
 ).order_by("-created_at")
 
 
@@ -50,7 +50,7 @@ class LeadViewSet(AuditedModelViewSet):
     branch_field = "branch"
     pagination_class = Pagination
     check_usage_on_delete = False
-    action_ops = {"board": "v", "stats": "v", "comments": "a"}
+    action_ops = {"board": "v", "stats": "v", "comments": "a", "contract": "v"}
 
     def get_serializer_class(self):
         return LeadCreateSerializer if self.action == "create" else LeadSerializer
@@ -119,6 +119,14 @@ class LeadViewSet(AuditedModelViewSet):
         return Response(services.stats(self.filtered()))
 
     @action(detail=True, methods=["post"])
+    def contract(self, request, pk=None):
+        """«Shartnoma tuzish» (5-status): yangi shartnoma id va raqamini qaytaradi. Ruxsat — Shartnomalar «qo'shish»."""
+        if not can(request.user, "contracts", "a"):
+            raise PermissionDenied(NO_PERMISSION)
+        c = services.create_contract_from_lead(request.user, self.get_object())
+        return Response({"id": str(c.pk), "number": c.number}, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["post"])
     def comments(self, request, pk=None):
         c = services.add_comment(request.user, self.get_object(), request.data.get("comment"))
         return Response(LeadCommentSerializer(c).data, status=status.HTTP_201_CREATED)
@@ -128,7 +136,7 @@ class StudentViewSet(AuditedModelViewSet):
     """Talabalar (yaratish — lid orqali). ?free=1 — lidi ham, shartnomasi ham yo'q talabalar (lid formasi uchun)."""
 
     section = "leads"
-    queryset = Student.objects.all()
+    queryset = Student.objects.prefetch_related("contracts")
     serializer_class = StudentSerializer
     branch_field = "branch"
     pagination_class = Pagination
@@ -140,7 +148,7 @@ class StudentViewSet(AuditedModelViewSet):
         if p.get("search"):
             qs = qs.filter(search_q(p["search"]))
         if p.get("free"):
-            qs = qs.exclude(leads__is_deleted=False)
+            qs = qs.exclude(leads__is_deleted=False).exclude(contracts__is_deleted=False)
         return qs
 
     def partial_update(self, request, *args, **kwargs):
@@ -154,7 +162,7 @@ class StudentViewSet(AuditedModelViewSet):
         if d.get("parent") and not in_scope(request.user, d["parent"].branch_id):
             raise ValidationError({"parent": "Bu vasiy sizning doirangizda emas"})
         student = services.update_student(request.user, student, d, new_parent=new_parent)
-        return Response(StudentSerializer(student).data)
+        return Response(StudentSerializer(Student.objects.prefetch_related("contracts").get(pk=student.pk)).data)
 
 
 class ParentViewSet(AuditedModelViewSet):

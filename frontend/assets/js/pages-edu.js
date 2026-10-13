@@ -1,18 +1,20 @@
 /* Guruhlar, Davomat, Vazifalar, Baholash, Ota-onalar, 50% chegirma, Eksport */
 (function (A) {
   const esc = A.esc;
+  const fail = (e) => A.toast(e.message, 'warn');
 
-  /* ===================================================== Guruhlar */
+  /* ===================================================== Guruhlar (server API: /groups/) */
   A.page('groups', {
     title: 'Guruhlar',
     section: 'groups',
+    load: () => A.reloadGroups(),
     render(p, q) {
       const tab = q.tab || 'Faol';
       const all = A.vis('groups');
-      const cnt = (s) => all.filter((g) => A.groupStatus(g) === s).length;
+      const cnt = (s) => all.filter((g) => g.status === s).length;
       return `${A.head('Guruhlar', "Guruh nomi rangi — to'lish holati: qizil yomon, to'q sariq o'rtacha, ko'k yaxshi, yashil zo'r", A.can('groups', 'a') ? A.btn('Yangi guruh', 'group-new', { icon: 'plus' }) : '')}
         ${A.tabs([['Faol', 'Faol', cnt('Faol')], ['Rejada', 'Rejada', cnt('Rejada')], ['Nofaol', 'Nofaol', cnt('Nofaol')]], tab, 'groups')}
-        <div class="cards">${A.sortBy(all.filter((g) => A.groupStatus(g) === tab), (g) => A.groupName(g))
+        <div class="cards">${A.sortBy(all.filter((g) => g.status === tab), (g) => A.groupName(g))
           .map((g) => {
             const f = A.groupFill(g);
             return `<a class="gcard" href="#/groups/${g.id}">
@@ -20,102 +22,105 @@
               <div class="muted small">${esc(A.patternName(g.pattern))} · ${A.timeName(g.time)} · ${esc(A.roomName(g.room))}</div>
               <div class="small">Ustoz: <b>${esc(A.userName(g.teacher))}</b>${g.supporter ? ` · Yordamchi: ${esc(A.userName(g.supporter))}` : ''}</div>
               <div class="bar"><i class="bg-${f.cls}" style="width:${Math.min(100, f.pct * 100)}%"></i></div>
-              <div class="small row between"><span>${f.n} / ${f.cap} talaba</span><span>${f.free} bo'sh o'rin · ${A.pct(f.pct)}</span></div>
+              <div class="small row between"><span>${f.n} / ${f.cap} talaba</span><span>${f.free} bo'sh o'rin · ${f.pctText}</span></div>
             </a>`;
           })
           .join('') || A.empty("Guruh yo'q")}</div>`;
     },
   });
 
+  /* ---- Guruh formasi. Tekshiruvlar serverda ham bor (services.validate_group) ---- */
   A.groupForm = (g) => {
     const isNew = !g;
-    const B = A.branchIds()[0];
-    const nextNum = (course) => Math.max(0, ...A.rows('groups').filter((x) => x.branch === B && x.course === course).map((x) => x.number)) + 1;
+    const B = g ? g.branch : A.branchIds()[0];
+    const staff = (roles, x) => A.S.users.filter((u) => roles.includes(u.role) && (u.status === 'Faol' || u.id === x) && (u.branches || []).includes(B));
     A.form({
       title: isNew ? 'Yangi guruh' : A.groupName(g),
-      values: g ? { ...g } : { branch: B, start: A.today() },
+      values: g ? { ...g } : { start: A.today() },
       fields: [
-        { name: 'course', label: 'Kurs', type: 'select', required: true, readonly: () => !isNew && A.role() !== 'ADMIN', options: () => A.optList('courses', 'name', (c) => c.status === 'Faol'), help: isNew ? '' : "Kursni faqat Admin o'zgartiradi" },
+        { name: 'course', label: 'Kurs', type: 'select', required: true, readonly: () => !isNew && A.role() !== 'ADMIN', options: (x) => A.optList('courses', 'name', (c) => (c.status === 'Faol' && c.branches.includes(B)) || c.id === x.course), help: isNew ? '' : "Kursni faqat Admin o'zgartiradi (guruhda shartnoma bo'lmasa)" },
         { name: 'pattern', label: 'Dars kunlari', type: 'seg', required: true, show: (x) => x.course, options: (x) => A.optList('dayPatterns', 'name', (p) => (p.status || 'Faol') === 'Faol' || p.id === x.pattern) },
         { name: 'time', label: 'Dars vaqti', type: 'seg', required: true, show: (x) => x.pattern, options: (x) => A.optList('lessonTimes', (t) => `${t.start}-${t.end}`, (t) => t.branch === B && ((t.status || 'Faol') === 'Faol' || t.id === x.time)) },
-        { name: 'teacher', label: 'Ustoz', type: 'select', required: true, show: (x) => x.time, options: () => A.S.users.filter((u) => ['USTOZ', 'USTOZ_YORDAMCHI'].includes(u.role) && u.status === 'Faol').map((u) => [u.id, u.full_name]) },
-        { name: 'supporter', label: 'Yordamchi ustoz (ixtiyoriy)', type: 'select', show: (x) => x.teacher, options: (x) => A.S.users.filter((u) => ['YORDAMCHI', 'USTOZ_YORDAMCHI'].includes(u.role) && u.id !== x.teacher).map((u) => [u.id, u.full_name]), placeholder: "Yo'q" },
+        { name: 'teacher', label: 'Ustoz', type: 'select', required: true, show: (x) => x.time, options: (x) => staff(['USTOZ', 'USTOZ_YORDAMCHI'], x.teacher).map((u) => [u.id, u.full_name]) },
+        { name: 'supporter', label: 'Yordamchi ustoz (ixtiyoriy)', type: 'select', show: (x) => x.teacher, options: (x) => staff(['YORDAMCHI', 'USTOZ_YORDAMCHI'], x.supporter).filter((u) => u.id !== x.teacher).map((u) => [u.id, u.full_name]), placeholder: "Yo'q" },
         {
           name: 'room', label: 'Xona', type: 'select', required: true, show: (x) => x.teacher,
-          options: (x) => A.rows('rooms').filter((r) => r.branch === B && r.status === 'Faol').map((r) => {
-            const busy = A.rows('groups').some((o) => o.room === r.id && o.time === x.time && o.pattern === x.pattern && A.groupStatus(o) !== 'Nofaol' && (!g || o.id !== g.id));
+          options: (x) => A.rows('rooms').filter((r) => r.branch === B && (r.status === 'Faol' || r.id === x.room)).map((r) => {
+            const busy = A.rows('groups').some((o) => o.room === r.id && o.time === x.time && o.pattern === x.pattern && o.status !== 'Nofaol' && (!g || o.id !== g.id));
             return [r.id, `${r.name} (${r.capacity} o'rin)${busy ? ' — shu vaqtda band!' : ''}`];
           }),
         },
         { name: 'start', label: 'Boshlanish sana', type: 'date', required: true, show: (x) => x.room, half: true },
-        { name: 'end', label: 'Tugash sana', type: 'date', show: (x) => x.room, half: true, validate: (d, x) => (d <= x.start ? "Boshlanish sanadan kichik bo'lolmaydi!" : '') },
-        { name: 'num', label: 'Guruh raqami', type: 'computed', show: (x) => x.course, compute: (x) => `${A.courseName(x.course)} / #${g ? g.number : nextNum(x.course)} (avtomatik)` },
+        { name: 'end', label: 'Tugash sana', type: 'date', show: (x) => x.room, half: true, validate: (d, x) => (d && d <= x.start ? "Boshlanish sanadan kichik bo'lolmaydi!" : '') },
+        { name: 'num', label: 'Guruh raqami', type: 'computed', show: (x) => x.course, compute: (x) => (g ? `${A.courseName(x.course)} / #${g.number}` : `${A.courseName(x.course)} / avtomatik raqam`) },
         { name: 'comment', label: "Qo'shimcha izoh", type: 'textarea', show: (x) => x.room },
       ],
-      onSubmit(x) {
-        const rec = { course: x.course, pattern: x.pattern, time: x.time, teacher: x.teacher, supporter: x.supporter, room: x.room, start: x.start, end: x.end, comment: x.comment };
-        if (isNew) {
-          const n = A.insert('groups', { ...rec, branch: B, number: nextNum(x.course) }, 'Guruh');
-          A.toast(`Guruh yaratildi: ${A.groupName(n)}`);
-          A.go('groups/' + n.id);
-        } else {
-          A.patch('groups', g.id, rec, 'Guruh', A.groupName(g));
-          A.toast('Saqlandi');
-          A.refresh();
-        }
+      async onSubmit(x) {
+        const rec = { course: x.course, pattern: x.pattern, time: x.time, teacher: x.teacher, supporter: x.supporter || null, room: x.room, start: x.start, end: x.end || null, comment: x.comment || '' };
+        const saved = isNew ? await A.http.post('/groups/', rec) : await A.http.patch(`/groups/${g.id}/`, rec);
+        A.putLocal('groups', saved);
+        A.toast(isNew ? `Guruh yaratildi: ${saved.name}` : 'Saqlandi');
+        if (isNew) A.go('groups/' + saved.id);
+        else A.refresh();
       },
     });
   };
   A.act['group-new'] = () => A.groupForm(null);
   A.act['group-edit'] = (el) => A.groupForm(A.get('groups', el.dataset.id));
 
+  /* ---- Guruh sahifasi: oylik davomat jurnali (/groups/{id}/journal/) ---- */
+  let journal = null;
   A.page('groups/:id', {
     title: 'Guruh',
     section: 'groups',
-    render({ id }, q) {
-      const g = A.get('groups', id);
-      if (!g || !A.myGroupIds().includes(id)) return A.head('Guruh topilmadi') + A.empty("Guruh yo'q yoki sizga ko'rinmaydi");
+    async load({ id }, q) {
+      journal = await A.http.get(`/groups/${id}/journal/?month=${q.m || A.ym(A.today())}`);
+      A.putLocal('groups', journal.group);
+      journal.contracts.forEach(A.keepContract);
+    },
+    render({ id }) {
+      const j = journal;
+      const g = j.group;
       const f = A.groupFill(g);
-      const ym = q.m || A.ym(A.today());
-      const contracts = A.sortBy(A.rows('contracts').filter((c) => c.group === id), (c) => A.contractName(c));
-      const active = contracts.filter((c) => A.contractStatus(c) !== 'Nofaol');
-      const pat = A.get('dayPatterns', g.pattern);
-      const days = A.lessonDaysInMonth(ym, pat.weekdays).filter((d) => d >= g.start);
-      const att = A.rows('attendance').filter((a) => a.group === id && A.ym(a.date) === ym);
+      const ym = j.month;
+      const today = A.today();
+      const active = j.contracts.filter((c) => c.status !== 'Nofaol');
+      const inactive = j.contracts.filter((c) => c.status === 'Nofaol');
       const cell = (cid, d) => {
-        const a = att.find((x) => x.contract === cid && x.date === d);
-        return a ? A.attBadge(a.status) : d < A.today() ? '<span class="att att-empty">·</span>' : '';
+        const s = (j.marks[cid] || {})[d];
+        return s ? A.attBadge(s) : d < today ? '<span class="att att-empty">·</span>' : '';
       };
-      const freq = A.freqRec(g.branch, g.pattern, g.course, ym);
+      const freq = j.frequency;
       return `<a class="back" href="#/groups">← Guruhlar</a>
-        ${A.head(A.groupName(g), `${A.badge(A.groupStatus(g), A.groupStatus(g) === 'Faol' ? 'green' : 'blue')} · ${esc(A.patternName(g.pattern))} · ${A.timeName(g.time)} · ${esc(A.roomName(g.room))}`,
-          `${A.can('attendance', 'a') && A.hasLesson(g, A.today()) ? `<a class="btn primary" href="#/attendance?tab=take&group=${g.id}">${A.icon('check')}Davomat olish</a>` : ''}
+        ${A.head(A.groupName(g), `${A.badge(g.status, g.status === 'Faol' ? 'green' : 'blue')} · ${esc(A.patternName(g.pattern))} · ${A.timeName(g.time)} · ${esc(A.roomName(g.room))}`,
+          `${A.can('attendance', 'a') && A.hasLesson(g, today) ? `<a class="btn primary" href="#/attendance?tab=take&group=${g.id}">${A.icon('check')}Davomat olish</a>` : ''}
            ${A.can('groups', 'e') ? A.btn('Tahrirlash', 'group-edit', { id, cls: 'ghost' }) : ''}`)}
         <div class="stats">
-          ${A.stat("To'lish", `<span class="t-${f.cls}">${A.pct(f.pct)}</span>`, `${f.label} · ${f.n}/${f.cap}`)}
+          ${A.stat("To'lish", `<span class="t-${f.cls}">${f.pctText}</span>`, `${f.label} · ${f.n}/${f.cap}`)}
           ${A.stat("Bo'sh o'rinlar", f.free)}
           ${A.stat('Ustoz', esc(A.userName(g.teacher)), g.supporter ? 'Yordamchi: ' + esc(A.userName(g.supporter)) : "Yordamchi yo'q")}
           ${A.stat(`${A.ymLabel(ym)}: dars soni`, freq ? freq.frequency : '—', freq ? (freq.status === 'Tasdiqlangan' ? 'tasdiqlangan' : 'TAKLIF — tasdiqlanmagan') : 'kiritilmagan', freq && freq.status !== 'Tasdiqlangan' ? 'warn' : '')}
         </div>
         <section class="card"><div class="row between"><h2>Davomat jurnali</h2>
           <select class="f-input" onchange="location.hash='#/groups/${id}?m='+this.value">${A.monthOptions().map(([k, l]) => `<option value="${k}" ${k === ym ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
-          <div class="tbl-wrap"><table class="journal"><thead><tr><th>Talaba</th>${days.map((d) => `<th>${d.slice(8)}<br><small>${A.WD[A.isoWeekday(d)]}</small></th>`).join('')}<th>Qarz</th></tr></thead>
+          <div class="tbl-wrap"><table class="journal"><thead><tr><th>Talaba</th>${j.days.map((d) => `<th>${d.slice(8)}<br><small>${A.WD[A.isoWeekday(d)]}</small></th>`).join('')}<th>Qarz</th></tr></thead>
           <tbody>${active
-            .map((c) => `<tr><td><a href="#/contracts/${c.id}" class="${A.debtOf(c.id) > 0 ? 't-red' : ''}">${esc(A.studentName(c.student))}</a></td>${days.map((d) => `<td>${cell(c.id, d)}</td>`).join('')}<td class="num">${A.num(A.debtOf(c.id))}</td></tr>`)
+            .map((c) => `<tr><td><a href="#/contracts/${c.id}" class="${c.balance > 0 ? 't-red' : ''}">${esc(c.student_data.full_name)}</a></td>${j.days.map((d) => `<td>${cell(c.id, d)}</td>`).join('')}<td class="num">${A.num(c.balance)}</td></tr>`)
             .join('')}</tbody></table></div>
           <p class="muted small">1 — keldi, 0 — sababli, X — besabab, – — nofaol, · — davomat olinmagan</p>
         </section>
-        ${contracts.length > active.length ? `<section class="card"><h2>Nofaol talabalar</h2>${A.table([{ h: 'Shartnoma', f: (c) => `<a href="#/contracts/${c.id}">${esc(A.contractName(c))}</a>` }, { h: 'Tugagan', f: (c) => A.fdate(c.end) }, { h: 'Sabab', f: (c) => esc(c.stop_reason) }], contracts.filter((c) => A.contractStatus(c) === 'Nofaol'))}</section>` : ''}`;
+        ${inactive.length ? `<section class="card"><h2>Nofaol talabalar</h2>${A.table([{ h: 'Shartnoma', f: (c) => `<a href="#/contracts/${c.id}">${esc(c.name)}</a>` }, { h: 'Tugagan', f: (c) => A.fdate(c.end) }, { h: 'Sabab', f: (c) => esc(c.stop_reason) }], inactive)}</section>` : ''}`;
     },
   });
 
-  /* ---- Guruhlar tahlili ---- */
+  /* ---- Guruhlar tahlili (faol guruhlar; to'lish serverdan) ---- */
   A.page('groupAnalysis', {
     title: 'Guruhlar tahlili',
     section: 'groupAnalysis',
+    load: () => A.reloadGroups(),
     render(p, q) {
       const tab = q.tab || 'status';
-      const groups = A.vis('groups').filter((g) => A.groupStatus(g) === 'Faol');
+      const groups = A.vis('groups').filter((g) => g.status === 'Faol');
       const agg = (keyFn, labelFn) => {
         const m = A.groupBy(groups, keyFn);
         return [...m].map(([k, list]) => {
@@ -135,48 +140,63 @@
           ],
           A.sortBy(rows, (r) => r.n, true),
         )}</section>
-        <section class="card">${A.chart({ type: 'bar', data: { labels: rows.map((r) => r.label), datasets: [{ label: 'Talabalar', data: rows.map((r) => r.n), backgroundColor: A.PALETTE[0] }, { label: "Bo'sh o'rinlar", data: rows.map((r) => r.cap - r.n), backgroundColor: '#d9d9de' }] }, options: { indexAxis: 'y', scales: { x: { stacked: true }, y: { stacked: true } } } }, 280)}</section></div>`;
+        <section class="card">${A.chart({ type: 'bar', data: { labels: rows.map((r) => r.label), datasets: [{ label: 'Talabalar', data: rows.map((r) => r.n), backgroundColor: A.PALETTE[0] }, { label: "Bo'sh o'rinlar", data: rows.map((r) => Math.max(0, r.cap - r.n)), backgroundColor: '#d9d9de' }] }, options: { indexAxis: 'y', scales: { x: { stacked: true }, y: { stacked: true } } } }, 280)}</section></div>`;
     },
   });
 
-  /* ===================================================== Davomat */
+  /* ===================================================== Davomat (server API: /attendance/, /makeups/) */
   A.ui.att = { group: '', date: '', sub: false, subTeacher: '', subSupporter: '' };
+  let attData = null;
+  let attFresh = false; // POST javobi allaqachon yangi holat — qayta so'ramaslik uchun
+  let mkPending = 0;
 
   A.page('attendance', {
     title: 'Davomatlar',
     section: 'attendance',
+    async load(p, q) {
+      const tab = q.tab || 'take';
+      if (tab === 'take' && attFresh) { attFresh = false; return; }
+      attData = null;
+      if (tab === 'take') attData = await loadTake(q);
+      else if (tab === 'absent') attData = await A.http.get(`/attendance/?month=${A.q('abs:month', A.ym(A.today()))}&status=${A.q('abs:status', '') || 'X,0'}&page=${A.q('abs:page', 1)}`);
+      else if (tab === 'stats') attData = await A.http.get(`/attendance/stats/?month=${A.q('ast:month', A.ym(A.today()))}`);
+      else attData = await A.http.get('/makeups/');
+      if (tab === 'makeup') mkPending = attData.filter((m) => m.status === 'Kutilmoqda').length;
+    },
     render(p, q) {
       const tab = q.tab || 'take';
-      const absCount = A.vis('attendance').filter((a) => a.status === 'X' && A.ym(a.date) === A.ym(A.today()) && a.contact === "Bog'lanishga").length;
-      const mk = A.rows('makeups').filter((m) => m.status === 'Kutilmoqda').length;
-      return `${A.head('Davomatlar', 'Davomatni ustoz oladi. Menejerlar o\'tgan sanalarni tuzatishi mumkin')}
-        ${A.tabs([['take', 'Davomat olish'], ['absent', 'Kelmaganlar', absCount || undefined], ['stats', 'Statistika'], ['makeup', 'Qoldirilgan darslar', mk || undefined]], tab, 'attendance')}
-        ${tab === 'take' ? takeView(q) : tab === 'absent' ? absentView() : tab === 'stats' ? statsView() : makeupView()}`;
+      return `${A.head('Davomatlar', "Davomatni ustoz oladi. Menejerlar o'tgan sanalarni tuzatishi mumkin")}
+        ${A.tabs([['take', 'Davomat olish'], ['absent', 'Kelmaganlar'], ['stats', 'Statistika'], ['makeup', 'Qoldirilgan darslar', mkPending || undefined]], tab, 'attendance')}
+        ${tab === 'take' ? takeView() : tab === 'absent' ? absentView(attData) : tab === 'stats' ? statsView(attData) : makeupTable(attData)}`;
     },
   });
 
   const canTake = () => A.can('attendance', 'a');
   const isTeacherSelf = () => ['USTOZ', 'USTOZ_YORDAMCHI'].includes(A.role());
-  const takeGroups = () => {
-    const me = A.S.currentUser;
-    return A.vis('groups').filter((g) => A.groupStatus(g) === 'Faol' && (isTeacherSelf() ? g.teacher === me : true));
-  };
+  const takeGroups = () => A.vis('groups').filter((g) => g.status === 'Faol' && (!isTeacherSelf() || g.teacher === A.S.currentUser));
 
-  function takeView(q) {
-    if (!canTake()) {
-      return `<div class="alert info">${A.icon('check')}<div><b>Davomatni faqat ustoz oladi.</b> Siz yordamchi sifatida guruh davomatini ko'rishingiz mumkin. Yordamchi KPI'si ustoz olgan davomat asosida avtomatik hisoblanadi.</div></div>
-        ${A.vis('groups').map((g) => `<a class="btn ghost" href="#/groups/${g.id}">${esc(A.groupName(g))} jurnali</a>`).join(' ')}`;
-    }
+  async function loadTake(q) {
+    if (!canTake()) return null;
     const st = A.ui.att;
     if (q.group) st.group = q.group;
     const groups = takeGroups();
     if (groups.length === 1) st.group = groups[0].id;
     if (st.group && !groups.some((g) => g.id === st.group)) st.group = '';
-    const today = A.today();
-    const managerMode = !isTeacherSelf() || A.isManager();
-    if (!st.date || !managerMode) st.date = today;
-    const g = A.get('groups', st.group);
+    if (!st.date || isTeacherSelf()) st.date = A.today();
+    if (!st.group) return null;
+    return A.http.get(`/attendance/take/?group=${st.group}&date=${st.date}`);
+  }
 
+  function takeView() {
+    if (!canTake()) {
+      return `<div class="alert info">${A.icon('check')}<div><b>Davomatni faqat ustoz oladi.</b> Siz yordamchi sifatida guruh davomatini ko'rishingiz mumkin. Yordamchi KPI'si ustoz olgan davomat asosida avtomatik hisoblanadi.</div></div>
+        ${A.vis('groups').map((g) => `<a class="btn ghost" href="#/groups/${g.id}">${esc(A.groupName(g))} jurnali</a>`).join(' ')}`;
+    }
+    const st = A.ui.att;
+    const groups = takeGroups();
+    const today = A.today();
+    const s = attData;
+    const managerMode = !isTeacherSelf();
     let html = `<section class="card take-head">
       <div class="field"><label class="lbl">1. Guruh</label>
         ${groups.length === 1 ? `<div class="computed">${esc(A.groupName(groups[0]))} <span class="muted small">(yagona faol guruhingiz — avtomatik tanlandi)</span></div>` : `<select class="f-input" id="att-group"><option value="">Guruhni tanlang…</option>${groups
@@ -184,60 +204,42 @@
           .join('')}</select>`}
       </div>
       <div class="field"><label class="lbl">2. Sana</label>
-        ${managerMode ? `<input type="date" class="f-input" id="att-date" value="${st.date}" max="${today}"><div class="help">Siz o'tgan sanalarni ham tuzata olasiz (≤ bugun)</div>` : `<div class="computed">${A.WD_FULL[A.isoWeekday(today)]}, ${A.fdate(today)} <span class="muted small">— ustoz faqat bugungi davomatni oladi</span></div>`}
+        ${managerMode ? `<input type="date" class="f-input" id="att-date" value="${st.date}" max="${today}"><div class="help">Siz o'tgan sanalarni ham tuzata olasiz (≤ bugun, rol muddati bo'yicha)</div>` : `<div class="computed">${A.WD_FULL[A.isoWeekday(today)]}, ${A.fdate(today)} <span class="muted small">— ustoz faqat bugungi davomatni oladi</span></div>`}
       </div>
     </section>`;
-    if (!g) return html + (groups.length ? '' : A.empty("Sizda faol guruh yo'q"));
-
-    // Sana tekshiruvi (AppSheet TakeAttendance.Date Valid_If)
-    let err = '';
-    if (st.date > today) err = "Kelajak sana bilan davomat olib bo'lmaydi";
-    else if (!A.hasLesson(g, st.date)) err = `Guruhning bu sanaga darsi yo'q (${A.patternName(g.pattern)})`;
-    if (err) {
-      const next = (() => { for (let i = 0; i < 8; i++) { const d = A.addDays(today, -i); if (A.hasLesson(g, d)) return d; } return null; })();
-      return html + `<div class="alert danger">${A.icon('alert')}<div><b>${esc(err)}</b>${managerMode && next ? `<br>Eng yaqin dars kuni: <a href="#" data-act="att-setdate" data-id="${next}">${A.fdate(next)}</a>` : ''}${!managerMode ? '<br>Demo sanani o\'zgartirish uchun yuqoridagi sana tugmasini bosing.' : ''}</div></div>`;
+    if (!s) return html + (groups.length ? '' : A.empty("Sizda faol guruh yo'q"));
+    const g = s.group;
+    if (s.error) {
+      return html + `<div class="alert danger">${A.icon('alert')}<div><b>${esc(s.error)}</b>${managerMode && s.nearest ? `<br>Eng yaqin dars kuni: <a href="#" data-act="att-setdate" data-id="${s.nearest}">${A.fdate(s.nearest)}</a>` : ''}</div></div>`;
     }
-
-    // O'rindosh
-    const canSub = ['ADMIN', 'BOSH_MENEJER', 'ADMINISTRATOR', 'ADMINISTRATOR_HISOBCHI'].includes(A.role());
-    if (canSub) {
+    if (s.can_sub) {
       html += `<section class="card"><label class="check"><input type="checkbox" id="att-sub" ${st.sub ? 'checked' : ''}> 3. Darsni boshqa ustoz o'tdi (o'rindosh)</label>
         ${st.sub ? `<div class="row gap wrap">
-          <select class="f-input" id="att-subt"><option value="">O'rindosh ustoz…</option>${A.S.users.filter((u) => ['USTOZ', 'USTOZ_YORDAMCHI'].includes(u.role) && u.id !== g.teacher).map((u) => `<option value="${u.id}" ${u.id === st.subTeacher ? 'selected' : ''}>${esc(u.full_name)}</option>`).join('')}</select>
-          <select class="f-input" id="att-subs"><option value="">O'rindosh yordamchi (ixtiyoriy)…</option>${A.S.users.filter((u) => ['YORDAMCHI', 'USTOZ_YORDAMCHI'].includes(u.role) && u.id !== g.supporter).map((u) => `<option value="${u.id}" ${u.id === st.subSupporter ? 'selected' : ''}>${esc(u.full_name)}</option>`).join('')}</select>
+          <select class="f-input" id="att-subt"><option value="">O'rindosh ustoz…</option>${A.S.users.filter((u) => ['USTOZ', 'USTOZ_YORDAMCHI'].includes(u.role) && u.status === 'Faol' && u.id !== g.teacher).map((u) => `<option value="${u.id}" ${u.id === st.subTeacher ? 'selected' : ''}>${esc(u.full_name)}</option>`).join('')}</select>
+          <select class="f-input" id="att-subs"><option value="">O'rindosh yordamchi (ixtiyoriy)…</option>${A.S.users.filter((u) => ['YORDAMCHI', 'USTOZ_YORDAMCHI'].includes(u.role) && u.status === 'Faol' && u.id !== g.supporter).map((u) => `<option value="${u.id}" ${u.id === st.subSupporter ? 'selected' : ''}>${esc(u.full_name)}</option>`).join('')}</select>
         </div><p class="muted small">KPI darsni amalda o'tgan kishiga yoziladi.</p>` : ''}</section>`;
     }
-
-    const contracts = A.rows('contracts').filter((c) => c.group === g.id && c.start <= st.date && (!c.end || c.end >= st.date));
-    const att = A.rows('attendance').filter((a) => a.group === g.id && a.date === st.date);
-    const marked = (cid) => att.find((a) => a.contract === cid);
-    const list = A.sortBy(contracts, (c) => A.studentName(c.student));
-    // Belgilanmaganlar yuqorida — tartib ekran ochilganda bir marta belgilanadi,
-    // belgilash paytida qatorlar sakramasligi uchun (telefonda noto'g'ri bosishning oldini oladi)
-    const key = `${g.id}|${st.date}`;
+    // Belgilanmaganlar yuqorida — tartib ekran ochilganda bir marta belgilanadi (belgilash paytida qatorlar sakramasin)
+    const key = `${g.id}|${s.date}`;
     if (st.orderKey !== key) {
       st.orderKey = key;
-      st.order = [...list.filter((c) => !marked(c.id)), ...list.filter((c) => marked(c.id))].map((c) => c.id);
+      st.order = [...s.rows.filter((r) => !r.att), ...s.rows.filter((r) => r.att)].map((r) => r.contract.id);
     }
-    const sorted = A.sortBy(list, (c) => { const i = st.order.indexOf(c.id); return i < 0 ? 1e6 : i; });
-    const done = contracts.filter((c) => marked(c.id)).length;
-    const allowed = A.S.attendanceStatuses.filter((s) => s.roles.includes(A.role())).map((s) => s.code);
-    const rowEdit = (a) => A.canEdit('attendance', a);
-
+    const sorted = A.sortBy(s.rows, (r) => { const i = st.order.indexOf(r.contract.id); return i < 0 ? 1e6 : i; });
+    const done = s.rows.filter((r) => r.att).length;
+    const allowed = s.allowed;
     html += `<section class="card att-card">
-      <div class="row between wrap"><h2>4. Talabalar · ${done}/${contracts.length} belgilandi</h2>
-        ${done < contracts.length && allowed.includes('1') ? `<button class="btn" data-act="att-all">Hammasi keldi</button>` : done ? A.badge('Davomat olingan', 'green') : ''}</div>
-      <div class="bar"><i class="bg-green" style="width:${contracts.length ? (done / contracts.length) * 100 : 0}%"></i></div>
+      <div class="row between wrap"><h2>${s.can_sub ? 4 : 3}. Talabalar · ${done}/${s.rows.length} belgilandi</h2>
+        ${done < s.rows.length && allowed.includes('1') ? `<button class="btn" data-act="att-all">Hammasi keldi</button>` : done ? A.badge('Davomat olingan', 'green') : ''}</div>
+      <div class="bar"><i class="bg-green" style="width:${s.rows.length ? (done / s.rows.length) * 100 : 0}%"></i></div>
       <ul class="att-list">${sorted
-        .map((c) => {
-          const a = marked(c.id);
-          const debt = A.debtOf(c.id);
-          const ed = a ? rowEdit(a) : { ok: true };
+        .map(({ contract: c, att: a }) => {
+          const ed = a ? A.canEdit('attendance', a) : A.canEdit('attendance', { date: s.date }, 'date', 'a');
           const btn = (code, label, cls) =>
-            allowed.includes(code) ? `<button class="abtn ${cls} ${a && a.status === code ? 'on' : ''}" data-act="att-mark" data-id="${c.id}" data-s="${code}" ${a && !ed.ok ? `disabled title="${esc(ed.why)}"` : ''}>${label}</button>` : '';
+            allowed.includes(code) ? `<button class="abtn ${cls} ${a && a.status === code ? 'on' : ''}" data-act="att-mark" data-id="${c.id}" data-s="${code}" ${!ed.ok ? `disabled title="${esc(ed.why)}"` : ''}>${label}</button>` : '';
           return `<li class="${a ? 'done' : ''}">
-            <div class="att-name"><b class="${debt > 0 ? 't-red' : ''}">${esc(A.studentName(c.student))}</b>
-              <small class="muted">${debt > 0 ? 'qarz ' + A.num(debt) : ''}${a && a.comment ? ' · ' + esc(a.comment) : ''}</small></div>
+            <div class="att-name"><b class="${c.balance > 0 ? 't-red' : ''}">${esc(c.student_data.full_name)}</b>
+              <small class="muted">${c.balance > 0 ? 'qarz ' + A.num(c.balance) : ''}${a && a.comment ? ' · ' + esc(a.comment) : ''}</small></div>
             <div class="att-btns">${btn('1', 'Keldi', 'g')}${btn('0', 'Sababli', 'y')}${btn('X', 'Besabab', 'r')}${btn('-', '–', 'n')}</div>
           </li>`;
         })
@@ -263,28 +265,14 @@
 
   A.act['att-setdate'] = (el) => { A.ui.att.date = el.dataset.id; A.refresh(); };
 
-  function markAttendance(cid, status, comment) {
+  /** Belgilash serverda: qarz va KPI darhol hisoblanadi; javob — yangilangan ekran holati */
+  async function postMarks(body) {
     const st = A.ui.att;
-    const g = A.get('groups', st.group);
-    const c = A.get('contracts', cid);
-    const existing = A.rows('attendance').find((a) => a.group === g.id && a.contract === cid && a.date === st.date);
-    const teacher = st.sub && st.subTeacher ? st.subTeacher : g.teacher;
-    const supporter = st.sub && st.subSupporter ? st.subSupporter : g.supporter;
-    if (existing) {
-      const patch = { status, comment: comment ?? existing.comment };
-      if (status === '1' || status === '-') { patch.contact = ''; }
-      else if (!existing.contact) patch.contact = "Bog'lanishga";
-      A.patch('attendance', existing.id, patch, 'Davomat', `${A.studentName(c.student)} ${A.fdate(st.date)}`);
-      A.calcAtt(existing);
-    } else {
-      const a = {
-        branch: g.branch, group: g.id, course: g.course, contract: cid, date: st.date, status, teacher, supporter, pattern: g.pattern,
-        contact: status === 'X' || status === '0' ? "Bog'lanishga" : '', comment: comment || '',
-      };
-      A.calcAtt(a);
-      A.insert('attendance', a, 'Davomat', `${A.studentName(c.student)} ${A.fdate(st.date)} = ${A.ATT[status]}`);
-    }
-    A.save();
+    const sub = st.sub ? { sub_teacher: st.subTeacher || null, sub_supporter: st.subSupporter || null } : {};
+    attData = await A.http.post('/attendance/take/', { group: st.group, date: st.date, ...sub, ...body });
+    A.putLocal('groups', attData.group);
+    attFresh = true;
+    A.refresh();
   }
   A.act['att-mark'] = (el) => {
     const cid = el.dataset.id, s = el.dataset.s;
@@ -293,32 +281,24 @@
         title: 'Sababli — izoh',
         fields: [{ name: 'comment', label: 'Sababi', type: 'textarea', required: true, placeholder: 'Masalan: kasal, oldindan ogohlantirdi' }],
         submit: 'Belgilash',
-        onSubmit: (v) => { markAttendance(cid, '0', v.comment); A.refresh(); },
+        onSubmit: (v) => postMarks({ marks: [{ contract: cid, status: '0', comment: v.comment }] }),
       });
       return;
     }
-    markAttendance(cid, s);
-    A.refresh();
+    return postMarks({ marks: [{ contract: cid, status: s }] });
   };
-  A.act['att-all'] = () => {
-    const st = A.ui.att;
-    const marked = new Set(A.rows('attendance').filter((a) => a.group === st.group && a.date === st.date).map((a) => a.contract));
-    const list = A.rows('contracts').filter((c) => c.group === st.group && c.start <= st.date && (!c.end || c.end >= st.date) && !marked.has(c.id));
-    list.forEach((c) => markAttendance(c.id, '1'));
-    A.toast(`${list.length} ta talaba «Keldi» deb belgilandi`);
-    A.refresh();
+  A.act['att-all'] = async () => {
+    const before = attData.rows.filter((r) => r.att).length;
+    await postMarks({ all: true });
+    A.toast(`${attData.rows.filter((r) => r.att).length - before} ta talaba «Keldi» deb belgilandi`);
   };
 
   /* ---- Kelmaganlar ---- */
-  function absentView() {
+  function absentView(d) {
     const ym = A.q('abs:month', A.ym(A.today()));
     const only = A.q('abs:status', '');
-    const rows = A.sortBy(
-      A.vis('attendance').filter((a) => (a.status === 'X' || a.status === '0') && A.ym(a.date) === ym && (!only || a.status === only)),
-      (a) => a.date, true,
-    );
     const me = A.S.currentUser;
-    const pendingMk = new Set(A.rows('makeups').filter((m) => m.status !== 'Rad etildi').map((m) => m.attendance));
+    const canC = A.can('attendance', 'e') || A.can('attendance', 'a');
     return `<div class="filters">
         <select class="f-input" data-filter="abs:month">${A.monthOptions().map(([k, l]) => `<option value="${k}" ${k === ym ? 'selected' : ''}>${l}</option>`).join('')}</select>
         <select class="f-input" data-filter="abs:status"><option value="">Besabab va sababli</option><option value="X" ${only === 'X' ? 'selected' : ''}>Faqat besabab (X)</option><option value="0" ${only === '0' ? 'selected' : ''}>Faqat sababli (0)</option></select>
@@ -327,131 +307,111 @@
       ${A.table(
         [
           { h: 'Sana', f: (a) => `${A.fdate(a.date)} <span class="muted small">${A.WD[A.isoWeekday(a.date)]}</span>` },
-          { h: 'Talaba', f: (a) => { const c = A.get('contracts', a.contract); const st = A.get('students', c.student); return `<a href="#/contracts/${c.id}">${esc(A.studentName(st))}</a><br><a class="small" href="tel:+998${st.phone1}">+998 ${st.phone1}</a>`; } },
+          { h: 'Talaba', f: (a) => `<a href="#/contracts/${a.contract}">${esc(a.student_name)}</a><br><a class="small" href="tel:+998${a.phone1}">+998 ${a.phone1}</a>` },
           { h: 'Guruh', f: (a) => esc(A.groupName(a.group)) },
           { h: 'Status', f: (a) => A.attBadge(a.status) + ' ' + A.ATT[a.status] },
-          {
-            h: "Bog'lanish holati",
-            f: (a) => {
-              const ed = A.canEdit('attendance', a);
-              const canC = A.can('attendance', 'e') || A.can('attendance', 'a');
-              return canC ? `<select class="f-input sm" data-act-change="att-contact" data-id="${a.id}">${A.CONTACT.map((c) => `<option ${a.contact === c ? 'selected' : ''}>${c}</option>`).join('')}</select>` : esc(a.contact);
-            },
-          },
+          { h: "Bog'lanish holati", f: (a) => (canC ? `<select class="f-input sm" data-act-change="att-contact" data-id="${a.id}">${A.CONTACT.map((c) => `<option ${a.contact === c ? 'selected' : ''}>${c}</option>`).join('')}</select>` : esc(a.contact)) },
           { h: 'Izoh', f: (a) => esc(a.comment || '') },
           {
             h: '',
             f: (a) => {
               if (a.status !== 'X') return '';
-              if (pendingMk.has(a.id)) return A.badge("So'rov yuborilgan", 'blue');
-              return a.teacher === me && ['USTOZ', 'USTOZ_YORDAMCHI'].includes(A.role()) ? `<button class="btn sm" data-act="makeup-new" data-id="${a.id}">Darsni yetkazdim</button>` : '';
+              if (a.makeup && a.makeup !== 'Rad etildi') return A.badge(a.makeup === 'Tasdiqlandi' ? 'Yetkazildi' : "So'rov yuborilgan", 'blue');
+              return a.teacher === me && isTeacherSelf() ? `<button class="btn sm" data-act="makeup-new" data-id="${a.id}">Darsni yetkazdim</button>` : '';
             },
           },
         ],
-        rows,
+        d.results,
         { empty: "Bu oyda kelmaganlar yo'q" },
-      )}`;
+      )}${A.pager('abs', d)}`;
   }
+  const absRow = (id) => (attData && attData.results ? attData.results.find((a) => a.id === id) : null);
   document.addEventListener('change', (e) => {
     const el = e.target.closest('[data-act-change="att-contact"]');
     if (!el) return;
-    const a = A.get('attendance', el.dataset.id);
+    const a = absRow(el.dataset.id);
     const val = el.value;
+    const save = (body) => A.http.patch(`/attendance/${a.id}/`, body).then((r) => { Object.assign(a, r); A.toast('Saqlandi'); A.refresh(); }, (err) => { fail(err); A.refresh(); });
     if (val === 'Gaplashildi') {
+      el.value = a.contact;
       A.form({
         title: 'Gaplashildi — izoh majburiy',
         fields: [{ name: 'comment', label: 'Nima deyildi?', type: 'textarea', required: true }],
         values: { comment: a.comment },
-        onSubmit: (v) => { A.patch('attendance', a.id, { contact: val, comment: v.comment }, 'Davomat', "Bog'lanish holati"); A.refresh(); },
+        onSubmit: (v) => A.http.patch(`/attendance/${a.id}/`, { contact: val, comment: v.comment }).then((r) => { Object.assign(a, r); A.refresh(); }),
       });
-      el.value = a.contact;
       return;
     }
-    A.patch('attendance', a.id, { contact: val }, 'Davomat', "Bog'lanish holati");
-    A.toast('Saqlandi');
+    save({ contact: val });
   });
 
   A.act['makeup-new'] = (el) => {
-    const a = A.get('attendance', el.dataset.id);
+    const a = absRow(el.dataset.id);
     A.form({
       title: 'Qoldirilgan darsni yetkazish',
-      intro: `<div class="note info">${esc(A.studentName(A.get('contracts', a.contract).student))} · ${A.fdate(a.date)} da besabab qoldirgan dars. Tasdiqlansa status «Sababli»ga o'zgaradi va sizga KPI yoziladi.</div>`,
+      intro: `<div class="note info">${esc(a.student_name)} · ${A.fdate(a.date)} da besabab qoldirgan dars. Tasdiqlansa status «Sababli»ga o'zgaradi va sizga KPI yoziladi.</div>`,
       fields: [
         { name: 'makeup_date', label: 'Dars qachon yetkazildi', type: 'date', required: true, default: A.today(), validate: (d) => (d < a.date ? "Qoldirilgan sanadan oldin bo'lishi mumkin emas" : d > A.today() ? "Kelajak sana bo'lishi mumkin emas" : '') },
         { name: 'comment', label: 'Izoh', type: 'textarea', required: true, placeholder: "Masalan: shanba kuni alohida o'tdim" },
       ],
       submit: "So'rov yuborish",
-      onSubmit(v) {
-        A.insert('makeups', { attendance: a.id, teacher: A.S.currentUser, makeup_date: v.makeup_date, comment: v.comment, status: 'Kutilmoqda', reviewed_by: '', reviewed_at: null, reject_reason: '' }, "Dars yetkazish so'rovi", A.studentName(A.get('contracts', a.contract).student));
-        A.toast("So'rov yuborildi. Menejerlarga Telegram xabar ketadi (haqiqiy tizimda)");
+      async onSubmit(v) {
+        await A.http.post('/makeups/', { attendance: a.id, makeup_date: v.makeup_date, comment: v.comment });
+        A.toast("So'rov yuborildi. Menejer va administratorlar tasdiqlaydi");
         A.refresh();
       },
     });
   };
 
-  function makeupView() {
-    const rows = A.sortBy(A.rows('makeups').filter((m) => !A.isTeacherRole() || m.teacher === A.S.currentUser), (m) => m.created_at, true);
-    return makeupTable(rows);
-  }
+  /* ---- Qoldirilgan darslar ---- */
   A.makeupTable = makeupTable;
   function makeupTable(rows) {
     return A.table(
       [
         { h: "So'radi", f: (m) => `${esc(A.userName(m.teacher))}<br><small class="muted">${A.fdt(m.created_at)}</small>` },
-        { h: 'Talaba / qoldirilgan dars', f: (m) => { const a = A.get('attendance', m.attendance); return `${esc(A.studentName(A.get('contracts', a.contract).student))}<br><small class="muted">${esc(A.groupName(a.group))} · ${A.fdate(a.date)} · hozir: ${A.ATT[a.status]}</small>`; } },
+        { h: 'Talaba / qoldirilgan dars', f: (m) => `<a href="#/contracts/${m.att.contract}">${esc(m.att.student_name)}</a><br><small class="muted">${esc(A.groupName(m.att.group))} · ${A.fdate(m.att.date)} · hozir: ${A.ATT[m.att.status]}</small>` },
         { h: 'Yetkazildi', f: (m) => A.fdate(m.makeup_date) },
         { h: 'Izoh', f: (m) => esc(m.comment) },
         { h: 'Holat', f: (m) => A.badge(m.status, m.status === 'Tasdiqlandi' ? 'green' : m.status === 'Rad etildi' ? 'red' : 'orange') + (m.reviewed_by ? `<br><small class="muted">${esc(A.userName(m.reviewed_by))}${m.reject_reason ? ': ' + esc(m.reject_reason) : ''}</small>` : '') },
         { h: '', f: (m) => (m.status === 'Kutilmoqda' && A.canApproveMakeup() ? `<div class="row gap"><button class="btn sm primary" data-act="makeup-ok" data-id="${m.id}">Tasdiqlash</button><button class="btn sm ghost" data-act="makeup-no" data-id="${m.id}">Rad etish</button></div>` : '') },
       ],
-      rows,
+      rows || [],
       { empty: "So'rov yo'q" },
     );
   }
-  A.act['makeup-ok'] = (el) => {
-    const m = A.get('makeups', el.dataset.id);
-    const a = A.get('attendance', m.attendance);
-    const before = a.tkpi;
-    A.patch('attendance', a.id, { status: '0', comment: `Dars yetkazildi (${A.fdate(m.makeup_date)}): ${m.comment}`, contact: a.contact || 'Gaplashildi' }, 'Davomat', 'X → 0 (dars yetkazildi)');
-    A.calcAtt(a);
-    A.patch('makeups', m.id, { status: 'Tasdiqlandi', reviewed_by: A.S.currentUser, reviewed_at: Date.now() }, "Dars yetkazish so'rovi", 'Tasdiqlandi');
-    A.toast(`Tasdiqlandi. Ustoz KPI: ${A.num(before)} → ${A.num(a.tkpi)} so'm`);
+  A.act['makeup-ok'] = async (el) => {
+    await A.http.post(`/makeups/${el.dataset.id}/approve/`);
+    A.toast("Tasdiqlandi: status «Sababli», ustozga KPI yozildi");
     A.refresh();
   };
   A.act['makeup-no'] = (el) => {
-    const m = A.get('makeups', el.dataset.id);
     A.form({
       title: "So'rovni rad etish",
       fields: [{ name: 'reason', label: 'Sabab', type: 'textarea', required: true }],
       submit: 'Rad etish',
-      onSubmit(v) {
-        A.patch('makeups', m.id, { status: 'Rad etildi', reviewed_by: A.S.currentUser, reviewed_at: Date.now(), reject_reason: v.reason }, "Dars yetkazish so'rovi", 'Rad etildi');
+      async onSubmit(v) {
+        await A.http.post(`/makeups/${el.dataset.id}/reject/`, { reason: v.reason });
         A.refresh();
       },
     });
   };
 
-  /* ---- Statistika ---- */
-  function statsView() {
+  /* ---- Statistika (serverda yig'ilgan) ---- */
+  function statsView(s) {
     const ym = A.q('ast:month', A.ym(A.today()));
-    const att = A.vis('attendance').filter((a) => A.ym(a.date) === ym && a.status !== '-');
-    const agg = (keyFn) =>
-      [...A.groupBy(att, keyFn)].map(([k, list]) => ({
-        k, n: list.length, came: list.filter((a) => a.status === '1').length, sab: list.filter((a) => a.status === '0').length, bes: list.filter((a) => a.status === 'X').length,
-      }));
-    const byGroup = agg((a) => a.group), byTeacher = agg((a) => a.teacher);
-    const cols = (label, name) => [
-      { h: label, f: (r) => esc(name(r.k)) },
+    const cols = (label, name, key) => [
+      { h: label, f: (r) => esc(name(r[key])) },
       { h: 'Qatorlar', f: (r) => r.n, cls: 'num' },
       { h: 'Keldi', f: (r) => r.came, cls: 'num' },
       { h: 'Sababli', f: (r) => r.sab, cls: 'num' },
       { h: 'Besabab', f: (r) => r.bes, cls: 'num' },
       { h: 'Davomat %', f: (r) => `<b class="${r.came / r.n < 0.8 ? 't-red' : 't-green'}">${A.pct(r.came / r.n)}</b>`, cls: 'num' },
     ];
+    const byGroup = A.sortBy(s.by_group, (r) => r.came / r.n);
     return `<div class="filters"><select class="f-input" data-filter="ast:month">${A.monthOptions().map(([k, l]) => `<option value="${k}" ${k === ym ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
-      <div class="grid-2"><section class="card"><h2>Guruhlar bo'yicha</h2>${A.table(cols('Guruh', A.groupName), A.sortBy(byGroup, (r) => r.came / r.n))}</section>
-      <section class="card"><h2>Ustozlar bo'yicha</h2>${A.table(cols('Ustoz', A.userName), byTeacher)}
-      ${A.chart({ type: 'bar', data: { labels: byGroup.map((r) => A.groupName(r.k)), datasets: [{ label: 'Davomat %', data: byGroup.map((r) => Math.round((r.came / r.n) * 100)), backgroundColor: A.PALETTE[0] }] }, options: { plugins: { legend: { display: false } }, scales: { y: { min: 0, max: 100 } } } }, 220)}</section></div>`;
+      <div class="grid-2"><section class="card"><h2>Guruhlar bo'yicha</h2>${A.table(cols('Guruh', A.groupName, 'group'), byGroup)}</section>
+      <section class="card"><h2>Ustozlar bo'yicha</h2>${A.table(cols('Ustoz', A.userName, 'teacher'), s.by_teacher)}
+      ${A.chart({ type: 'bar', data: { labels: byGroup.map((r) => A.groupName(r.group)), datasets: [{ label: 'Davomat %', data: byGroup.map((r) => Math.round((r.came / r.n) * 100)), backgroundColor: A.PALETTE[0] }] }, options: { plugins: { legend: { display: false } }, scales: { y: { min: 0, max: 100 } } } }, 220)}</section></div>`;
   }
 
   /* ===================================================== Talaba vazifalari */

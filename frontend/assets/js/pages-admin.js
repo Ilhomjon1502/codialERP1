@@ -397,23 +397,47 @@
   /* ===================================================== Bosh sahifa (M1) */
   const PLAN = [
     ['M1', "Asos: kirish, rollar va ruxsatlar, Sozlamalar, Audit tarixi", true],
-    ['M2', 'Lidlar, talabalar, ota-onalar'],
-    ['M3', "Guruhlar, shartnomalar, davomat, qarz va KPI hisobi"],
+    ['M2', 'Lidlar, talabalar, ota-onalar', true],
+    ['M3', "Guruhlar, shartnomalar, davomat, qarz va KPI hisobi", true],
     ['M4', "To'lovlar, g'aznalar, o'tkazmalar, xarajatlar, kreditorlar"],
     ['M5', 'Oyliklar va KPI stavkalari'],
     ['M6', "Vazifalar, baholash, ota-onalar bilan aloqa, 50% chegirma, Excel"],
     ['M7', 'Bosh sahifa statistikasi, foyda, guruhlar tahlili'],
   ];
+  let dash = {};
   A.page('dashboard', {
     title: 'Bosh sahifa',
     section: 'dashboard',
+    async load() {
+      const get = (ok, path) => (ok ? A.http.get(path) : Promise.resolve(null));
+      const [, debt, contracts, summary] = await Promise.all([
+        A.reloadGroups(),
+        get(A.can('debtors'), '/debtors/'),
+        get(A.can('contracts'), '/contracts/?page_size=1'),
+        get(A.isTeacherRole(), '/attendance/summary/'),
+      ]);
+      dash = { debt, counts: contracts ? contracts.counts : null, summary };
+    },
     render() {
       const me = A.me();
+      const today = A.today();
+      const activeGroups = A.rows('groups').filter((g) => g.status === 'Faol');
+      const mine = A.isTeacherRole() ? activeGroups.filter((g) => g.teacher === me.id || g.supporter === me.id) : activeGroups;
+      const notTaken = mine.filter((g) => A.hasLesson(g, today) && !A.attendanceTaken(g.id, today));
+      const sm = dash.summary;
       const ym = A.ym(A.today());
       const [y, m] = ym.split('-').map(Number);
       const unapproved = A.rows('dayPatterns').filter(isActive).filter((p) => !A.rows('lessonFreqs').some((f) => f.pattern === p.id && f.year === y && f.month === m && f.status === 'Tasdiqlangan'));
       return `${A.head(`Assalomu alaykum, ${esc(me.full_name.split(' ')[0])}!`, `${A.WD_FULL[A.isoWeekday(A.today())]}, ${A.fdate(A.today())} · ${esc(A.ROLES[me.role])}`)}
         ${unapproved.length && A.can('settings') ? `<div class="alert warn">${A.icon('alert')}<div><b>${A.ymLabel(ym)} uchun oydagi dars soni tasdiqlanmagan:</b> ${unapproved.map((p) => esc(p.name)).join(', ')}. <a href="#/settings?tab=freq">Tekshirish va tasdiqlash →</a></div></div>` : ''}
+        ${notTaken.length && A.can('attendance') ? `<div class="alert info">${A.icon('check')}<div><b>Bugun davomati olinmagan guruhlar (${notTaken.length}):</b> ${notTaken
+          .map((g) => `<a href="#/attendance?tab=take&group=${g.id}">${esc(A.groupName(g))}</a> <span class="muted">(${A.timeName(g.time)}, ${esc(A.userName(g.teacher))})</span>`).join(' · ')}</div></div>` : ''}
+        <div class="stats">
+          ${dash.counts ? A.stat('Faol talabalar', dash.counts.Faol, `${activeGroups.length} ta faol guruh`, '', '#/contracts') : A.stat('Faol guruhlar', mine.length, '', '', '#/groups')}
+          ${dash.debt ? A.stat('Jami qarzdorlik', A.money(dash.debt.total), `${dash.debt.count} ta qarzdor`, 'danger', '#/debtors') : ''}
+          ${sm ? A.stat('Shu oy KPI (hisoblangan)', A.money(sm.kpi), `${sm.rows} ta dars qatori${sm.no_freq ? ` · ${sm.no_freq} tasi hisoblanmagan` : ''}`) : ''}
+          ${sm ? A.stat('Besabab kelmaganlar', sm.absent, "shu oyda · «Darsni yetkazdim» so'rovi", sm.absent ? 'warn' : '', '#/attendance?tab=absent') : ''}
+        </div>
         <div class="stats">
           ${A.stat('Faol kurslar', A.rows('courses').filter(isActive).length, '', '', A.can('settings') ? '#/settings?tab=courses' : '')}
           ${A.stat('Xodimlar', A.S.users.filter((u) => u.status === 'Faol').length, 'faol', '', A.can('settings') ? '#/settings?tab=users' : '')}

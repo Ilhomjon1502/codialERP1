@@ -76,7 +76,7 @@ class Lead(BaseModel):
     day_pattern = models.ForeignKey("references.DayPattern", null=True, blank=True, on_delete=models.PROTECT, related_name="leads", verbose_name="Hafta kunlari")
     preferred_times = models.ManyToManyField("references.LessonTime", blank=True, related_name="leads", verbose_name="Ma'qul dars vaqti")
     status = models.CharField(max_length=1, choices=LeadStatus.choices, default=LeadStatus.WAITING_GROUP, db_index=True)
-    # group — M3 da (Group modeli bilan) qo'shiladi
+    group = models.ForeignKey("education.Group", null=True, blank=True, on_delete=models.PROTECT, related_name="leads", verbose_name="Guruh")
     demo_date = models.DateField("Sinov dars kuni", null=True, blank=True)
     demo_attended = models.BooleanField("Sinov darsga qatnashdi", null=True, blank=True)
     age_group = models.CharField("Yosh guruhi", max_length=5, blank=True)

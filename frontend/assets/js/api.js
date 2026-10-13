@@ -58,6 +58,7 @@
     coursePrices: 'course-prices', lessonFreqs: 'lesson-frequencies', discountTypes: 'discount-types', expenseCats: 'expense-categories',
     leadSources: 'lead-sources', attendanceStatuses: 'attendance-statuses', accounts: 'accounts', users: 'users', roles: 'roles',
     leads: 'leads', students: 'students', parents: 'parents',
+    groups: 'groups', contracts: 'contracts', attendance: 'attendance', makeups: 'makeups',
   };
   const url = (coll, id) => `/${A.ENDPOINT[coll]}/${id !== undefined ? encodeURIComponent(id) + '/' : ''}`;
   const keyOf = (coll) => (coll === 'roles' ? 'code' : 'id');

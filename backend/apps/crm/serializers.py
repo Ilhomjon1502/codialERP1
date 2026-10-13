@@ -3,6 +3,7 @@
 from rest_framework import serializers
 
 from apps.core.viewsets import BranchScopedSerializerMixin
+from apps.education.models import Group
 from apps.references.models import Course, DayPattern, LeadSource, LessonTime
 
 from . import services
@@ -27,11 +28,19 @@ class ParentSerializer(BranchScopedSerializerMixin, serializers.ModelSerializer)
 
 class StudentSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(read_only=True)
+    contracts = serializers.SerializerMethodField()
 
     class Meta:
         model = Student
-        fields = ["id", "branch", "first_name", "last_name", "father_name", "full_name", "gender", "phone1", "phone2", "birth_date", "parent"]
+        fields = ["id", "branch", "first_name", "last_name", "father_name", "full_name", "gender", "phone1", "phone2", "birth_date", "parent", "contracts"]
         read_only_fields = ["branch"]
+
+    def get_contracts(self, st):
+        """Shartnomalar → «Talabalar» tabi uchun: [{id, number}] (prefetch qilinganda qo'shimcha so'rovsiz)."""
+        cache = getattr(st, "_prefetched_objects_cache", {})
+        if "contracts" not in cache:
+            return None
+        return [{"id": str(c.pk), "number": c.number} for c in st.contracts.all()]
 
 
 class StudentUpdateSerializer(serializers.Serializer):
@@ -71,7 +80,7 @@ class LeadSerializer(serializers.ModelSerializer):
     age_group = _choice(AGE_GROUPS)
     laptop = _choice(LAPTOP_CHOICES)
     tags = serializers.ListField(child=serializers.ChoiceField(choices=LEAD_TAGS), required=False)
-    group = serializers.SerializerMethodField()
+    group = serializers.PrimaryKeyRelatedField(queryset=Group.objects.all(), required=False, allow_null=True)
     has_contract = serializers.SerializerMethodField()
     comments_count = serializers.IntegerField(read_only=True, default=0)
 
@@ -81,11 +90,9 @@ class LeadSerializer(serializers.ModelSerializer):
                   "age_group", "social", "laptop", "tags", "has_contract", "comments_count", "created_at", "created_by", "updated_at", "updated_by"]
         read_only_fields = ["branch", "student", "created_at", "created_by", "updated_at", "updated_by"]
 
-    def get_group(self, lead):
-        return None  # M3: Group
-
     def get_has_contract(self, lead):
-        return services.has_contract(lead.student)
+        flag = getattr(lead, "has_contract_flag", None)
+        return services.has_contract(lead.student) if flag is None else flag
 
     def validate(self, attrs):
         inst = self.instance
@@ -93,6 +100,8 @@ class LeadSerializer(serializers.ModelSerializer):
         times = attrs.get("preferred_times", list(inst.preferred_times.all()) if inst else [])
         branch = inst.branch if inst else self.context["branch"]
         services.check_lead_refs(branch, get("source"), get("course"), get("day_pattern"), times, instance=inst)
+        if "group" in attrs or "course" in attrs:
+            services.check_lead_group(branch, get("course"), get("group"), instance=inst)
         return attrs
 
 

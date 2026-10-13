@@ -13,6 +13,8 @@ from apps.core.roles import MANAGER_ROLES, SECTIONS, edit_days_table
 from apps.core.scoping import in_scope, scope_branch
 from apps.core.serializers import AuditLogSerializer
 from apps.core.viewsets import AuditedModelViewSet
+from apps.education.serializers import GroupSerializer
+from apps.education.views import scoped_groups
 from apps.finance.models import Account
 
 from . import serializers as s
@@ -90,6 +92,20 @@ class LessonFrequencyViewSet(AuditedModelViewSet):
             d = services.month_start(ym)
             qs = qs.filter(year=d.year, month=d.month)
         return qs
+
+    def perform_update(self, serializer):
+        """Tasdiqlangan yozuvning soni yoki kurslari o'zgarsa — eski va yangi kurslar qatorlari qayta hisoblanadi."""
+        freq = serializer.instance
+        old_courses = list(freq.courses.all())
+        super().perform_update(serializer)
+        if freq.status == LessonFrequency.FreqStatus.APPROVED:
+            services.recalc_frequency(freq, courses={*old_courses, *freq.courses.all()})
+
+    def perform_destroy(self, instance):
+        courses = list(instance.courses.all())
+        super().perform_destroy(instance)
+        if instance.status == LessonFrequency.FreqStatus.APPROVED:
+            services.recalc_frequency(instance, courses=courses)
 
     @action(detail=False, methods=["post"])
     def propose(self, request):
@@ -206,5 +222,6 @@ def bootstrap(request):
         "attendanceStatuses": _ser(s.AttendanceStatusSerializer, AttendanceStatus.objects.prefetch_related("roles"), request),
         "accounts": _ser(s.AccountSerializer, Account.objects.prefetch_related("responsible"), request),
         "users": _ser(UserSerializer, User.objects.select_related("role").prefetch_related("branches"), request),
+        "groups": _ser(GroupSerializer, scoped_groups(u), request),
     })
 

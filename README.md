@@ -9,7 +9,8 @@ Codial IT o'quv markazi (Farg'ona) uchun boshqaruv tizimi. Hozirgi AppSheet ilov
 | AppSheet tahlili, prototip va uning o'zgarishlari | ✅ tayyor, ma'qullangan |
 | **M1 — asos**: server (Django + API), kirish va parol, rollar va ruxsatlar, Sozlamalar, Audit tarixi | ✅ https://erp.codialinfo.uz |
 | **M2 — CRM**: lidlar (voronka, ro'yxat, statistika, kartochka, izohlar), talabalar va ota-onalar | ✅ |
-| M3–M7: o'quv jarayoni, moliya, oyliklar, qo'shimcha modullar, hisobotlar | ⏳ navbatda |
+| **M3 — O'quv jarayoni**: guruhlar, shartnomalar, qarzdorlar, davomat (olish, kelmaganlar, statistika, qoldirilgan darslar), qarz va KPI hisobi | ✅ |
+| M4–M7: moliya, oyliklar, qo'shimcha modullar, hisobotlar | ⏳ navbatda |
 | M10–M11: AppSheet'dan ko'chirish va ishga tushirish | ⏳ |
 
 Reja: [docs/architecture.md](docs/architecture.md). Texnik topshiriq: [CLAUDE.md](CLAUDE.md).
@@ -42,6 +43,8 @@ py -3.12 -m venv .venv
 ```
 
 http://localhost:8000 — kirish: demo xodim pochtasi (masalan `dilshod@codial.test` — Bosh menejer) va yuqoridagi parol. Xatlar (parol o'rnatish havolasi) lokalda server konsoliga chiqadi.
+
+Qarz va KPI ni qo'lda qayta hisoblash: `.venv/Scripts/python manage.py recalculate --month 2026-10`.
 
 Testlar va kod sifati:
 

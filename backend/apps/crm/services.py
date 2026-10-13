@@ -3,8 +3,9 @@
 import re
 
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Count, Exists, OuterRef, Q
 from django.db.models.functions import TruncMonth
+from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
 from apps.core import audit
@@ -59,8 +60,43 @@ def find_duplicate(branch, first_name, last_name, phones, exclude_pk=None):
 
 
 def has_contract(student):
-    """M3 da Contract modeli bilan almashtiriladi."""
-    return False
+    return student.contracts.exists()
+
+
+def contract_exists():
+    """Lid uchun: talabasining (o'chirilmagan) shartnomasi bormi — annotatsiya."""
+    from apps.education.models import Contract
+
+    return Exists(Contract.objects.filter(student=OuterRef("student")))
+
+
+def check_lead_group(lead_branch, course, group, instance=None):
+    """Guruh — shu filial va kursning Faol yoki Rejadagi guruhi (3, 4, 5-statuslarda tanlanadi)."""
+    if group is None:
+        return
+    from apps.education.services import NOFAOL, period_status
+
+    if group.branch_id != lead_branch.pk or group.course_id != getattr(course, "pk", None):
+        raise ValidationError({"group": "Guruh shu filial va kursdan bo'lsin"})
+    if (instance is None or instance.group_id != group.pk) and period_status(group.start_date, group.end_date) == NOFAOL:
+        raise ValidationError({"group": "Guruh nofaol"})
+
+
+@transaction.atomic
+def create_contract_from_lead(user, lead):
+    """5-statusdagi lid: filial, talaba, kurs, guruh, boshlanish = sinov dars kuni, turi Pullik (CLAUDE.md 7.3)."""
+    from apps.education import services as edu
+
+    if lead.status != Lead.LeadStatus.STARTED:
+        raise ValidationError({"detail": "Shartnoma «5. O'qishni boshladi» statusida tuziladi"})
+    if has_contract(lead.student):
+        raise ValidationError({"detail": "Bu talabaning shartnomasi bor"})
+    if not lead.group_id:
+        raise ValidationError({"group": "Avval lidga guruh tanlang"})
+    if not lead.student.birth_date:
+        raise ValidationError({"detail": "Avval talaba ma'lumotlarini to'ldiring (sharif, tug'ilgan sana)"})
+    return edu.save_contract(user, {"branch": lead.branch, "student": lead.student, "course": lead.course, "group": lead.group,
+                                    "start_date": lead.demo_date or timezone.localdate()})
 
 
 @transaction.atomic
@@ -145,6 +181,7 @@ def create_lead(user, branch, data, *, new_student=None, student=None, comment="
         raise ValidationError({"student": "Shartnomasi bor talabaga yangi lid ochilmaydi"})
     times = data.pop("preferred_times", [])
     check_lead_refs(branch, data.get("source"), data.get("course"), data.get("day_pattern"), times)
+    check_lead_group(branch, data.get("course"), data.get("group"))
     lead = Lead.objects.create(branch=branch, student=student, created_by=user, updated_by=user, **data)
     lead.preferred_times.set(times)
     audit.log_create(user, lead)
@@ -183,12 +220,14 @@ def board(qs, per_column=40):
 
     columns = {s: list(qs.filter(status=s).order_by("-created_at")[:per_column]) for s in STATUSES}
     conv = {k: (reached(k) / total if total else 0) for k in ("3", "4", "5")}
-    return {"total": total, "counts": {s: counts.get(s, 0) for s in STATUSES}, "columns": columns, "reached": conv, "contract_rate": 0}
+    with_contract = _plain(qs).filter(contract_exists()).count()
+    return {"total": total, "counts": {s: counts.get(s, 0) for s in STATUSES}, "columns": columns, "reached": conv,
+            "contract_rate": with_contract / total if total else 0}
 
 
 def stats(qs):
     qs = _plain(qs)
-    by_source = list(qs.values("source").annotate(n=Count("id")).order_by("-n"))
+    by_source = list(qs.annotate(hc=contract_exists()).values("source").annotate(n=Count("id"), contracts=Count("id", filter=Q(hc=True))).order_by("-n"))
     by_status = dict(qs.values_list("status").annotate(n=Count("id")).order_by())
     by_month = [
         {"month": r["m"].strftime("%Y-%m"), "source": str(r["source"]), "n": r["n"]}
@@ -198,7 +237,7 @@ def stats(qs):
     by_social = dict(qs.exclude(social_status="").values_list("social_status").annotate(n=Count("id")).order_by())
     return {
         "total": sum(by_status.values()),
-        "by_source": [{"source": str(r["source"]), "n": r["n"], "contracts": 0} for r in by_source],
+        "by_source": [{"source": str(r["source"]), "n": r["n"], "contracts": r["contracts"]} for r in by_source],
         "by_status": {s: by_status.get(s, 0) for s in STATUSES},
         "by_month": by_month,
         "by_age": by_age,

@@ -85,26 +85,14 @@
   A.rows = (coll) => (A.S[coll] || []).filter((x) => !x.deleted);
   A.get = (coll, id) => (A.S[coll] || []).find((x) => x.id === id);
 
-  A.myGroupIds = () =>
-    A.memo('myGroups:' + A.S.currentUser, () => {
-      const me = A.S.currentUser;
-      const r = A.role();
-      return A.rows('groups').filter((g) => {
-        if (r === 'USTOZ') return g.teacher === me;
-        if (r === 'YORDAMCHI') return g.supporter === me;
-        if (r === 'USTOZ_YORDAMCHI') return g.teacher === me || g.supporter === me;
-        return A.branchIds().includes(g.branch);
-      }).map((g) => g.id);
-    });
+  /** Guruhlar serverdan doira bo'yicha keladi (ustozga — o'z guruhlari, CLAUDE.md 6.3) */
+  A.myGroupIds = () => A.rows('groups').map((g) => g.id);
 
   A.vis = (coll) => {
     const rows = A.rows(coll);
     const me = A.S.currentUser;
     const r = A.role();
-    if (['groups'].includes(coll)) {
-      const ids = A.myGroupIds();
-      return rows.filter((g) => ids.includes(g.id));
-    }
+    if (['groups'].includes(coll)) return rows;
     if (['contracts', 'tasks', 'gradings', 'parentCalls'].includes(coll) && A.isTeacherRole()) {
       const ids = A.myGroupIds();
       return rows.filter((x) => ids.includes(x.group) || x.created_by === me);
@@ -201,48 +189,34 @@
     return n;
   };
 
+  /** Statuslar serverda hisoblanadi (Faol / Rejada / Nofaol); `on` berilsa — shu sana uchun */
   A.contractStatus = (c, on) => {
+    if (!on && c.status) return c.status;
     const t = on || A.today();
     if (c.end && c.end < t) return 'Nofaol';
     if (c.start > t) return 'Rejada';
     return 'Faol';
   };
-  A.groupStatus = (g) => {
-    const t = A.today();
-    if (g.start > t) return 'Rejada';
-    if (!g.end || g.end >= t) return 'Faol';
-    return 'Nofaol';
-  };
+  A.groupStatus = (g) => g.status || (g.start > A.today() ? 'Rejada' : !g.end || g.end >= A.today() ? 'Faol' : 'Nofaol');
 
-  A.debts = () =>
-    A.memo('debts', () => {
-      const m = new Map();
-      for (const c of A.rows('contracts')) m.set(c.id, { opening: c.opening || 0, charged: 0, paid: 0, discount: 0 });
-      for (const a of A.rows('attendance')) { const x = m.get(a.contract); if (x) x.charged += a.debt || 0; }
-      for (const p of A.rows('payments')) { const x = m.get(p.contract); if (x) { x.paid += p.amount || 0; x.discount += p.discount || 0; } }
-      for (const x of m.values()) x.balance = x.opening + x.charged - x.paid - x.discount;
-      return m;
-    });
-  A.debtOf = (cid) => (A.debts().get(cid) || { balance: 0 }).balance;
+  /** Qarz (balans) serverda hisoblanadi: boshlang'ich qoldiq + Σ dars narxi − Σ to'lov − Σ chegirma */
+  A.debtOf = (cid) => ((typeof cid === 'object' ? cid : A.get('contracts', cid)) || {}).balance || 0;
 
-  A.activeContractsOf = (gid, on) => A.rows('contracts').filter((c) => c.group === gid && A.contractStatus(c, on) === 'Faol');
+  /** To'lish holati serverdan (guruh.fill): {n, cap, pct, free, label, cls}; pct — sig'im 0 bo'lsa null («—») */
   A.groupFill = (g) => {
-    const n = A.activeContractsOf(g.id).length;
-    const cap = (A.get('rooms', g.room) || {}).capacity || 0;
-    const pct = cap ? n / cap : 0;
-    let label = "Bo'sh", cls = 'red';
-    if (n === 0) { label = "Bo'sh"; cls = 'red'; }
-    else if (pct <= 0.5) { label = 'Yomon'; cls = 'red'; }
-    else if (pct <= 0.75) { label = "O'rtacha"; cls = 'orange'; }
-    else if (pct <= 0.85) { label = 'Yaxshi'; cls = 'blue'; }
-    else { label = "Zo'r"; cls = 'green'; }
-    return { n, cap, pct, free: cap - n, label, cls };
+    const f = g.fill || { n: 0, cap: 0, pct: null, free: 0, label: "Bo'sh", cls: 'red' };
+    return { ...f, pct: f.pct || 0, pctText: f.pct === null ? '—' : A.pct(f.pct) };
   };
   A.hasLesson = (g, date) => {
     const p = A.get('dayPatterns', g.pattern);
     return !!p && p.weekdays.includes(A.isoWeekday(date)) && g.start <= date && (!g.end || g.end >= date);
   };
-  A.attendanceTaken = (gid, date) => A.rows('attendance').some((a) => a.group === gid && a.date === date);
+  /** Guruhning oxirgi davomat sanasi serverdan (last_att) */
+  A.attendanceTaken = (gid, date) => { const g = A.get('groups', gid); return !!(g && g.last_att && g.last_att >= date); };
+  /** M6 sahifalari uchun (keshdagi shartnomalar bo'yicha) */
+  A.activeContractsOf = (gid) => A.rows('contracts').filter((c) => c.group === gid && A.contractStatus(c) === 'Faol');
+  /** Guruhlar keshini serverdan yangilash (davomat, shartnoma o'zgargandan keyin) */
+  A.reloadGroups = async () => { A.S.groups = await A.http.get('/groups/'); A.version++; };
 
   /* ---- G'azna: yagona pul harakatlari jurnali (CashMovement ledger) ---- */
   A.ledger = () =>
@@ -310,7 +284,6 @@
   };
 
   /* ---- Lid ---- */
-  A.hasContract = (studentId) => A.rows('contracts').some((c) => c.student === studentId);
 
   /* ---- Tasdiqlashlar ---- */
   const ageDays = (rec) => A.diffDays(A.iso(new Date(rec.created_at)), A.today());

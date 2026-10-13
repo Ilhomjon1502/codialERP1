@@ -3,9 +3,20 @@
   const esc = A.esc;
 
   /* ===================================================== Bosh sahifa */
+  let dash = {};
   A.page('dashboard', {
     title: 'Bosh sahifa',
     section: 'dashboard',
+    async load() {
+      dash = {};
+      const [, extra] = await Promise.all([
+        A.reloadGroups(),
+        A.isTeacherRole()
+          ? A.http.get('/attendance/summary/').then((summary) => ({ summary }))
+          : Promise.all([A.can('debtors') ? A.http.get('/debtors/') : null, A.can('contracts') ? A.http.get('/contracts/?page_size=1') : null]).then(([debt, cs]) => ({ debt, counts: cs ? cs.counts : {} })),
+      ]);
+      dash = extra;
+    },
     render() {
       const me = A.me();
       const today = A.today();
@@ -16,10 +27,9 @@
       const todayPays = pays.filter((p) => p.date === today);
       const cash = A.sum(todayPays.filter((p) => p.cash_type === 'CASH'), 'amount');
       const noncash = A.sum(todayPays.filter((p) => p.cash_type !== 'CASH'), 'amount');
-      const contracts = A.vis('contracts');
-      const debtors = contracts.filter((c) => A.debtOf(c.id) > 0);
-      const totalDebt = A.sum(debtors, (c) => A.debtOf(c.id));
-      const active = contracts.filter((c) => A.contractStatus(c) === 'Faol');
+      const totalDebt = dash.debt ? dash.debt.total : 0;
+      const debtorsCount = dash.debt ? dash.debt.count : 0;
+      const activeCount = (dash.counts || {}).Faol || 0;
       const groups = A.vis('groups').filter((g) => A.groupStatus(g) === 'Faol');
       const taklif = A.rows('lessonFreqs').filter((f) => f.status === 'Taklif' && `${f.year}-${String(f.month).padStart(2, '0')}` === ym);
       const lessonsToday = A.vis('groups').filter((g) => A.hasLesson(g, today));
@@ -55,8 +65,8 @@
         <div class="stats">
           ${A.can('payments') ? A.stat("Bugungi to'lovlar", A.money(cash + noncash), `Naqd: ${A.num(cash)} · Naqdsiz: ${A.num(noncash)}`, '', '#/payments') : ''}
           ${A.can('payments') ? A.stat('Shu oy tushum', A.money(monthPays), A.ymLabel(ym), '', '#/payments') : ''}
-          ${A.can('debtors') ? A.stat('Jami qarzdorlik', A.money(totalDebt), `${debtors.length} ta qarzdor`, 'danger', '#/debtors') : ''}
-          ${A.stat('Faol talabalar', active.length, `${groups.length} ta faol guruh`, '', '#/contracts')}
+          ${A.can('debtors') ? A.stat('Jami qarzdorlik', A.money(totalDebt), `${debtorsCount} ta qarzdor`, 'danger', '#/debtors') : ''}
+          ${A.stat('Faol talabalar', activeCount, `${groups.length} ta faol guruh`, '', '#/contracts')}
           ${A.stat('Yangi lidlar', newLeads, 'shu oyda', '', '#/leads')}
           ${A.can('approvals') ? A.stat('Tasdiq kutmoqda', pc, pc ? 'sizning tasdiqingiz kerak' : 'hammasi tasdiqlangan', pc ? 'warn' : '', '#/approvals') : ''}
         </div>
@@ -85,13 +95,8 @@
   function teacherDash(me, today, ym) {
     const groups = A.vis('groups');
     const todays = groups.filter((g) => A.hasLesson(g, today));
-    const att = A.rows('attendance').filter((a) => A.ym(a.date) === ym);
-    const myT = att.filter((a) => a.teacher === me.id);
-    const myS = att.filter((a) => a.supporter === me.id);
-    const kpi = A.sum(myT, 'tkpi') + A.sum(myS, 'skpi');
-    const absentees = A.vis('attendance').filter((a) => a.status === 'X' && A.ym(a.date) === ym && (a.teacher === me.id || a.supporter === me.id));
-    const mk = A.rows('makeups').filter((m) => m.teacher === me.id);
-    const pendingFreq = att.filter((a) => (a.teacher === me.id || a.supporter === me.id) && a.no_freq).length;
+    const sm = dash.summary || { kpi: 0, rows: 0, absent: 0, no_freq: 0, makeups_pending: 0 };
+    const pendingFreq = sm.no_freq;
     return `
       ${A.head(`Assalomu alaykum, ${esc(me.full_name.split(' ')[0])}!`, `${A.WD_FULL[A.isoWeekday(today)]}, ${A.fdate(today)} · ${esc(A.ROLES[me.role])}`)}
       ${pendingFreq ? `<div class="alert warn">${A.icon('alert')}<div>Shu oyning ${pendingFreq} ta dars qatori uchun oydagi dars soni hali tasdiqlanmagan — KPI tasdiqlangandan keyin hisoblanadi.</div></div>` : ''}
@@ -100,16 +105,16 @@
           .map((g) => {
             const taken = A.attendanceTaken(g.id, today);
             const isTeacher = g.teacher === me.id;
-            return `<div class="lesson-row"><div><b>${esc(A.groupName(g))}</b><div class="muted small">${A.timeName(g.time)} · ${esc(A.roomName(g.room))} · ${A.activeContractsOf(g.id).length} talaba${isTeacher ? '' : ' · siz yordamchisiz'}</div></div>
+            return `<div class="lesson-row"><div><b>${esc(A.groupName(g))}</b><div class="muted small">${A.timeName(g.time)} · ${esc(A.roomName(g.room))} · ${A.groupFill(g).n} talaba${isTeacher ? '' : ' · siz yordamchisiz'}</div></div>
               ${taken ? A.badge('Davomat olingan', 'green') : isTeacher ? `<a class="btn primary" href="#/attendance?tab=take&group=${g.id}">${A.icon('check')}Davomat olish</a>` : A.badge('Davomatni ustoz oladi', 'gray')}</div>`;
           })
           .join('') : A.empty('Bugun darsingiz yo\'q')}
       </section>
       <div class="stats">
-        ${A.stat('Shu oy KPI (hisoblangan)', A.money(kpi), `${myT.length + myS.length} ta dars qatori`, '', '#/salaries?tab=kpi')}
+        ${A.stat('Shu oy KPI (hisoblangan)', A.money(sm.kpi), `${sm.rows} ta dars qatori`)}
         ${A.stat('Guruhlarim', groups.length, groups.map((g) => A.groupName(g)).join(', '), '', '#/groups')}
-        ${A.stat('Besabab kelmaganlar', absentees.length, 'shu oyda', absentees.length ? 'warn' : '', '#/attendance?tab=absent')}
-        ${A.stat("Yetkazilgan dars so'rovlari", mk.filter((m) => m.status === 'Kutilmoqda').length, 'kutilmoqda', '', '#/attendance?tab=makeup')}
+        ${A.stat('Besabab kelmaganlar', sm.absent, 'shu oyda', sm.absent ? 'warn' : '', '#/attendance?tab=absent')}
+        ${A.stat("Yetkazilgan dars so'rovlari", sm.makeups_pending, 'kutilmoqda', '', '#/attendance?tab=makeup')}
       </div>`;
   }
 
@@ -225,7 +230,7 @@
           { h: 'Konversiya', f: (r) => `<b>${A.pct(r.rate)}</b>`, cls: 'num' },
         ],
         srcRows,
-      )}<p class="muted small">Shartnomalar soni M3 bosqichidan keyin hisoblanadi.</p></section>
+      )}<p class="muted small">Shartnoma — talabasi shartnoma tuzgan lidlar.</p></section>
       <section class="card"><h2>Status bo'yicha</h2>${A.chart({ type: 'doughnut', data: { labels: Object.values(LS), datasets: [{ data: Object.keys(LS).map((k) => s.by_status[k] || 0), backgroundColor: A.PALETTE }] } }, 260)}</section>
       <section class="card"><h2>Oylar bo'yicha yangi lidlar (manba kesimida)</h2>${A.chart({
         type: 'bar',
@@ -242,6 +247,7 @@
     const isNew = !lead;
     const B = lead ? lead.branch : A.branchIds()[0];
     const v = lead ? { ...lead } : { status: '2', times: [], tags: [], mode: 'new' };
+    if (v.demo_date == null) delete v.demo_date; // standart — bugun (guruh tanlanganda ko'rinadi)
     const phone = (t) => (!/^\d{9}$/.test(t) ? "9 sondan iborat bo'lsin. Masalan, 998883322" : '');
     const fields = [
       { name: 'mode', label: 'Murojaatchi', type: 'seg', options: [['new', 'Yangi talaba'], ['old', "Bazadagi talaba"]], show: () => isNew },
@@ -265,14 +271,27 @@
       { name: 'pattern', label: 'Hafta kunlari', type: 'seg', options: (x) => A.optList('dayPatterns', 'name', (p) => (p.status || 'Faol') === 'Faol' || p.id === x.pattern) },
       { name: 'times', label: "Ma'qul dars vaqti", type: 'chips', options: (x) => A.optList('lessonTimes', (t) => `${t.start}-${t.end}`, (t) => t.branch === B && ((t.status || 'Faol') === 'Faol' || (x.times || []).includes(t.id))) },
       { name: 'status', label: 'Status', type: 'select', options: Object.entries(LS).map(([k, l]) => [k, `${k}. ${l}`]), required: true },
-      { name: 'g', type: 'note', tone: 'info', show: (x) => ['3', '4', '5'].includes(x.status), text: "Guruh va sinov dars kuni guruhlar bo'limi bilan birga (M3 bosqichida) tanlanadi." },
+      {
+        name: 'group', label: 'Guruh', type: 'select', show: (x) => ['3', '4', '5'].includes(x.status) || (x.group && !['1', '2'].includes(x.status)),
+        options: (x) => A.rows('groups').filter((g) => (g.branch === B && g.course === x.course && g.status !== 'Nofaol') || g.id === x.group).map((g) => [g.id, `${A.groupName(g)} · ${A.patternName(g.pattern)} ${A.timeName(g.time)} (${g.status})`]),
+        help: "3, 4, 5-statuslarda ko'rinadi. Faqat shu kursning faol yoki rejadagi guruhlari",
+      },
+      { name: 'demo_date', label: 'Sinov dars kuni', type: 'date', show: (x) => x.group && ['3', '4', '5'].includes(x.status), default: A.today() },
+      { name: 'demo_attended', label: 'Sinov darsga qatnashdimi?', type: 'seg', options: [['yes', 'Ha, qatnashdi'], ['no', 'Kelmadi']], show: (x) => x.demo_date && x.group && ['3', '4', '5'].includes(x.status) },
     ];
+    if (lead) v.demo_attended = lead.demo_attended === true ? 'yes' : lead.demo_attended === false ? 'no' : '';
     A.form({
       title: isNew ? 'Yangi lid' : 'Lidni tahrirlash',
       fields,
       values: v,
       async onSubmit(x) {
-        const rec = { source: x.source, course: x.course, pattern: x.pattern || null, times: x.times, status: x.status, age_group: x.age_group, social: x.social, laptop: x.laptop, tags: x.tags };
+        const withGroup = ['3', '4', '5'].includes(x.status) && x.group;
+        const rec = {
+          source: x.source, course: x.course, pattern: x.pattern || null, times: x.times, status: x.status, age_group: x.age_group, social: x.social, laptop: x.laptop, tags: x.tags,
+          group: withGroup ? x.group : x.group && !['1', '2'].includes(x.status) ? x.group : null,
+          demo_date: withGroup ? x.demo_date || null : null,
+          demo_attended: withGroup && x.demo_date ? (x.demo_attended === 'yes' ? true : x.demo_attended === 'no' ? false : null) : null,
+        };
         let saved;
         if (isNew) {
           const who = x.mode === 'old' ? { mode: 'old', student: x.student } : { mode: 'new', first_name: x.first_name, last_name: x.last_name, phone1: x.phone1, phone2: x.phone2, gender: x.gender };
@@ -312,6 +331,8 @@
           <dt>Kurs</dt><dd>${esc(A.courseName(l.course))}</dd>
           <dt>Manba</dt><dd>${esc(A.sourceName(l.source))}</dd>
           <dt>Hafta kunlari / vaqt</dt><dd>${esc(A.patternName(l.pattern))} · ${(l.times || []).map(A.timeName).join(', ') || '—'}</dd>
+          ${l.group ? `<dt>Guruh</dt><dd><a href="#/groups/${l.group}">${esc(A.groupName(l.group))}</a></dd>` : ''}
+          ${l.demo_date ? `<dt>Sinov darsi</dt><dd>${A.fdate(l.demo_date)} ${l.demo_attended === true ? A.badge('Keldi', 'green') : l.demo_attended === false ? A.badge('Kelmadi', 'red') : ''}</dd>` : ''}
           <dt>Yosh / holat / noutbuk</dt><dd>${esc(l.age_group || '—')} · ${esc(l.social || '—')} · ${esc(l.laptop || '—')}</dd>
           <dt>Qo'shdi</dt><dd>${esc(A.userName(l.created_by))}, ${A.fdt(l.created_at)}</dd>
         </dl>
@@ -324,7 +345,7 @@
       footer: `
         ${A.can('leads', 'e') && edit.ok ? `<button class="btn ghost" data-edit>Tahrirlash</button>` : ''}
         ${l.status === '5' && A.can('leads', 'e') ? `<button class="btn" data-student>Talaba ma'lumotlarini to'ldirish</button>` : ''}
-        ${canContract ? `<button class="btn primary" disabled title="Shartnomalar bo'limi M3 bosqichida ulanadi">Shartnoma tuzish</button>` : ''}`,
+        ${canContract ? `<button class="btn primary" data-contract ${needsBirth ? `disabled title="Avval talaba ma'lumotlarini to'ldiring"` : ''}>Shartnoma tuzish</button>` : ''}`,
     });
     const reopen = () => { m.close(); A.refresh(); A.openLead(id); };
     const fail = (e) => A.toast(e.message, 'warn');
@@ -340,6 +361,18 @@
     if (e) e.onclick = () => { m.close(); A.leadForm(l); };
     const sb = m.el.querySelector('[data-student]');
     if (sb) sb.onclick = () => { m.close(); A.studentForm(st, () => A.openLead(id)); };
+    const cb = m.el.querySelector('[data-contract]');
+    if (cb)
+      cb.onclick = async () => {
+        if (!l.group) return A.toast('Avval lidga guruh tanlang (Tahrirlash → Guruh)', 'warn');
+        try {
+          const c = await A.http.post(`/leads/${id}/contract/`);
+          await A.reloadGroups();
+          m.close();
+          A.toast(`Shartnoma №${c.number} tuzildi: ${A.groupName(l.group)}`);
+          A.go('contracts/' + c.id);
+        } catch (e) { fail(e); }
+      };
   };
   A.act['lead-open'] = (el) => A.openLead(el.dataset.id);
 
@@ -372,104 +405,150 @@
     });
   };
 
-  /* ===================================================== Shartnomalar */
+  /* ===================================================== Shartnomalar (server API: /contracts/, /debtors/, /students/) */
+  /** Server javobidagi shartnoma va talabani keshga qo'yish (nomlar boshqa sahifalarda ham ko'rinsin) */
+  A.keepContract = (c) => {
+    if (c.student_data) A.putLocal('students', { ...(A.get('students', c.student) || {}), ...c.student_data, branch: c.branch });
+    return A.putLocal('contracts', c);
+  };
+  /** Sahifalash tugmalari: data-act="page" data-id="kalit~sahifa" */
+  A.pager = (key, d) =>
+    d && d.pages > 1
+      ? `<div class="row gap pager"><button class="btn sm ghost" data-act="page" data-id="${key}~${d.page - 1}" ${d.page <= 1 ? 'disabled' : ''}>← Oldingi</button><span class="muted small">${d.page} / ${d.pages} · jami ${d.count}</span><button class="btn sm ghost" data-act="page" data-id="${key}~${d.page + 1}" ${d.page >= d.pages ? 'disabled' : ''}>Keyingi →</button></div>`
+      : '';
+  A.act.page = (el) => {
+    const [key, n] = el.dataset.id.split('~');
+    A.ui.q[key + ':page'] = Number(n);
+    A.refresh();
+  };
+  // Filtr o'zgarsa — birinchi sahifaga
+  document.addEventListener('input', (e) => {
+    const el = e.target.closest('[data-filter]');
+    if (el && !el.dataset.filter.endsWith(':page')) A.ui.q[el.dataset.filter.split(':')[0] + ':page'] = 1;
+  }, true);
+  const filterQS = (key, names, extra = {}) => {
+    const qs = new URLSearchParams(extra);
+    for (const k of names) if (A.q(`${key}:${k}`, '')) qs.set(k, A.q(`${key}:${k}`));
+    return qs;
+  };
+  const paymentsReady = () => A.CONNECTED.has('payments') && A.can('payments', 'a');
+
+  let cData = { results: [], counts: {} };
+  let cCounts = {};
   A.page('contracts', {
     title: 'Shartnomalar',
     section: 'contracts',
+    async load(p, q) {
+      const tab = q.tab || 'Faol';
+      if (tab === 'students') {
+        cData = await A.http.get('/students/?' + filterQS('contracts', ['search'], { page: A.q('contracts:page', 1) }));
+        cData.results.forEach((st) => A.putLocal('students', st));
+      } else {
+        cData = await A.http.get('/contracts/?' + filterQS('contracts', ['search', 'course', 'type'], { status: tab, page: A.q('contracts:page', 1) }));
+        cData.results.forEach(A.keepContract);
+        cCounts = cData.counts;
+      }
+    },
     render(p, q) {
       const tab = q.tab || 'Faol';
-      const all = A.vis('contracts');
-      const cnt = (s) => all.filter((c) => A.contractStatus(c) === s).length;
       const actions = (A.can('contracts', 'a') ? A.btn('Yangi shartnoma', 'contract-new', { icon: 'plus' }) : '') + A.btn('Excel', 'contracts-csv', { cls: 'ghost', icon: 'download' });
       return `${A.head('Shartnomalar', 'Guruhlash: kurs → guruh. Qarzdor talaba nomi qizil', actions)}
-        ${A.tabs([['Faol', 'Faol', cnt('Faol')], ['Rejada', 'Rejada', cnt('Rejada')], ['Nofaol', 'Nofaol', cnt('Nofaol')], ['students', 'Talabalar']], tab, 'contracts')}
-        ${A.filterBar('contracts', [A.fSearch('contracts', 'Ism, telefon yoki raqam…'), A.fSelect('contracts', 'course', A.optList('courses'), 'Barcha kurslar'), A.fSelect('contracts', 'type', [['Pullik', 'Pullik'], ['Grant', 'Grant']], 'Barcha turlar')])}
-        <div data-results>${this.results(p, q)}</div>`;
+        ${A.tabs([['Faol', 'Faol', cCounts.Faol], ['Rejada', 'Rejada', cCounts.Rejada], ['Nofaol', 'Nofaol', cCounts.Nofaol], ['students', 'Talabalar']], tab, 'contracts')}
+        ${A.filterBar('contracts', [A.fSearch('contracts', tab === 'students' ? 'Ism yoki telefon…' : 'Ism, telefon yoki raqam…'), ...(tab === 'students' ? [] : [A.fSelect('contracts', 'course', A.optList('courses'), 'Barcha kurslar'), A.fSelect('contracts', 'type', [['Pullik', 'Pullik'], ['Grant', 'Grant']], 'Barcha turlar')])])}
+        <div>${tab === 'students' ? studentsTable(cData.results) : contractGroups(cData.results)}${A.pager('contracts', cData)}</div>`;
     },
-    results(p, q) {
-      const tab = q.tab || 'Faol';
-      const s = A.q('contracts:search', ''), course = A.q('contracts:course', ''), type = A.q('contracts:type', '');
-      if (tab === 'students') {
-        const studs = A.vis('students').filter((st) => A.match(A.studentName(st) + st.phone1, s));
-        return A.table(
-          [
-            { h: 'Talaba', f: (st) => `<a href="#" data-act="student-edit" data-id="${st.id}">${esc(A.studentName(st))}</a>` },
-            { h: 'Telefon', f: (st) => esc(st.phone1) },
-            { h: "Tug'ilgan", f: (st) => A.fdate(st.birth_date) },
-            { h: 'Vasiy', f: (st) => { const pr = A.get('parents', st.parent); return pr ? `${esc(pr.first_name)} · ${esc(pr.phone)}` : '—'; } },
-            { h: 'Shartnomalar', f: (st) => A.rows('contracts').filter((c) => c.student === st.id).map((c) => `<a href="#/contracts/${c.id}">№${c.number}</a>`).join(', ') || '—' },
-          ],
-          A.sortBy(studs, (st) => st.first_name),
-        );
-      }
-      const rows = A.vis('contracts').filter((c) => {
-        const st = A.get('students', c.student) || {};
-        return A.contractStatus(c) === tab && (!course || c.course === course) && (!type || c.type === type) && A.match(`${A.studentName(st)} ${st.phone1} ${c.number}`, s);
-      });
-      if (!rows.length) return A.empty("Shartnoma topilmadi");
-      const byGroup = A.groupBy(A.sortBy(rows, (c) => A.groupName(c.group)), (c) => c.group);
-      return [...byGroup]
-        .map(([gid, list]) => {
-          const debt = A.sum(list, (c) => Math.max(0, A.debtOf(c.id)));
-          return `<section class="group-block"><h3>${esc(A.groupName(gid))} <span class="muted">· ${list.length} ta${debt ? ` · qarz ${A.money(debt)}` : ''}</span></h3>
+  });
+
+  function studentsTable(rows) {
+    return A.table(
+      [
+        { h: 'Talaba', f: (st) => (A.can('leads', 'e') ? `<a href="#" data-act="student-edit" data-id="${st.id}">${esc(st.full_name)}</a>` : esc(st.full_name)) },
+        { h: 'Telefon', f: (st) => esc(st.phone1) + (st.phone2 ? `<br><small class="muted">${esc(st.phone2)}</small>` : '') },
+        { h: "Tug'ilgan", f: (st) => A.fdate(st.birth_date) },
+        { h: 'Shartnomalar', f: (st) => (st.contracts || []).map((c) => `<a href="#/contracts/${c.id}">№${c.number}</a>`).join(', ') || '—' },
+      ],
+      rows,
+      { empty: 'Talaba topilmadi' },
+    );
+  }
+
+  function contractGroups(rows) {
+    if (!rows.length) return A.empty('Shartnoma topilmadi');
+    const byGroup = A.groupBy(rows, (c) => c.group);
+    return [...byGroup]
+      .map(([gid, list]) => {
+        const debt = A.sum(list, (c) => Math.max(0, c.balance));
+        return `<section class="group-block"><h3>${esc(A.groupName(gid))} <span class="muted">· ${list.length} ta${debt ? ` · qarz ${A.money(debt)}` : ''}</span></h3>
           ${A.table(
             [
-              { h: 'Shartnoma', f: (c) => `<a href="#/contracts/${c.id}" class="${A.debtOf(c.id) > 0 ? 't-red' : ''}">${esc(A.contractName(c))}</a>` },
+              { h: 'Shartnoma', f: (c) => `<a href="#/contracts/${c.id}" class="${c.balance > 0 ? 't-red' : ''}">${esc(c.name)}</a>` },
               { h: 'Turi', f: (c) => (c.type === 'Grant' ? A.badge('Grant', 'blue') : 'Pullik') },
               { h: 'Boshlanish', f: (c) => A.fdate(c.start) },
               { h: 'Tugash', f: (c) => (c.end ? `${A.fdate(c.end)} <span class="muted small">${esc(c.stop_reason)}</span>` : '—') },
-              { h: 'Status', f: (c) => A.contractStatusBadge(A.contractStatus(c)) },
-              { h: 'Balans', f: (c) => A.moneyCell(A.debtOf(c.id), true), cls: 'num' },
+              { h: 'Status', f: (c) => A.contractStatusBadge(c.status) },
+              { h: 'Balans', f: (c) => A.moneyCell(c.balance, true), cls: 'num' },
             ],
-            A.sortBy(list, (c) => A.contractName(c)),
+            list,
           )}</section>`;
-        })
-        .join('');
-    },
-  });
-  A.act['student-edit'] = (el) => A.studentForm(A.get('students', el.dataset.id));
-  A.act['contracts-csv'] = () => {
-    const rows = A.vis('contracts');
+      })
+      .join('');
+  }
+  A.act['student-edit'] = (el) => A.studentForm(A.get('students', el.dataset.id), () => A.refresh());
+
+  /** Joriy filtr bo'yicha barcha sahifalarni yig'ib olish (Excel/CSV uchun) */
+  const fetchAll = async (path, qs) => {
+    qs.set('page_size', 200);
+    let page = 1, out = [];
+    for (;;) {
+      qs.set('page', page);
+      const d = await A.http.get(path + qs);
+      out = out.concat(d.results);
+      if (page >= (d.pages || 1)) return out;
+      page++;
+    }
+  };
+  A.act['contracts-csv'] = async () => {
+    const tab = (A.current.query || {}).tab || 'Faol';
+    const rows = await fetchAll('/contracts/?', filterQS('contracts', ['search', 'course', 'type'], tab === 'students' ? {} : { status: tab }));
     A.downloadCSV('shartnomalar.csv', [
       ['№', 'Talaba', 'Telefon', 'Kurs', 'Guruh', 'Turi', 'Boshlanish', 'Tugash', 'Status', 'Balans'],
-      ...rows.map((c) => [c.number, A.studentName(c.student), (A.get('students', c.student) || {}).phone1, A.courseName(c.course), A.groupName(c.group), c.type, c.start, c.end, A.contractStatus(c), A.debtOf(c.id)]),
+      ...rows.map((c) => [c.number, c.student_data.full_name, c.student_data.phone1, A.courseName(c.course), A.groupName(c.group), c.type, c.start, c.end || '', c.status, c.balance]),
     ]);
   };
 
-  A.contractForm = (c, preset = {}) => {
+  /* ---- Shartnoma formasi. Tekshiruvlar serverda ham bor (services.validate_contract) ---- */
+  /** stopOnly — muddati o'tgan shartnoma: faqat to'xtatish (tugash sanasi oxirgi 30 kun ichida, sabab, izoh) */
+  A.contractForm = async (c, preset = {}, stopOnly = false) => {
     const isNew = !c;
-    const B = A.branchIds()[0];
-    const v = c ? { ...c } : { branch: B, type: 'Pullik', start: A.today(), ...preset };
+    const lock = () => !isNew && stopOnly;
+    const B = c ? c.branch : A.branchIds()[0];
+    const students = isNew ? (await A.http.get('/students/?page_size=200')).results.filter((s) => s.branch === B) : [c.student_data];
+    const v = c ? { ...c } : { type: 'Pullik', start: A.today(), ...preset };
     A.form({
       title: isNew ? 'Yangi shartnoma' : `Shartnoma №${c.number}`,
       values: v,
       fields: [
-        { name: 'student', label: 'Talaba', type: 'select', required: true, readonly: () => !isNew, options: () => A.rows('students').filter((s) => s.branch === B).map((s) => [s.id, `${A.studentName(s)} · ${s.phone1}`]), help: isNew ? "Yaratilgandan keyin talabani o'zgartirib bo'lmaydi" : "Talaba o'zgarmaydi" },
-        { name: 'course', label: 'Kurs', type: 'select', required: true, resets: ['group'], readonly: () => !isNew && A.role() !== 'ADMIN', options: () => A.optList('courses', 'name', (x) => x.status === 'Faol'), help: isNew ? '' : "Kursni faqat Admin o'zgartiradi" },
-        { name: 'group', label: 'Guruh', type: 'select', required: true, show: (x) => x.course, options: (x) => A.rows('groups').filter((g) => g.course === x.course && g.branch === B && A.groupStatus(g) !== 'Nofaol').map((g) => { const f = A.groupFill(g); return [g.id, `${A.groupName(g)} · ${A.patternName(g.pattern)} ${A.timeName(g.time)} · ${f.n}/${f.cap}`]; }) },
-        { name: 'type', label: 'Shartnoma turi', type: 'seg', options: ['Pullik', 'Grant'], show: (x) => x.course, readonly: () => !A.isTop(), help: () => (A.isTop() ? '' : "Turini faqat Admin va Bosh menejer o'zgartiradi") },
-        { name: 'number', label: 'Shartnoma raqami', type: 'computed', show: (x) => x.type, compute: () => (c ? c.number : Math.max(0, ...A.rows('contracts').filter((y) => y.branch === B).map((y) => y.number)) + 1) + ' (avtomatik)' },
-        { name: 'start', label: 'Boshlanish sana', type: 'date', required: true, show: (x) => x.type, half: true },
-        { name: 'end', label: 'Tugash sana', type: 'date', show: (x) => x.type && x.start, half: true, validate: (d, x) => (d < x.start ? "Boshlanish sanadan kichik bo'lolmaydi" : '') },
+        { name: 'student', label: 'Talaba', type: 'select', required: true, readonly: () => !isNew, options: () => students.map((s) => [s.id, `${s.full_name} · ${s.phone1}`]), help: isNew ? "Yaratilgandan keyin talabani o'zgartirib bo'lmaydi" : "Talaba o'zgarmaydi" },
+        { name: 'course', label: 'Kurs', type: 'select', required: true, resets: ['group'], readonly: () => lock() || (!isNew && A.role() !== 'ADMIN'), options: (x) => A.optList('courses', 'name', (k) => (k.status === 'Faol' && k.branches.includes(B)) || k.id === x.course), help: isNew ? '' : "Kursni faqat Admin o'zgartiradi" },
+        { name: 'group', label: 'Guruh', type: 'select', required: true, show: (x) => x.course, readonly: lock, options: (x) => A.rows('groups').filter((g) => (g.course === x.course && g.branch === B && g.status !== 'Nofaol') || g.id === x.group).map((g) => { const f = A.groupFill(g); return [g.id, `${A.groupName(g)} · ${A.patternName(g.pattern)} ${A.timeName(g.time)} · ${f.n}/${f.cap}`]; }) },
+        { name: 'type', label: 'Shartnoma turi', type: 'seg', options: ['Pullik', 'Grant'], show: (x) => x.course, readonly: () => lock() || !A.isTop(), help: () => (A.isTop() ? '' : "Turini faqat Admin va Bosh menejer o'zgartiradi") },
+        { name: 'number', label: 'Shartnoma raqami', type: 'computed', show: (x) => x.type, compute: () => (c ? `№${c.number}` : 'avtomatik (filialdagi oxirgi raqam + 1)') },
+        { name: 'start', label: 'Boshlanish sana', type: 'date', required: true, show: (x) => x.type, half: true, readonly: lock },
+        { name: 'end', label: 'Tugash sana', type: 'date', show: (x) => x.type && x.start, half: true, required: lock,
+          help: () => (lock() ? "To'xtatish: tugash sanasi oxirgi 30 kun ichida" : ''),
+          validate: (d, x) => (d && d < x.start ? "Boshlanish sanadan kichik bo'lolmaydi" : d && lock() && A.diffDays(d, A.today()) > 30 ? "Tugash sanasini oxirgi 30 kun ichida qo'yish mumkin" : '') },
         { name: 'stop_reason', label: "To'xtatish sababi", type: 'select', options: A.STOP_REASONS, show: (x) => x.end, required: (x) => !!x.end },
         { name: 'comment', label: "Qo'shimcha izoh", type: 'textarea', show: (x) => x.type },
       ],
-      onSubmit(x) {
-        if (isNew && A.rows('contracts').some((y) => y.student === x.student && y.group === x.group && A.contractStatus(y) !== 'Nofaol')) return 'Bu talabaning shu guruhda faol shartnomasi bor';
-        const rec = { student: x.student, course: x.course, group: x.group, type: x.type, start: x.start, end: x.end, stop_reason: x.stop_reason, comment: x.comment };
-        let id;
-        if (isNew) {
-          const num = Math.max(0, ...A.rows('contracts').filter((y) => y.branch === B).map((y) => y.number)) + 1;
-          id = A.insert('contracts', { ...rec, branch: B, number: num, opening: 0 }, 'Shartnoma', `${A.studentName(x.student)} №${num}`).id;
-        } else {
-          A.patch('contracts', c.id, rec, 'Shartnoma', A.contractName(c));
-          id = c.id;
-          if (c.type !== x.type) A.toast(`Turi o'zgardi — ${A.recalc((a) => a.contract === id)} ta davomat qatori qayta hisoblandi`);
-        }
-        A.recalc((a) => a.contract === id);
-        A.save();
-        A.toast('Saqlandi');
-        if (isNew) A.go('contracts/' + id);
+      async onSubmit(x) {
+        const rec = lock()
+          ? { end: x.end || null, stop_reason: x.end ? x.stop_reason : '', comment: x.comment || '' }
+          : { course: x.course, group: x.group, type: x.type, start: x.start, end: x.end || null, stop_reason: x.end ? x.stop_reason : '', comment: x.comment || '' };
+        const saved = isNew ? await A.http.post('/contracts/', { ...rec, student: x.student }) : await A.http.patch(`/contracts/${c.id}/`, rec);
+        A.keepContract(saved);
+        await A.reloadGroups();
+        A.toast(isNew ? `Shartnoma №${saved.number} tuzildi` : 'Saqlandi');
+        if (isNew) A.go('contracts/' + saved.id);
         else A.refresh();
       },
     });
@@ -477,72 +556,66 @@
   A.act['contract-new'] = () => A.contractForm(null);
 
   /* ---- Shartnoma sahifasi ---- */
+  let cDetail = null;
   A.page('contracts/:id', {
     title: 'Shartnoma',
     section: 'contracts',
+    async load({ id }) {
+      cDetail = await A.http.get(`/contracts/${id}/`);
+      A.keepContract(cDetail);
+    },
     render({ id }, q) {
-      const c = A.get('contracts', id);
-      if (!c || !A.vis('contracts').includes(c)) return A.head('Shartnoma topilmadi') + A.empty("Shartnoma yo'q yoki sizga ko'rinmaydi");
-      const st = A.get('students', c.student);
-      const d = A.debts().get(c.id);
-      const status = A.contractStatus(c);
-      const pays = A.sortBy(A.rows('payments').filter((p) => p.contract === id), (p) => p.date, true);
-      const att = A.sortBy(A.rows('attendance').filter((a) => a.contract === id), (a) => a.date, true);
-      const lead = A.rows('leads').find((l) => l.student === c.student);
+      const c = cDetail;
+      const st = c.student_data;
+      const status = c.status;
+      const pays = c.payments || [];
+      const att = c.attendance || [];
       const edit = A.canEdit('contracts', c, 'start');
-      const tab = q.tab || 'pay';
-      const parent = A.get('parents', st.parent);
+      const stopOnly = !edit.ok && A.can('contracts', 'e');
+      const tab = q.tab || 'att';
+      const parent = c.parent;
+      const g = A.get('groups', c.group);
       return `
         <a class="back" href="#/contracts">← Shartnomalar</a>
-        ${A.head(A.contractName(c), `${A.contractStatusBadge(status)} ${c.type === 'Grant' ? A.badge('Grant', 'blue') : ''} · ${esc(A.groupName(c.group))}`,
-          `${A.can('payments', 'a') ? A.btn("To'lov qilish", 'pay-new', { id: c.id, icon: 'cash' }) : ''}
-           ${A.can('contracts', 'e') ? A.btn('Tahrirlash', 'contract-edit', { id: c.id, cls: 'ghost', disabled: !edit.ok, title: edit.why }) : ''}`)}
+        ${A.head(c.name, `${A.contractStatusBadge(status)} ${c.type === 'Grant' ? A.badge('Grant', 'blue') : ''} · ${esc(A.groupName(c.group))}`,
+          `${paymentsReady() ? A.btn("To'lov qilish", 'pay-new', { id: c.id, icon: 'cash' }) : ''}
+           ${A.can('contracts', 'e') ? (stopOnly ? A.btn("To'xtatish", 'contract-stop', { id: c.id, cls: 'ghost', title: `${edit.why}. Faqat to'xtatish mumkin` }) : A.btn('Tahrirlash', 'contract-edit', { id: c.id, cls: 'ghost' })) : ''}`)}
         <div class="stats">
-          ${A.stat('Balans (qarz)', `<span class="${d.balance > 0 ? 't-red' : 't-green'}">${A.money(d.balance)}</span>`, d.balance > 0 ? 'talaba qarzdor' : d.balance < 0 ? 'oldindan to\'langan' : 'qarz yo\'q', d.balance > 0 ? 'danger' : '')}
-          ${A.stat('Hisoblangan (darslar)', A.money(d.charged), `${att.filter((a) => a.debt).length} ta dars uchun`)}
-          ${A.stat("To'langan", A.money(d.paid), `${pays.length} ta to'lov`)}
-          ${A.stat('Chegirmalar', A.money(d.discount))}
+          ${A.stat('Balans (qarz)', `<span class="${c.balance > 0 ? 't-red' : 't-green'}">${A.money(c.balance)}</span>`, c.balance > 0 ? 'talaba qarzdor' : c.balance < 0 ? "oldindan to'langan" : "qarz yo'q", c.balance > 0 ? 'danger' : '')}
+          ${A.stat('Hisoblangan (darslar)', A.money(c.charged), `${att.filter((a) => a.debt).length} ta dars uchun`)}
+          ${A.stat("To'langan", A.money(c.paid), `${pays.length} ta to'lov`)}
+          ${A.stat('Chegirmalar', A.money(c.discount))}
         </div>
         <div class="grid-2">
           <section class="card"><h2>Ma'lumotlar</h2><dl class="dl">
-            <dt>Talaba</dt><dd>${esc(A.studentName(st))} ${A.can('leads', 'e') ? `<a href="#" data-act="student-edit" data-id="${st.id}" class="small">tahrirlash</a>` : ''}</dd>
+            <dt>Talaba</dt><dd>${esc(st.full_name)} ${A.can('leads', 'e') ? `<a href="#" data-act="student-edit" data-id="${st.id}" class="small">tahrirlash</a>` : ''}</dd>
             <dt>Telefon</dt><dd><a href="tel:+998${st.phone1}">+998 ${st.phone1}</a>${st.phone2 ? ` · <a href="tel:+998${st.phone2}">${st.phone2}</a>` : ''}</dd>
             <dt>Vasiy</dt><dd>${parent ? `${esc(parent.first_name)} ${esc(parent.last_name)} · <a href="tel:+998${parent.phone}">${parent.phone}</a>` : '—'}</dd>
             <dt>Kurs / guruh</dt><dd>${esc(A.courseName(c.course))} · <a href="#/groups/${c.group}">${esc(A.groupName(c.group))}</a></dd>
             <dt>Muddat</dt><dd>${A.fdate(c.start)} — ${c.end ? A.fdate(c.end) : '…'}</dd>
             ${c.stop_reason ? `<dt>To'xtatish sababi</dt><dd>${esc(c.stop_reason)}</dd>` : ''}
-            <dt>Yosh guruhi</dt><dd>${lead ? esc(lead.age_group) : '—'}</dd>
+            <dt>Yosh guruhi</dt><dd>${esc(c.age_group || '—')}</dd>
             <dt>Izoh</dt><dd>${esc(c.comment || '—')}</dd>
             <dt>Qo'shdi</dt><dd>${esc(A.userName(c.created_by))}, ${A.fdt(c.created_at)}</dd>
-          </dl>${edit.ok ? '' : `<p class="muted small">${esc(edit.why)}</p>`}</section>
+          </dl>${edit.ok ? '' : `<p class="muted small">${esc(edit.why)}${stopOnly ? ". Shartnomani to'xtatish mumkin (tugash sanasi oxirgi 30 kun ichida)" : ''}</p>`}</section>
           <section class="card"><h2>Qarz qanday hisoblandi</h2>
-            <table class="calc"><tr><td>Boshlang'ich qoldiq (AppSheet'dan, 01.09.2026)</td><td class="num">${A.num(d.opening)}</td></tr>
-            <tr><td>+ Darslar uchun hisoblangan (Σ talaba qarzi)</td><td class="num">${A.num(d.charged)}</td></tr>
-            <tr><td>− To'lovlar</td><td class="num">${A.num(d.paid)}</td></tr>
-            <tr><td>− Chegirmalar</td><td class="num">${A.num(d.discount)}</td></tr>
-            <tr class="tot"><td>= Balans</td><td class="num">${A.num(d.balance)}</td></tr></table>
-            <p class="muted small">Bir dars narxi = kurs narxi ÷ oydagi dars soni. Talaba kelmasa ham dars uchun qarz yoziladi ("Nofaol" va Grant bundan mustasno).</p>
+            <table class="calc"><tr><td>Boshlang'ich qoldiq (AppSheet'dan)</td><td class="num">${A.num(c.opening)}</td></tr>
+            <tr><td>+ Darslar uchun hisoblangan (Σ talaba qarzi)</td><td class="num">${A.num(c.charged)}</td></tr>
+            <tr><td>− To'lovlar</td><td class="num">${A.num(c.paid)}</td></tr>
+            <tr><td>− Chegirmalar</td><td class="num">${A.num(c.discount)}</td></tr>
+            <tr class="tot"><td>= Balans</td><td class="num">${A.num(c.balance)}</td></tr></table>
+            <p class="muted small">Bir dars narxi = kurs narxi ÷ oydagi dars soni. Talaba kelmasa ham dars uchun qarz yoziladi ("Nofaol" va Grant bundan mustasno).${A.CONNECTED.has('payments') ? '' : " To'lovlar M4 bosqichida ulanadi."}</p>
           </section>
         </div>
-        ${A.tabs([['pay', "To'lovlar", pays.length], ['att', 'Davomat', att.length]], tab, 'contracts/' + id)}
+        ${A.tabs([['att', 'Davomat', att.length], ['pay', "To'lovlar", pays.length]], tab, 'contracts/' + id)}
         ${tab === 'pay'
-          ? A.table(
-              [
-                { h: 'Sana', f: (p) => A.fdate(p.date) },
-                { h: 'Summa', f: (p) => A.num(p.amount), cls: 'num', sum: (r) => A.num(A.sum(r, 'amount')) },
-                { h: 'Turi', f: (p) => A.CASH[p.cash_type] + (p.nc_status ? ' ' + A.badge(p.nc_status, p.nc_status === 'Tasdiqlandi' ? 'green' : 'orange') : '') },
-                { h: 'Chegirma', f: (p) => (p.discount ? `${A.num(p.discount)} ${A.badge(p.disc_status, p.disc_status === 'Tasdiqlandi' ? 'green' : 'orange')}` : '—'), cls: 'num' },
-                { h: 'Chek', f: (p) => `<a href="#" data-act="receipt" data-id="${p.id}">Chek</a>` },
-              ],
-              pays,
-              { empty: "To'lov yo'q" },
-            )
+          ? A.empty(A.CONNECTED.has('payments') ? "To'lov yo'q" : "To'lovlar bo'limi M4 bosqichida ulanadi")
           : A.table(
               [
                 { h: 'Sana', f: (a) => `${A.fdate(a.date)} <span class="muted small">${A.WD[A.isoWeekday(a.date)]}</span>` },
                 { h: 'Status', f: (a) => A.attBadge(a.status) + ' ' + A.ATT[a.status] },
-                { h: 'Ustoz', f: (a) => esc(A.userName(a.teacher)) + (a.teacher !== (A.get('groups', a.group) || {}).teacher ? ' ' + A.badge("o'rindosh", 'blue') : '') },
-                { h: 'Dars narxi (qarz)', f: (a) => (a.no_freq ? A.badge('dars soni tasdiqlanmagan', 'orange') : A.num(a.debt)), cls: 'num', sum: (r) => A.num(A.sum(r, 'debt')) },
+                { h: 'Ustoz', f: (a) => esc(A.userName(a.teacher)) + (g && a.teacher !== g.teacher ? ' ' + A.badge("o'rindosh", 'blue') : '') },
+                { h: 'Dars narxi (qarz)', f: (a) => (a.no_freq ? A.badge(a.calc_note || 'hisoblanmagan', 'orange') : A.num(a.debt)), cls: 'num', sum: (r) => A.num(A.sum(r, (a) => a.debt || 0)) },
                 { h: 'Izoh', f: (a) => esc(a.comment || '') },
               ],
               att,
@@ -550,41 +623,42 @@
             )}`;
     },
   });
-  A.act['contract-edit'] = (el) => A.contractForm(A.get('contracts', el.dataset.id));
+  A.act['contract-edit'] = () => A.contractForm(cDetail);
+  A.act['contract-stop'] = () => A.contractForm(cDetail, {}, true);
 
   /* ===================================================== Qarzdorlar */
+  let dData = { results: [], total: 0, count: 0 };
   A.page('debtors', {
     title: 'Qarzdorlar',
     section: 'debtors',
-    render(p, q) {
-      return `${A.head('Qarzdorlar', 'Qarzi 0 dan katta shartnomalar. Guruhlash: kurs → guruh, saralash: qarz bo\'yicha', A.btn('Excel', 'debtors-csv', { cls: 'ghost', icon: 'download' }))}
-        ${A.filterBar('debtors', [A.fSearch('debtors'), A.fSelect('debtors', 'course', A.optList('courses'), 'Barcha kurslar'), A.fSelect('debtors', 'status', [['Faol', 'Faol'], ['Nofaol', 'Nofaol']], 'Barcha statuslar')])}
-        <div data-results>${this.results()}</div>`;
+    async load() {
+      dData = await A.http.get('/debtors/?' + filterQS('debtors', ['search', 'course', 'status']));
+      dData.results.forEach(A.keepContract);
     },
-    results() {
-      const s = A.q('debtors:search', ''), course = A.q('debtors:course', ''), stf = A.q('debtors:status', '');
-      const rows = A.vis('contracts').filter((c) => A.debtOf(c.id) > 0 && (!course || c.course === course) && (!stf || A.contractStatus(c) === stf) && A.match(A.contractName(c), s));
-      const total = A.sum(rows, (c) => A.debtOf(c.id));
-      if (!rows.length) return A.empty("Qarzdor yo'q");
-      const byG = A.groupBy(A.sortBy(rows, (c) => A.groupName(c.group)), (c) => c.group);
-      return `<div class="stats">${A.stat('Jami qarz', A.money(total), `${rows.length} ta shartnoma`, 'danger')}</div>` +
-        [...byG]
-          .map(([gid, list]) => `<section class="group-block"><h3>${esc(A.groupName(gid))} <span class="muted">· ${list.length} ta · ${A.money(A.sum(list, (c) => A.debtOf(c.id)))}</span></h3>${A.table(
-            [
-              { h: 'Shartnoma', f: (c) => `<a class="t-red" href="#/contracts/${c.id}">${esc(A.contractName(c))}</a>` },
-              { h: 'Telefon', f: (c) => { const st = A.get('students', c.student); return `<a href="tel:+998${st.phone1}">${st.phone1}</a>`; } },
-              { h: 'Status', f: (c) => A.contractStatusBadge(A.contractStatus(c)) },
-              { h: "Oxirgi to'lov", f: (c) => { const p = A.sortBy(A.rows('payments').filter((x) => x.contract === c.id), (x) => x.date, true)[0]; return p ? A.fdate(p.date) : '—'; } },
-              { h: 'Qarz', f: (c) => `<b class="t-red">${A.num(A.debtOf(c.id))}</b>`, cls: 'num', sum: (r) => A.num(A.sum(r, (c) => A.debtOf(c.id))) },
-              { h: '', f: (c) => (A.can('payments', 'a') ? `<button class="btn sm" data-act="pay-new" data-id="${c.id}">To'lov</button>` : '') },
-            ],
-            A.sortBy(list, (c) => A.debtOf(c.id), true),
-          )}</section>`)
-          .join('');
+    render() {
+      return `${A.head('Qarzdorlar', "Qarzi 0 dan katta shartnomalar. Guruhlash: kurs → guruh, saralash: qarz bo'yicha", A.btn('Excel', 'debtors-csv', { cls: 'ghost', icon: 'download' }))}
+        ${A.filterBar('debtors', [A.fSearch('debtors'), A.fSelect('debtors', 'course', A.optList('courses'), 'Barcha kurslar'), A.fSelect('debtors', 'status', [['Faol', 'Faol'], ['Nofaol', 'Nofaol']], 'Barcha statuslar')])}
+        <div>${debtorGroups(dData)}</div>`;
     },
   });
+  function debtorGroups(d) {
+    if (!d.results.length) return A.empty("Qarzdor yo'q");
+    const byG = A.groupBy(A.sortBy(d.results, (c) => A.groupName(c.group)), (c) => c.group);
+    return `<div class="stats">${A.stat('Jami qarz', A.money(d.total), `${d.count} ta shartnoma`, 'danger')}</div>` +
+      [...byG]
+        .map(([gid, list]) => `<section class="group-block"><h3>${esc(A.groupName(gid))} <span class="muted">· ${list.length} ta · ${A.money(A.sum(list, 'balance'))}</span></h3>${A.table(
+          [
+            { h: 'Shartnoma', f: (c) => `<a class="t-red" href="#/contracts/${c.id}">${esc(c.name)}</a>` },
+            { h: 'Telefon', f: (c) => `<a href="tel:+998${c.student_data.phone1}">${c.student_data.phone1}</a>` },
+            { h: 'Status', f: (c) => A.contractStatusBadge(c.status) },
+            { h: 'Qarz', f: (c) => `<b class="t-red">${A.num(c.balance)}</b>`, cls: 'num', sum: (r) => A.num(A.sum(r, 'balance')) },
+            { h: '', f: (c) => (paymentsReady() ? `<button class="btn sm" data-act="pay-new" data-id="${c.id}">To'lov</button>` : '') },
+          ],
+          A.sortBy(list, (c) => c.balance, true),
+        )}</section>`)
+        .join('');
+  }
   A.act['debtors-csv'] = () => {
-    const rows = A.vis('contracts').filter((c) => A.debtOf(c.id) > 0);
-    A.downloadCSV('qarzdorlar.csv', [['Shartnoma', 'Telefon', 'Guruh', 'Qarz'], ...rows.map((c) => [A.contractName(c), (A.get('students', c.student) || {}).phone1, A.groupName(c.group), A.debtOf(c.id)])]);
+    A.downloadCSV('qarzdorlar.csv', [['Shartnoma', 'Telefon', 'Guruh', 'Status', 'Qarz'], ...dData.results.map((c) => [c.name, c.student_data.phone1, A.groupName(c.group), c.status, c.balance])]);
   };
 })(window.App);

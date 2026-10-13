@@ -47,8 +47,23 @@ def set_course_price(user, branch, course, effective_from, price):
         obj = CoursePrice.objects.create(branch=branch, course=course, effective_from=effective_from, price=price, created_by=user, updated_by=user)
         audit.log_create(user, obj)
         created = True
-    # M3: shu oydan boshlab davomat qatorlaridagi qarz va Foiz-KPI qayta hisoblanadi
+    recalc_price(branch, course, effective_from)
     return obj, created
+
+
+def recalc_price(branch, course, effective_from):
+    """Narx o'zgarsa: shu oydan boshlab davomat qatorlaridagi qarz va Foiz-KPI (CLAUDE.md 8.5)."""
+    from apps.education import calc
+
+    return calc.recalc_from(effective_from, branch=branch, course=course)
+
+
+def recalc_frequency(freq, courses=None):
+    """Dars soni tasdiqlansa, o'zgarsa yoki o'chirilsa: shu oy, shu dars kunlari va kurslarning qatorlari."""
+    from apps.education import calc
+
+    ids = [c.pk for c in (courses if courses is not None else freq.courses.all())]
+    return calc.recalc_month(freq.year, freq.month, branch=freq.branch, day_pattern=freq.day_pattern, course__in=ids)
 
 
 def check_frequency_overlap(branch, day_pattern, year, month, courses, exclude_pk=None):
@@ -93,6 +108,6 @@ def approve_frequency(user, freq):
     freq.approved_at = timezone.now()
     freq.updated_by = user
     freq.save()
-    audit.log_update(user, freq, before)
-    # M3: shu oyning davomat qatorlari (qarz va KPI) qayta hisoblanadi
+    n = recalc_frequency(freq)
+    audit.log_update(user, freq, before, detail=f"{n} ta davomat qatori qayta hisoblandi" if n else "")
     return freq
