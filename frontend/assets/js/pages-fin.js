@@ -14,6 +14,11 @@
     A.S.accounts = accounts;
     A.version++;
   };
+  /** Foydalanuvchi mas'ul bo'lgan g'azna yo'q bo'lsa — bo'sh ro'yxat o'rniga tushuntirish */
+  const noAccount = (name, show) => ({
+    name: name + '_none', type: 'note', tone: 'warn', show,
+    text: () => `Siz hech bir mos faol g'aznaning mas'uli emassiz, shuning uchun bu yerda pul qabul qilib/chiqarib bo'lmaydi.${A.isTop() ? ` <a href="#/settings?tab=accounts">Sozlamalar → G'aznalar</a> da o'zingizni g'azna mas'ullariga qo'shing.` : " Admin yoki Bosh menejerga murojaat qiling (Sozlamalar → G'aznalar → mas'ullar)."}`,
+  });
   A.accBal = (id, type) => {
     const a = A.get('accounts', id) || {};
     return type ? Number((a.by_type || {})[type] || 0) : Number(a.balance || 0);
@@ -104,7 +109,8 @@
         { name: 'bal', type: 'note', tone: 'info', show: (x) => x.contract, text: (x) => { const c = cById(x.contract); return c ? `Joriy balans: <b class="${c.balance > 0 ? 't-red' : 't-green'}">${A.money(c.balance)}</b> · ${esc(A.courseName(c.course))}` : ''; } },
         { name: 'amount', label: "To'lov miqdori", type: 'money', show: (x) => x.contract, min: 0, validate: (n) => (n < 0 ? "Manfiy summa kiritib bo'lmaydi" : '') },
         { name: 'cash_type', label: "To'lov shakli", type: 'seg', options: cashOpts, show: (x) => x.amount > 0, resets: ['cashbox', 'accountant'] },
-        { name: 'cashbox', label: "G'azna", type: 'select', auto: true, required: (x) => x.amount > 0, show: (x) => x.amount > 0 && x.cash_type, options: cashboxOpts, resets: ['accountant'], help: (x) => (x.cash_type === 'CASH' ? "Siz mas'ul bo'lgan faol g'aznalar" : '') },
+        noAccount('cashbox', (x) => x.amount > 0 && x.cash_type && !cashboxOpts(x).length),
+        { name: 'cashbox', label: "G'azna", type: 'select', auto: true, required: (x) => x.amount > 0, show: (x) => x.amount > 0 && x.cash_type && cashboxOpts(x).length, options: cashboxOpts, resets: ['accountant'], help: (x) => (x.cash_type === 'CASH' ? "Siz mas'ul bo'lgan faol g'aznalar" : '') },
         { name: 'accountant', label: 'Hisobchi', type: 'select', auto: true, show: (x) => x.cashbox, options: (x) => ((A.get('accounts', x.cashbox) || {}).responsible || []).map((u) => [u, A.userName(u)]) },
         { name: 'nc_note', type: 'note', tone: 'warn', show: (x) => x.amount > 0 && x.cash_type && x.cash_type !== 'CASH', text: "Naqdsiz to'lov <b>tasdiqlanmaguncha g'azna balansiga qo'shilmaydi</b>. Tasdiqlash: Admin; Bosh menejer 360 kun, Filial menejeri 7 kun ichida." },
         { name: 'discount_type', label: 'Chegirma turi (ixtiyoriy)', type: 'select', show: (x) => x.contract, placeholder: 'Chegirmasiz', options: (x) => A.rows('discountTypes').filter((d) => (top || !d.is_system) && (!d.courses.length || d.courses.includes((cById(x.contract) || {}).course))).map((d) => [d.id, `${d.name} (max ${A.num(d.max)})`]) },
@@ -319,7 +325,8 @@
       title: "G'aznalar orasida o'tkazma",
       values: { date: A.today() },
       fields: [
-        { name: 'sender', label: "Yuboruvchi g'azna", type: 'select', required: true, auto: true, options: () => A.myAccounts().map((a) => [a.id, `${a.name} (naqd: ${A.num(A.accBal(a.id, 'CASH'))})`]), resets: ['sender_cashier', 'amount'], onChange: (x) => { if (x.sender) x.amount = A.accBal(x.sender, 'CASH'); } },
+        noAccount('sender', () => !A.myAccounts().length),
+        { name: 'sender', label: "Yuboruvchi g'azna", type: 'select', required: true, auto: true, show: () => A.myAccounts().length, options: () => A.myAccounts().map((a) => [a.id, `${a.name} (naqd: ${A.num(A.accBal(a.id, 'CASH'))})`]), resets: ['sender_cashier', 'amount'], onChange: (x) => { if (x.sender) x.amount = A.accBal(x.sender, 'CASH'); } },
         { name: 'sender_cashier', label: "Yuboruvchi g'aznachi", type: 'select', auto: true, show: (x) => x.sender, options: (x) => (A.get('accounts', x.sender) || { responsible: [] }).responsible.map((u) => [u, A.userName(u)]) },
         { name: 'cash_type', label: 'Pul shakli', type: 'computed', show: (x) => x.sender, compute: () => "Naqd (o'tkazma faqat naqd pul uchun)" },
         { name: 'amount', label: 'Summa', type: 'money', required: true, show: (x) => x.sender, help: (x) => `G'aznada naqd: ${A.money(A.accBal(x.sender, 'CASH'))}`, validate: (n, x) => (n <= 0 ? "0 dan katta bo'lsin" : !top && n > A.accBal(x.sender, 'CASH') ? `G'aznada ${A.num(A.accBal(x.sender, 'CASH'))} so'm pul bor` : '') },
@@ -365,7 +372,8 @@
     A.form({
       title: 'Pul ayirboshlash',
       fields: [
-        { name: 'account', label: "G'azna", type: 'select', required: true, auto: true, options: () => A.myAccounts().map((a) => [a.id, a.name]) },
+        noAccount('account', () => !A.myAccounts().length),
+        { name: 'account', label: "G'azna", type: 'select', required: true, auto: true, show: () => A.myAccounts().length, options: () => A.myAccounts().map((a) => [a.id, a.name]) },
         { name: 'from_type', label: 'Pul shakli (dan)', type: 'seg', required: true, options: cashOpts, resets: ['to_type'] },
         { name: 'amount', label: 'Summa', type: 'money', required: true, show: (x) => x.from_type, help: (x) => (x.account ? `G'aznada: ${A.money(A.accBal(x.account, x.from_type))}` : ''), onChange: (x) => (x.amount_to = x.amount) },
         { name: 'to_type', label: 'Pul shakli (ga)', type: 'seg', required: true, show: (x) => x.amount, options: (x) => cashOpts.filter(([k]) => k !== x.from_type) },
@@ -452,7 +460,8 @@
         { name: 'price', label: 'Narxi', type: 'money', required: true, show: (x) => x.name, half: true },
         { name: 'total', label: 'Jami summa', type: 'computed', show: (x) => x.price, compute: (x) => `<b>${A.money((x.quantity || 0) * (x.price || 0))}</b>` },
         { name: 'cash_type', label: "To'lov shakli", type: 'seg', options: cashOpts, show: (x) => x.price },
-        { name: 'account', label: "G'azna", type: 'select', required: true, auto: true, show: (x) => x.price, options: (x) => A.myAccounts().filter((a) => a.cash_type === 'ALL' || a.cash_type === x.cash_type || a.id === x.account).map((a) => [a.id, a.name]), resets: ['cashier'] },
+        noAccount('account', (x) => x.price && !A.myAccounts().some((a) => a.cash_type === 'ALL' || a.cash_type === x.cash_type)),
+        { name: 'account', label: "G'azna", type: 'select', required: true, auto: true, show: (x) => x.price && A.myAccounts().some((a) => a.cash_type === 'ALL' || a.cash_type === x.cash_type || a.id === x.account), options: (x) => A.myAccounts().filter((a) => a.cash_type === 'ALL' || a.cash_type === x.cash_type || a.id === x.account).map((a) => [a.id, a.name]), resets: ['cashier'] },
         { name: 'cashier', label: "G'aznachi", type: 'select', auto: true, show: (x) => x.account, options: (x) => (A.get('accounts', x.account) || { responsible: [] }).responsible.map((u) => [u, A.userName(u)]) },
         { name: 'bal', type: 'note', tone: 'info', show: (x) => x.account && x.cash_type, text: (x) => `G'aznada ${A.CASH[x.cash_type].toLowerCase()}: <b>${A.money(A.accBal(x.account, x.cash_type))}</b>` },
         { name: 'period_year', label: 'Hisob davri: yil', type: 'number', show: (x) => x.price && top, half: true, default: Number(A.today().slice(0, 4)) },
@@ -553,7 +562,8 @@
         { name: 'warn', type: 'note', tone: 'warn', show: (x) => x.creditor, text: "<b>Diqqat:</b> «−» belgisi — <b>qarz olish</b> (g'aznaga pul kiradi), «+» belgisi — <b>qarz qaytarish</b> (g'aznadan pul chiqadi)." },
         { name: 'amount', label: 'Summa (− olish / + qaytarish)', type: 'number', required: true, show: (x) => x.creditor, help: (x) => (x.amount < 0 ? `Qarz olinyapti: g'aznaga +${A.num(-x.amount)}` : x.amount > 0 ? `Qarz qaytarilyapti: g'aznadan −${A.num(x.amount)}` : '') },
         { name: 'cash_type', label: 'Pul shakli', type: 'seg', options: cashOpts, show: (x) => x.amount },
-        { name: 'account', label: "G'azna", type: 'select', required: true, auto: true, show: (x) => x.amount, options: (x) => A.myAccounts().filter((a) => a.cash_type === 'ALL' || a.cash_type === x.cash_type).map((a) => [a.id, a.name]) },
+        noAccount('account', (x) => x.amount && !A.myAccounts().some((a) => a.cash_type === 'ALL' || a.cash_type === x.cash_type)),
+        { name: 'account', label: "G'azna", type: 'select', required: true, auto: true, show: (x) => x.amount && A.myAccounts().some((a) => a.cash_type === 'ALL' || a.cash_type === x.cash_type), options: (x) => A.myAccounts().filter((a) => a.cash_type === 'ALL' || a.cash_type === x.cash_type).map((a) => [a.id, a.name]) },
         { name: 'date', label: 'Sana', type: 'date', show: (x) => x.amount, validate: (d) => (d > A.today() ? "Kelajak sana bilan kiritib bo'lmaydi" : !A.isTop() && A.diffDays(d, A.today()) > 7 ? 'Bir hafta avvalgi sanagacha kiritish mumkin, xolos' : '') },
         { name: 'comment', label: 'Izoh', type: 'textarea', show: (x) => x.amount },
       ],
