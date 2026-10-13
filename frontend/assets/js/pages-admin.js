@@ -399,9 +399,12 @@
     ['M2', 'Lidlar, talabalar, ota-onalar', true],
     ['M3', "Guruhlar, shartnomalar, davomat, qarz va KPI hisobi", true],
     ['M4', "To'lovlar, g'aznalar, o'tkazmalar, xarajatlar, kreditorlar", true],
-    ['M5', 'Oyliklar va KPI stavkalari'],
+    ['M5', 'Oyliklar va KPI stavkalari', true],
     ['M6', "Ustozni baholash, ota-onalar bilan aloqa, Excel", true],
     ['M7', 'Bosh sahifa statistikasi, foyda, guruhlar tahlili', true],
+    ['M8', "Telegram bot: xabarlar va kunlik hisobot", true],
+    ['M10', "AppSheet'dan ma'lumotlarni ko'chirish"],
+    ['M11', 'Haqiqiy ishga tushirish'],
   ];
   let dash = {};
   A.page('dashboard', {
