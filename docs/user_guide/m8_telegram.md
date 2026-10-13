@@ -15,7 +15,7 @@ Kod bir martalik. Uzish — shu oynada «Bog'lanishni uzish» yoki botga `/stop`
 
 | Xabar | Kimga |
 |---|---|
-| Yangi lid | Filial administratorlari (Administrator, Administrator+Hisobchi) |
+| Yangi lid | Filial administratorlari, Bosh menejer, Filial menejeri |
 | Tasdiq kutayotgan chegirma yoki naqdsiz to'lov | Bosh menejer, Filial menejeri |
 | Tasdiq kutayotgan o'tkazma | Qabul qiluvchi g'azna mas'ullari |
 | Qoldirilgan dars so'rovi («Darsni yetkazdim») | Bosh menejer, Filial menejeri, administratorlar |

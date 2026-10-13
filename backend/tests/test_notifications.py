@@ -40,8 +40,8 @@ def test_link_flow_and_prefs(api, make_user):
 
 
 def test_new_lead_goes_to_branch_administrators(api, make_user, world, django_capture_on_commit_callbacks):  # noqa: F811
-    adm, adm2, teacher = make_user("ADMINISTRATOR"), make_user("ADMINISTRATOR_HISOBCHI"), make_user("USTOZ")
-    for i, u in enumerate((adm, adm2, teacher)):
+    adm, adm2, teacher, bm = make_user("ADMINISTRATOR"), make_user("ADMINISTRATOR_HISOBCHI"), make_user("USTOZ"), make_user("BOSH_MENEJER")
+    for i, u in enumerate((adm, adm2, teacher, bm)):
         link(u, 100 + i)
     TelegramLink.objects.filter(user=adm2).update(prefs={"new_lead": False})
     body = {"mode": "new", "first_name": "Yangi", "last_name": "Lidov", "phone1": "933334455", "phone2": "944445566",
@@ -49,10 +49,10 @@ def test_new_lead_goes_to_branch_administrators(api, make_user, world, django_ca
     with django_capture_on_commit_callbacks(execute=True):
         assert api(make_user("FILIAL_MENEJERI")).post("/api/v1/leads/", body, format="json").status_code == 201
     msgs = list(Outbox.objects.all())
-    assert [m.user_id for m in msgs] == [adm.pk] and "Yangi Lidov" in msgs[0].text  # yordamchi va o'chirgan xodim olmaydi
+    assert {m.user_id for m in msgs} == {adm.pk, bm.pk} and "Yangi Lidov" in msgs[0].text  # ustoz va o'chirib qo'ygan xodim olmaydi
     sent = []
-    assert services.send_pending(sender=lambda chat, text: sent.append(chat)) == 1
-    assert sent == [100] and Outbox.objects.get().status == "sent"
+    assert services.send_pending(sender=lambda chat, text: sent.append(chat)) == 2
+    assert sorted(sent) == [100, 103] and set(Outbox.objects.values_list("status", flat=True)) == {"sent"}
 
 
 def test_send_failure_retries_then_fails(make_user):

@@ -71,3 +71,4 @@
 | 2026-10-13 | Akkaunt bog'lash: profil → «Telegram» dagi bir martalik kod (`/start KOD` havolasi); bir chat — bir xodim; ishdan ketgan xodim bog'lana olmaydi; har bir xabar turini xodim o'chira oladi | 12-bo'lim |
 | 2026-10-13 | Davomat eslatmasi: dars boshlanganidan 30 daqiqa (18-bo'lim 6-savol taklifi, `TELEGRAM_ATTENDANCE_DELAY_MIN`), cron har 10 daqiqada, guruhga kuniga bitta. Kunlik hisobot — 20:00 | Taklif qilingan javob |
 | 2026-10-13 | «Yangi lid» — filial administratorlariga (Administrator, Administrator+Hisobchi); tasdiqlar — BM va FM; o'tkazma — qabul qiluvchi g'azna mas'ullari; qoldirilgan dars — BM, FM, administratorlar | 12-bo'lim |
+| 2026-10-13 | Telegram «Yangi lid» xabari Bosh menejer va Filial menejeriga ham boradi (avval faqat administratorlarga); keraksiz bo'lsa «Telegram» oynasida o'chiriladi | Buyurtmachi Bosh menejer sifatida lidlarni belgilab xabar kutgan |

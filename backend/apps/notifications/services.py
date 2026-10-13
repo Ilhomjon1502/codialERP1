@@ -53,7 +53,8 @@ def money(n):
 
 def lead_created(lead):
     st = lead.student
-    notify(staff(lead.branch, [R.ADMINISTRATOR, R.ADMINISTRATOR_HISOBCHI]), "new_lead",
+    # Administratorlar va menejerlar (buyurtmachi qarori 2026-10-13: Bosh menejer ham oladi; keraksiz bo'lsa «Telegram» oynasida o'chiradi)
+    notify(staff(lead.branch, [R.ADMINISTRATOR, R.ADMINISTRATOR_HISOBCHI, R.BOSH_MENEJER, R.FILIAL_MENEJERI]), "new_lead",
            f"🆕 <b>Yangi lid</b>\n{escape(st.full_name)} · +998{st.phone1}\nKurs: {escape(str(lead.course))} · manba: {escape(str(lead.source))}")
 
 
