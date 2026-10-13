@@ -7,6 +7,7 @@ from apps.accounts import views as acc
 from apps.crm import views as crm
 from apps.education import views as edu
 from apps.finance import views as fin
+from apps.payroll import views as pay
 from apps.references import views as ref
 
 router = DefaultRouter(trailing_slash=True)
@@ -40,6 +41,9 @@ router.register("exchanges", fin.ExchangeViewSet, basename="exchange")
 router.register("expenses", fin.ExpenseViewSet, basename="expense")
 router.register("creditors", fin.CreditorViewSet, basename="creditor")
 router.register("creditor-transactions", fin.CreditorTxViewSet, basename="creditor-transaction")
+router.register("kpi-rates", pay.KPIRateViewSet, basename="kpi-rate")
+router.register("salary-assignments", pay.SalaryAssignmentViewSet, basename="salary-assignment")
+router.register("salary-payouts", pay.SalaryPayoutViewSet, basename="salary-payout")
 
 urlpatterns = [
     path("auth/csrf/", acc.CsrfView.as_view()),
@@ -50,5 +54,7 @@ urlpatterns = [
     path("auth/password/set/", acc.PasswordSetView.as_view()),
     path("bootstrap/", ref.bootstrap),
     path("approvals/", fin.approvals),
+    path("kpi/", pay.kpi_tree),
+    path("kpi/rows/", pay.kpi_rows),
     *router.urls,
 ]

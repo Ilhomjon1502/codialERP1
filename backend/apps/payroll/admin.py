@@ -1,5 +1,6 @@
 from django.contrib import admin
 
-from .models import KPIRate
+from .models import KPIRate, SalaryAssignment, SalaryPayout
 
-admin.site.register(KPIRate)
+for m in [KPIRate, SalaryAssignment, SalaryPayout]:
+    admin.site.register(m)

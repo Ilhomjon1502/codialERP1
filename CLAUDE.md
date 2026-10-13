@@ -7,7 +7,7 @@
 
 ## 0. Joriy holat (2026-10-13) — yangi kelgan dasturchi shu yerdan boshlasin
 
-**Qisqasi:** prototip ma'qullandi va muzlatildi. **M1–M4 tayyor**: haqiqiy tizim (`backend/` — Django + DRF API, `frontend/` — prototip ekranlari API'ga ulangan) **Hetzner serverida ishlayapti**. Keyingi ish — **M5 (oyliklar: KPI stavkalari ekrani, oylik belgilash va berish, xodim balansi)**, buyurtmachi «boshla» deganda boshlanadi.
+**Qisqasi:** prototip ma'qullandi va muzlatildi. **M1–M5 tayyor**: haqiqiy tizim (`backend/` — Django + DRF API, `frontend/` — prototip ekranlari API'ga ulangan) **Hetzner serverida ishlayapti**. Keyingi ish — **M6 (vazifalar, ikki yo'nalishli baholash, ota-onalar bilan aloqa, 50% chegirma, Excel eksport)**, buyurtmachi «boshla» deganda boshlanadi. **M6 dan oldin 18-bo'lim 3-savol (50% chegirma qoidasi) ga javob kerak.**
 
 | Bosqich | Holat |
 |---|---|
@@ -18,7 +18,8 @@
 | **M2** — CRM: talabalar, ota-onalar, lidlar (voronka, ro'yxat, statistika, kartochka, izohlar, talaba ma'lumotlarini to'ldirish) | ✅ 2026-10-13, 52 test |
 | **M3** — guruhlar, shartnomalar, qarzdorlar, davomat (olish, kelmaganlar, statistika, qoldirilgan darslar), qarz va KPI hisobi va qayta hisoblash, lid → shartnoma | ✅ 2026-10-13, 70 test |
 | **M4** — moliya: to'lovlar (chegirma limiti, tasdiqlar, PDF chek), CashMovement ledger va g'azna balansi, o'tkazmalar, ayirboshlash, xarajatlar, kreditorlar, Tasdiqlashlar, «To'lov qilganlar» | ✅ 2026-10-13, 84 test |
-| M5 oyliklar → M7 hisobotlar, M10 import, M11 asosiy muhit | ⏳ navbatda (17-bo'lim) |
+| **M5** — oyliklar: KPI stavkalari (qayta hisoblash bilan), oylik belgilash (nusxa), hisoblangan KPI daraxti, oylik berish (g'azna jurnaliga), xodim balansi | ✅ 2026-10-13, 100 test (9 tasi JS sintaksis) |
+| M6 qo'shimcha modullar → M7 hisobotlar, M10 import, M11 asosiy muhit | ⏳ navbatda (17-bo'lim) |
 | M8 Telegram bot, M9 AI | ⏳ tizim ishga tushgandan keyin |
 | 18-bo'limdagi ochiq savollar | ⏳ takliflar `docs/architecture.md` 7-bo'limda; buyurtmachi javob bermasa takliflar qo'llanadi. **3-savol (50% chegirma qoidasi)** ga aniq javob M6 dan oldin kerak |
 | Domen `codialinfo.uz` | ✅ buyurtmachiniki (ahost.uz). DNS: A `erp` → `77.42.9.23` (2026-10-13), Let's Encrypt SSL. Asosiy sayt (`@`, `www` — Vercel) va pochta yozuvlariga tegilmaydi |
@@ -36,6 +37,14 @@
 **Ish qoidalari (o'zgarmagan):** keyingi bosqich buyurtmachi «boshla» deganda boshlanadi; commit/push faqat u so'raganda; noaniq biznes qoidani so'ra yoki `docs/decisions.md` ga yoz.
 
 ### Ishni topshirish (2026-10-13) — keyingi dasturchi shundan davom etadi
+
+**M5 da nima qilindi:**
+- `apps/payroll/`: `models.py` (KPIRate, SalaryAssignment + `opening_balance` importi uchun, SalaryPayout); **`services.py`** — `compute()` (8.4: KPI davomatdan, jarima ayiriladi, qoldiq yillar oralig'ida), `latest_per_user`, `save_rate` (+ qayta hisoblash), `save_assignment`, `copy_previous_month`, `save_payout` (g'azna: `CashMovement.Source.SALARY`, `check_funds`), `kpi_entries`, `scope()` (6.3); `views.py` — `/kpi-rates/`, `/salary-assignments/` (+ `balances`, `{id}/breakdown`, `copy`), `/salary-payouts/`, `/kpi/`, `/kpi/rows/`; `demo.py`.
+- Front-end: `pages-fin.js` oxiridagi Oyliklar bo'limi (5 tab) API'ga ulangan; `A.CONNECTED` ga `salaries`.
+- `tests/test_frontend_syntax.py` — barcha `frontend/assets/js/*.js` node bilan tekshiriladi (node yo'q joyda o'tkazib yuboriladi). **Front-end'ni o'zgartirgach testlarni albatta ishga tushiring.**
+- Qarorlar: `docs/decisions.md` (M5). Qo'llanma: `docs/user_guide/m5_oyliklar.md`.
+
+**Keyingi ish — M6.** `apps/education/` ga StudentTask, TeacherEvaluation, GradingSession/StudentGrade, ParentCall, Discount50 (7.4); Excel eksport (openpyxl, 7.6); front-end `pages-edu.js` dagi Vazifalar, Baholash (ikkala), Ota-onalar bilan aloqa, 50% chegirma, Eksport — 21.4 tartibida. 50% chegirma qoidasini (18-bo'lim 3) buyurtmachidan so'rang.
 
 **Oxirgi holat (M4 dan keyin):** M1–M4 `main` da va https://erp.codialinfo.uz da ishlayapti (2026-10-13). Sinov ma'lumotlariga to'lovlar, xarajatlar, o'tkazmalar, kreditor qo'shildi; 84 test yashil.
 
@@ -78,7 +87,7 @@
 2. Biznes qoidalar: 6-bo'lim (rollar), 7-bo'lim (modellar), 8-bo'lim (hisob-kitob). Ekranlar va matnlar — prototipda (20-bo'lim).
 3. Lokalda ishga tushiring (`README.md`): `backend` da `seed_demo` → `runserver` → http://localhost:8000.
 4. Testlar: `backend` da `.venv/Scripts/python -m pytest` va `.venv/Scripts/ruff check .` yashil bo'lsin.
-5. Keyingi bosqich (M5) rejasi: shu bo'limdagi «M4 da nima qilindi → M5 uchun», `docs/architecture.md` 5-bo'lim va 17-bo'lim.
+5. Keyingi bosqich (M6) rejasi: shu bo'limdagi «Keyingi ish — M6», `docs/architecture.md` 5-bo'lim va 17-bo'lim.
 
 ## 1. Manbalar
 
@@ -149,7 +158,7 @@ backend/
     crm/           ✅ M2  Parent, Student, Lead, LeadComment; voronka va statistika (services.board/stats)
     education/     ✅ M3  Group, Contract, Attendance, MakeupRequest; calc.py (qarz, KPI, qayta hisoblash), demo.py
                          (+ M6: StudentTask, baholash, ParentCall, Discount50)
-    payroll/       ✅/⏳ KPIRate (M3, model); SalaryAssignment, SalaryPayout va stavkalar ekrani (M5)
+    payroll/       ✅ M5  KPIRate, SalaryAssignment, SalaryPayout; compute() (oylik hisobi), demo.py
     reports/       ⏳ M7  dashboard, statistika, foyda, Excel
     importer/      ⏳ M10 AppSheet .xlsx import
     notifications/, ai_assistant/   ⏳ M8, M9
@@ -666,8 +675,8 @@ Real ishga tushirish uchun minimal to'plam: **M1–M7 + M10 + M11** (xodimlar Ap
 | M2 | CRM | Talabalar, ota-onalar, lidlar (voronka, forma, izohlar, statistika), "Shartnoma tuzish" tugmasi (shartnoma o'zi M3 da) | ✅ 2026-10-13 |
 | M3 | O'quv jarayoni | Guruhlar, shartnomalar, qarzdorlar, davomat ekrani, qarz va KPI servislari, kelmaganlar, qoldirilgan darslar, qayta hisoblash; lidda guruh va «Shartnoma tuzish», shartnoma konversiyasi, Shartnomalar → «Talabalar» | ✅ 2026-10-13 |
 | M4 | Moliya | CashMovement ledger, g'aznalar balansi, to'lovlar (tasdiqlar, chegirma limiti, PDF chek), o'tkazmalar, almashtirish, xarajatlar, kreditorlar, Tasdiqlashlar; shartnoma balansiga to'lovlar | ✅ 2026-10-13 |
-| M5 | Oyliklar | KPI stavkalari (API + ekran; model M3 da bor, o'zgarsa `calc.recalc_from`), oylik belgilash va berish (g'aznaga `CashMovement` SALARY), KPI daraxti, xodim balansi | ⏳ keyingi |
-| M6 | Qo'shimcha modullar | Vazifalar, ikki yo'nalishli baholash, ota-onalar bilan aloqa, 50% chegirma, Excel eksport | ⏳ |
+| M5 | Oyliklar | KPI stavkalari (o'zgarsa qayta hisoblash), oylik belgilash va berish (g'aznaga `CashMovement` SALARY), KPI daraxti, xodim balansi | ✅ 2026-10-13 |
+| M6 | Qo'shimcha modullar | Vazifalar, ikki yo'nalishli baholash, ota-onalar bilan aloqa, 50% chegirma, Excel eksport | ⏳ keyingi |
 | M7 | Hisobot va dashboard | Bosh sahifa, oylik statistika, voronka, birinchi to'lovchilar, foyda, guruh tahlili | ⏳ |
 | M8 | Telegram bot | Bog'lash, xabarlar, kunlik hisobot | ⏳ keyin |
 | M9 | AI yordamchi | Faqat o'qish view'lari, SQL xavfsizligi, provayder abstraksiyasi | ⏳ keyin |
@@ -862,7 +871,7 @@ Brauzer ──HTTPS──► Nginx (serverda) ──┬── /            → f
 | `pages-admin.js` | Sozlamalar, Audit tarixi, Bosh sahifa (M1) — **namuna sifatida o'qing** |
 | `pages-crm.js` | Lidlar (M2), Shartnomalar, Qarzdorlar (M3) — API'ga ulangan. Ichidagi eski `A.page('dashboard')` ishlatilmaydi (`pages-admin.js` dagisi uni almashtiradi) |
 | `pages-edu.js` | Guruhlar, Guruhlar tahlili, Davomat (M3) — API'ga ulangan; Vazifalar, Baholash, Ota-onalar, 50% chegirma, Eksport — hali prototip kodi (M6) |
-| `pages-fin.js` | To'lovlar, Tasdiqlashlar, G'aznalar, O'tkazmalar, Ayirboshlash, Xarajatlar, Kreditorlar (M4) — API'ga ulangan; Foyda (M7) va Oyliklar (M5) — hali prototip kodi |
+| `pages-fin.js` | To'lovlar, Tasdiqlashlar, G'aznalar, O'tkazmalar, Ayirboshlash, Xarajatlar, Kreditorlar (M4), Oyliklar (M5) — API'ga ulangan; Foyda (M7) — hali prototip kodi |
 
 Sahifa serverdan ma'lumot olishi kerak bo'lsa: `A.page('route', { section, async load(p, q) {...}, render(p, q) {...} })` — `load` har chizishdan oldin (filtr o'zgarganda ham) chaqiriladi. Namuna: `A.page('audit')`.
 
@@ -891,6 +900,9 @@ Front-end fayllari `git pull` bilan darhol yangilanadi (Nginx papkadan beradi).
 ### 21.6 Tuzoqlar (bilib qo'ying)
 
 - `frontend/index.html` dagi `?v=` almashtirilmasa, brauzer eski JS'ni ko'rsatadi.
+- Bitta JS faylda sintaksis xatosi bo'lsa, o'sha fayldagi **barcha** sahifalar «Sahifa topilmadi» bo'ladi. Push'dan oldin `pytest` (ichida `test_frontend_syntax.py`) yashil bo'lsin.
+- Python skript bilan JS'ga matn qo'shganda qo'shtirnoqqa ehtiyot bo'ling: `'...g'azna...'` — xato; o'zbekcha apostrofli matn uchun `"..."` yoki `` `...` `` ishlating.
+- Git Bash'da katta heredoc (`<<'EOF'`) ba'zan buziladi — uzun tahrir skriptlarini faylga yozib ishga tushiring.
 - Login so'rovi ham CSRF talab qiladi: front-end avval `GET /api/v1/auth/csrf/` oladi.
 - **Admin rolining ruxsatlari o'zgarmaydi** (qulflanib qolmaslik uchun); matritsani faqat Admin va Bosh menejer o'zgartiradi.
 - Prod sozlamada HTTPS majburiy (xavfsiz cookie) — SSL'siz HTTP orqali kirib bo'lmaydi. Domen bo'lmasa `*.sslip.io` ishlatiladi.

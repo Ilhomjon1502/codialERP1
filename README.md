@@ -11,7 +11,8 @@ Codial IT o'quv markazi (Farg'ona) uchun boshqaruv tizimi. Hozirgi AppSheet ilov
 | **M2 — CRM**: lidlar (voronka, ro'yxat, statistika, kartochka, izohlar), talabalar va ota-onalar | ✅ |
 | **M3 — O'quv jarayoni**: guruhlar, shartnomalar, qarzdorlar, davomat (olish, kelmaganlar, statistika, qoldirilgan darslar), qarz va KPI hisobi | ✅ |
 | **M4 — Moliya**: to'lovlar (chegirma limiti, tasdiqlar, PDF chek), g'aznalar va pul harakatlari jurnali, o'tkazmalar, ayirboshlash, xarajatlar, kreditorlar, Tasdiqlashlar | ✅ |
-| M5–M7: oyliklar, qo'shimcha modullar, hisobotlar | ⏳ navbatda |
+| **M5 — Oyliklar**: KPI stavkalari, oylik belgilash, hisoblangan KPI (daraxt), oylik berish, xodim balansi | ✅ |
+| M6–M7: qo'shimcha modullar, hisobotlar | ⏳ navbatda |
 | M10–M11: AppSheet'dan ko'chirish va ishga tushirish | ⏳ |
 
 Reja: [docs/architecture.md](docs/architecture.md). Texnik topshiriq: [CLAUDE.md](CLAUDE.md).

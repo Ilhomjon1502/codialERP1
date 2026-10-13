@@ -624,150 +624,156 @@
     A.refresh();
   };
 
-  /* ===================================================== Oyliklar */
+  /* ===================================================== Oyliklar (server API: /salary-assignments/, /salary-payouts/, /kpi-rates/, /kpi/) */
+  let salData = {};
+  const KPI_LEVELS = [
+    { key: (e) => e.branch, label: (k) => A.branchName(k), hideSingle: true },
+    { key: (e) => e.ym.slice(0, 4), label: (k) => k, desc: true },
+    { key: (e) => e.ym, label: (k) => A.ymLabel(k).split(' ')[0], sort: (k) => k, desc: true },
+    { key: (e) => e.user, label: (k) => A.userName(k) },
+    {
+      key: (e) => `${e.group}:${e.role}`,
+      label: (k) => { const [g, r] = k.split(':'); return A.groupName(g) + (r === 'YORDAMCHI' ? ' · yordamchi' : ''); },
+      sort: (k) => (A.get('groups', k.split(':')[0]) || {}).number || 0,
+    },
+  ];
+  const kpiOpts = (entries) => {
+    const latest = A.sortBy(entries, (e) => e.ym, true)[0];
+    return { levels: KPI_LEVELS, value: (l) => A.num(A.sum(l, (e) => Number(e.sum))), def: latest ? `${latest.branch}|${latest.ym.slice(0, 4)}|${latest.ym}` : '' };
+  };
+  const salTab = (q) => q.tab || (A.isManager() ? 'assign' : 'kpi');
+
   A.page('salaries', {
     title: 'Oyliklar',
     section: 'salaries',
+    async load(p, q) {
+      const tab = salTab(q);
+      const ym = A.q('sal:month', A.ym(A.today()));
+      salData = {};
+      if (tab === 'assign') salData.rows = await A.http.get(`/salary-assignments/?month=${ym}`);
+      else if (tab === 'kpi') {
+        const [entries, rates] = await Promise.all([A.http.get('/kpi/'), A.http.get('/kpi-rates/')]);
+        A.S.kpiRates = rates;
+        A.version++;
+        salData.entries = entries;
+        const sel = A.q('kpi:tree', kpiOpts(entries).def);
+        const parts = sel ? sel.split('|') : [];
+        if (parts.length === KPI_LEVELS.length) {
+          const [g, role] = parts[4].split(':');
+          salData.rows = await A.http.get(`/kpi/rows/?month=${parts[2]}&user=${parts[3]}&role=${role}&group=${g}`);
+        }
+      } else if (tab === 'rates') {
+        A.S.kpiRates = await A.http.get('/kpi-rates/');
+        A.version++;
+      } else if (tab === 'payout') salData.page = await A.http.get(`/salary-payouts/?page=${A.q('sp:page', 1)}`);
+      else salData.rows = await A.http.get('/salary-assignments/balances/');
+    },
     render(p, q) {
       const mgr = A.isManager();
-      const tab = q.tab || (mgr ? 'assign' : 'kpi');
+      const tab = salTab(q);
       const tabs = mgr || A.can('salaries', 'a')
         ? [['assign', 'Oylik belgilash'], ['kpi', 'Hisoblangan KPI'], ['rates', 'KPI stavkalari'], ['payout', 'Oylik berish'], ['balance', 'Xodim balansi']]
         : [['kpi', 'Mening KPI'], ['assign', 'Mening oyligim'], ['payout', 'Olganlarim']];
       const ym = A.q('sal:month', A.ym(A.today()));
       const monthSel = `<div class="filters"><select class="f-input" data-filter="sal:month">${A.monthOptions().map(([k, l]) => `<option value="${k}" ${k === ym ? 'selected' : ''}>${l}</option>`).join('')}</select></div>`;
       let body = '';
-      if (tab === 'assign') body = monthSel + assignView(ym);
-      else if (tab === 'kpi') body = kpiView();
+      if (tab === 'assign') body = monthSel + assignView(ym, salData.rows || []);
+      else if (tab === 'kpi') body = kpiView(salData.entries || [], salData.rows);
       else if (tab === 'rates') body = ratesView();
-      else if (tab === 'payout') body = payoutView();
-      else body = balanceView();
-      return `${A.head('Oyliklar', 'Jami = belgilangan + bonus + KPI (qo\'lda) + ustoz KPI + yordamchi KPI − jarima')}${A.tabs(tabs, tab, 'salaries')}${body}`;
+      else if (tab === 'payout') body = payoutView(salData.page || { results: [] });
+      else body = balanceView(salData.rows || []);
+      return `${A.head('Oyliklar', "Jami = belgilangan + bonus + KPI (qo'lda) + ustoz KPI + yordamchi KPI − jarima")}${A.tabs(tabs, tab, 'salaries')}${body}`;
     },
   });
+  const canAssign = () => A.can('salaries', 'e') && A.isManager();
 
-  function assignView(ym) {
-    const y = Number(ym.slice(0, 4)), m = Number(ym.slice(5, 7));
-    const rows = A.vis('salaryAssign').filter((s) => s.year === y && s.month === m);
-    const canA = A.can('salaries', 'a') && A.isManager();
-    return `${canA ? `<div class="row gap">${A.btn('Oylik belgilash', 'sa-new', { icon: 'plus' })}${A.btn("O'tgan oydan nusxa", 'sa-copy', { cls: 'ghost', id: ym })}</div>` : ''}
+  function assignView(ym, rows) {
+    return `${canAssign() ? `<div class="row gap">${A.btn('Oylik belgilash', 'sa-new', { icon: 'plus' })}${A.btn("O'tgan oydan nusxa", 'sa-copy', { cls: 'ghost', id: ym })}</div>` : ''}
       ${A.table(
         [
-          { h: 'Xodim', f: (s) => `<b>${esc(A.userName(s.user))}</b><br><small class="muted">${esc(A.ROLES[(A.get('users', s.user) || {}).role])}</small>` },
+          { h: 'Xodim', f: (s) => `<b>${esc(A.userName(s.user))}</b><br><small class="muted">${esc(A.ROLES[(A.get('users', s.user) || {}).role] || '')}</small>` },
           { h: 'Belgilangan', f: (s) => A.num(s.fixed), cls: 'num' },
           { h: 'Bonus', f: (s) => A.num(s.bonus), cls: 'num' },
-          { h: 'KPI (qo\'lda)', f: (s) => A.num(s.kpi), cls: 'num' },
-          { h: 'Ustoz KPI', f: (s) => A.num(A.salaryCalc(s).tkpi), cls: 'num' },
-          { h: 'Yordamchi KPI', f: (s) => A.num(A.salaryCalc(s).skpi), cls: 'num' },
-          { h: 'Jarima', f: (s) => (s.fine ? `<span class="t-red">−${A.num(s.fine)}</span>` : '0'), cls: 'num' },
-          { h: 'Jami', f: (s) => `<b>${A.num(A.salaryCalc(s).total)}</b>`, cls: 'num', sum: (r) => A.num(A.sum(r, (s) => A.salaryCalc(s).total)) },
-          { h: 'Berildi', f: (s) => A.num(A.salaryCalc(s).given), cls: 'num', sum: (r) => A.num(A.sum(r, (s) => A.salaryCalc(s).given)) },
-          { h: 'Avvalgi oydan', f: (s) => A.num(A.salaryCalc(s).carried), cls: 'num' },
-          { h: 'Yakuniy balans', f: (s) => `<b class="${A.salaryCalc(s).final > 0 ? 't-orange' : ''}">${A.num(A.salaryCalc(s).final)}</b>`, cls: 'num', sum: (r) => A.num(A.sum(r, (s) => A.salaryCalc(s).final)) },
-          { h: '', f: (s) => (canA ? `<button class="btn sm ghost" data-act="sa-edit" data-id="${s.id}">✎</button>` : '') },
+          { h: "KPI (qo'lda)", f: (s) => A.num(s.kpi), cls: 'num' },
+          { h: 'Ustoz KPI', f: (s) => A.num(s.tkpi), cls: 'num' },
+          { h: 'Yordamchi KPI', f: (s) => A.num(s.skpi), cls: 'num' },
+          { h: 'Jarima', f: (s) => (Number(s.fine) ? `<span class="t-red">−${A.num(s.fine)}</span>` : '0'), cls: 'num' },
+          { h: 'Jami', f: (s) => `<b>${A.num(s.total)}</b>`, cls: 'num', sum: (r) => A.num(A.sum(r, (s) => Number(s.total))) },
+          { h: 'Berildi', f: (s) => A.num(s.given), cls: 'num', sum: (r) => A.num(A.sum(r, (s) => Number(s.given))) },
+          { h: 'Avvalgi oydan', f: (s) => A.num(s.carried), cls: 'num' },
+          { h: 'Yakuniy balans', f: (s) => `<b class="${s.final > 0 ? 't-orange' : s.final < 0 ? 't-red' : ''}">${A.num(s.final)}</b>`, cls: 'num', sum: (r) => A.num(A.sum(r, (s) => Number(s.final))) },
+          { h: '', f: (s) => `<div class="row gap nowrap"><button class="btn sm ghost" data-act="bal-open" data-id="${s.id}" title="Batafsil">›</button>${canAssign() ? `<button class="btn sm ghost" data-act="sa-edit" data-id="${s.id}">✎</button>` : ''}</div>` },
         ],
         A.sortBy(rows, (s) => A.userName(s.user)),
-        { empty: "Bu oy uchun oylik belgilanmagan" },
+        { empty: 'Bu oy uchun oylik belgilanmagan' },
       )}
-      <p class="muted small">«Avvalgi oydan» — barcha oldingi oylardagi (jami − berilgan) yig'indisi, yillar oralig'ida ham. Jarima jamidan ayiriladi (AppSheet'da ayirilmagan edi).</p>`;
+      <p class="muted small">«Avvalgi oydan» — barcha oldingi oylardagi (jami − berilgan) yig'indisi, yillar oralig'ida ham. Ustoz va yordamchi KPI davomatdan avtomatik. Jarima jamidan ayiriladi (AppSheet'da ayirilmagan edi).</p>`;
   }
   A.salaryForm = (s, ym) => {
-    const B = A.branchIds()[0];
+    const B = s ? s.branch : A.branchIds()[0];
     const [y0, m0] = (ym || A.ym(A.today())).split('-').map(Number);
+    const num = (v) => Number(v) || 0;
     A.form({
-      title: s ? `Oylik: ${A.userName(s.user)}` : 'Oylik belgilash',
-      values: s ? { ...s, month: String(s.month) } : { year: y0, month: String(m0), fixed: 0, bonus: 0, kpi: 0, fine: 0 },
+      title: s ? `Oylik: ${A.userName(s.user)} · ${A.MONTHS[s.month - 1]} ${s.year}` : 'Oylik belgilash',
+      values: s ? { ...s, month: String(s.month), fixed: num(s.fixed), bonus: num(s.bonus), kpi: num(s.kpi), fine: num(s.fine) } : { year: y0, month: String(m0), fixed: 0, bonus: 0, kpi: 0, fine: 0 },
       fields: [
-        { name: 'user', label: 'Xodim', type: 'select', required: true, readonly: () => !!s, options: () => A.S.users.filter((u) => u.role !== 'ADMIN' && u.status === 'Faol').map((u) => [u.id, `${u.full_name} · ${A.ROLES[u.role]}`]) },
-        { name: 'year', label: 'Yil', type: 'number', required: true, half: true, show: (x) => x.user },
-        { name: 'month', label: 'Oy', type: 'select', required: true, half: true, show: (x) => x.user, options: A.MONTHS.map((m, i) => [String(i + 1), m]), validate: (m, x) => (!s && A.rows('salaryAssign').some((z) => z.branch === B && z.user === x.user && z.year === Number(x.year) && z.month === Number(m)) ? 'Bu xodimga shu oy uchun oylik belgilangan' : '') },
+        { name: 'user', label: 'Xodim', type: 'select', required: true, readonly: () => !!s, options: () => A.S.users.filter((u) => u.role !== 'ADMIN' && u.role !== 'BOSHQA' && (u.status === 'Faol' || (s && u.id === s.user)) && (u.branches || []).includes(B)).map((u) => [u.id, `${u.full_name} · ${A.ROLES[u.role]}`]) },
+        { name: 'year', label: 'Yil', type: 'number', required: true, half: true, show: (x) => x.user, readonly: () => !!s },
+        { name: 'month', label: 'Oy', type: 'select', required: true, half: true, show: (x) => x.user, readonly: () => !!s, options: A.MONTHS.map((m, i) => [String(i + 1), m]) },
         { name: 'fixed', label: 'Belgilangan oylik', type: 'money', half: true, show: (x) => x.month },
         { name: 'bonus', label: 'Bonus', type: 'money', half: true, show: (x) => x.month },
         { name: 'kpi', label: "KPI (qo'lda)", type: 'money', half: true, show: (x) => x.month },
         { name: 'fine', label: 'Jarima', type: 'money', half: true, show: (x) => x.month },
-        { name: 'auto', label: 'Avtomatik (davomatdan)', type: 'computed', show: (x) => x.month && x.user, compute: (x) => { const b = A.salaryBase({ branch: B, user: x.user, year: Number(x.year), month: Number(x.month), fixed: x.fixed, bonus: x.bonus, kpi: x.kpi, fine: x.fine }); return `Ustoz KPI: <b>${A.num(b.tkpi)}</b> · Yordamchi KPI: <b>${A.num(b.skpi)}</b><br>Jami: <b>${A.money(b.total)}</b>`; } },
+        {
+          name: 'auto', label: 'Avtomatik (davomatdan)', type: 'computed', show: (x) => x.month && x.user,
+          compute: (x) => (s ? `Ustoz KPI: <b>${A.num(s.tkpi)}</b> · Yordamchi KPI: <b>${A.num(s.skpi)}</b><br>Jami: <b>${A.money(num(x.fixed) + num(x.bonus) + num(x.kpi) + num(s.tkpi) + num(s.skpi) - num(x.fine))}</b>` : 'Ustoz va yordamchi KPI saqlangandan keyin davomatdan avtomatik qo\'shiladi'),
+        },
         { name: 'comment', label: 'Izoh', type: 'textarea', show: (x) => x.month },
       ],
-      onSubmit(x) {
-        const rec = { branch: B, user: x.user, year: Number(x.year), month: Number(x.month), fixed: +x.fixed || 0, bonus: +x.bonus || 0, kpi: +x.kpi || 0, fine: +x.fine || 0, comment: x.comment };
-        if (s) A.patch('salaryAssign', s.id, rec, 'Oylik belgilash', A.userName(s.user)); else A.insert('salaryAssign', rec, 'Oylik belgilash', A.userName(x.user));
+      async onSubmit(x) {
+        const rec = { fixed: num(x.fixed), bonus: num(x.bonus), kpi: num(x.kpi), fine: num(x.fine), comment: x.comment || '' };
+        if (s) await A.http.patch(`/salary-assignments/${s.id}/`, rec);
+        else await A.http.post('/salary-assignments/', { ...rec, user: x.user, year: Number(x.year), month: Number(x.month) });
+        A.toast('Saqlandi');
         A.refresh();
       },
     });
   };
   A.act['sa-new'] = () => A.salaryForm(null, A.q('sal:month', A.ym(A.today())));
-  A.act['sa-edit'] = (el) => A.salaryForm(A.get('salaryAssign', el.dataset.id));
-  A.act['sa-copy'] = (el) => {
-    const ym = el.dataset.id;
-    const prev = A.addMonths(ym, -1);
-    const [y, m] = ym.split('-').map(Number), [py, pm] = prev.split('-').map(Number);
-    let n = 0;
-    for (const s of A.rows('salaryAssign').filter((s) => s.year === py && s.month === pm)) {
-      if (A.rows('salaryAssign').some((z) => z.user === s.user && z.branch === s.branch && z.year === y && z.month === m)) continue;
-      A.S.salaryAssign.push({ id: 'sa' + A.uid(), branch: s.branch, user: s.user, year: y, month: m, fixed: s.fixed, bonus: 0, kpi: 0, fine: 0, comment: '', created_by: A.S.currentUser, created_at: Date.now() });
-      n++;
-    }
-    A.log('create', 'Oylik belgilash', `${A.ymLabel(prev)} → ${A.ymLabel(ym)} nusxa: ${n} ta`);
-    A.save();
-    A.toast(n ? `${n} ta xodimga oylik nusxalandi` : "Nusxalanadigan yangi yozuv yo'q");
+  A.act['sa-edit'] = (el) => A.salaryForm((salData.rows || []).find((s) => s.id === el.dataset.id));
+  A.act['sa-copy'] = async (el) => {
+    const r = await A.http.post('/salary-assignments/copy/', { month: el.dataset.id });
+    A.toast(r.created ? `${r.created} ta xodimga oylik nusxalandi (belgilangan summa)` : "Nusxalanadigan yangi yozuv yo'q");
     A.refresh();
   };
 
-  /* Hisoblangan KPI: chapda daraxt (yil → oy → xodim → guruh, KPI summasi bilan), o'ngda jadval */
-  const KPI_LEVELS = [
-    { key: (e) => e.a.branch, label: (k) => A.branchName(k), hideSingle: true },
-    { key: (e) => e.ym.slice(0, 4), label: (k) => k, desc: true },
-    { key: (e) => e.ym, label: (k) => A.ymLabel(k).split(' ')[0], sort: (k) => k, desc: true },
-    { key: (e) => e.user, label: (k) => A.userName(k) },
-    {
-      key: (e) => `${e.a.group}:${e.role}`,
-      label: (k) => { const [g, r] = k.split(':'); return A.groupName(g) + (r === 'YORDAMCHI' ? ' · yordamchi' : ''); },
-      sort: (k) => (A.get('groups', k.split(':')[0]) || {}).number || 0,
-    },
-  ];
-  function kpiView() {
-    const me = A.S.currentUser, mine = A.isTeacherRole();
-    // Har bir davomat qatoridan ustoz KPI va yordamchi KPI alohida yozuv bo'ladi
-    const entries = [];
-    for (const a of A.vis('attendance')) {
-      const ym = A.ym(a.date);
-      if (a.teacher && (!mine || a.teacher === me)) entries.push({ a, ym, user: a.teacher, role: 'USTOZ', kpi: a.tkpi || 0 });
-      if (a.supporter && (!mine || a.supporter === me)) entries.push({ a, ym, user: a.supporter, role: 'YORDAMCHI', kpi: a.skpi || 0 });
-    }
-    const latest = A.sortBy(entries, (e) => e.ym, true)[0];
-    // Standart: oxirgi oy ochiq turadi
-    const opts = { levels: KPI_LEVELS, value: (l) => A.num(A.sum(l, 'kpi')), def: latest ? `${latest.a.branch}|${latest.ym.slice(0, 4)}|${latest.ym}` : '' };
+  /* Hisoblangan KPI: chapda daraxt (yil → oy → xodim → guruh, KPI summasi bilan), o'ngda jadval (serverda yig'ilgan) */
+  function kpiView(entries, leafRows) {
+    const opts = kpiOpts(entries);
     const sel = A.treeFilter('kpi', entries, opts);
-    const leaf = A.treeDepth('kpi', opts) === KPI_LEVELS.length;
-    // Jadval: oy + xodim + rol + guruh bo'yicha yig'indi
-    const rows = [...A.groupBy(sel, (e) => `${e.ym}|${e.user}|${e.role}|${e.a.group}`)].map(([, l]) => {
-      const e = l[0], grp = A.get('groups', e.a.group);
-      return { ym: e.ym, user: e.user, role: e.role, group: e.a.group, n: l.length, paid: l.filter((x) => x.kpi > 0).length, sum: A.sum(l, 'kpi'), rate: A.rateFor(grp.branch, e.user, e.role, grp.course, e.ym), pending: l.filter((x) => x.a.no_freq).length };
-    });
-    const manyMonths = new Set(rows.map((r) => r.ym)).size > 1;
+    const manyMonths = new Set(sel.map((r) => r.ym)).size > 1;
     const table = A.table(
       [
         ...(manyMonths ? [{ h: 'Oy', f: (r) => A.ymLabel(r.ym) }] : []),
         { h: 'Xodim', f: (r) => `<b>${esc(A.userName(r.user))}</b>` },
         { h: 'Rol', f: (r) => A.badge(r.role === 'USTOZ' ? 'Ustoz' : 'Yordamchi', r.role === 'USTOZ' ? 'blue' : 'gray') },
         { h: 'Guruh', f: (r) => esc(A.groupName(r.group)) },
-        { h: 'Stavka', f: (r) => (r.rate ? (r.rate.type === 'Foiz' ? `${r.rate.percent}% narxdan` : `${A.num(r.rate.fixed)} / talaba / oy`) : '<span class="t-red">belgilanmagan</span>') },
+        { h: 'Stavka', f: (r) => { const k = A.rateFor(r.branch, r.user, r.role, r.course, r.ym); return k ? (k.type === 'Foiz' ? `${Number(k.percent)}% narxdan` : `${A.num(k.fixed)} / talaba / oy`) : '<span class="t-red">belgilanmagan</span>'; } },
         { h: 'Dars qatorlari', f: (r) => `${r.n} <small class="muted">(KPI: ${r.paid})</small>`, cls: 'num' },
-        { h: 'KPI', f: (r) => `<b>${A.num(r.sum)}</b>${r.pending ? ` ${A.badge(r.pending + ' ta kutilmoqda', 'orange')}` : ''}`, cls: 'num', sum: (rr) => A.num(A.sum(rr, 'sum')) },
+        { h: 'KPI', f: (r) => `<b>${A.num(r.sum)}</b>${r.pending ? ` ${A.badge(r.pending + ' ta kutilmoqda', 'orange')}` : ''}`, cls: 'num', sum: (rr) => A.num(A.sum(rr, (r) => Number(r.sum))) },
       ],
-      A.sortBy(A.sortBy(rows, (r) => `${A.userName(r.user)}|${r.role}|${A.groupName(r.group)}`), (r) => r.ym, true),
+      A.sortBy(A.sortBy(sel, (r) => `${A.userName(r.user)}|${r.role}|${A.groupName(r.group)}`), (r) => r.ym, true),
       { empty: "KPI yo'q" },
     );
-    // Guruh tanlansa, AppSheet'dagidek har bir davomat qatori ham chiqadi
-    const detail = leaf
+    const detail = leafRows
       ? `<h3>Davomat qatorlari</h3>${A.table(
           [
-            { h: 'Sana', f: (e) => A.fdate(e.a.date) },
-            { h: 'Shartnoma', f: (e) => `<a href="#/contracts/${e.a.contract}">${esc(A.contractName(e.a.contract))}</a>` },
-            { h: 'Status', f: (e) => A.attBadge(e.a.status) },
-            { h: 'KPI', f: (e) => (e.a.no_freq ? A.badge('kutilmoqda', 'orange') : A.num(e.kpi)), cls: 'num', sum: (rr) => A.num(A.sum(rr, 'kpi')) },
+            { h: 'Sana', f: (a) => A.fdate(a.date) },
+            { h: 'Shartnoma', f: (a) => `<a href="#/contracts/${a.contract}">${esc(a.student_name)} №${a.contract_number}</a>` },
+            { h: 'Status', f: (a) => A.attBadge(a.status) },
+            { h: 'KPI', f: (a) => { const v = (A.q('kpi:tree', '').split('|')[4] || '').endsWith('YORDAMCHI') ? a.skpi : a.tkpi; return v === null ? A.badge('kutilmoqda', 'orange') : A.num(v); }, cls: 'num' },
           ],
-          A.sortBy(sel, (e) => e.a.date, true),
+          leafRows,
         )}`
       : '';
     return `<div class="settings tree-layout">${A.treeNav('kpi', entries, opts)}<div class="settings-body">${table}${detail}
@@ -775,126 +781,139 @@
   }
 
   function ratesView() {
-    const rows = A.sortBy(A.vis('kpiRates'), (k) => A.userName(k.user) + k.effective_from);
-    const canE = A.can('salaries', 'e');
-    return `${canE ? `<div class="row gap">${A.btn('Stavka qo\'shish', 'rate-new', { icon: 'plus' })}${A.btn("O'tgan oy stavkalarini nusxalash", 'rate-copy', { cls: 'ghost' })}</div>` : ''}
-      <p class="muted small">Stavka «amal qilish sanasi» bilan saqlanadi: oy uchun shu oyda amalda bo'lgan oxirgi yozuv olinadi. Stavka faqat o'zgarganda yangi yozuv qo'shiladi.</p>
+    const rows = A.sortBy(A.rows('kpiRates'), (k) => A.userName(k.user) + k.effective_from);
+    const canE = canAssign();
+    const cur = A.ym(A.today());
+    return `${canE ? `<div class="row gap">${A.btn("Stavka qo'shish", 'rate-new', { icon: 'plus' })}${A.btn("O'tgan oy stavkalarini nusxalash", 'rate-copy', { cls: 'ghost' })}</div>` : ''}
+      <p class="muted small">Stavka «amal qilish oyi» bilan saqlanadi: oy uchun shu oyda amalda bo'lgan oxirgi yozuv olinadi. Stavka faqat o'zgarganda yangi yozuv qo'shiladi. Saqlanganda tegishli davomat qatorlaridagi KPI qayta hisoblanadi.</p>
       ${A.table(
         [
           { h: 'Xodim', f: (k) => esc(A.userName(k.user)) },
           { h: 'Rol', f: (k) => (k.role_type === 'USTOZ' ? 'Ustoz' : 'Yordamchi') },
           { h: 'Kurs', f: (k) => esc(A.courseName(k.course)) },
           { h: 'Amal qiladi', f: (k) => A.ymLabel(k.effective_from) + ' dan' },
-          { h: 'Kelishuv', f: (k) => (k.type === 'Foiz' ? `Foiz: <b>${k.percent}%</b>` : `O'zgarmas: <b>${A.num(k.fixed)}</b>`) },
-          { h: 'Holat', f: (k) => { const cur = A.rateFor(k.branch, k.user, k.role_type, k.course, A.ym(A.today())); return cur && cur.id === k.id ? A.badge('amalda', 'green') : k.effective_from > A.ym(A.today()) ? A.badge('kelajakda', 'blue') : A.badge('tarix', 'gray'); } },
+          { h: 'Kelishuv', f: (k) => (k.type === 'Foiz' ? `Foiz: <b>${Number(k.percent)}%</b>` : `O'zgarmas: <b>${A.num(k.fixed)}</b>`) },
+          { h: 'Holat', f: (k) => { const c = A.rateFor(k.branch, k.user, k.role_type, k.course, cur); return c && c.id === k.id ? A.badge('amalda', 'green') : k.effective_from > cur ? A.badge('kelajakda', 'blue') : A.badge('tarix', 'gray'); } },
+          { h: '', f: (k) => (canE ? `<div class="row gap nowrap"><button class="btn sm ghost" data-act="rate-edit" data-id="${k.id}">✎</button><button class="btn sm ghost" data-act="rate-del" data-id="${k.id}">🗑</button></div>` : '') },
         ],
         rows,
+        { empty: "Stavka yo'q" },
       )}`;
   }
-  A.act['rate-new'] = () => {
-    const B = A.branchIds()[0];
+  A.rateForm = (k) => {
+    const B = k ? k.branch : A.branchIds()[0];
     A.form({
-      title: 'KPI stavkasi',
-      values: { role_type: 'USTOZ', effective_from: A.ym(A.today()), type: 'Foiz' },
+      title: k ? `KPI stavkasi: ${A.userName(k.user)}` : 'KPI stavkasi',
+      values: k ? { ...k, fixed: Number(k.fixed), percent: Number(k.percent) } : { role_type: 'USTOZ', effective_from: A.ym(A.today()), type: 'Foiz' },
       fields: [
-        { name: 'role_type', label: 'Kim uchun', type: 'seg', options: [['USTOZ', 'Ustoz'], ['YORDAMCHI', 'Yordamchi']], resets: ['user'] },
-        { name: 'user', label: 'Xodim', type: 'select', required: true, options: (x) => A.S.users.filter((u) => (x.role_type === 'USTOZ' ? ['USTOZ', 'USTOZ_YORDAMCHI'] : ['YORDAMCHI', 'USTOZ_YORDAMCHI']).includes(u.role)).map((u) => [u.id, u.full_name]) },
-        { name: 'course', label: 'Kurs', type: 'select', required: true, show: (x) => x.user, options: () => A.optList('courses') },
+        { name: 'role_type', label: 'Kim uchun', type: 'seg', options: [['USTOZ', 'Ustoz'], ['YORDAMCHI', 'Yordamchi']], resets: ['user'], readonly: () => !!k },
+        { name: 'user', label: 'Xodim', type: 'select', required: true, readonly: () => !!k, options: (x) => A.S.users.filter((u) => (x.role_type === 'USTOZ' ? ['USTOZ', 'USTOZ_YORDAMCHI'] : ['YORDAMCHI', 'USTOZ_YORDAMCHI']).includes(u.role) && (u.branches || []).includes(B)).map((u) => [u.id, u.full_name]) },
+        { name: 'course', label: 'Kurs', type: 'select', required: true, show: (x) => x.user, readonly: () => !!k, options: () => A.optList('courses', 'name', (c) => c.branches.includes(B)) },
         { name: 'effective_from', label: 'Amal qilish oyi', type: 'month', required: true, show: (x) => x.course },
         { name: 'type', label: 'Kelishuv turi', type: 'seg', options: ["O'zgarmas", 'Foiz'], show: (x) => x.course },
         { name: 'fixed', label: "O'zgarmas summa (1 talaba uchun oyiga)", type: 'money', required: (x) => x.type === "O'zgarmas", show: (x) => x.type === "O'zgarmas" },
-        { name: 'percent', label: 'Foiz (0-100)', type: 'number', min: 0, max: 100, required: (x) => x.type === 'Foiz', show: (x) => x.type === 'Foiz', validate: (n) => (n < 0 || n > 100 ? '0-100 oralig\'ida' : '') },
+        { name: 'percent', label: 'Foiz (0-100)', type: 'number', min: 0, max: 100, required: (x) => x.type === 'Foiz', show: (x) => x.type === 'Foiz', validate: (n) => (n < 0 || n > 100 ? "0-100 oralig'ida" : '') },
       ],
-      onSubmit(x) {
-        if (A.rows('kpiRates').some((k) => k.user === x.user && k.role_type === x.role_type && k.course === x.course && k.effective_from === x.effective_from)) return 'Shu oy uchun bu stavka mavjud';
-        A.insert('kpiRates', { branch: B, user: x.user, role_type: x.role_type, course: x.course, effective_from: x.effective_from, type: x.type, fixed: +x.fixed || 0, percent: +x.percent || 0 }, 'KPI stavkasi', A.userName(x.user));
-        const n = A.recalc((a) => A.ym(a.date) >= x.effective_from && a.course === x.course && (a.teacher === x.user || a.supporter === x.user));
-        A.save();
-        A.toast(`Saqlandi. ${n} ta davomat qatori qayta hisoblandi`);
+      async onSubmit(x) {
+        const rec = { effective_from: x.effective_from, type: x.type, fixed: Number(x.fixed) || 0, percent: Number(x.percent) || 0 };
+        const r = k ? await A.http.patch(`/kpi-rates/${k.id}/`, rec) : await A.http.post('/kpi-rates/', { ...rec, user: x.user, role_type: x.role_type, course: x.course });
+        A.toast(`Saqlandi. ${r.recalculated} ta davomat qatori qayta hisoblandi`);
         A.refresh();
       },
     });
   };
-  A.act['rate-copy'] = () => A.toast("«Amal qilish sanasi» mantiqida o'tgan oy stavkalari yangi oyda ham avtomatik amal qiladi — nusxalash shart emas. Tugma o'zgarish kiritish uchun shablon sifatida qoldirilgan.", 'warn');
+  A.act['rate-new'] = () => A.rateForm(null);
+  A.act['rate-edit'] = (el) => A.rateForm(A.get('kpiRates', el.dataset.id));
+  A.act['rate-del'] = async (el) => {
+    if (!(await A.confirm("Stavkani o'chirasizmi? Tegishli davomat qatorlarida KPI qayta hisoblanadi.", "O'chirish", true))) return;
+    await A.http.del(`/kpi-rates/${el.dataset.id}/`);
+    A.refresh();
+  };
+  A.act['rate-copy'] = () => A.toast("«Amal qilish oyi» mantiqida o'tgan oy stavkalari yangi oyda ham avtomatik amal qiladi — nusxalash shart emas. Faqat o'zgargan stavkani yangi oydan kiriting.", 'warn');
 
-  function payoutView() {
-    const rows = A.sortBy(A.vis('salaryPayouts'), (s) => s.date, true);
+  function payoutView(d) {
     return `${A.can('salaries', 'a') ? `<div class="row gap">${A.btn('Oylik berish', 'sp-new', { icon: 'plus' })}</div>` : ''}${A.table(
       [
         { h: 'Sana', f: (s) => A.fdate(s.date) },
         { h: 'Xodim', f: (s) => esc(A.userName(s.user)) },
         { h: 'Davr', f: (s) => `${A.MONTHS[s.month - 1]} ${s.year}` },
         { h: 'Turi', f: (s) => esc(s.type) },
-        { h: 'Summa', f: (s) => `<b>${A.num(s.amount)}</b>`, cls: 'num', sum: (r) => A.num(A.sum(r, 'amount')) },
+        { h: 'Summa', f: (s) => `<b>${A.num(s.amount)}</b>`, cls: 'num', sum: (r) => A.num(A.sum(r, (s) => Number(s.amount))) },
         { h: "G'azna", f: (s) => `${esc(A.accName(s.account))} · ${A.CASH[s.cash_type]}` },
         { h: 'Berdi', f: (s) => esc(A.userName(s.cashier)) },
+        { h: 'Izoh', f: (s) => esc(s.comment || '') },
+        { h: '', f: (s) => { const del = A.canEdit('salaries', s, 'date', 'd'); return A.can('salaries', 'd') ? `<button class="btn sm ghost" data-act="sp-del" data-id="${s.id}" ${del.ok ? '' : `disabled title="${esc(del.why)}"`}>🗑</button>` : ''; } },
       ],
-      rows,
+      d.results,
       { empty: "Yozuv yo'q" },
-    )}`;
+    )}${A.pager('sp', d)}`;
   }
-  A.act['sp-new'] = () => {
+  A.act['sp-new'] = async () => {
     const top = A.isTop();
     const B = A.branchIds()[0];
-    const [y0, m0] = A.ym(A.addMonths(A.ym(A.today()), -1)).split('-').map(Number);
+    const [, all] = await Promise.all([A.reloadMoney(), A.http.get('/salary-assignments/')]);
+    const prevYm = A.addMonths(A.ym(A.today()), -1);
+    const [y0, m0] = prevYm.split('-').map(Number);
+    const find = (x) => all.find((z) => z.user === x.user && z.year === Number(x.year) && z.month === Number(x.month));
     A.form({
       title: 'Oylik berish',
-      values: { year: y0, month: String(m0), date: A.today(), type: "O'zgarmas", cash_type: 'CASH', cashier: A.S.currentUser },
+      values: { year: y0, month: String(m0), date: A.today(), type: "O'zgarmas", cash_type: 'CASH' },
       fields: [
-        { name: 'user', label: 'Xodim', type: 'select', required: true, options: () => A.S.users.filter((u) => u.role !== 'ADMIN').map((u) => [u.id, u.full_name]) },
+        { name: 'user', label: 'Xodim', type: 'select', required: true, options: () => A.S.users.filter((u) => u.role !== 'ADMIN' && u.role !== 'BOSHQA' && (u.branches || []).includes(B)).map((u) => [u.id, u.full_name]) },
         { name: 'year', label: 'Yil', type: 'number', half: true, show: (x) => x.user },
         { name: 'month', label: 'Oy', type: 'select', half: true, show: (x) => x.user, options: A.MONTHS.map((m, i) => [String(i + 1), m]) },
-        { name: 'bal', type: 'note', tone: 'info', show: (x) => x.user && x.month, text: (x) => { const s = A.rows('salaryAssign').find((z) => z.user === x.user && z.year === Number(x.year) && z.month === Number(x.month)); if (!s) return "Bu oy uchun oylik belgilanmagan"; const c = A.salaryCalc(s); return `Jami: ${A.num(c.total)} · berilgan: ${A.num(c.given)} · <b>qoldiq: ${A.money(c.final)}</b>`; } },
+        { name: 'bal', type: 'note', tone: 'info', show: (x) => x.user && x.month, text: (x) => { const s = find(x); return s ? `Jami: ${A.num(s.total)} · berilgan: ${A.num(s.given)} · <b>qoldiq: ${A.money(s.final)}</b>` : 'Bu oy uchun oylik belgilanmagan'; } },
         { name: 'type', label: 'Oylik turi', type: 'seg', options: ["O'zgarmas", 'Bonus', 'KPI'], show: (x) => x.user },
-        { name: 'cash_type', label: "To'lov turi", type: 'seg', options: cashOpts, show: (x) => x.user },
-        { name: 'account', label: "G'azna", type: 'select', required: true, auto: true, show: (x) => x.user, options: () => A.myAccounts().map((a) => [a.id, a.name]) },
-        { name: 'amount', label: 'Summa', type: 'money', required: true, show: (x) => x.account, help: (x) => `G'aznada: ${A.money(A.balance(x.account, x.cash_type))}`, validate: (n, x) => (!top && n > A.balance(x.account, x.cash_type) ? `G'aznada ${A.num(A.balance(x.account, x.cash_type))} so'm pul bor` : '') },
-        { name: 'date', label: 'Sana', type: 'date', show: (x) => x.account, readonly: () => !top },
+        { name: 'cash_type', label: "To'lov turi", type: 'seg', options: cashOpts, show: (x) => x.user, resets: ['account'] },
+        noAccount('account', (x) => x.user && !A.myAccounts().some((a) => a.cash_type === 'ALL' || a.cash_type === x.cash_type)),
+        { name: 'account', label: "G'azna", type: 'select', required: true, auto: true, show: (x) => x.user && A.myAccounts().some((a) => a.cash_type === 'ALL' || a.cash_type === x.cash_type), options: (x) => A.myAccounts().filter((a) => a.cash_type === 'ALL' || a.cash_type === x.cash_type).map((a) => [a.id, a.name]) },
+        { name: 'amount', label: 'Summa', type: 'money', required: true, show: (x) => x.account, help: (x) => `G'aznada: ${A.money(A.accBal(x.account, x.cash_type))}`, validate: (n, x) => (n <= 0 ? "0 dan katta bo'lsin" : !top && n > A.accBal(x.account, x.cash_type) ? `G'aznada ${A.num(A.accBal(x.account, x.cash_type))} so'm pul bor` : '') },
+        { name: 'date', label: 'Sana', type: 'date', show: (x) => x.account, readonly: () => !top, help: () => (top ? '' : 'Faqat bugungi sana bilan') },
         { name: 'comment', label: 'Izoh', type: 'textarea', show: (x) => x.account },
       ],
-      onSubmit(x) {
-        A.insert('salaryPayouts', { branch: B, user: x.user, year: Number(x.year), month: Number(x.month), date: x.date, type: x.type, amount: x.amount, cash_type: x.cash_type, account: x.account, cashier: A.S.currentUser, comment: x.comment }, 'Oylik berish', `${A.userName(x.user)}: ${A.num(x.amount)}`);
+      async onSubmit(x) {
+        await A.http.post('/salary-payouts/', { user: x.user, year: Number(x.year), month: Number(x.month), date: x.date, type: x.type, amount: x.amount, cash_type: x.cash_type, account: x.account, comment: x.comment || '' });
+        await A.reloadMoney();
+        A.toast('Oylik berildi');
         A.refresh();
       },
     });
   };
+  A.act['sp-del'] = async (el) => {
+    if (!(await A.confirm("Oylik berish yozuvini o'chirasizmi? Pul g'azna balansiga qaytadi, yozuv audit'da qoladi.", "O'chirish", true))) return;
+    await A.http.del(`/salary-payouts/${el.dataset.id}/`);
+    await A.reloadMoney();
+    A.refresh();
+  };
 
-  function balanceView() {
-    const users = A.S.users.filter((u) => u.role !== 'ADMIN');
-    const rows = users.map((u) => {
-      const list = A.sortBy(A.vis('salaryAssign').filter((s) => s.user === u.id), (s) => s.year * 100 + s.month, true);
-      const last = list[0];
-      return { u, last, calc: last ? A.salaryCalc(last) : null };
-    }).filter((r) => r.last);
+  function balanceView(rows) {
     return `${A.table(
       [
-        { h: 'Xodim', f: (r) => `<b>${esc(r.u.full_name)}</b><br><small class="muted">${esc(A.ROLES[r.u.role])}</small>` },
-        { h: 'Oxirgi davr', f: (r) => `${A.MONTHS[r.last.month - 1]} ${r.last.year}` },
-        { h: 'Avvalgi oylardan', f: (r) => A.num(r.calc.carried), cls: 'num' },
-        { h: 'Shu oy jami', f: (r) => A.num(r.calc.total), cls: 'num' },
-        { h: 'Berilgan', f: (r) => A.num(r.calc.given), cls: 'num' },
-        { h: 'Yakuniy balans', f: (r) => `<b class="${r.calc.final > 0 ? 't-orange' : ''}">${A.num(r.calc.final)}</b>`, cls: 'num', sum: (rr) => A.num(A.sum(rr, (r) => r.calc.final)) },
+        { h: 'Xodim', f: (r) => `<b>${esc(A.userName(r.user))}</b><br><small class="muted">${esc(A.ROLES[(A.get('users', r.user) || {}).role] || '')}</small>` },
+        { h: 'Oxirgi davr', f: (r) => `${A.MONTHS[r.month - 1]} ${r.year}` },
+        { h: 'Avvalgi oylardan', f: (r) => A.num(r.carried), cls: 'num' },
+        { h: 'Shu oy jami', f: (r) => A.num(r.total), cls: 'num' },
+        { h: 'Berilgan', f: (r) => A.num(r.given), cls: 'num' },
+        { h: 'Yakuniy balans', f: (r) => `<b class="${r.final > 0 ? 't-orange' : r.final < 0 ? 't-red' : ''}">${A.num(r.final)}</b>`, cls: 'num', sum: (rr) => A.num(A.sum(rr, (r) => Number(r.final))) },
         { h: '', f: () => '<span class="muted">›</span>' },
       ],
-      rows,
-      { rowAttr: (r) => `class="row-link" data-act="bal-open" data-id="${r.last.id}" title="Batafsil ko'rish"` },
+      A.sortBy(rows, (r) => A.userName(r.user)),
+      { rowAttr: (r) => `class="row-link" data-act="bal-open" data-id="${r.id}" title="Batafsil ko'rish"`, empty: "Oylik belgilanmagan" },
     )}
     <p class="muted small">Qatorni bosing — xodimning oylar bo'yicha hisob-kitobi va olgan pullari ochiladi.</p>`;
   }
 
-  /* Xodim balansi: tanlangan oy bo'yicha batafsil hisob-kitob (qoldiq, belgilangan oylik, KPI, berilgan pullar, yakuniy balans) */
-  const balWord = (n) => (n > 0 ? 'xodim haqdor (markaz berishi kerak)' : n < 0 ? "xodim qarzdor (ortiqcha olgan)" : 'hisob teng');
+  /* Xodim balansi: tanlangan oy bo'yicha batafsil hisob-kitob (serverdan /breakdown/) */
+  const balWord = (n) => (n > 0 ? 'xodim haqdor (markaz berishi kerak)' : n < 0 ? 'xodim qarzdor (ortiqcha olgan)' : 'hisob teng');
   const balCls = (n) => (n > 0 ? 't-orange' : n < 0 ? 't-red' : 't-green');
-  A.act['bal-open'] = (el) => {
-    const sa = A.get('salaryAssign', el.dataset.id);
-    const u = A.get('users', sa.user);
-    const c = A.salaryCalc(sa);
-    const history = A.sortBy(A.rows('salaryAssign').filter((x) => x.user === sa.user && x.branch === sa.branch), (x) => x.year * 100 + x.month, true);
-    const payouts = A.sortBy(A.rows('salaryPayouts').filter((p) => p.branch === sa.branch && p.user === sa.user && p.year === sa.year && p.month === sa.month), (p) => p.date);
+  A.act['bal-open'] = async (el) => {
+    const d = await A.http.get(`/salary-assignments/${el.dataset.id}/breakdown/`);
+    const sa = d.assignment, c = sa, history = d.history, payouts = d.payouts;
+    const u = A.get('users', sa.user) || {};
     const period = `${A.MONTHS[sa.month - 1]} ${sa.year}`;
-    const line = (label, v, opts = {}) => `<tr><td>${label}</td><td class="num ${opts.cls || ''}">${opts.minus && v ? '− ' : ''}${A.num(v)}</td></tr>`;
+    const line = (label, v, opts = {}) => `<tr><td>${label}</td><td class="num ${opts.cls || ''}">${opts.minus && Number(v) ? '− ' : ''}${A.num(v)}</td></tr>`;
     const body = `
-      <div class="detail-top"><span class="muted">${esc(A.ROLES[u.role])} · ${esc(A.branchName(sa.branch))}</span></div>
+      <div class="detail-top"><span class="muted">${esc(A.ROLES[u.role] || '')} · ${esc(A.branchName(sa.branch))}</span></div>
       ${history.length > 1 ? `<div class="filters">${history.map((h) => `<button class="btn sm ${h.id === sa.id ? 'primary' : 'ghost'}" data-act="bal-open" data-id="${h.id}">${A.MONTHS[h.month - 1]} ${h.year}</button>`).join('')}</div>` : ''}
       <div class="stats">
         ${A.stat('Avvalgi oylardan', `<span class="${balCls(c.carried)}">${A.num(c.carried)}</span>`, balWord(c.carried))}
@@ -904,12 +923,12 @@
       </div>
       <h3>${period}: hisoblangan oylik</h3>
       <div class="tbl-wrap"><table class="tbl"><tbody>
-        ${line('Belgilangan oylik (o\'zgarmas)', sa.fixed || 0)}
-        ${line('Bonus', sa.bonus || 0)}
-        ${line('KPI (qo\'lda kiritilgan)', sa.kpi || 0)}
-        ${line(`Ustoz KPI <small class="muted">(davomatdan)</small>`, c.tkpi)}
-        ${line(`Yordamchi KPI <small class="muted">(davomatdan)</small>`, c.skpi)}
-        ${line('Jarima', sa.fine || 0, { minus: true, cls: sa.fine ? 't-red' : '' })}
+        ${line("Belgilangan oylik (o'zgarmas)", sa.fixed)}
+        ${line('Bonus', sa.bonus)}
+        ${line("KPI (qo'lda kiritilgan)", sa.kpi)}
+        ${line('Ustoz KPI <small class="muted">(davomatdan)</small>', c.tkpi)}
+        ${line('Yordamchi KPI <small class="muted">(davomatdan)</small>', c.skpi)}
+        ${line('Jarima', sa.fine, { minus: true, cls: Number(sa.fine) ? 't-red' : '' })}
       </tbody><tfoot><tr><td><b>Jami hisoblangan</b></td><td class="num"><b>${A.num(c.total)}</b></td></tr></tfoot></table></div>
       ${sa.comment ? `<p class="muted small">Izoh: ${esc(sa.comment)}</p>` : ''}
       <h3>${period} uchun berilgan pullar</h3>
@@ -917,32 +936,32 @@
         [
           { h: 'Sana', f: (p) => A.fdate(p.date) },
           { h: 'Turi', f: (p) => esc(p.type) },
-          { h: 'Summa', f: (p) => `<b>${A.num(p.amount)}</b>`, cls: 'num', sum: (rr) => A.num(A.sum(rr, 'amount')) },
+          { h: 'Summa', f: (p) => `<b>${A.num(p.amount)}</b>`, cls: 'num', sum: (rr) => A.num(A.sum(rr, (p) => Number(p.amount))) },
           { h: "G'azna", f: (p) => `${esc(A.accName(p.account))} · ${A.CASH[p.cash_type]}` },
           { h: 'Berdi', f: (p) => esc(A.userName(p.cashier)) },
           { h: 'Izoh', f: (p) => esc(p.comment || '') },
         ],
         payouts,
-        { empty: "Bu oy uchun hali pul berilmagan" },
+        { empty: 'Bu oy uchun hali pul berilmagan' },
       )}
       <h3>Yakuniy balans</h3>
       <div class="tbl-wrap"><table class="tbl"><tbody>
-        ${line('Avvalgi oylardan qoldiq', c.carried, { cls: balCls(c.carried) })}
+        ${line(`Avvalgi oylardan qoldiq${Number(sa.opening) ? ' <small class="muted">(boshlang\'ich qoldiq bilan)</small>' : ''}`, c.carried, { cls: balCls(c.carried) })}
         ${line(`+ ${period} hisoblangan`, c.total)}
         ${line(`− ${period} berilgan`, c.given)}
       </tbody><tfoot><tr><td><b>Yakuniy balans</b> <small class="muted">— ${balWord(c.final)}</small></td><td class="num"><b class="${balCls(c.final)}">${A.num(c.final)}</b></td></tr></tfoot></table></div>
       ${history.length > 1 ? `<h3>Oylar bo'yicha tarix</h3>${A.table(
         [
           { h: 'Davr', f: (h) => `${A.MONTHS[h.month - 1]} ${h.year}` },
-          { h: 'Hisoblangan', f: (h) => A.num(A.salaryBase(h).total), cls: 'num' },
-          { h: 'Berilgan', f: (h) => A.num(A.salaryBase(h).given), cls: 'num' },
-          { h: 'Oy qoldig\'i', f: (h) => { const b = A.salaryBase(h); const d = b.total - b.given; return `<span class="${balCls(d)}">${A.num(d)}</span>`; }, cls: 'num' },
-          { h: 'Yakuniy balans', f: (h) => { const f = A.salaryCalc(h).final; return `<b class="${balCls(f)}">${A.num(f)}</b>`; }, cls: 'num' },
+          { h: 'Hisoblangan', f: (h) => A.num(h.total), cls: 'num' },
+          { h: 'Berilgan', f: (h) => A.num(h.given), cls: 'num' },
+          { h: "Oy qoldig'i", f: (h) => { const x = Number(h.total) - Number(h.given); return `<span class="${balCls(x)}">${A.num(x)}</span>`; }, cls: 'num' },
+          { h: 'Yakuniy balans', f: (h) => `<b class="${balCls(h.final)}">${A.num(h.final)}</b>`, cls: 'num' },
         ],
         history,
         { rowAttr: (h) => `class="row-link" data-act="bal-open" data-id="${h.id}"` },
       )}` : ''}`;
     el.closest('.overlay')?.remove(); // oy almashtirilganda eski oyna yopiladi
-    A.modal({ title: `${u.full_name} — xodim balansi`, wide: true, body });
+    A.modal({ title: `${u.full_name || A.userName(sa.user)} — xodim balansi`, wide: true, body });
   };
 })(window.App);
