@@ -35,6 +35,9 @@ router.register("contracts", edu.ContractViewSet, basename="contract")
 router.register("debtors", edu.DebtorViewSet, basename="debtor")
 router.register("attendance", edu.AttendanceViewSet, basename="attendance")
 router.register("makeups", edu.MakeupViewSet, basename="makeup")
+router.register("evaluations", edu.TeacherEvaluationViewSet, basename="evaluation")
+router.register("gradings", edu.GradingSessionViewSet, basename="grading")
+router.register("parent-calls", edu.ParentCallViewSet, basename="parent-call")
 router.register("payments", fin.PaymentViewSet, basename="payment")
 router.register("transfers", fin.TransferViewSet, basename="transfer")
 router.register("exchanges", fin.ExchangeViewSet, basename="exchange")
@@ -55,6 +58,7 @@ urlpatterns = [
     path("bootstrap/", ref.bootstrap),
     path("approvals/", fin.approvals),
     path("kpi/", pay.kpi_tree),
+    path("export/contracts/", edu.export_contracts),
     path("kpi/rows/", pay.kpi_rows),
     *router.urls,
 ]

@@ -1,22 +1,34 @@
 import datetime
 
 from django.db.models import Count, Prefetch, Q, Sum
+from django.http import HttpResponse
 from rest_framework import status
-from rest_framework.decorators import action
-from rest_framework.exceptions import ValidationError
+from rest_framework.decorators import action, api_view
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 
+from apps.core import audit
+from apps.core.models import AuditLog
 from apps.core.pagination import Pagination
-from apps.core.permissions import can, check_edit_window, today
+from apps.core.permissions import NO_PERMISSION, can, check_edit_window, today
 from apps.core.scoping import scope_branch
 from apps.core.viewsets import AuditedModelViewSet
 from apps.crm.views import default_branch, search_q
 from apps.references.models import LessonFrequency
 from apps.references.services import month_start
 
-from . import calc, services
-from .models import Attendance, Contract, Group, MakeupRequest
-from .serializers import AttendanceSerializer, ContractSerializer, GroupSerializer, MakeupSerializer, TakeSerializer
+from . import calc, export, services
+from .models import Attendance, Contract, GradingSession, Group, MakeupRequest, ParentCall, StudentGrade, TeacherEvaluation
+from .serializers import (
+    AttendanceSerializer,
+    ContractSerializer,
+    GradingSessionSerializer,
+    GroupSerializer,
+    MakeupSerializer,
+    ParentCallSerializer,
+    TakeSerializer,
+    TeacherEvaluationSerializer,
+)
 
 GROUP_QS = Group.objects.select_related("course", "room", "day_pattern")
 CONTRACT_QS = Contract.objects.select_related("student", "group__course")
@@ -343,3 +355,141 @@ class MakeupViewSet(AuditedModelViewSet):
     @action(detail=True, methods=["post"])
     def reject(self, request, pk=None):
         return Response(self.get_serializer(services.reject_makeup(request.user, self.get_object(), request.data.get("reason"))).data)
+
+
+# ------------------------------------------------------------------ M6: baholash (ikki yo'nalish), ota-onalar bilan aloqa, Excel eksport
+
+def scoped_contracts(user):
+    return services.teacher_scope(scope_branch(Contract.objects.select_related("group", "course", "branch", "student"), user), user)
+
+
+def _contract_in_scope(user, contract):
+    c = scoped_contracts(user).filter(pk=contract.pk).first()
+    if c is None:
+        raise ValidationError({"contract": "Shartnoma topilmadi"})
+    return c
+
+
+class TeacherEvaluationViewSet(AuditedModelViewSet):
+    """Baholash: talaba ustozni baholaydi (bo'lim «evaluations»). Javoblarni administrator kiritadi. ?teacher=, ?month="""
+
+    section = "evaluations"
+    queryset = TeacherEvaluation.objects.select_related("contract__student")
+    serializer_class = TeacherEvaluationSerializer
+    branch_field = "branch"
+    http_method_names = ["get", "post", "delete", "head", "options"]
+
+    def get_queryset(self):
+        qs = services.teacher_scope(super().get_queryset(), self.request.user)
+        p = self.request.query_params
+        if p.get("teacher"):
+            qs = qs.filter(teacher=p["teacher"])
+        if p.get("month"):
+            start, end = month_bounds(p["month"])
+            qs = qs.filter(date__gte=start, date__lt=end)
+        return qs.order_by("-date", "-created_at")
+
+    def create(self, request, *args, **kwargs):
+        ser = self.get_serializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        d = dict(ser.validated_data)
+        d["contract"] = _contract_in_scope(request.user, d["contract"])
+        return Response(self.get_serializer(services.save_evaluation(request.user, d)).data, status=status.HTTP_201_CREATED)
+
+
+class GradingSessionViewSet(AuditedModelViewSet):
+    """Baholash bo'limi: ustoz guruh talabalarini baholaydi (bo'lim «grading»). Ustoz — faqat o'z guruhlari."""
+
+    section = "grading"
+    queryset = GradingSession.objects.prefetch_related(Prefetch("grades", queryset=StudentGrade.objects.select_related("contract__student")))
+    serializer_class = GradingSessionSerializer
+    branch_field = "branch"
+    http_method_names = ["get", "post", "delete", "head", "options"]
+
+    def get_queryset(self):
+        qs = services.teacher_scope(super().get_queryset(), self.request.user)
+        if self.request.query_params.get("group"):
+            qs = qs.filter(group=self.request.query_params["group"])
+        return qs.order_by("-date", "-created_at")
+
+    def create(self, request, *args, **kwargs):
+        ser = self.get_serializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        d = dict(ser.validated_data)
+        g = scoped_groups(request.user).filter(pk=d["group"].pk).first()
+        if g is None:
+            raise ValidationError({"group": "Guruh topilmadi"})
+        rows = [{"contract": r["contract"], **{k: r[k] for k in ("attendance_score", "task_score", "final_score")}, "comment": r.get("comment", "")}
+                for r in d.pop("grades", [])]
+        s = services.save_grading(request.user, g, d, rows)
+        return Response(self.get_serializer(self.get_queryset().get(pk=s.pk)).data, status=status.HTTP_201_CREATED)
+
+    def perform_destroy(self, instance):
+        check_edit_window(self.request.user, "grading", instance.date, op="d")
+        super().perform_destroy(instance)
+
+
+class ParentCallViewSet(AuditedModelViewSet):
+    """Ota-onalar bilan aloqa (bo'lim «parentCalls»). Daraxt (kurs → guruh) front-end'da — shuning uchun sahifalanmaydi. ?month="""
+
+    section = "parentCalls"
+    queryset = ParentCall.objects.select_related("contract__student__parent")
+    serializer_class = ParentCallSerializer
+    branch_field = "branch"
+    check_usage_on_delete = False
+    http_method_names = ["get", "post", "patch", "delete", "head", "options"]
+
+    def get_queryset(self):
+        qs = services.teacher_scope(super().get_queryset(), self.request.user)
+        p = self.request.query_params
+        if p.get("month"):
+            start, end = month_bounds(p["month"])
+            qs = qs.filter(date__gte=start, date__lt=end)
+        if p.get("contract"):
+            qs = qs.filter(contract=p["contract"])
+        return qs.order_by("-date", "-created_at")
+
+    def create(self, request, *args, **kwargs):
+        ser = self.get_serializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        d = dict(ser.validated_data)
+        d["contract"] = _contract_in_scope(request.user, d["contract"])
+        p = services.save_parent_call(request.user, d)
+        return Response(self.get_serializer(self.get_queryset().get(pk=p.pk)).data, status=status.HTTP_201_CREATED)
+
+    def partial_update(self, request, *args, **kwargs):
+        r = self.get_object()
+        ser = self.get_serializer(r, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        services.save_parent_call(request.user, dict(ser.validated_data), instance=r)
+        return Response(self.get_serializer(self.get_queryset().get(pk=r.pk)).data)
+
+    def perform_destroy(self, instance):
+        check_edit_window(self.request.user, "parentCalls", instance.date, op="d")
+        super().perform_destroy(instance)
+
+
+@api_view(["GET"])
+def export_contracts(request):
+    """Shartnomalar .xlsx: ?groups=id,id (Shartnoma yuklash) yoki Shartnomalar ro'yxati filtrlari (?status=&course=&type=&search=).
+    Ruxsat — «Shartnoma yuklash» yoki «Shartnomalar» ko'rish. Audit'ga «Eksport» yoziladi."""
+    u = request.user
+    if not (can(u, "export") or can(u, "contracts")):
+        raise PermissionDenied(NO_PERMISSION)
+    p = request.query_params
+    qs = services.with_balance(scoped_contracts(u).select_related("student__parent"))
+    if p.get("groups"):
+        qs = qs.filter(group__in=[g for g in p["groups"].split(",") if g])
+    if p.get("status"):
+        qs = qs.filter(services.status_q(p["status"]))
+    for key in ("course", "type"):
+        if p.get(key):
+            qs = qs.filter(**{key: p[key]})
+    if p.get("search"):
+        qs = qs.filter(search_q(p["search"], "student__"))
+    qs = qs.order_by("group__course__name", "group__number", "student__first_name")
+    data = export.contracts_xlsx(qs)
+    audit.record(u, AuditLog.Action.EXPORT, "Shartnoma yuklash", detail=f"{qs.count()} ta shartnoma (.xlsx)")
+    resp = HttpResponse(data, content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    resp["Content-Disposition"] = f'attachment; filename="shartnomalar-{today():%Y%m%d}.xlsx"'
+    return resp

@@ -8,7 +8,7 @@ from apps.crm.models import Student
 from apps.references.models import Course, DayPattern, LessonTime, Room
 
 from . import services
-from .models import Attendance, Contract, Group, MakeupRequest
+from .models import Attendance, Contract, GradingSession, Group, MakeupRequest, ParentCall, StudentGrade, TeacherEvaluation
 
 Money = dict(max_digits=14, decimal_places=0)
 
@@ -134,3 +134,71 @@ class MakeupSerializer(serializers.ModelSerializer):
     def get_att(self, m):
         a = m.attendance
         return {"date": a.date, "status": a.status, "group": a.group_id, "contract": a.contract_id, "student_name": a.contract.student.full_name}
+
+
+# ------------------------------------------------------------------ M6
+
+class TeacherEvaluationSerializer(serializers.ModelSerializer):
+    contract = serializers.PrimaryKeyRelatedField(queryset=Contract.objects.all())
+    date = serializers.DateField(required=False)
+    scores = serializers.SerializerMethodField()
+    total = serializers.IntegerField(read_only=True)
+    student_name = serializers.CharField(source="contract.student.full_name", read_only=True)
+
+    class Meta:
+        model = TeacherEvaluation
+        fields = ["id", "branch", "date", "contract", "student_name", "group", "teacher", "s1", "s2", "s3", "s4", "s5", "scores", "total", "comment",
+                  "created_by", "created_at"]
+        read_only_fields = ["branch", "group", "teacher", "created_by", "created_at"]
+        extra_kwargs = {f"s{i}": {"min_value": 0, "max_value": 10} for i in range(1, 6)}
+
+    def get_scores(self, e):
+        return [e.s1, e.s2, e.s3, e.s4, e.s5]
+
+
+class StudentGradeSerializer(serializers.ModelSerializer):
+    contract = serializers.PrimaryKeyRelatedField(queryset=Contract.objects.all())
+    att = serializers.IntegerField(source="attendance_score")
+    task = serializers.IntegerField(source="task_score")
+    final = serializers.IntegerField(source="final_score")
+    total = serializers.IntegerField(read_only=True)
+    student_name = serializers.CharField(source="contract.student.full_name", read_only=True)
+
+    class Meta:
+        model = StudentGrade
+        fields = ["id", "contract", "student_name", "att", "task", "final", "total", "comment"]
+
+
+class GradingSessionSerializer(serializers.ModelSerializer):
+    group = serializers.PrimaryKeyRelatedField(queryset=Group.objects.all())
+    date = serializers.DateField(required=False)
+    rows = StudentGradeSerializer(source="grades", many=True)
+
+    class Meta:
+        model = GradingSession
+        fields = ["id", "branch", "teacher", "course", "group", "date", "comment", "rows", "created_by", "created_at"]
+        read_only_fields = ["branch", "teacher", "course", "created_by", "created_at"]
+
+
+class ParentCallSerializer(serializers.ModelSerializer):
+    contract = serializers.PrimaryKeyRelatedField(queryset=Contract.objects.all())
+    date = serializers.DateField(required=False)
+    student_name = serializers.CharField(source="contract.student.full_name", read_only=True)
+    phone1 = serializers.CharField(source="contract.student.phone1", read_only=True)
+    phone2 = serializers.CharField(source="contract.student.phone2", read_only=True)
+    parent = serializers.SerializerMethodField()
+    edited = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ParentCall
+        fields = ["id", "branch", "course", "group", "contract", "student_name", "phone1", "phone2", "parent", "date", "comment", "edited",
+                  "created_by", "created_at", "updated_by", "updated_at"]
+        read_only_fields = ["branch", "course", "group", "created_by", "created_at", "updated_by", "updated_at"]
+
+    def get_parent(self, r):
+        p = r.contract.student.parent
+        return {"first_name": p.first_name, "last_name": p.last_name, "phone": p.phone} if p else None
+
+    def get_edited(self, r):
+        """Yaratilgandan keyin tahrirlanganmi (izoh ostidagi «✎ kim · qachon» uchun)."""
+        return bool(r.updated_at and r.created_at and (r.updated_at - r.created_at).total_seconds() > 2)

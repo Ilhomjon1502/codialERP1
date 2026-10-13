@@ -17,6 +17,7 @@ from django.utils import timezone
 from apps.accounts.models import Role, User
 from apps.crm.models import AGE_GROUPS, LAPTOP_CHOICES, SOCIAL_STATUSES, Lead, LeadComment, Student
 from apps.education import demo as edu_demo
+from apps.education import demo_m6 as edu_m6_demo
 from apps.finance import demo as fin_demo
 from apps.finance.models import Account
 from apps.payroll import demo as pay_demo
@@ -92,7 +93,7 @@ class Command(BaseCommand):
                     u.branches.set([branch])
                 self.created += 1
             users[key] = u
-        acc1 = self.upsert(Account, "acc1", {"name": "Emirat g'azna", "cash_type": "ALL", "initial_balance": 8000000, "start_date": datetime.date(2026, 9, 1)},
+        acc1 = self.upsert(Account, "acc1", {"name": "Emirat g'azna", "cash_type": "ALL", "initial_balance": 40000000, "start_date": datetime.date(2026, 9, 1)},
                            {"responsible": [users["u2"], users["u5"], users["u6"]]})
         acc2 = self.upsert(Account, "acc2", {"name": "Bosh g'azna", "cash_type": "CARD", "initial_balance": 25000000, "start_date": datetime.date(2026, 9, 1)},
                            {"responsible": [users["u1"], users["u2"]]})
@@ -124,6 +125,7 @@ class Command(BaseCommand):
         edu_demo.seed(self, branch, users, courses, patterns, {k: t for (k, *_), t in zip(TIMES, times, strict=False)}, rooms, sources)
         fin_demo.seed(self, branch, users)
         pay_demo.seed(self, branch, users)
+        edu_m6_demo.seed(self, branch, users)
         self.stdout.write(self.style.SUCCESS(f"Tayyor: {self.created} ta yangi yozuv."))
         if not password:
             self.stdout.write(self.style.WARNING("Parol berilmadi: demo xodimlar parolsiz. --password yoki DEMO_PASSWORD bilan qayta ishga tushiring."))

@@ -59,6 +59,7 @@
     leadSources: 'lead-sources', attendanceStatuses: 'attendance-statuses', accounts: 'accounts', users: 'users', roles: 'roles',
     leads: 'leads', students: 'students', parents: 'parents',
     groups: 'groups', contracts: 'contracts', attendance: 'attendance', makeups: 'makeups',
+    evaluations: 'evaluations', gradings: 'gradings', parentCalls: 'parent-calls',
     payments: 'payments', transfers: 'transfers', exchanges: 'exchanges', expenses: 'expenses', creditors: 'creditors',
   };
   const url = (coll, id) => `/${A.ENDPOINT[coll]}/${id !== undefined ? encodeURIComponent(id) + '/' : ''}`;

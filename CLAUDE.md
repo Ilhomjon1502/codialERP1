@@ -7,7 +7,7 @@
 
 ## 0. Joriy holat (2026-10-13) — yangi kelgan dasturchi shu yerdan boshlasin
 
-**Qisqasi:** prototip ma'qullandi va muzlatildi. **M1–M5 tayyor**: haqiqiy tizim (`backend/` — Django + DRF API, `frontend/` — prototip ekranlari API'ga ulangan) **Hetzner serverida ishlayapti**. Keyingi ish — **M6 (vazifalar, ikki yo'nalishli baholash, ota-onalar bilan aloqa, Excel eksport)**, buyurtmachi «boshla» deganda boshlanadi. **50% chegirmalar bo'limi olib tashlangan** (buyurtmachi qarori 2026-10-13).
+**Qisqasi:** prototip ma'qullandi va muzlatildi. **M1–M6 tayyor**: haqiqiy tizim (`backend/` — Django + DRF API, `frontend/` — prototip ekranlari API'ga ulangan) **Hetzner serverida ishlayapti**. Keyingi ish — **M7 (bosh sahifa, oylik statistika, voronka, birinchi to'lovchilar, foyda, guruh tahlili)**, buyurtmachi «boshla» deganda boshlanadi. **«50% chegirmalar» va «Talaba vazifalari» bo'limlari olib tashlangan** (buyurtmachi qarori 2026-10-13).
 
 | Bosqich | Holat |
 |---|---|
@@ -19,7 +19,8 @@
 | **M3** — guruhlar, shartnomalar, qarzdorlar, davomat (olish, kelmaganlar, statistika, qoldirilgan darslar), qarz va KPI hisobi va qayta hisoblash, lid → shartnoma | ✅ 2026-10-13, 70 test |
 | **M4** — moliya: to'lovlar (chegirma limiti, tasdiqlar, PDF chek), CashMovement ledger va g'azna balansi, o'tkazmalar, ayirboshlash, xarajatlar, kreditorlar, Tasdiqlashlar, «To'lov qilganlar» | ✅ 2026-10-13, 84 test |
 | **M5** — oyliklar: KPI stavkalari (qayta hisoblash bilan), oylik belgilash (nusxa), hisoblangan KPI daraxti, oylik berish (g'azna jurnaliga), xodim balansi | ✅ 2026-10-13, 100 test (9 tasi JS sintaksis) |
-| M6 qo'shimcha modullar → M7 hisobotlar, M10 import, M11 asosiy muhit | ⏳ navbatda (17-bo'lim) |
+| **M6** — ikki yo'nalishli baholash, ota-onalar bilan aloqa (daraxt), Excel (.xlsx) eksport; vazifalar va 50% chegirma — olib tashlangan | ✅ 2026-10-13, 105 test |
+| M7 hisobotlar → M10 import, M11 asosiy muhit | ⏳ navbatda (17-bo'lim) |
 | M8 Telegram bot, M9 AI | ⏳ tizim ishga tushgandan keyin |
 | 18-bo'limdagi ochiq savollar | ⏳ takliflar `docs/architecture.md` 7-bo'limda; buyurtmachi javob bermasa takliflar qo'llanadi. 3-savol yopildi: 50% chegirma bo'limi olib tashlandi |
 | Domen `codialinfo.uz` | ✅ buyurtmachiniki (ahost.uz). DNS: A `erp` → `77.42.9.23` (2026-10-13), Let's Encrypt SSL. Asosiy sayt (`@`, `www` — Vercel) va pochta yozuvlariga tegilmaydi |
@@ -44,7 +45,9 @@
 - `tests/test_frontend_syntax.py` — barcha `frontend/assets/js/*.js` node bilan tekshiriladi (node yo'q joyda o'tkazib yuboriladi). **Front-end'ni o'zgartirgach testlarni albatta ishga tushiring.**
 - Qarorlar: `docs/decisions.md` (M5). Qo'llanma: `docs/user_guide/m5_oyliklar.md`.
 
-**Keyingi ish — M6.** `apps/education/` ga StudentTask, TeacherEvaluation, GradingSession/StudentGrade, ParentCall (7.4); Excel eksport (openpyxl, 7.6); front-end `pages-edu.js` dagi Vazifalar, Baholash (ikkala), Ota-onalar bilan aloqa, Eksport — 21.4 tartibida. 50% chegirma — **qilinmaydi** (olib tashlangan).
+**M6 da nima qilindi:** `apps/education/models.py` — TeacherEvaluation (s1–s5), GradingSession + StudentGrade, ParentCall; `services.py` oxirida `save_evaluation`, `save_grading`, `save_parent_call`; `export.py` — `contracts_xlsx()` (openpyxl); `views.py` — `/evaluations/`, `/gradings/`, `/parent-calls/`, `GET /export/contracts/`; `demo_m6.py`. Front-end `pages-edu.js` oxiri (Baholash ×2, Ota-onalar bilan aloqa, Shartnoma yuklash), `A.activeContracts()`, `A.downloadXlsx()`. «Talaba vazifalari» va «50% chegirmalar» — **olib tashlangan**, qaytarmang. Qo'llanma: `docs/user_guide/m6_baholash_aloqa_eksport.md`.
+
+**Keyingi ish — M7 (hisobotlar).** 11-bo'lim: bosh sahifa (rolga mos), oylik statistika (Chart.js), sotuv voronkasi, birinchi to'lovchilar, foyda (8.6, `pages-fin.js` dagi «Foyda» hali prototip kodi), guruh tahlili; aggregatsiya + kesh. Keyin M10 (import), M11 (ishga tushirish).
 
 **Oxirgi holat (M4 dan keyin):** M1–M4 `main` da va https://erp.codialinfo.uz da ishlayapti (2026-10-13). Sinov ma'lumotlariga to'lovlar, xarajatlar, o'tkazmalar, kreditor qo'shildi; 84 test yashil.
 
@@ -87,7 +90,7 @@
 2. Biznes qoidalar: 6-bo'lim (rollar), 7-bo'lim (modellar), 8-bo'lim (hisob-kitob). Ekranlar va matnlar — prototipda (20-bo'lim).
 3. Lokalda ishga tushiring (`README.md`): `backend` da `seed_demo` → `runserver` → http://localhost:8000.
 4. Testlar: `backend` da `.venv/Scripts/python -m pytest` va `.venv/Scripts/ruff check .` yashil bo'lsin.
-5. Keyingi bosqich (M6) rejasi: shu bo'limdagi «Keyingi ish — M6», `docs/architecture.md` 5-bo'lim va 17-bo'lim.
+5. Keyingi bosqich (M7) rejasi: shu bo'limdagi «Keyingi ish — M7», `docs/architecture.md` 5-bo'lim va 17-bo'lim.
 
 ## 1. Manbalar
 
@@ -157,7 +160,7 @@ backend/
     finance/       ✅ M4  Account, CashMovement (ledger), Payment, Transfer, Exchange, Expense, Creditor…; receipt.py (PDF), demo.py
     crm/           ✅ M2  Parent, Student, Lead, LeadComment; voronka va statistika (services.board/stats)
     education/     ✅ M3  Group, Contract, Attendance, MakeupRequest; calc.py (qarz, KPI, qayta hisoblash), demo.py
-                         (+ M6: StudentTask, baholash, ParentCall)
+                         + M6: TeacherEvaluation, GradingSession/StudentGrade, ParentCall; export.py (.xlsx)
     payroll/       ✅ M5  KPIRate, SalaryAssignment, SalaryPayout; compute() (oylik hisobi), demo.py
     reports/       ⏳ M7  dashboard, statistika, foyda, Excel
     importer/      ⏳ M10 AppSheet .xlsx import
@@ -287,7 +290,7 @@ Diqqat: AppSheet'da `Exchange`, `CommentToCreditors`, `Parent_Comment`, `Discoun
 | Attendance | `Attendance` | |
 | TakeAttendance | — | jadval emas, ekran holati |
 | — | `MakeupRequest` | yangi |
-| StudentTasks | `StudentTask` | |
+| StudentTasks | — | **ko'chirilmaydi**: bo'lim olib tashlangan (2026-10-13) |
 | Baholash | `TeacherEvaluation` | talaba ustozni baholaydi |
 | Baholash_tizimi + B_Students | `GradingSession` + `StudentGrade` | ustoz talabani baholaydi |
 | Parent_Comment | `ParentCall` | |
@@ -397,7 +400,7 @@ Diqqat: AppSheet'da `Exchange`, `CommentToCreditors`, `Parent_Comment`, `Discoun
   - `contact_status`: Bog'lanishga, Gaplashildi, Tushib bo'lmadi, Noto'g'ri raqam. X va 0 uchun standart "Bog'lanishga". "Gaplashildi" bo'lsa izoh majburiy;
   - **saqlanadigan hisoblangan maydonlar:** `student_debt`, `teacher_kpi`, `supporter_kpi` (servisda hisoblanadi, 8-bo'lim).
 - **MakeupRequest** (yangi): 9-bo'lim.
-- **StudentTask:**
+- **StudentTask** — **olib tashlangan** (buyurtmachi qarori 2026-10-13), quyidagi tavsif tarix uchun:
   - maydonlar: `branch`, `teacher` (ustoz uchun avtomatik o'zi), `course`, `group`, `contract`, `task`, `deadline` (standart bugun+3), `status`, `completion_rate` (0–100, faqat Tamomladi bo'lsa), `teacher_comment` (Tamomladi, Bajarmadi, Bajarolmadi bo'lsa);
   - `status`: Rejada (standart), Yuklatildi, Tamomladi, Bajarolmadi, Bajarmadi.
 - **TeacherEvaluation** (Baholash, talaba ustozni baholaydi; javoblarni administrator kiritadi):
@@ -555,7 +558,7 @@ Menyu tartibi va nomlari AppSheet'dagidek saqlanadi, xodimlar qayta o'rganmasin.
 18. **Pul ayirboshlash** (Admin, Bosh menejer).
 19. **G'aznalar:** joriy qoldiq bilan.
 20. **Baholash:** talaba ustozni baholaydi.
-21. **Talaba vazifalari:** ustozlar uchun "mening vazifalarim", menejerlar uchun hammasi.
+21. ~~Talaba vazifalari~~ — olib tashlangan (2026-10-13).
 22. **Ota-onalar bilan aloqa.**
 23. **Sozlamalar:** barcha ma'lumotnomalar. Bosh menejer hammasini, Filial menejeri o'z filiali doirasida boshqaradi. Bo'limlar: kurslar, kurs narxlari, oydagi dars soni (oylik tasdiq bilan), KPI stavkalari, chegirma turlari, xarajat kategoriyalari, lid manbalari, xonalar, dars kunlari, dars vaqtlari, filiallar, g'aznalar, foydalanuvchilar (qo'shish, rol berish, filial biriktirish, ishdan chiqarish), rollar va ruxsatlar, davomat statuslari.
 24. **AI yordamchi:** faqat Bosh menejer (13-bo'lim).
@@ -676,8 +679,8 @@ Real ishga tushirish uchun minimal to'plam: **M1–M7 + M10 + M11** (xodimlar Ap
 | M3 | O'quv jarayoni | Guruhlar, shartnomalar, qarzdorlar, davomat ekrani, qarz va KPI servislari, kelmaganlar, qoldirilgan darslar, qayta hisoblash; lidda guruh va «Shartnoma tuzish», shartnoma konversiyasi, Shartnomalar → «Talabalar» | ✅ 2026-10-13 |
 | M4 | Moliya | CashMovement ledger, g'aznalar balansi, to'lovlar (tasdiqlar, chegirma limiti, PDF chek), o'tkazmalar, almashtirish, xarajatlar, kreditorlar, Tasdiqlashlar; shartnoma balansiga to'lovlar | ✅ 2026-10-13 |
 | M5 | Oyliklar | KPI stavkalari (o'zgarsa qayta hisoblash), oylik belgilash va berish (g'aznaga `CashMovement` SALARY), KPI daraxti, xodim balansi | ✅ 2026-10-13 |
-| M6 | Qo'shimcha modullar | Vazifalar, ikki yo'nalishli baholash, ota-onalar bilan aloqa, Excel eksport (50% chegirma — olib tashlangan) | ⏳ keyingi |
-| M7 | Hisobot va dashboard | Bosh sahifa, oylik statistika, voronka, birinchi to'lovchilar, foyda, guruh tahlili | ⏳ |
+| M6 | Qo'shimcha modullar | Ikki yo'nalishli baholash, ota-onalar bilan aloqa, Excel eksport (vazifalar va 50% chegirma — olib tashlangan) | ✅ 2026-10-13 |
+| M7 | Hisobot va dashboard | Bosh sahifa, oylik statistika, voronka, birinchi to'lovchilar, foyda, guruh tahlili | ⏳ keyingi |
 | M8 | Telegram bot | Bog'lash, xabarlar, kunlik hisobot | ⏳ keyin |
 | M9 | AI yordamchi | Faqat o'qish view'lari, SQL xavfsizligi, provayder abstraksiyasi | ⏳ keyin |
 | M10 | Migratsiya | Import skripti, sinov rejimi, tekshiruv hisoboti | ⏳ |
@@ -870,7 +873,7 @@ Brauzer ──HTTPS──► Nginx (serverda) ──┬── /            → f
 | `forms.js` | `onSubmit` async; server xatosi tegishli maydon ostida chiqadi |
 | `pages-admin.js` | Sozlamalar, Audit tarixi, Bosh sahifa (M1) — **namuna sifatida o'qing** |
 | `pages-crm.js` | Lidlar (M2), Shartnomalar, Qarzdorlar (M3) — API'ga ulangan. Ichidagi eski `A.page('dashboard')` ishlatilmaydi (`pages-admin.js` dagisi uni almashtiradi) |
-| `pages-edu.js` | Guruhlar, Guruhlar tahlili, Davomat (M3) — API'ga ulangan; Vazifalar, Baholash, Ota-onalar, Eksport — hali prototip kodi (M6) |
+| `pages-edu.js` | Guruhlar, Guruhlar tahlili, Davomat (M3), Baholash ×2, Ota-onalar bilan aloqa, Shartnoma yuklash (M6) — hammasi API'ga ulangan |
 | `pages-fin.js` | To'lovlar, Tasdiqlashlar, G'aznalar, O'tkazmalar, Ayirboshlash, Xarajatlar, Kreditorlar (M4), Oyliklar (M5) — API'ga ulangan; Foyda (M7) — hali prototip kodi |
 
 Sahifa serverdan ma'lumot olishi kerak bo'lsa: `A.page('route', { section, async load(p, q) {...}, render(p, q) {...} })` — `load` har chizishdan oldin (filtr o'zgarganda ham) chaqiriladi. Namuna: `A.page('audit')`.

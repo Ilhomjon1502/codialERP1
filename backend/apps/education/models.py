@@ -144,3 +144,95 @@ class MakeupRequest(BaseModel):
 
     def __str__(self):
         return f"{self.attendance} — {self.get_status_display()}"
+
+
+# ------------------------------------------------------------------ M6: baholash (ikki yo'nalish), ota-onalar bilan aloqa
+
+class TeacherEvaluation(BaseModel):
+    """Talaba ustozni baholaydi (javoblarni administrator kiritadi): 5 mezon, har biri 0–10."""
+
+    branch = models.ForeignKey("references.Branch", on_delete=models.PROTECT, related_name="teacher_evaluations")
+    date = models.DateField("Sana")
+    contract = models.ForeignKey(Contract, on_delete=models.PROTECT, related_name="teacher_evaluations")
+    group = models.ForeignKey(Group, on_delete=models.PROTECT, related_name="teacher_evaluations")
+    teacher = models.ForeignKey("accounts.User", on_delete=models.PROTECT, related_name="evaluations_received", verbose_name="Ustoz")
+    s1 = models.PositiveSmallIntegerField("Mavzuni sodda tushuntira oladimi")
+    s2 = models.PositiveSmallIntegerField("Dars qiziqmi, qiziq metodlar")
+    s3 = models.PositiveSmallIntegerField("Adolatlimi, teng e'tibor")
+    s4 = models.PositiveSmallIntegerField("Kerak vaqtda yordam beradimi")
+    s5 = models.PositiveSmallIntegerField("Tavsiya berib ruhlantiradimi")
+    comment = models.TextField("Izoh", blank=True)
+
+    class Meta:
+        verbose_name = "Ustoz bahosi"
+        verbose_name_plural = "Ustoz baholari"
+        ordering = ["-date", "-created_at"]
+        indexes = [models.Index(fields=["branch", "date"]), models.Index(fields=["teacher", "date"])]
+
+    @property
+    def total(self):
+        return self.s1 + self.s2 + self.s3 + self.s4 + self.s5
+
+    def __str__(self):
+        return f"{self.teacher} ← {self.contract.student}: {self.total}"
+
+
+class GradingSession(BaseModel):
+    """Ustoz guruh talabalarini baholaydi (Baholash_tizimi + B_Students)."""
+
+    branch = models.ForeignKey("references.Branch", on_delete=models.PROTECT, related_name="grading_sessions")
+    teacher = models.ForeignKey("accounts.User", on_delete=models.PROTECT, related_name="grading_sessions", verbose_name="Ustoz")
+    course = models.ForeignKey("references.Course", on_delete=models.PROTECT, related_name="grading_sessions")
+    group = models.ForeignKey(Group, on_delete=models.PROTECT, related_name="grading_sessions")
+    date = models.DateField("Sana")
+    comment = models.TextField("Izoh", blank=True)
+
+    class Meta:
+        verbose_name = "Baholash"
+        verbose_name_plural = "Baholashlar"
+        ordering = ["-date", "-created_at"]
+        indexes = [models.Index(fields=["branch", "date"]), models.Index(fields=["group", "date"])]
+
+    def __str__(self):
+        return f"{self.group} · {self.date:%d.%m.%Y}"
+
+
+class StudentGrade(BaseModel):
+    session = models.ForeignKey(GradingSession, on_delete=models.CASCADE, related_name="grades")
+    contract = models.ForeignKey(Contract, on_delete=models.PROTECT, related_name="grades")
+    attendance_score = models.PositiveSmallIntegerField("Davomat bali (1–20)")
+    task_score = models.PositiveSmallIntegerField("Vazifa bali (1–40)")
+    final_score = models.PositiveSmallIntegerField("Oy yakuniy bali (1–500)")
+    comment = models.TextField("Izoh", blank=True)
+
+    class Meta:
+        verbose_name = "Talaba bahosi"
+        verbose_name_plural = "Talaba baholari"
+        constraints = [models.UniqueConstraint(fields=["session", "contract"], condition=ALIVE, name="uniq_grade_per_session")]
+
+    @property
+    def total(self):
+        return self.attendance_score + self.task_score + self.final_score
+
+    def __str__(self):
+        return f"{self.contract.student}: {self.total}"
+
+
+class ParentCall(BaseModel):
+    """Ota-onalar bilan aloqa (Parent_Comment). Telefonlar talabadan olinadi."""
+
+    branch = models.ForeignKey("references.Branch", on_delete=models.PROTECT, related_name="parent_calls")
+    course = models.ForeignKey("references.Course", on_delete=models.PROTECT, related_name="parent_calls")
+    group = models.ForeignKey(Group, on_delete=models.PROTECT, related_name="parent_calls")
+    contract = models.ForeignKey(Contract, on_delete=models.PROTECT, related_name="parent_calls")
+    date = models.DateField("Sana")
+    comment = models.TextField("Izoh")
+
+    class Meta:
+        verbose_name = "Ota-ona bilan aloqa"
+        verbose_name_plural = "Ota-onalar bilan aloqa"
+        ordering = ["-date", "-created_at"]
+        indexes = [models.Index(fields=["branch", "date"]), models.Index(fields=["group", "date"])]
+
+    def __str__(self):
+        return f"{self.contract.student} · {self.date:%d.%m.%Y}"

@@ -528,13 +528,9 @@
       page++;
     }
   };
-  A.act['contracts-csv'] = async () => {
+  A.act['contracts-csv'] = () => {
     const tab = (A.current.query || {}).tab || 'Faol';
-    const rows = await fetchAll('/contracts/?', filterQS('contracts', ['search', 'course', 'type'], tab === 'students' ? {} : { status: tab }));
-    A.downloadCSV('shartnomalar.csv', [
-      ['№', 'Talaba', 'Telefon', 'Kurs', 'Guruh', 'Turi', 'Boshlanish', 'Tugash', 'Status', 'Balans'],
-      ...rows.map((c) => [c.number, c.student_data.full_name, c.student_data.phone1, A.courseName(c.course), A.groupName(c.group), c.type, c.start, c.end || '', c.status, c.balance]),
-    ]);
+    A.downloadXlsx(filterQS('contracts', ['search', 'course', 'type'], tab === 'students' ? {} : { status: tab }));
   };
 
   /* ---- Shartnoma formasi. Tekshiruvlar serverda ham bor (services.validate_contract) ---- */

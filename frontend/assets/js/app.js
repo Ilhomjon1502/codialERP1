@@ -45,7 +45,7 @@
     ['export', 'Shartnoma yuklash', 'download'], ['groupAnalysis', 'Guruhlar tahlili', 'pie'], ['groups', 'Guruhlar', 'grid'],
     ['approvals', 'Tasdiqlashlar', 'shield'], ['salaries', 'Oyliklar', 'wallet'],
     ['transfers', 'Ichki pul oqimi', 'repeat'], ['creditors', 'Tashqi pul oqimi', 'bank'], ['exchange', 'Pul ayirboshlash', 'swap'],
-    ['accounts', "G'aznalar", 'safe'], ['evaluations', 'Baholash (ustozni)', 'thumbs'], ['tasks', 'Talaba vazifalari', 'tasks'],
+    ['accounts', "G'aznalar", 'safe'], ['evaluations', 'Baholash (ustozni)', 'thumbs'],
     ['parentCalls', 'Ota-onalar bilan aloqa', 'phone'], ['settings', 'Sozlamalar', 'sliders'], ['ai', 'AI yordamchi', 'sparkle'],
     ['audit', 'Audit tarixi', 'history'],
   ];
@@ -168,11 +168,9 @@
 
   /** API'ga ulangan bo'limlar. Qolganlari o'z bosqichida ulanadi (docs/architecture.md, 5-bo'lim) */
   A.CONNECTED = new Set(['dashboard', 'settings', 'audit', 'leads', 'contracts', 'debtors', 'attendance', 'groups', 'groupAnalysis',
-    'payments', 'approvals', 'accounts', 'transfers', 'creditors', 'exchange', 'expenses', 'salaries']);
-  A.MILESTONE = {
-    grading: 'M6', export: 'M6',
-    evaluations: 'M6', tasks: 'M6', parentCalls: 'M6', profit: 'M7', ai: 'M9',
-  };
+    'payments', 'approvals', 'accounts', 'transfers', 'creditors', 'exchange', 'expenses', 'salaries',
+    'grading', 'evaluations', 'parentCalls', 'export']);
+  A.MILESTONE = { profit: 'M7', ai: 'M9' };
   const PUBLIC = new Set(['set-password']);
 
   const parseHash = () => {
@@ -223,7 +221,7 @@
       html = A.head("Ruxsat yo'q") + `<div class="empty">Bu bo'lim <b>${esc(A.ROLES[A.role()])}</b> roli uchun yopiq.</div>`;
     } else if (page.section && !A.CONNECTED.has(page.section)) {
       html = A.head(page.title || '') + `<div class="empty">${A.icon('history')}<p><b>Bu bo'lim ${A.MILESTONE[page.section] || 'keyingi'} bosqichida serverga ulanadi.</b></p>
-        <p class="muted">Ekranlar ma'qullangan prototipdagidek bo'ladi. Hozircha Sozlamalar, Lidlar, Shartnomalar, Qarzdorlar, Davomat, Guruhlar, moliya bo'limlari, Oyliklar va Audit tarixi ishlaydi.</p></div>`;
+        <p class="muted">Ekranlar ma'qullangan prototipdagidek bo'ladi. Hozircha Sozlamalar, Lidlar, Shartnomalar, Qarzdorlar, Davomat, Guruhlar, moliya, Oyliklar, Baholash, Ota-onalar bilan aloqa, Shartnoma yuklash va Audit tarixi ishlaydi.</p></div>`;
     } else {
       try {
         if (page.load) {
@@ -276,7 +274,7 @@
       .join('');
   }
   function bottomHTML() {
-    const pref = ['dashboard', 'leads', 'contracts', 'payments', 'debtors', 'attendance', 'tasks', 'salaries', 'settings'];
+    const pref = ['dashboard', 'leads', 'contracts', 'payments', 'debtors', 'attendance', 'salaries', 'settings'];
     const items = pref.filter((s) => A.can(s)).slice(0, 4);
     return items
       .map((s) => {

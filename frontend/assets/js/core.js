@@ -19,7 +19,7 @@
     ['expenses', 'Xarajatlar'], ['export', 'Shartnoma yuklash'], ['groupAnalysis', 'Guruhlar tahlili'], ['groups', 'Guruhlar'],
     ['approvals', 'Tasdiqlashlar'], ['salaries', 'Oyliklar'], ['transfers', 'Ichki pul oqimi'],
     ['creditors', 'Tashqi pul oqimi'], ['exchange', 'Pul ayirboshlash'], ['accounts', "G'aznalar"], ['evaluations', 'Baholash'],
-    ['tasks', 'Talaba vazifalari'], ['parentCalls', 'Ota-onalar bilan aloqa'], ['settings', 'Sozlamalar'], ['ai', 'AI yordamchi'], ['audit', 'Audit tarixi'],
+    ['parentCalls', 'Ota-onalar bilan aloqa'], ['settings', 'Sozlamalar'], ['ai', 'AI yordamchi'], ['audit', 'Audit tarixi'],
   ];
 
   /* ================= Kesh (server ma'lumotlari) ================= */
@@ -28,7 +28,7 @@
     'discountTypes', 'expenseCats', 'leadSources', 'accounts', 'attendanceStatuses',
     'parents', 'students', 'leads', 'leadComments', 'groups', 'contracts', 'attendance', 'makeups',
     'payments', 'transfers', 'exchanges', 'expenses', 'creditors', 'creditorTx', 'creditorComments',
-    'salaryAssign', 'salaryPayouts', 'tasks', 'evaluations', 'gradings', 'parentCalls', 'audit',
+    'salaryAssign', 'salaryPayouts', 'evaluations', 'gradings', 'parentCalls', 'audit',
   ];
   A.emptyStore = () => Object.assign(Object.fromEntries(COLLECTIONS.map((c) => [c, []])), { me: null, currentUser: null, edit_days: {} });
   A.S = A.emptyStore();
@@ -93,7 +93,7 @@
     const me = A.S.currentUser;
     const r = A.role();
     if (['groups'].includes(coll)) return rows;
-    if (['contracts', 'tasks', 'gradings', 'parentCalls'].includes(coll) && A.isTeacherRole()) {
+    if (['contracts', 'gradings', 'parentCalls'].includes(coll) && A.isTeacherRole()) {
       const ids = A.myGroupIds();
       return rows.filter((x) => ids.includes(x.group) || x.created_by === me);
     }

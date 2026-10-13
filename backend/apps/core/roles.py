@@ -34,7 +34,7 @@ SECTIONS = [
     ("groups", "Guruhlar"), ("approvals", "Tasdiqlashlar"),
     ("salaries", "Oyliklar"), ("transfers", "Ichki pul oqimi"), ("creditors", "Tashqi pul oqimi"),
     ("exchange", "Pul ayirboshlash"), ("accounts", "G'aznalar"), ("evaluations", "Baholash"),
-    ("tasks", "Talaba vazifalari"), ("parentCalls", "Ota-onalar bilan aloqa"), ("settings", "Sozlamalar"),
+    ("parentCalls", "Ota-onalar bilan aloqa"), ("settings", "Sozlamalar"),
     ("ai", "AI yordamchi"), ("audit", "Audit tarixi"),
 ]
 SECTION_KEYS = [k for k, _ in SECTIONS]
@@ -61,7 +61,6 @@ _MATRIX = {
     "exchange": {"AD": "vae", "BM": "vae"},
     "accounts": {"AD": "vaed", "BM": "vaed", "FM": "v", "AH": "v", "H": "v"},
     "evaluations": {"AD": "vaed", "BM": "vaed", "FM": "vaed", "A": "vae", "AH": "vae"},
-    "tasks": {"AD": "vaed", "BM": "vaed", "FM": "v", "A": "v", "AH": "v", "U": "vaed", "UY": "vaed", "Y": "v"},
     "parentCalls": {"AD": "vaed", "BM": "vaed", "FM": "vae", "A": "vae", "AH": "vae", "H": "v", "U": "vae", "UY": "vae", "Y": "v"},
     "settings": {"AD": "vaed", "BM": "vaed", "FM": "vae", "A": "v", "AH": "v", "H": "v"},
     "ai": {"BM": "v"},
