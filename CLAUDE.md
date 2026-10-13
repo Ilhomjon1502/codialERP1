@@ -5,34 +5,40 @@
 
 ---
 
-## 0. Joriy holat (2026-10-11) — yangi kelgan dasturchi shu yerdan boshlasin
+## 0. Joriy holat (2026-10-13) — yangi kelgan dasturchi shu yerdan boshlasin
 
-**Qisqasi (2026-10-12 yangilangan):** M1 bajarildi — `backend/` (Django + DRF, `/api/v1/`) va `frontend/` (prototip ekranlari API'ga ulangan). Ishga tushirish: `README.md`, reja: `docs/architecture.md`, server: `docs/deploy_hetzner.md`. Quyidagi matnning bir qismi M1 dan oldingi holatni tasvirlaydi.
-
-**Avvalgi holat:** Django kodi hali yozilmagan edi. Tayyor bo'lgani — **bosiladigan HTML prototip** (`prototype/` papkasi). Buyurtmachi uni ko'rib chiqdi va **umumiy holda ma'qulladi**, lekin bir-ikki detalni o'zgartirmoqchi (ro'yxati keyin beriladi, 20.6-bo'limga yoziladi).
+**Qisqasi:** prototip ma'qullandi va muzlatildi. **M1 tayyor**: haqiqiy tizim (`backend/` — Django + DRF API, `frontend/` — prototip ekranlari API'ga ulangan) **Hetzner test serverida ishlayapti**. Keyingi ish — **M2 (CRM)**, buyurtmachi «boshla» deganda boshlanadi.
 
 | Bosqich | Holat |
 |---|---|
-| AppSheet tahlili, shu CLAUDE.md | ✅ tayyor |
-| Bosiladigan prototip (dizayn + jarayonlar + hisob-kitob) | ✅ tayyor, buyurtmachi ma'qullagan |
-| Prototipdagi detallarni tuzatish | ✅ tayyor (20.6, 1–11), 2026-10-12 |
-| Arxitektura va ishga tushirish rejasi (`docs/architecture.md`) | ✅ arxitektura va server tasdiqlandi; bosqichlar rejasi va ochiq savollar takliflari ko'rib chiqilmoqda |
-| 18-bo'limdagi ochiq savollarga javob | ⏳ kutilmoqda |
-| M1 — asos (backend + API, kirish/parol, rollar, Sozlamalar, Audit, front-end ulandi) | ✅ kod va testlar tayyor (2026-10-12); Hetzner server kutilmoqda |
-| M2 → M11 | ⏳ navbatda |
+| AppSheet tahlili, shu CLAUDE.md | ✅ |
+| Prototip (`prototype/`) va buyurtmachi so'ragan 11 ta o'zgarish (20.6) | ✅ ma'qullangan, **endi o'zgartirilmaydi** |
+| Arxitektura (`docs/architecture.md`): API + prototip interfeysi, Hetzner | ✅ tasdiqlangan 2026-10-12 |
+| **M1** — backend, kirish/parol, rollar va ruxsatlar, filial doirasi, audit, Sozlamalar, Audit tarixi, front-end ulandi | ✅ 2026-10-12, 37 test, test serverda |
+| M2 CRM → M7 hisobotlar, M10 import, M11 asosiy muhit | ⏳ navbatda (17-bo'lim) |
+| M8 Telegram bot, M9 AI | ⏳ tizim ishga tushgandan keyin |
+| 18-bo'limdagi ochiq savollar | ⏳ takliflar `docs/architecture.md` 7-bo'limda; buyurtmachi javob bermasa takliflar qo'llanadi. **3-savol (50% chegirma qoidasi)** ga aniq javob M6 dan oldin kerak |
+| Domen `codialinfo.uz` (`erp.` subdomen) | ⏳ buyurtmachiga o'tkazilmoqda (ahost.uz, ariza ДХ-2442/26-10). O'tgach: DNS A `erp`, `test` → `77.42.9.23`, keyin Nginx + certbot (`docs/deploy_hetzner.md`) |
+| Pochta (SMTP) | ⏳ berilmagan: test serverda xatlar konsolga (`docker compose logs web`) yoziladi |
 
-- **Saytni ko'rish:** https://ilhomjon1502.github.io/codialERP1/ (GitHub Pages, `main` branch). Lokal: `python -m http.server 5510 --directory prototype` → http://localhost:5510
-- Django kodi buyurtmachi ruxsati bilan boshlandi (2026-10-12, M1). Keyingi bosqich ham buyurtmachi «boshla» deganda boshlanadi.
-- Kod yozishga ruxsat berilgach, 3-bo'limdagi tartib bilan ish boshlanadi: tuzilma → ER-diagramma → bosqichlar rejasi → ochiq savollar → tasdiq → M1.
-- Prototip haqida hamma narsa — **20-bo'limda**.
+**Manzillar:**
 
-### Yangi kelgan dasturchi uchun 5 qadam
+| Nima | Qayerda |
+|---|---|
+| Haqiqiy tizim (test, sinov ma'lumotlari) | https://test.77-42-9-23.sslip.io — demo xodimlar va parol `deploy/test-server.local.md` da (faqat buyurtmachi kompyuterida, git'ga kirmaydi) |
+| Prototip (dizayn namunasi) | https://ilhomjon1502.github.io/codialERP1/ |
+| Server | Hetzner CAX11 «codial-1», `77.42.9.23`, `ssh -i ~/.ssh/codial_hetzner root@77.42.9.23` |
+| Kod | https://github.com/Ilhomjon1502/codialERP1 (`main`) |
 
-1. Shu bo'limni va 20-bo'limni o'qing (10 daqiqa).
-2. Saytni oching, o'ng yuqoridagi ismni bosib turli rollar bilan kirib ko'ring.
-3. Biznes qoidalarni bilish uchun 6-bo'lim (rollar), 7-bo'lim (modellar) va 8-bo'lim (hisob-kitob) ni o'qing.
-4. Prototipda biror narsani o'zgartirmoqchi bo'lsangiz, 20.3-bo'limdagi jadvaldan kerakli faylni toping.
-5. O'zgartirgach, `prototype/index.html` dagi `?v=N` raqamini bittaga oshiring (aks holda brauzer eski faylni ko'rsatadi), commit va push qiling — sayt 1–2 daqiqada yangilanadi.
+**Ish qoidalari (o'zgarmagan):** keyingi bosqich buyurtmachi «boshla» deganda boshlanadi; commit/push faqat u so'raganda; noaniq biznes qoidani so'ra yoki `docs/decisions.md` ga yoz.
+
+### Yangi kelgan dasturchi uchun qadamlar
+
+1. Shu bo'limni, **21-bo'limni** (haqiqiy tizim qanday tuzilgan va yangi bo'lim qanday qo'shiladi) va `docs/decisions.md` ni o'qing.
+2. Biznes qoidalar: 6-bo'lim (rollar), 7-bo'lim (modellar), 8-bo'lim (hisob-kitob). Ekranlar va matnlar — prototipda (20-bo'lim).
+3. Lokalda ishga tushiring (`README.md`): `backend` da `seed_demo` → `runserver` → http://localhost:8000.
+4. Testlar: `backend` da `.venv/Scripts/python -m pytest` va `.venv/Scripts/ruff check .` yashil bo'lsin.
+5. Keyingi bosqich (M2) rejasi: `docs/architecture.md` 5-bo'lim va 17-bo'lim.
 
 ## 1. Manbalar
 
@@ -72,7 +78,7 @@ JSON tuzilmasi: `[{t: "H2"|"H3"|"H4"|"table", text|rows}]` ro'yxati. Jadval blok
 | Qism | Tanlov |
 |---|---|
 | Til / framework | Python 3.12, Django 5.x |
-| Ma'lumotlar bazasi | PostgreSQL 16 (asosiy). Kod Django ORM orqali yoziladi va PythonAnywhere bepul tarifidagi MySQL'da ham ishlaydi. PostgreSQL'ga xos funksiyalar faqat zarur bo'lsa va zaxira yechim bilan |
+| Ma'lumotlar bazasi | PostgreSQL 16 (serverda, Docker). Lokalda SQLite (`config/settings/dev.py`). Kod faqat Django ORM orqali; PostgreSQL'ga xos funksiyalar faqat zarur bo'lsa va zaxira yechim bilan |
 | Backend API | **Django REST Framework**, `/api/v1/`, sessiya + CSRF (bir domen, CORS yo'q). Tasdiqlangan 2026-10-12, `docs/architecture.md` |
 | Frontend | **Ma'qullangan prototip** (`prototype/` → `frontend/`) API'ga ulanadi: oddiy HTML/CSS/JS, framework va build yo'q. Hisob-kitob front-end'da emas, serverda |
 | Diagrammalar | Chart.js |
@@ -87,27 +93,31 @@ JSON tuzilmasi: `[{t: "H2"|"H3"|"H4"|"table", text|rows}]` ro'yxati. Jadval blok
 
 ## 5. Loyiha tuzilmasi va konventsiyalar
 
-Taklif etilgan tuzilma (M1 da tasdiqlanadi):
+Haqiqiy tuzilma (M1 da tasdiqlangan; ✅ — bor, ⏳ — o'z bosqichida qo'shiladi):
 
 ```
-config/              # settings (base/dev/prod), urls, wsgi
-apps/
-  core/              # BaseModel, soft delete, audit, filial doirasi (scoping), umumiy mixin'lar
-  accounts/          # User, Role, RolePermission, RolePower, login
-  references/        # Branch, Course, Room, DayPattern, LessonTime, CoursePrice, LessonFrequency,
-                     # DiscountType, ExpenseCategory, LeadSource, AttendanceStatus
-  crm/               # Parent, Student, Lead, LeadComment
-  education/         # Group, Contract, Attendance, MakeupRequest, StudentTask, TeacherEvaluation,
-                     # GradingSession/StudentGrade, ParentCall, Discount50
-  finance/           # Account, CashMovement, Payment, Transfer, Exchange, Expense, Creditor,
-                     # CreditorTransaction, CreditorComment
-  payroll/           # KPIRate, SalaryAssignment, SalaryPayout
-  reports/           # Dashboard, statistika, foyda, Excel eksport
-  notifications/     # Telegram bot
-  ai_assistant/      # AI yordamchi
-services/ yoki har bir app ichida services.py   # barcha biznes hisob-kitoblari
-docs/                # decisions.md, deploy_*.md, user_guide/, appsheet/
-import_data/         # AppSheet .xlsx eksportlari (git'ga kirmaydi)
+backend/
+  config/settings/       base, dev (SQLite), prod (PostgreSQL, HTTPS), test (pytest)
+  config/api.py          /api/v1/ marshrutlari (router)
+  apps/
+    core/          ✅    BaseModel, AuditLog, roles.py (rollar, bo'limlar, matritsa, muddatlar), permissions.py,
+                         scoping.py, services.py (soft delete), viewsets.py (AuditedModelViewSet), seed_demo
+    accounts/      ✅    User (pochta bilan kirish), Role, RolePermission, RolePower; login, parol havolasi
+    references/    ✅    Branch, Course, Room, DayPattern, LessonTime, CoursePrice, LessonFrequency,
+                         DiscountType, ExpenseCategory, LeadSource, AttendanceStatus; bootstrap
+    finance/       ✅/⏳ Account (M1); CashMovement, Payment, Transfer, Exchange, Expense, Creditor… (M4)
+    crm/           ⏳ M2  Parent, Student, Lead, LeadComment
+    education/     ⏳ M3  Group, Contract, Attendance, MakeupRequest (+ M6: StudentTask, baholash, ParentCall, Discount50)
+    payroll/       ⏳ M5  KPIRate, SalaryAssignment, SalaryPayout
+    reports/       ⏳ M7  dashboard, statistika, foyda, Excel
+    importer/      ⏳ M10 AppSheet .xlsx import
+    notifications/, ai_assistant/   ⏳ M8, M9
+  tests/                 pytest (conftest: make_user, api)
+frontend/          ✅    prototip ekranlari, API'ga ulangan (21.3)
+deploy/            ✅    docker-compose.yml, .env.example, nginx/, backup.sh, restore.sh
+docs/              ✅    architecture.md, decisions.md, deploy_hetzner.md, user_guide/
+prototype/         🔒    GitHub Pages'dagi prototip — o'zgartirilmaydi
+import_data/             AppSheet .xlsx eksportlari (git'ga kirmaydi)
 ```
 
 Qoidalar:
@@ -569,14 +579,15 @@ Hisobot so'rovlari aggregatsiya bilan bajariladi. Og'ir hisobotlar uchun kesh (1
 
 ## 15. Deploy
 
-**Bosqich 1 — PythonAnywhere (bepul, test):** MySQL bilan ishlashi tekshiriladi. Cheklovlar: kunlik protsessor vaqti, tashqi internet faqat ruxsat etilgan saytlarga, akkauntni har 3 oyda uzaytirish. Qo'llanma: `docs/deploy_pythonanywhere.md`.
+Tasdiqlangan (2026-10-12): **bitta Hetzner VPS'da ikki muhit** — test (M1 dan) va asosiy (M11 dan). PythonAnywhere ishlatilmaydi.
 
-**Bosqich 2 — Hetzner VPS (asosiy):**
-- `docker-compose.yml`: `web` (Gunicorn), `db` (PostgreSQL 16), `nginx`, `certbot`, `bot`, `cron`.
-- Har kuni `pg_dump` (siqilgan, 30 kun saqlanadi), ixtiyoriy tashqi nusxa (Storage Box yoki S3).
-- Qo'llanma: `docs/deploy_hetzner.md` (server, domen, SSL, yangilash, backup'dan tiklash).
-- Resurs: 2 vCPU, 4 GB RAM, 40 GB SSD.
-- **Eslatma:** O'zbekistonda fuqarolarning shaxsiy ma'lumotlarini mamlakat hududida saqlash talabi bor. Buyurtmachi buni tekshiradi. Kod istalgan hostingga ko'chiriladigan bo'lsin.
+- Server: Hetzner Cloud **CAX11** (Arm64, 2 vCPU, 4 GB RAM, 40 GB), Helsinki, Ubuntu 24.04, `77.42.9.23`. Cost-Optimized x86 mavjud emas edi; Arm64'da hammasi ishlaydi.
+- Har bir muhit: `deploy/docker-compose.yml` — `db` (PostgreSQL 16) + `web` (Gunicorn), `127.0.0.1:8001` (test) / `8002` (prod). **Nginx, certbot va cron — serverning o'zida** (apt), Docker'da emas.
+- Papkalar: `/srv/codial-test`, keyin `/srv/codial-prod` (git checkout), sirlar `deploy/.env` da (git'ga kirmaydi, `chmod 600`).
+- Zaxira: `deploy/backup.sh` har kuni 03:15 (cron), `/srv/backups/codial-<env>`, 30 kun. Tiklash: `deploy/restore.sh`.
+- Har oy 1-kuni 06:00: `propose_lesson_frequencies` (cron).
+- Qo'llanma va joriy holat: `docs/deploy_hetzner.md` (0-bo'lim — server, manzil, cron; yangilash; muammolar jadvali).
+- **Eslatma:** O'zbekistonda fuqarolarning shaxsiy ma'lumotlarini mamlakat hududida saqlash talabi bor. Buyurtmachi Hetzner'ni tanladi va buni o'zi tekshiradi. Kod Docker'da — istalgan hostingga ko'chiriladi.
 
 ## 16. Migratsiya (faqat faol ma'lumotlar)
 
@@ -604,20 +615,22 @@ Avval `python manage.py import_appsheet --dry-run` ishga tushiriladi va xatolar 
 
 ## 17. Bosqichlar (milestone'lar)
 
-| # | Bosqich | Natija |
-|---|---|---|
-| M0 | Prototip (ixtiyoriy) | Bosiladigan HTML prototip: asosiy ekranlar, sinov ma'lumotlari, rol almashtirish |
-| M1 | Loyiha asosi | Django loyihasi, Docker, sozlamalar, User/Role/ruxsatlar, filial doirasi, audit, login, bazaviy layout, PWA, Sozlamalar bo'limi |
-| M2 | CRM | Talabalar, ota-onalar, lidlar (voronka), lid izohlari, "Shartnoma tuzish" |
-| M3 | O'quv jarayoni | Guruhlar, shartnomalar, davomat ekrani, qarz va KPI servislari, kelmaganlar, qoldirilgan darslar, oydagi dars soni (avto-taklif va tasdiq) |
-| M4 | Moliya | CashMovement ledger, g'aznalar, to'lovlar (tasdiqlar, chegirma limiti, PDF chek), o'tkazmalar, almashtirish, xarajatlar, kreditorlar |
-| M5 | Oyliklar | KPI stavkalari, oylik belgilash va berish, xodim balansi |
-| M6 | Qo'shimcha modullar | Vazifalar, ikki yo'nalishli baholash, ota-onalar bilan aloqa, 50% chegirma, Excel eksport |
-| M7 | Hisobot va dashboard | Bosh sahifa, oylik statistika, voronka, birinchi to'lovchilar, foyda, guruh tahlili |
-| M8 | Telegram bot | Bog'lash, xabarlar, kunlik hisobot |
-| M9 | AI yordamchi | Faqat o'qish view'lari, SQL xavfsizligi, provayder abstraksiyasi |
-| M10 | Migratsiya | Import skripti, sinov rejimi, tekshiruv hisoboti |
-| M11 | Deploy | PythonAnywhere qo'llanmasi, Hetzner Docker Compose, backup, monitoring |
+Real ishga tushirish uchun minimal to'plam: **M1–M7 + M10 + M11** (xodimlar AppSheet'dagi hamma bo'limdan foydalanadi). M8 va M9 — keyin.
+
+| # | Bosqich | Natija | Holat |
+|---|---|---|---|
+| M0 | Prototip | Bosiladigan HTML prototip | ✅ |
+| M1 | Loyiha asosi | Django + DRF, Docker, User/Role/ruxsatlar, filial doirasi, audit, login va parol havolasi, Sozlamalar, Audit tarixi, front-end ulandi, test server | ✅ 2026-10-12 |
+| M2 | CRM | Talabalar, ota-onalar, lidlar (voronka, forma, izohlar, statistika), "Shartnoma tuzish" tugmasi (shartnoma o'zi M3 da) | ⏳ keyingi |
+| M3 | O'quv jarayoni | Guruhlar, shartnomalar, davomat ekrani, qarz va KPI servislari, kelmaganlar, qoldirilgan darslar, dars soni tasdig'ida qayta hisoblash | ⏳ |
+| M4 | Moliya | CashMovement ledger, g'aznalar balansi, to'lovlar (tasdiqlar, chegirma limiti, PDF chek), o'tkazmalar, almashtirish, xarajatlar, kreditorlar | ⏳ |
+| M5 | Oyliklar | KPI stavkalari, oylik belgilash va berish, KPI daraxti, xodim balansi | ⏳ |
+| M6 | Qo'shimcha modullar | Vazifalar, ikki yo'nalishli baholash, ota-onalar bilan aloqa, 50% chegirma, Excel eksport | ⏳ |
+| M7 | Hisobot va dashboard | Bosh sahifa, oylik statistika, voronka, birinchi to'lovchilar, foyda, guruh tahlili | ⏳ |
+| M8 | Telegram bot | Bog'lash, xabarlar, kunlik hisobot | ⏳ keyin |
+| M9 | AI yordamchi | Faqat o'qish view'lari, SQL xavfsizligi, provayder abstraksiyasi | ⏳ keyin |
+| M10 | Migratsiya | Import skripti, sinov rejimi, tekshiruv hisoboti | ⏳ |
+| M11 | Ishga tushirish | Asosiy muhit (`erp.codialinfo.uz`), o'tish kuni, monitoring | ⏳ |
 
 Har bir bosqichda bo'ladi: algoritm va ruxsatlar uchun testlar, `seed_demo` buyrug'i (sinov ma'lumotlari), qisqa foydalanuvchi qo'llanmasi (`docs/user_guide/`).
 
@@ -664,7 +677,9 @@ JSON tahlilidan yangi savollar:
 
 ---
 
-## 20. Prototip (`prototype/`) — hozirgi holat
+## 20. Prototip (`prototype/`) — muzlatilgan dizayn namunasi
+
+> **2026-10-12 dan prototip muzlatilgan.** Unga yangi o'zgarish kiritilmaydi — ekranlar `frontend/` da (21-bo'lim) davom etadi. Buyurtmachi yangi o'zgarish so'rasa, u `frontend/` + `backend/` da qilinadi va 20.6 jadvaliga emas, `docs/decisions.md` ga yoziladi.
 
 ### 20.1 Bu nima va nima emas
 
@@ -736,7 +751,7 @@ Har bir sahifa bir xil shaklda yozilgan: `A.page('marshrut', { title, section, r
 
 ### 20.6 Buyurtmachi so'ragan o'zgarishlar
 
-Buyurtmachi prototipni umumiy holda ma'qulladi, "bir-ikki detal" o'zgaradi. **Ro'yxat hali berilmagan.** Berilganda shu yerga yozing va bajarilganini belgilang:
+Buyurtmachi so'ragan va bajarilgan o'zgarishlar (hammasi `frontend/` ga ham ko'chgan; Sozlamalardagilari M1 da server bilan ishlaydi, qolganlari o'z bosqichida):
 
 | # | Nima o'zgaradi | Sahifa / fayl | Holat |
 |---|---|---|---|
@@ -751,7 +766,6 @@ Buyurtmachi prototipni umumiy holda ma'qulladi, "bir-ikki detal" o'zgaradi. **Ro
 | 9 | Rollar va ruxsatlar jadvali: **rol nomlari (sarlavha) va bo'limlar (1-ustun) qotib turadi**, faqat kataklar o'zi aylanadi (ekran balandligiga sig'adi). Katak bosilganda jadval joyidan siljimaydi; katak ustida "rol · bo'lim · amal" yozuvi chiqadi | Sozlamalar → Rollar va ruxsatlar / `pages-admin.js` (`rolesView`, `A.act.perm`), `style.css` (`.perm-wrap`) | ✅ |
 | 10 | Oyliklar → Hisoblangan KPI: chapda AppSheet'dagidek **daraxt: Barchasi → yil → oy → xodim → guruh**, har tugunda **KPI summasi**. Standart holatda oxirgi oy ochiq. Bosilgan tugun bo'yicha jadval filtrlanadi (bir necha oy bo'lsa "Oy" ustuni chiqadi); guruh tanlansa har bir davomat qatori (sana, shartnoma, status, KPI) ham chiqadi. Oy tanlash ro'yxati bu tabda olib tashlandi. Daraxt komponenti endi darajalari sozlanadigan (`A.treeNav(key, rows, { levels, value, def })`) | Oyliklar → Hisoblangan KPI / `pages-fin.js` (`kpiView`, `KPI_LEVELS`), `app.js`, `style.css` | ✅ |
 | 11 | Oyliklar → Xodim balansi: qatorni bosganda **batafsil oyna**: oy tanlash tugmalari; 4 ta karta (avvalgi oylardan qoldiq — haqdor/qarzdor, shu oy hisoblangan, shu oy berilgan, yakuniy balans); hisoblangan oylik tarkibi (belgilangan, bonus, qo'lda KPI, ustoz KPI, yordamchi KPI, − jarima); shu oy berilgan pullar ro'yxati (sana, turi, summa, g'azna, kim berdi, izoh); yakuniy balans hisobi; oylar bo'yicha tarix. Musbat balans = xodim haqdor, manfiy = xodim qarzdor | Oyliklar → Xodim balansi / `pages-fin.js` (`balanceView`, `bal-open`), `style.css` | ✅ |
-| — | (qolganlari buyurtmachidan kutilmoqda) | | |
 
 ### 20.7 GitHub
 
@@ -759,3 +773,86 @@ Buyurtmachi prototipni umumiy holda ma'qulladi, "bir-ikki detal" o'zgaradi. **Ro
 - Sayt `main` branch ildizidan chiqadi: ildizdagi `index.html` → `prototype/` ga yo'naltiradi.
 - `AppSheetsDoc.pdf` va `.claude/` yuklanmaydi (`.gitignore`).
 - Push qilingandan keyin sayt 1–2 daqiqada yangilanadi.
+
+---
+
+## 21. Haqiqiy tizim (`backend/` + `frontend/`) — dasturchi uchun qo'llanma
+
+### 21.1 Umumiy sxema
+
+```
+Brauzer ──HTTPS──► Nginx (serverda) ──┬── /            → frontend/ fayllari (statik)
+                                      └── /api /admin /static → Docker: Gunicorn (Django) → PostgreSQL
+```
+
+- Front-end va API **bitta domenda**: sessiya cookie + CSRF, CORS yo'q. Lokalda Django `DEBUG` rejimida `frontend/` ni o'zi beradi (`config/urls.py`).
+- **Hisob-kitob va tekshiruv faqat serverda.** Front-end faqat ko'rsatadi va tugmalarni yashiradi; ruxsat, filial doirasi va muddatlarni server baribir tekshiradi.
+- Kirgandan keyin front-end bir marta `GET /api/v1/bootstrap/` oladi: joriy xodim, rollar (ruxsatlar), tahrirlash muddatlari va barcha **kichik** ma'lumotnomalar. Katta jadvallar (lid, shartnoma, davomat, to'lov…) bootstrap'ga **kirmaydi** — ular sahifa ochilganda filtr va sahifalash bilan yuklanadi (AppSheet sekinligining sababi aynan hammasini bir yo'la yuklash edi).
+
+### 21.2 Backend kelishuvlari
+
+| Mavzu | Qoida |
+|---|---|
+| ID | Barcha modellar **UUID** (`BaseModel.id`), JSON'da satr |
+| Maydon nomlari | Model — CLAUDE.md 7-bo'limdagi nomlar (`max_amount`, `start_time`…). **Serializer — prototipdagi nomlar** (`max`, `start`, `pattern`, `is_d50`…, `source=` orqali), shunda front-end kodi deyarli o'zgarmaydi |
+| Pul | `DecimalField(14, 0)`; JSON'da son (`COERCE_DECIMAL_TO_STRING=False`) |
+| Oy | Model — oyning 1-kuni (`DateField`); API — `"YYYY-MM"` (`YearMonthField`) |
+| Vaqt | API — `"HH:MM"` |
+| Rol | API'da kod satri (`"USTOZ"`); `apps/core/roles.py` — rollar, bo'limlar (`SECTIONS`), boshlang'ich matritsa, `edit_days()` |
+| Ruxsat | Har bir ViewSet `section = "..."` e'lon qiladi; `SectionPermission`: GET→v, POST→a, PATCH→e, DELETE→d; maxsus amallar `action_ops = {"approve": "p"}` |
+| Filial doirasi | `branch_field = "branch"` → `scope_branch()`; serializer'da `BranchScopedSerializerMixin` (filial doirada bo'lsin, yaratilgandan keyin o'zgarmasin) |
+| Muddat | `check_edit_window(user, section, record.date)` — 6.4 jadvali, sababi bilan 403 |
+| Audit | `AuditedModelViewSet` yaratish/o'zgartirish/o'chirishni o'zi yozadi (`apps/core/audit.py`). Servisda qo'lda o'zgartirsangiz — `audit.snapshot()` + `audit.log_update()` |
+| O'chirish | Faqat soft delete: `services.soft_delete()` — ishlatilgan yozuv (reverse relation'larda o'chirilmagan yozuv bor) 409 bilan rad etiladi va «ishlatilgan (N ta …)» deydi |
+| Xatolar | O'zbekcha: `{"detail": "..."}` yoki `{"maydon": ["..."]}`; 401 — `{"code": "not_authenticated"}`, 409 — `Conflict` |
+| Ro'yxat | Ma'lumotnomalar sahifalashsiz (`AuditedModelViewSet.pagination_class = None`); katta ro'yxatlarda `pagination_class = Pagination` (50 tadan, `{count, page, pages, results}`) |
+| Biznes mantiq | `apps/<app>/services.py`, `transaction.atomic`; view faqat chaqiradi |
+| Seed | `python manage.py seed_demo --password ...` — idempotent (`legacy_id="demo:..."`, nomi bo'yicha ham topadi). Rollar va davomat statuslari — data migratsiyalar (`accounts/0003`, `references/0002`) |
+
+### 21.3 Front-end kelishuvlari (`frontend/assets/js/`)
+
+| Fayl | Vazifa |
+|---|---|
+| `api.js` | `A.http.get/post/patch/del` (CSRF, xatolar `A.ApiError`), `A.ENDPOINT` (to'plam → API manzili), `A.create/update/remove` (serverga yozib, keshni yangilaydi), `A.boot()` |
+| `core.js` | Kesh `A.S` (prototipdagi to'plam nomlari), `A.can()` — server ruxsatlari, `A.editDays()` — server jadvali |
+| `app.js` | Marshrut, layout, kirish va parol o'rnatish sahifalari, **`A.CONNECTED`** — serverga ulangan bo'limlar, `A.MILESTONE` |
+| `forms.js` | `onSubmit` async; server xatosi tegishli maydon ostida chiqadi |
+| `pages-admin.js` | Sozlamalar, Audit tarixi, Bosh sahifa (M1) — **namuna sifatida o'qing** |
+| `pages-crm.js`, `pages-edu.js`, `pages-fin.js` | Prototip ekranlari — hali eski mahalliy kod; o'z bosqichida API'ga o'tkaziladi |
+
+Sahifa serverdan ma'lumot olishi kerak bo'lsa: `A.page('route', { section, async load(p, q) {...}, render(p, q) {...} })` — `load` har chizishdan oldin (filtr o'zgarganda ham) chaqiriladi. Namuna: `A.page('audit')`.
+
+### 21.4 Yangi bo'limni ulash tartibi (M2 dan boshlab har safar)
+
+1. **Model** `apps/<app>/models.py`, `BaseModel` dan; `verbose_name` o'zbekcha (o'chirish xabarida ishlatiladi); kerakli indekslar; `makemigrations`.
+2. **Servis** `services.py`: hisob-kitob, tekshiruv, `transaction.atomic`, audit.
+3. **Serializer**: maydon nomlari prototipdagidek; xato matnlari CLAUDE.md 7-bo'limdagidek.
+4. **ViewSet**: `AuditedModelViewSet`, `section`, `branch_field`, kerak bo'lsa `pagination_class = Pagination`, `action_ops`; `config/api.py` ga `router.register`.
+5. **Testlar** `backend/tests/`: servis qoidalari, ruxsatlar (rollar bo'yicha), filial doirasi, muddatlar, `django_assert_max_num_queries`.
+6. **Front-end**: `A.ENDPOINT` ga qo'shing; sahifaga `load()` yozing va `A.insert/patch/softDelete` (prototip) o'rniga `A.create/update/remove` yoki `A.http`; hisob-kitobni JS'dan olib tashlab, server qiymatini ko'rsating; bo'limni `A.CONNECTED` ga qo'shing.
+7. `frontend/index.html` dagi `?v=` ni almashtiring; `seed_demo` ga sinov ma'lumoti; `docs/user_guide/` ga qisqa qo'llanma; README va shu CLAUDE.md (0, 17-bo'limlar) holatini yangilang.
+8. Test serverga joylash (21.5) va buyurtmachiga qisqa hisobot.
+
+### 21.5 Serverga yangilash
+
+```bash
+ssh -i ~/.ssh/codial_hetzner root@77.42.9.23
+cd /srv/codial-test && git pull
+cd deploy && docker compose --env-file .env up -d --build      # migratsiyalar o'zi qo'llanadi
+docker compose --env-file .env logs web --tail 50              # xatolarni tekshirish
+```
+
+Front-end fayllari `git pull` bilan darhol yangilanadi (Nginx papkadan beradi).
+
+### 21.6 Tuzoqlar (bilib qo'ying)
+
+- `frontend/index.html` dagi `?v=` almashtirilmasa, brauzer eski JS'ni ko'rsatadi.
+- Login so'rovi ham CSRF talab qiladi: front-end avval `GET /api/v1/auth/csrf/` oladi.
+- **Admin rolining ruxsatlari o'zgarmaydi** (qulflanib qolmaslik uchun); matritsani faqat Admin va Bosh menejer o'zgartiradi.
+- Prod sozlamada HTTPS majburiy (xavfsiz cookie) — SSL'siz HTTP orqali kirib bo'lmaydi. Domen bo'lmasa `*.sslip.io` ishlatiladi.
+- Ubuntu 24.04: SSH socket orqali ishlaydi, `systemctl reload ssh` xato beradi — `sshd_config.d` o'zgarishi keyingi ulanishda kuchga kiradi.
+- Server **Arm64**: Docker obrazlar `linux/arm64` bo'lishi kerak (python, postgres rasmiy obrazlari mos).
+- Nginx'da ichki `location` da `add_header` bo'lsa, server darajasidagi xavfsizlik sarlavhalari bekor bo'ladi — ularni o'sha `location` ichida takrorlang.
+- Lokal kompyuterda Docker va PostgreSQL yo'q: lokal SQLite, serverda PostgreSQL. Faqat ORM ishlating; partial unique constraint'lar ikkalasida ishlaydi.
+- Repo **ochiq**: sirlar, parollar, haqiqiy talaba ma'lumotlari git'ga tushmasin (`deploy/.env`, `deploy/*.local.md`, `import_data/` — `.gitignore` da).
+

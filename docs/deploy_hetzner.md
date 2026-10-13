@@ -11,6 +11,21 @@ Har bir muhit: Docker'da **PostgreSQL + Django (Gunicorn)**. Serverning o'zida: 
 
 > Akkaunt ochish, to'lov va DNS — buyurtmachi tomonidan qilinadi. Qolgan buyruqlarni dasturchi bajaradi.
 
+## 0. Joriy holat (2026-10-12)
+
+| | |
+|---|---|
+| Server | Hetzner Cloud **CAX11** (Arm64, 2 vCPU, 4 GB RAM, 40 GB), nomi `codial-1`, Helsinki, IP `77.42.9.23`, Ubuntu 24.04 |
+| Kirish | `ssh -i ~/.ssh/codial_hetzner root@77.42.9.23` (faqat kalit; parol bilan kirish o'chirilgan) |
+| Test muhiti | **https://test.77-42-9-23.sslip.io** — vaqtinchalik manzil (sslip.io IP'ni nomga aylantiradi), Let's Encrypt SSL. Domen tayyor bo'lgach `test.<domen>` ga o'tkaziladi |
+| Pochta | SMTP hali sozlanmagan: test muhitida xatlar `docker compose logs web` ga chiqadi (`EMAIL_BACKEND=console`) |
+| Cron | test bazasi zaxirasi har kuni 03:15 (`/srv/backups/codial-test`), oydagi dars soni takliflari har oy 1-kuni 06:00 |
+| Asosiy muhit | hali o'rnatilmagan (M11) |
+
+Cost-Optimized x86 (CX23) o'rnatish paytida Yevropaning hech bir joyida bo'lmagani uchun Arm64 (CAX11) tanlandi. Docker obrazlari (python, postgres) Arm64'da ishlaydi.
+
+Ubuntu 24.04 da SSH socket orqali ishga tushadi: `/etc/ssh/sshd_config.d/` dagi o'zgarish keyingi ulanishdan kuchga kiradi, `systemctl reload ssh` kerak emas.
+
 ## 1. Server va domen (buyurtmachi)
 
 1. https://console.hetzner.cloud → yangi loyiha → **Add Server**:

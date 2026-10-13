@@ -24,3 +24,4 @@ import_data/
 deploy/.env
 .pytest_cache/
 .ruff_cache/
+deploy/*.local.md
