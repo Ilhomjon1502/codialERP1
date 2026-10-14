@@ -138,7 +138,7 @@
   const ACC_ROLES = ['ADMIN', 'BOSH_MENEJER', 'ADMINISTRATOR_HISOBCHI', 'HISOBCHI'];
   CRUD.accounts = {
     coll: 'accounts', title: "G'aznalar", section: 'accounts',
-    note: "G'azna balansi va pul harakatlari jurnali M4 bosqichida ulanadi. Mas'ullarni faqat Admin va Bosh menejer o'zgartiradi.",
+    note: "Joriy qoldiq va pul harakatlari jurnali «G'aznalar» bo'limida ko'rinadi. Mas'ullarni faqat Admin va Bosh menejer o'zgartiradi.",
     cols: [
       { h: 'Nomi', f: (r) => `<b>${esc(r.name)}</b>` }, { h: 'Turi', f: (r) => A.badge(A.CASH[r.cash_type], 'gray') },
       { h: "Mas'ullar", f: (r) => r.responsible.map(A.userName).map(esc).join(', ') },
@@ -273,7 +273,8 @@
       if (CRUD[tab]) body = crudList(tab);
       else if (tab === 'prices') body = pricesView();
       else if (tab === 'freq') body = freqView();
-      else if (tab === 'rates') body = `<h2>KPI stavkalari</h2><p>KPI stavkalari «Oyliklar» bo'limida boshqariladi. Bu bo'lim M5 bosqichida serverga ulanadi.</p>`;
+      else if (tab === 'rates') body = `<h2>KPI stavkalari</h2><p>Ustoz va yordamchilarning KPI stavkalari «Oyliklar» bo'limida kiritiladi: har bir xodim, kurs va oy uchun (o'zgarmas summa yoki foiz). O'tgan oy stavkalarini nusxalash ham o'sha yerda.</p>
+        ${A.can('salaries') ? `<a class="btn primary" href="#/salaries?tab=rates">KPI stavkalarini ochish →</a>` : ''}`;
       else if (tab === 'roles') body = rolesView();
       return `${A.head('Sozlamalar', 'Barcha ma\'lumotnomalar. Bosh menejer hammasini, Filial menejeri o\'z filiali doirasida boshqaradi')}
         <div class="settings"><nav class="side-tabs">${TABS.map(([k, l]) => `<a href="#/settings?tab=${k}" class="${k === tab ? 'on' : ''}">${esc(l)}</a>`).join('')}</nav><div class="settings-body card">${body}</div></div>`;
