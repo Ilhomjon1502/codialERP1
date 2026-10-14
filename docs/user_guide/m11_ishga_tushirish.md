@@ -37,3 +37,24 @@ Narx va dars soni kiritilmasa, qarz va KPI hisoblanmaydi va bosh sahifada ogohla
 
 - Har 5 daqiqada sayt tekshiriladi (`deploy/healthcheck.sh`). Javob bo'lmasa, sayt o'zi qayta ishga tushadi. Tiklanmasa yoki server diski 90% to'lsa, Bosh menejerga Telegram xabari keladi.
 - Har kuni 03:15 da baza zaxirasi olinadi (30 kun saqlanadi). Tavsiya: serverdan tashqariga ham nusxa olib turing (Hetzner Backups yoki haftada bir kompyuteringizga).
+
+## Serverda import buyrug'i (dasturchi uchun)
+
+```bash
+install -d -m 700 /srv/import                      # Excel shu yerga (scp), checkout'ga emas
+cd /srv/codial-test/deploy
+docker compose --env-file .env cp /srv/import/Codial.xlsx web:/tmp/appsheet.xlsx
+docker compose --env-file .env exec -T -u root web chmod 644 /tmp/appsheet.xlsx
+docker compose --env-file .env exec -T web python manage.py import_appsheet --file /tmp/appsheet.xlsx --on 2026-11-01            # sinov
+docker compose --env-file .env exec -T web python manage.py import_appsheet --file /tmp/appsheet.xlsx --on 2026-11-01 --commit
+docker compose --env-file .env exec -T -u root web rm -f /tmp/appsheet.xlsx && shred -u /srv/import/Codial.xlsx
+```
+
+Server SSH'ni qisqa vaqtda ko'p ulanishda vaqtincha bloklaydi — buyruqlarni bitta ulanishda bajaring.
+
+## 2026-10-14 da bajarildi
+
+- Zaxira `codial-test-20261014-1119` → demo tozalandi. Faqat Bosh menejer akkaunti, rollar (10), ruxsatlar (220), davomat statuslari va Emirat qoldi.
+- `Codial1.1.xlsx` dan import: 73 shartnoma, 73 talaba, 21 guruh, 4 kurs, 7 ustoz va yordamchi. Xatolar yo'q.
+- Excel serverdan o'chirildi. Monitoring yoqildi.
+
