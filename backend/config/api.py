@@ -63,6 +63,7 @@ urlpatterns = [
     path("approvals/", fin.approvals),
     path("kpi/", pay.kpi_tree),
     path("export/contracts/", edu.export_contracts),
+    path("schedule/", edu.schedule),
     path("notifications/me/", notif.me),
     path("ai/", ai.info),
     path("ai/ask/", ai.ask),

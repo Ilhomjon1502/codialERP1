@@ -394,6 +394,121 @@
     if (e.target.closest('[data-filter^="audit:"]')) A.ui.q['audit:page'] = 1;
   }, true);
 
+  /* ===================================================== Dars jadvali (bosh sahifa) */
+  // Guruhlardan avtomatik: kun → xona (yoki ustoz) × vaqt. Bir qatorda vaqti ustma-ust tushgan guruhlar qizil bilan.
+  const SLOT = 30; // daqiqa
+  const SLOT_W = 64; // px
+  const SCHED_COLORS = ['#2f80ed', '#27ae60', '#9b51e0', '#F26A1B', '#56ccf2', '#bb6bd9', '#6fcf97', '#f2c94c']; // qizilsiz — qizil faqat ustma-ust uchun
+  const mins = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+  const hhmm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+  function schedHTML(data) {
+    if (!data || !data.groups.length) return '';
+    const groups = data.groups.map((g) => ({ ...g, s: mins(g.start), e: mins(g.end) }));
+    const days = [1, 2, 3, 4, 5, 6, 7].filter((d) => d < 7 || groups.some((g) => g.weekdays.includes(7)));
+    const todayWd = A.isoWeekday(A.today());
+    let day = Number(A.ui.schedDay) || (days.includes(todayWd) ? todayWd : days[0]);
+    if (!days.includes(day)) day = days[0];
+    const by = A.ui.schedBy === 'teacher' ? 'teacher' : 'room';
+    const t0 = Math.floor(Math.min(...groups.map((g) => g.s)) / SLOT) * SLOT;
+    const t1 = Math.ceil(Math.max(...groups.map((g) => g.e)) / SLOT) * SLOT;
+    const slots = [];
+    for (let t = t0; t < t1; t += SLOT) slots.push(t);
+    const todays = groups.filter((g) => g.weekdays.includes(day));
+    const courses = [...new Set(groups.map((g) => g.course))];
+    const color = (g) => SCHED_COLORS[courses.indexOf(g.course) % SCHED_COLORS.length];
+    let rows;
+    if (by === 'room') rows = data.rooms.map((r) => ({ key: r.id, label: r.name, sub: r.capacity ? `${r.capacity} o'rin` : '' }));
+    else {
+      const seen = new Map();
+      groups.forEach((g) => seen.set(g.teacher, g.teacher_name));
+      rows = [...seen].sort((a, b) => a[1].localeCompare(b[1])).map(([id, name]) => ({ key: id, label: name, sub: '' }));
+    }
+    const rowKey = (g) => (by === 'room' ? g.room : g.teacher);
+    const busy = todays.reduce((s, g) => s + (g.e - g.s), 0);
+    const roomsUsed = new Set(todays.map((g) => g.room)).size;
+    const pct = data.rooms.length ? Math.round((100 * busy) / (data.rooms.length * (t1 - t0))) : 0;
+    const width = slots.length * SLOT_W;
+    const canEdit = A.can('groups', 'e');
+    const rowHTML = (row) => {
+      const items = todays.filter((g) => rowKey(g) === row.key).sort((a, b) => a.s - b.s);
+      const blocks = items.map((g) => {
+        const clash = items.some((o) => o !== g && o.s < g.e && g.s < o.e);
+        const c = color(g);
+        const left = ((g.s - t0) / SLOT) * SLOT_W + 3;
+        const w = ((g.e - g.s) / SLOT) * SLOT_W - 6;
+        const second = by === 'room' ? g.teacher_name : data.rooms.find((r) => r.id === g.room)?.name || '';
+        const title = `${g.name} · ${g.start}–${g.end} · ${g.teacher_name}${g.supporter_name ? ` (yordamchi: ${g.supporter_name})` : ''} · ${g.students}/${g.capacity || '—'} talaba${g.status === 'Rejada' ? ` · Rejada: ${A.fdate(g.start_date)} dan` : ''}${clash ? ' · DIQQAT: vaqti boshqa guruh bilan ustma-ust' : ''}`;
+        const cls = `sched-b${g.status === 'Rejada' ? ' plan' : ''}${clash ? ' clash' : ''}`;
+        const inner = `<b>${esc(g.name)}</b><small>${esc(second)} · ${g.students}/${g.capacity || '—'}</small>`;
+        const st = `left:${left}px;width:${w}px;--c:${c}`;
+        return canEdit
+          ? `<div class="${cls}" role="button" tabindex="0" data-act="sched-edit" data-id="${g.id}" title="${esc(title)} · bosing — kun, vaqt, xona yoki ustozni o'zgartirish" style="${st}">${inner}</div>`
+          : `<a class="${cls}" href="#/groups/${g.id}" title="${esc(title)}" style="${st}">${inner}</a>`;
+      }).join('');
+      return `<div class="sched-row"><div class="sched-l"><b>${esc(row.label)}</b>${row.sub ? `<small>${esc(row.sub)}</small>` : ''}</div>
+        <div class="sched-track" style="width:${width}px">${slots.map(() => '<i></i>').join('')}${blocks}</div></div>`;
+    };
+    const tabs = days.map((d) => `<button class="sched-day${d === day ? ' on' : ''}" data-act="sched-day" data-id="${d}">${A.WD_FULL[d]}${d === todayWd ? ' •' : ''}
+      <span>${groups.filter((g) => g.weekdays.includes(d)).length}</span></button>`).join('');
+    const shown = rows.filter((row) => by === 'room' || todays.some((g) => rowKey(g) === row.key));
+    return `<section class="card sched"><div class="row between wrap"><h2>Dars jadvali</h2>
+        <div class="seg">${[['room', 'Xonalar'], ['teacher', 'Ustozlar']].map(([k, l]) => `<button class="${by === k ? 'on' : ''}" data-act="sched-by" data-id="${k}">${l}</button>`).join('')}</div></div>
+      <div class="sched-days">${tabs}</div>
+      <p class="muted small">${todays.length} dars · ${roomsUsed}/${data.rooms.length} xona band · ${pct}% band · ${hhmm(t0)}–${hhmm(t1)}. Jadval guruhlardan avtomatik tuziladi; ${canEdit ? "guruhni bosing — kun, vaqt, xona va ustozni shu yerda o'zgartirasiz." : 'guruhni bosing — batafsil.'} Shtrixli — rejadagi guruh, qizil — vaqti ustma-ust.</p>
+      <div class="sched-wrap"><div class="sched-grid" style="min-width:${width + 150}px">
+        <div class="sched-row head"><div class="sched-l">${by === 'room' ? 'Xona' : 'Ustoz'} / vaqt</div><div class="sched-track" style="width:${width}px">${slots.map((t) => `<span>${hhmm(t)}</span>`).join('')}</div></div>
+        ${shown.map(rowHTML).join('') || `<div class="muted pad">${A.WD_FULL[day]} kuni dars yo'q</div>`}
+      </div></div></section>`;
+  }
+  A.act['sched-day'] = (el) => { A.ui.schedDay = el.dataset.id; A.refresh(); };
+  A.act['sched-by'] = (el) => { A.ui.schedBy = el.dataset.id; A.refresh(); };
+
+  // Jadvaldan tez tahrir: dars kunlari, vaqti, xona, ustoz (to'liq forma — guruh sahifasida). Ustma-ust tushish oldindan ogohlantiriladi.
+  const overlap = (a, b) => a.weekdays.some((d) => b.weekdays.includes(d)) && a.s < b.e && b.s < a.e;
+  A.act['sched-edit'] = (el) => {
+    const g = A.get('groups', el.dataset.id);
+    if (!g) return A.go('groups/' + el.dataset.id);
+    const B = g.branch;
+    const staff = (roles, x) => A.S.users.filter((u) => roles.includes(u.role) && (u.status === 'Faol' || u.id === x) && (u.branches || []).includes(B));
+    const others = ((dash.sched && dash.sched.groups) || []).filter((o) => o.id !== g.id).map((o) => ({ ...o, s: mins(o.start), e: mins(o.end) }));
+    const probe = (x) => {
+      const p = A.get('dayPatterns', x.pattern);
+      const t = A.get('lessonTimes', x.time);
+      return p && t ? { weekdays: p.weekdays || [], s: mins(t.start), e: mins(t.end) } : null;
+    };
+    const clashes = (x) => {
+      const me = probe(x);
+      if (!me) return [];
+      return others.filter((o) => overlap(me, o) && (o.room === x.room || o.teacher === x.teacher))
+        .map((o) => `${o.name} (${o.start}–${o.end}, ${o.room === x.room ? 'xona band' : 'ustoz band'})`);
+    };
+    A.form({
+      title: `${A.groupName(g)} — jadval`,
+      values: { pattern: g.pattern, time: g.time, room: g.room, teacher: g.teacher, supporter: g.supporter || '' },
+      fields: [
+        { name: 'pattern', label: 'Dars kunlari', type: 'seg', required: true, options: (x) => A.optList('dayPatterns', 'name', (p) => (p.status || 'Faol') === 'Faol' || p.id === x.pattern) },
+        { name: 'time', label: 'Dars vaqti', type: 'seg', required: true, options: (x) => A.optList('lessonTimes', (t) => `${t.start}-${t.end}`, (t) => t.branch === B && ((t.status || 'Faol') === 'Faol' || t.id === x.time)) },
+        {
+          name: 'room', label: 'Xona', type: 'select', required: true,
+          options: (x) => A.rows('rooms').filter((r) => r.branch === B && (r.status === 'Faol' || r.id === x.room)).map((r) => {
+            const me = probe(x);
+            const busy = me && others.some((o) => o.room === r.id && overlap(me, o));
+            return [r.id, `${r.name} (${r.capacity} o'rin)${busy ? ' — shu vaqtda band!' : ''}`];
+          }),
+        },
+        { name: 'teacher', label: 'Ustoz', type: 'select', required: true, options: (x) => staff(['USTOZ', 'USTOZ_YORDAMCHI'], x.teacher).map((u) => [u.id, u.full_name]) },
+        { name: 'supporter', label: 'Yordamchi ustoz (ixtiyoriy)', type: 'select', placeholder: "Yo'q", options: (x) => staff(['YORDAMCHI', 'USTOZ_YORDAMCHI'], x.supporter).filter((u) => u.id !== x.teacher).map((u) => [u.id, u.full_name]) },
+        { name: 'warn', label: 'Tekshiruv', type: 'computed', compute: (x) => { const c = clashes(x); return c.length ? `⚠️ Ustma-ust: ${c.join('; ')}` : "✓ Xona va ustoz bu vaqtda bo'sh"; } },
+      ],
+      async onSubmit(x) {
+        const saved = await A.http.patch(`/groups/${g.id}/`, { pattern: x.pattern, time: x.time, room: x.room, teacher: x.teacher, supporter: x.supporter || null });
+        A.putLocal('groups', saved);
+        A.toast(`Saqlandi: ${saved.name}`);
+        A.refresh();
+      },
+    });
+  };
+
   /* ===================================================== Bosh sahifa (M1) */
   const PLAN = [
     ['M1', "Asos: kirish, rollar va ruxsatlar, Sozlamalar, Audit tarixi", true],
@@ -414,7 +529,7 @@
     section: 'dashboard',
     async load() {
       const get = (ok, path) => (ok ? A.http.get(path) : Promise.resolve(null));
-      const [, debt, contracts, summary, pays] = await Promise.all([
+      const [, debt, contracts, summary, pays, , , sched] = await Promise.all([
         A.reloadGroups(),
         get(A.can('debtors'), '/debtors/'),
         get(A.can('contracts'), '/contracts/?page_size=1'),
@@ -422,8 +537,9 @@
         get(A.can('payments'), '/payments/summary/'),
         A.can('accounts') ? A.reloadMoney() : null,
         A.reloadPending(),
+        A.http.get('/schedule/'),
       ]);
-      dash = { debt, counts: contracts ? contracts.counts : null, summary, pays };
+      dash = { debt, counts: contracts ? contracts.counts : null, summary, pays, sched };
     },
     render() {
       const me = A.me();
@@ -448,6 +564,7 @@
           ${sm ? A.stat('Shu oy KPI (hisoblangan)', A.money(sm.kpi), `${sm.rows} ta dars qatori${sm.no_freq ? ` · ${sm.no_freq} tasi hisoblanmagan` : ''}`) : ''}
           ${sm ? A.stat('Besabab kelmaganlar', sm.absent, "shu oyda · «Darsni yetkazdim» so'rovi", sm.absent ? 'warn' : '', '#/attendance?tab=absent') : ''}
         </div>
+        ${schedHTML(dash.sched)}
         <div class="stats">
           ${A.stat('Faol kurslar', A.rows('courses').filter(isActive).length, '', '', A.can('settings') ? '#/settings?tab=courses' : '')}
           ${A.stat('Xodimlar', A.S.users.filter((u) => u.status === 'Faol').length, 'faol', '', A.can('settings') ? '#/settings?tab=users' : '')}

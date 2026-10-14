@@ -14,7 +14,7 @@ from apps.core.permissions import NO_PERMISSION, can, check_edit_window, today
 from apps.core.scoping import scope_branch
 from apps.core.viewsets import AuditedModelViewSet
 from apps.crm.views import default_branch, search_q
-from apps.references.models import LessonFrequency
+from apps.references.models import LessonFrequency, Room
 from apps.references.services import month_start
 
 from . import calc, export, services
@@ -460,3 +460,28 @@ def export_contracts(request):
     resp = HttpResponse(data, content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     resp["Content-Disposition"] = f'attachment; filename="shartnomalar-{today():%Y%m%d}.xlsx"'
     return resp
+
+
+@api_view(["GET"])
+def schedule(request):
+    """Dars jadvali (bosh sahifa): filial doirasidagi faol va rejadagi guruhlar — xona, kun, vaqt, ustoz bo'yicha.
+    Guruhlardan avtomatik tuziladi: guruh ochilsa qo'shiladi, tugasa yoki o'chirilsa tushadi. Ustozlar ham to'liq jadvalni ko'radi
+    (faqat guruh nomi, ustoz va to'lish — talaba ma'lumotisiz)."""
+    on = today()
+    qs = scope_branch(Group.objects.filter(Q(end_date__isnull=True) | Q(end_date__gte=on)), request.user)
+    qs = services.with_fill(qs.select_related("course", "day_pattern", "time", "teacher", "supporter", "room")).order_by("time__start_time", "course__name", "number")
+    groups, rooms = [], {}
+    for g in qs:
+        if g.room_id:
+            rooms[g.room_id] = g.room
+        groups.append({
+            "id": g.pk, "name": g.name, "course": g.course_id, "course_name": g.course.name, "weekdays": g.day_pattern.weekdays,
+            "start": f"{g.time.start_time:%H:%M}", "end": f"{g.time.end_time:%H:%M}", "room": g.room_id,
+            "teacher": g.teacher_id, "teacher_name": g.teacher.full_name, "supporter_name": g.supporter.full_name if g.supporter_id else "",
+            "status": services.period_status(g.start_date, g.end_date, on), "start_date": g.start_date,
+            "students": g.active_count, "capacity": g.room.capacity if g.room_id else 0,
+        })
+    for r in scope_branch(Room.objects.filter(status="Faol"), request.user):
+        rooms.setdefault(r.pk, r)
+    room_list = sorted(rooms.values(), key=lambda r: (r.name.lower(),))
+    return Response({"rooms": [{"id": r.pk, "name": r.name, "capacity": r.capacity} for r in room_list], "groups": groups})

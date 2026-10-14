@@ -444,3 +444,29 @@ dl.kv dd { margin: 0; font-weight: 500; }
 .empty .ic { width: 28px; height: 28px; opacity: 0.5; }
 button[disabled] { cursor: not-allowed; }
 .btn[data-submit][disabled] { opacity: 0.6; }
+
+/* ---- Dars jadvali (bosh sahifa) ---- */
+.sched .seg button { min-height: 32px; padding: 4px 12px; }
+.sched-days { display: flex; gap: 4px; overflow-x: auto; border-bottom: 1px solid var(--line); margin: 6px 0 8px; }
+.sched-day { border: 0; background: none; font: inherit; padding: 8px 12px; cursor: pointer; color: var(--ink-2); border-bottom: 2px solid transparent; white-space: nowrap; }
+.sched-day span { display: inline-block; min-width: 20px; margin-left: 4px; padding: 0 6px; border-radius: 10px; background: var(--gray-50); font-size: 12px; }
+.sched-day.on { color: var(--brand-600); border-bottom-color: var(--brand); font-weight: 650; }
+.sched-day.on span { background: var(--brand-50); }
+.sched-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
+.sched-row { display: flex; border-bottom: 1px solid var(--line); min-height: 64px; }
+.sched-row:last-child { border-bottom: 0; }
+.sched-row.head { min-height: 34px; background: #fafafb; position: sticky; top: 0; }
+.sched-l { flex: none; width: 150px; padding: 8px 10px; display: flex; flex-direction: column; justify-content: center; border-right: 1px solid var(--line); background: #fff; position: sticky; left: 0; z-index: 2; }
+.sched-row.head .sched-l { background: #fafafb; font-size: 12px; color: var(--ink-2); text-transform: uppercase; }
+.sched-l small { color: var(--ink-3, #8a8a94); font-size: 11.5px; }
+.sched-track { position: relative; display: flex; flex: none; }
+.sched-track i { flex: none; width: 64px; border-right: 1px dashed #ececf0; }
+.sched-track span { flex: none; width: 64px; font-size: 11.5px; font-weight: 600; padding: 9px 0 0 6px; color: var(--ink-2); border-right: 1px solid #ececf0; }
+.sched-b { position: absolute; top: 6px; bottom: 6px; border-radius: 9px; padding: 5px 8px; overflow: hidden; display: flex; flex-direction: column; justify-content: center;
+  background: color-mix(in srgb, var(--c) 18%, #fff); border: 1.5px solid color-mix(in srgb, var(--c) 55%, #fff); color: var(--ink); text-decoration: none; cursor: pointer; }
+.sched-b:hover { text-decoration: none; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12); }
+.sched-b b { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sched-b small { font-size: 11.5px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sched-b.plan { border-style: dashed; opacity: 0.8; }
+.sched-b.clash { border-color: #eb5757; box-shadow: inset 0 0 0 1.5px #eb5757; }
+
