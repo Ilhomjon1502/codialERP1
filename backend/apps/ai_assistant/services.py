@@ -150,7 +150,7 @@ def ask(user, question):
                 break
             except guard.Blocked as e:
                 q.status, q.error = (AIQuery.Status.ERROR if str(e).startswith("Bajarishda") else AIQuery.Status.BLOCKED), str(e)[:400]
-                if attempt == 0 and time.monotonic() - t0 < 15:  # qayta so'rashga vaqt bo'lsa (sahifa 60 s dan oshmasin)
+                if attempt == 0 and time.monotonic() - t0 < 12:  # qayta so'rashga vaqt bo'lsa (sahifa 60 s dan oshmasin)
                     prompt = f"{prompt}\n\nSizning SQL'ingiz:\n{q.sql}\nXato: {e}\nTuzatilgan SQL'ni xuddi shu JSON ko'rinishida qaytaring."
     except providers.ProviderError as e:
         q.status, q.error = AIQuery.Status.ERROR, str(e)[:400]

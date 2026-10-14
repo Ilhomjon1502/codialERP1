@@ -10,7 +10,7 @@ import urllib.request
 from django.conf import settings
 
 DEFAULT_MODELS = {"gemini": "gemini-3.7-flash", "anthropic": "claude-sonnet-5-5", "openai": "gpt-4.1-mini"}
-DEFAULT_FALLBACKS = {"gemini": ["gemini-3.8-flash", "gemini-3.5-flash", "gemini-flash-latest"]}
+DEFAULT_FALLBACKS = {"gemini": ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-flash-lite-latest", "gemini-3.8-flash"]}  # lite — 2 s, bepul tarifda kam band
 
 
 class ProviderError(Exception):
@@ -49,12 +49,12 @@ def used_model():
 BUSY = (500, 502, 503, 504)
 
 
-def _post(url, headers, body, retries=1):
-    """5xx bo'lsa — 2 soniyadan keyin bir marta qayta urinadi, keyin Unavailable."""
+def _post(url, headers, body, timeout, retries=0):
+    """5xx, kechikish yoki 404 — Unavailable (complete() keyingi modelga o'tadi)."""
     req = urllib.request.Request(url, data=json.dumps(body).encode(), headers={"Content-Type": "application/json", **headers}, method="POST")
     for attempt in range(retries + 1):
         try:
-            with urllib.request.urlopen(req, timeout=settings.AI_HTTP_TIMEOUT_S) as r:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
                 return json.loads(r.read().decode())
         except urllib.error.HTTPError as e:
             detail = e.read().decode(errors="replace")[:300]
@@ -71,14 +71,14 @@ def _post(url, headers, body, retries=1):
                 raise ProviderError("AI kaliti qabul qilinmadi. Serverda deploy/set-ai.sh bilan kalitni qayta kiriting") from None
             raise ProviderError(f"AI xizmati xatosi {e.code}: {detail}") from None
         except TimeoutError:
-            raise Unavailable(f"AI {settings.AI_HTTP_TIMEOUT_S:g} soniyada javob bermadi") from None
+            raise Unavailable(f"AI {timeout:g} soniyada javob bermadi") from None
         except urllib.error.URLError as e:
             if isinstance(e.reason, TimeoutError):
-                raise Unavailable(f"AI {settings.AI_HTTP_TIMEOUT_S:g} soniyada javob bermadi") from None
+                raise Unavailable(f"AI {timeout:g} soniyada javob bermadi") from None
             raise ProviderError(f"AI xizmatiga ulanib bo'lmadi: {e.reason}") from None
 
 
-def _gemini(system, user, model, thinking=True):
+def _gemini(system, user, model, timeout, thinking=True):
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
     config = {"temperature": 0, "responseMimeType": "application/json"}
     if settings.AI_THINKING and thinking:
@@ -88,10 +88,10 @@ def _gemini(system, user, model, thinking=True):
             "systemInstruction": {"parts": [{"text": system}]},
             "contents": [{"role": "user", "parts": [{"text": user}]}],
             "generationConfig": config,
-        })
+        }, timeout)
     except ProviderError as e:
         if thinking and "thinkingConfig" in config and " 400:" in str(e):  # model bu sozlamani qo'llamasa — sozlamasiz
-            return _gemini(system, user, model, thinking=False)
+            return _gemini(system, user, model, timeout, thinking=False)
         raise
     try:
         return "".join(p.get("text", "") for p in data["candidates"][0]["content"]["parts"] if not p.get("thought"))
@@ -99,19 +99,19 @@ def _gemini(system, user, model, thinking=True):
         raise ProviderError("AI javob bermadi (bo'sh javob)") from None
 
 
-def _anthropic(system, user, model):
+def _anthropic(system, user, model, timeout):
     data = _post("https://api.anthropic.com/v1/messages", {"x-api-key": settings.AI_API_KEY, "anthropic-version": "2023-06-01"}, {
         "model": model, "max_tokens": 2000, "temperature": 0, "system": system,
         "messages": [{"role": "user", "content": user}],
-    })
+    }, timeout)
     return "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
 
 
-def _openai(system, user, model):
+def _openai(system, user, model, timeout):
     data = _post("https://api.openai.com/v1/chat/completions", {"Authorization": f"Bearer {settings.AI_API_KEY}"}, {
         "model": model, "temperature": 0, "response_format": {"type": "json_object"},
         "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
-    })
+    }, timeout)
     return data["choices"][0]["message"]["content"]
 
 
@@ -125,15 +125,16 @@ def complete(system, user):
     deadline = time.monotonic() + settings.AI_TOTAL_TIMEOUT_S
     err = None
     for model in model_chain():
-        if err and time.monotonic() + 5 > deadline:  # sahifa kutib qolmasin (gunicorn 60 s)
+        left = deadline - time.monotonic()
+        if left < 3:  # sahifa kutib qolmasin (gunicorn 60 s)
             break
         try:
-            text = PROVIDERS[settings.AI_PROVIDER](system, user, model)
+            text = PROVIDERS[settings.AI_PROVIDER](system, user, model, min(settings.AI_HTTP_TIMEOUT_S, left))
             _state.model = model
             return text
         except Unavailable as e:
             err = e
-    raise err
+    raise err or Unavailable("AI javob bermadi")
 
 
 def complete_json(system, user):
