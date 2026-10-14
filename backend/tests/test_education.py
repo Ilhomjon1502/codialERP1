@@ -58,11 +58,13 @@ def take(c, w, marks=None, date=TODAY, **extra):
 
 # ------------------------------------------------------------------ hisob-kitob (8.2, 8.3)
 
-def test_debt_and_kpi_formulas(api, world):
+def test_debt_and_kpi_formulas(api, make_user, world):
     w = world
     rate(w, w["teacher"], "USTOZ", fixed=120000)
     rate(w, w["supporter"], "YORDAMCHI", kind="Foiz", percent=30)
-    r = take(api(w["teacher"]), w, [(w["contracts"][0], "1", ""), (w["contracts"][1], "X", ""), (w["contracts"][2], "0", "kasal")])
+    r = take(api(w["teacher"]), w, [(w["contracts"][0], "1", ""), (w["contracts"][1], "X", "")])
+    assert r.status_code == 200, r.content
+    r = take(api(make_user("ADMINISTRATOR")), w, [(w["contracts"][2], "0", "kasal")])  # Sababli — administrator (ustoz qo'ya olmaydi)
     assert r.status_code == 200, r.content
     rows = {a.contract_id: a for a in Attendance.objects.all()}
     came, absent, excused = (rows[c.pk] for c in w["contracts"])
@@ -195,7 +197,9 @@ def test_take_rules_for_teacher(api, make_user, world):
     assert take(t, w, [(c0, "1", "")], date=TODAY - datetime.timedelta(days=1)).json()["date"] == ["Faqat bugunga davomat olish mumkin, xolos"]
     assert take(t, w, [(c0, "1", "")], date=TODAY + datetime.timedelta(days=1)).json()["date"] == ["Kelajak sana bilan davomat olib bo'lmaydi"]
     assert take(t, w, [(c0, "-", "")]).status_code == 403  # Nofaol — faqat menejerlar
-    assert take(t, w, [(c0, "0", "")]).json()["comment"] == ["Sababli bo'lsa, sababini yozing"]
+    assert take(t, w, [(c0, "0", "kasal")]).status_code == 403  # ustoz faqat Keldi yoki Besabab (buyurtmachi qarori 2026-10-14)
+    assert take(api(make_user("ADMINISTRATOR")), w, [(c0, "0", "")]).json()["comment"] == ["Sababli bo'lsa, sababini yozing"]
+    assert sorted(t.get(f"/api/v1/attendance/take/?group={w['group'].pk}&date={TODAY}").json()["allowed"]) == ["1", "X"]
     assert take(api(w["supporter"]), w, [(c0, "1", "")]).status_code == 403  # yordamchi davomat olmaydi
     r = take(t, w, all=True)
     assert r.status_code == 200 and sum(1 for x in r.json()["rows"] if x["att"]) == 3
@@ -285,7 +289,8 @@ def test_makeup_reject_needs_reason(api, make_user, world):
 def test_stats_summary_and_journal(api, make_user, world):
     w = world
     rate(w, w["teacher"], "USTOZ", fixed=120000)
-    take(api(w["teacher"]), w, [(w["contracts"][0], "1", ""), (w["contracts"][1], "X", ""), (w["contracts"][2], "0", "kasal")])
+    take(api(w["teacher"]), w, [(w["contracts"][0], "1", ""), (w["contracts"][1], "X", "")])
+    take(api(make_user("ADMINISTRATOR")), w, [(w["contracts"][2], "0", "kasal")])
     bm = api(make_user("BOSH_MENEJER"))
     s = bm.get(f"/api/v1/attendance/stats/?month={TODAY:%Y-%m}").json()
     assert s["by_group"][0] == {"group": str(w["group"].pk), "n": 3, "came": 1, "sab": 1, "bes": 1}
