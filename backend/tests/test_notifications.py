@@ -11,6 +11,7 @@ from apps.notifications import services
 from apps.notifications.models import Outbox, TelegramLink
 from apps.references.models import LeadSource, LessonTime
 from tests.test_education import world  # noqa: F401 — fixture
+from tests.test_finance import fin  # noqa: F401, E402 — fixture
 
 pytestmark = pytest.mark.django_db
 
@@ -89,23 +90,61 @@ def test_daily_report_to_boss(make_user, world, django_capture_on_commit_callbac
     with django_capture_on_commit_callbacks(execute=True):
         call_command("daily_report")
     m = Outbox.objects.get(event="daily_report")
-    assert m.user == bm and "Yangi lidlar: 1" in m.text and f"{timezone.localdate():%d.%m.%Y}" in m.text
+    assert m.user == bm and "bugun +1 yangi" in m.text and f"{timezone.localdate():%d.%m.%Y}" in m.text and "Tizim auditi" in m.text
 
 
 def test_user_choice_and_permission_limit(api, make_user, world, django_capture_on_commit_callbacks):  # noqa: F811
-    teacher, hisobchi = make_user("USTOZ"), make_user("HISOBCHI")
+    teacher, hisobchi, admin = make_user("USTOZ"), make_user("HISOBCHI"), make_user("ADMIN")
     link(teacher, 700)
     link(hisobchi, 701)
+    link(admin, 702)
     t = api(teacher).get("/api/v1/notifications/me/").json()
     keys = {e["key"] for e in t["events"]}
     assert "approval" not in keys and "daily_report" not in keys and "new_lead" in keys  # ustoz to'lovlarni ko'rmaydi
     assert api(teacher).patch("/api/v1/notifications/me/", {"prefs": {"approval": True}}, format="json").status_code == 400
     assert api(teacher).patch("/api/v1/notifications/me/", {"prefs": {"new_lead": True}}, format="json").status_code == 200
-    api(hisobchi).patch("/api/v1/notifications/me/", {"prefs": {"daily_report": True}}, format="json")
+    assert api(hisobchi).patch("/api/v1/notifications/me/", {"prefs": {"daily_report": True}}, format="json").status_code == 400  # auditsiz — hisobot yo'q
+    assert api(admin).patch("/api/v1/notifications/me/", {"prefs": {"daily_report": True}}, format="json").status_code == 200
     from apps.notifications import services as sv
 
     with django_capture_on_commit_callbacks(execute=True):
         sv.notify("new_lead", "x", branch=world["branch"])
         sv.daily_report("hisobot", key="d1")
     got = set(Outbox.objects.values_list("user_id", "event"))
-    assert (teacher.pk, "new_lead") in got and (hisobchi.pk, "daily_report") in got  # o'zi tanlagan xabar keldi
+    assert (teacher.pk, "new_lead") in got and (admin.pk, "daily_report") in got and (hisobchi.pk, "daily_report") not in got  # o'zi tanlagan xabar keldi
+
+
+def test_daily_report_sections(api, make_user, django_capture_on_commit_callbacks):
+    """Faol shartnomalar kurslar bo'yicha, lidlar holat va kurs bo'yicha, xarajatlar, audit — hammasi bitta xabarda."""
+    from apps.core.models import AuditLog
+    from apps.notifications.management.commands.daily_report import build
+    from tests.test_finance import pay  # noqa: F401
+
+    day = timezone.localdate()
+    text = build(day)
+    assert "Faol shartnomalar: 0" in text and "Xarajatlar: 0 so'm" in text and "Tizim auditi: 0 amal" in text
+    u = make_user("ADMINISTRATOR", full_name="Gulnoza <b>")
+    AuditLog.objects.create(user=u, action="delete", model="To'lov", object_repr="Ali №3")
+    AuditLog.objects.create(user=u, action="create", model="Lid", object_repr="Vali")
+    text = build(day)
+    assert "Tizim auditi: 2 amal" in text and "Gulnoza &lt;b&gt; — <b>2</b> (✚1 ✎0 ✖1)" in text and "✖ To'lov: Ali №3" in text
+    assert len(text) <= 4000
+
+
+def test_daily_report_with_data(api, fin):  # noqa: F811
+    from apps.crm.models import Lead
+    from apps.finance.models import Expense
+    from apps.notifications.management.commands.daily_report import build
+    from tests.test_finance import pay
+
+    day = timezone.localdate()
+    pay(api(fin["cashier"]), fin, amount=300_000)
+    Expense.objects.create(branch=fin["branch"], date=day, category=fin["cat"], name="Svet", quantity=1, price=120_000, total=120_000, cash_type="CASH",
+                           account=fin["cash"], period_year=day.year, period_month=day.month)
+    c = fin["contract"]
+    Lead.objects.create(branch=fin["branch"], student=c.student, course=c.course, status="2", source=LeadSource.objects.create(name="Instagram"))
+    text = build(day)
+    assert "To'lovlar: 300 000 so'm</b> (1 ta)" in text and "Faol shartnomalar: 1</b>" in text and "• Frontend — <b>1</b>" in text
+    assert "2. Yangi guruhga kutyapti — <b>1</b>" in text and "• Frontend — <b>1</b> (2: 1)" in text
+    assert "Xarajatlar: 120 000 so'm</b> (1 ta)" in text and "• Kommunal — <b>120 000</b>" in text
+    assert "Tizim auditi: 1 amal" in text  # to'lov yaratilgani audit'ga yozilgan

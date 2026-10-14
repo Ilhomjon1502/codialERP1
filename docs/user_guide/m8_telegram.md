@@ -23,7 +23,7 @@ Hali hech narsa tanlamagan xodimga standart holda quyidagilar keladi:
 | Tasdiq kutayotgan o'tkazma | Qabul qiluvchi g'azna mas'ullari |
 | Qoldirilgan dars so'rovi («Darsni yetkazdim») | Bosh menejer, Filial menejeri, administratorlar |
 | Dars boshlanganiga 30 daqiqa bo'ldi, davomat olinmagan | Guruh ustozi va administratorlar (guruhga kuniga bir marta) |
-| Kunlik hisobot (har kuni 20:00): to'lovlar, yangi lidlar, yangi shartnomalar, kelmaganlar, g'azna qoldiqlari | Bosh menejer |
+| Kunlik hisobot (har kuni 19:00): to'lovlar, faol shartnomalar kurslar bo'yicha, lidlar holat va kurs bo'yicha, bugungi xarajatlar kategoriya bo'yicha, davomat, g'azna qoldiqlari, tizim auditi (kim nima qildi, nima o'chirildi) | Bosh menejer (faqat audit huquqi bor xodimlar — Admin, Bosh menejer) |
 
 «✈️ Telegram» oynasida har bir xabar turini yoqish yoki o'chirish mumkin. Ustoz «Davomat olinmagan» xabarini faqat o'z guruhlari bo'yicha oladi.
 
@@ -31,4 +31,4 @@ Hali hech narsa tanlamagan xodimga standart holda quyidagilar keladi:
 
 Xabar avval bazadagi navbatga yoziladi, `bot` jarayoni har ~20 soniyada yuboradi (Telegram ishlamasa 5 marta qayta urinadi).
 Davomat eslatmasi — cron har 10 daqiqada (`notify_attendance`), kechikish `.env` dagi `TELEGRAM_ATTENDANCE_DELAY_MIN` (standart 30).
-Kunlik hisobot — cron 20:00 (`daily_report`). Bot xotirasi 200 MB bilan cheklangan.
+Kunlik hisobot — cron 19:00 (`daily_report`; ko'rib chiqish: `daily_report --print`). Bot xotirasi 200 MB bilan cheklangan.

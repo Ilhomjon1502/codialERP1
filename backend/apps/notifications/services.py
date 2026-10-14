@@ -31,7 +31,7 @@ EVENT_PERM = {
     "transfer": ("transfers", "v"),
     "makeup": ("attendance", "p"),
     "attendance_missing": ("attendance", "v"),
-    "daily_report": ("payments", "v"),
+    "daily_report": ("audit", "v"),  # hisobotda audit (kim nima qildi) bor — faqat Admin va Bosh menejer
 }
 # Xodim hali tanlamagan bo'lsa — kimga standart holda boradi
 DEFAULT_ROLES = {
