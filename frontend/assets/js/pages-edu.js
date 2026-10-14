@@ -180,8 +180,16 @@
   };
   // Ustoz: faqat bugun darsi bor o'z guruhlari, dars vaqti bo'yicha. Menejerlar — barcha faol guruhlar
   const takeGroups = () => {
-    const gs = A.vis('groups').filter((g) => g.status === 'Faol' && (!isTeacherSelf() || (g.teacher === A.S.currentUser && A.hasLesson(g, A.today()))));
-    return isTeacherSelf() ? gs.sort((a, b) => lessonMins(a)[0] - lessonMins(b)[0]) : gs;
+    const d = isTeacherSelf() ? A.today() : A.ui.att.date || A.today();
+    return A.vis('groups')
+      .filter((g) => g.status === 'Faol' && A.hasLesson(g, d) && (!isTeacherSelf() || g.teacher === A.S.currentUser))
+      .sort((a, b) => lessonMins(a)[0] - lessonMins(b)[0] || A.groupName(a).localeCompare(A.groupName(b)));
+  };
+  // Menejer: shu sanada darsi bor kurslar (guruhlar soni bilan)
+  const takeCourses = (groups) => {
+    const m = new Map();
+    groups.forEach((g) => m.set(g.course, (m.get(g.course) || 0) + 1));
+    return [...m].map(([id, n]) => ({ id, n, name: A.courseName(id) })).sort((a, b) => a.name.localeCompare(b.name));
   };
   // Standart guruh: hozir darsi ketayotgan (boshlanishidan 15 daqiqa oldin ham) → oxirgi 30 daqiqada tugagan → keyingisi → bugungi oxirgisi
   const nowMins = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
@@ -196,12 +204,24 @@
   async function loadTake(q) {
     if (!canTake()) return null;
     const st = A.ui.att;
+    if (!st.date || isTeacherSelf()) st.date = A.today();
     if (q.group) st.group = q.group;
     const groups = takeGroups();
-    if (groups.length === 1) st.group = groups[0].id;
-    else if (isTeacherSelf() && !q.group && st.pickedOn !== A.today() && groups.length) st.group = currentGroup(groups).id; // o'zi tanlamagan bo'lsa — dars vaqtidagi guruh
+    if (isTeacherSelf()) {
+      if (groups.length === 1) st.group = groups[0].id;
+      else if (!q.group && st.pickedOn !== A.today() && groups.length) st.group = currentGroup(groups).id; // o'zi tanlamagan bo'lsa — dars vaqtidagi guruh
+    } else {
+      // Menejer: avval kurs, keyin shu kursning shu kungi guruhi
+      const picked = groups.find((g) => g.id === st.group);
+      if (picked) st.course = picked.course;
+      const courses = takeCourses(groups);
+      if (courses.length === 1) st.course = courses[0].id;
+      if (st.course && !courses.some((c) => c.id === st.course)) st.course = '';
+      const inCourse = groups.filter((g) => g.course === st.course);
+      if (inCourse.length === 1) st.group = inCourse[0].id;
+      if (st.group && !inCourse.some((g) => g.id === st.group)) st.group = '';
+    }
     if (st.group && !groups.some((g) => g.id === st.group)) st.group = '';
-    if (!st.date || isTeacherSelf()) st.date = A.today();
     if (!st.group) return null;
     return A.http.get(`/attendance/take/?group=${st.group}&date=${st.date}`);
   }
@@ -216,7 +236,23 @@
     const today = A.today();
     const s = attData;
     const managerMode = !isTeacherSelf();
-    let html = `<section class="card take-head">
+    const dWd = A.WD_FULL[A.isoWeekday(st.date || today)].toLowerCase();
+    const courses = managerMode ? takeCourses(groups) : [];
+    const inCourse = groups.filter((g) => g.course === st.course);
+    const optLabel = (x) => `${A.timeName(x.time)} · ${esc(A.groupName(x))}${st.date === today && isNow(x) ? ' · hozir dars' : ''}`;
+    let html = managerMode ? `<section class="card take-head m3">
+      <div class="field"><label class="lbl">1. Sana</label>
+        <input type="date" class="f-input" id="att-date" value="${st.date}" max="${today}"><div class="help">O'tgan sanalarni ham tuzata olasiz (rol muddati bo'yicha)</div>
+      </div>
+      <div class="field"><label class="lbl">2. Kurs</label>
+        ${!courses.length ? `<div class="computed muted">Bu kunda (${dWd}) dars yo'q</div>` : courses.length === 1 ? `<div class="computed">${esc(courses[0].name)} <span class="muted small">(${courses[0].n} ta guruh)</span></div>`
+          : `<select class="f-input" id="att-course"><option value="">Kursni tanlang…</option>${courses.map((c) => `<option value="${c.id}" ${c.id === st.course ? 'selected' : ''}>${esc(c.name)} — ${c.n} ta guruh</option>`).join('')}</select>`}
+      </div>
+      <div class="field"><label class="lbl">3. Guruh</label>
+        ${!st.course ? `<div class="computed muted">Avval kursni tanlang</div>` : inCourse.length === 1 ? `<div class="computed">${optLabel(inCourse[0])}</div>`
+          : `<select class="f-input" id="att-group"><option value="">Guruhni tanlang…</option>${inCourse.map((x) => `<option value="${x.id}" ${x.id === st.group ? 'selected' : ''}>${optLabel(x)}</option>`).join('')}</select>`}
+      </div>
+    </section>` : `<section class="card take-head">
       <div class="field"><label class="lbl">1. Guruh</label>
         ${groups.length === 1 ? `<div class="computed">${esc(A.groupName(groups[0]))} · ${A.timeName(groups[0].time)} <span class="muted small">(${managerMode ? 'yagona faol guruh' : 'bugungi yagona darsingiz'} — avtomatik tanlandi)</span></div>` : `<select class="f-input" id="att-group"><option value="">Guruhni tanlang…</option>${groups
           .map((x) => `<option value="${x.id}" ${x.id === st.group ? 'selected' : ''}>${managerMode
@@ -228,7 +264,7 @@
         ${managerMode ? `<input type="date" class="f-input" id="att-date" value="${st.date}" max="${today}"><div class="help">Siz o'tgan sanalarni ham tuzata olasiz (≤ bugun, rol muddati bo'yicha)</div>` : `<div class="computed">${A.WD_FULL[A.isoWeekday(today)]}, ${A.fdate(today)} <span class="muted small">— ustoz faqat bugungi davomatni oladi</span></div>`}
       </div>
     </section>`;
-    if (!s) return html + (groups.length ? '' : A.empty(managerMode ? "Faol guruh yo'q" : `Bugun (${A.WD_FULL[A.isoWeekday(today)].toLowerCase()}) darsingiz yo'q`));
+    if (!s) return html + (groups.length || managerMode ? '' : A.empty(`Bugun (${A.WD_FULL[A.isoWeekday(today)].toLowerCase()}) darsingiz yo'q`));
     const g = s.group;
     if (s.error) {
       return html + `<div class="alert danger">${A.icon('alert')}<div><b>${esc(s.error)}</b>${managerMode && s.nearest ? `<br>Eng yaqin dars kuni: <a href="#" data-act="att-setdate" data-id="${s.nearest}">${A.fdate(s.nearest)}</a>` : ''}</div></div>`;
@@ -273,8 +309,10 @@
     const st = A.ui.att;
     const gs = document.getElementById('att-group');
     if (gs) gs.onchange = () => { st.group = gs.value; st.sub = false; st.pickedOn = A.today(); history.replaceState(null, '', '#/attendance?tab=take'); A.refresh(); };
+    const cs = document.getElementById('att-course');
+    if (cs) cs.onchange = () => { st.course = cs.value; st.group = ''; st.sub = false; history.replaceState(null, '', '#/attendance?tab=take'); A.refresh(); };
     const ds = document.getElementById('att-date');
-    if (ds) ds.onchange = () => { st.date = ds.value; A.refresh(); };
+    if (ds) ds.onchange = () => { st.date = ds.value; history.replaceState(null, '', '#/attendance?tab=take'); A.refresh(); };
     const sb = document.getElementById('att-sub');
     if (sb) sb.onchange = () => { st.sub = sb.checked; A.refresh(); };
     const t = document.getElementById('att-subt');
