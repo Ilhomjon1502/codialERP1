@@ -291,7 +291,7 @@
   function layoutHTML() {
     return `<div class="layout">
       <aside class="sidebar" id="sidebar">
-        <div class="brand"><span class="logo">codial<i>.</i></span><span class="brand-sub">ERP${isTest() ? ' · test' : ''}</span></div>
+        <div class="brand"><span class="logo-plate"><img class="logo-img" src="assets/img/codial-logo.png" alt="Codial"></span><span class="brand-sub">ERP${isTest() ? ' · test' : ''}</span></div>
         <div class="branch-pill">${A.icon('home')} Filial: <b id="branch-label"></b></div>
         <nav class="nav" id="nav"></nav>
         <div class="side-foot">${isTest() ? 'Test serveri: sinov ma\'lumotlari' : 'Codial ERP'}</div>
@@ -333,7 +333,7 @@
   function loginHTML() {
     return `<div class="login">
       <div class="login-card narrow">
-        <div class="brand big"><span class="logo">codial<i>.</i></span><span class="brand-sub">ERP tizimi${isTest() ? ' · test serveri' : ''}</span></div>
+        <div class="brand big"><img class="logo-img" src="assets/img/codial-logo.png" alt="Codial"><span class="brand-sub">ERP tizimi${isTest() ? ' · test serveri' : ''}</span></div>
         <form class="login-form" id="login-form" novalidate>
           <label class="lbl" for="lg-email">Pochta</label><input id="lg-email" type="email" autocomplete="username" placeholder="ism@codial.uz" required>
           <label class="lbl" for="lg-pass">Parol</label><input id="lg-pass" type="password" autocomplete="current-password" placeholder="••••••••" required>
@@ -382,7 +382,7 @@
   function setPasswordHTML() {
     return `<div class="login">
       <div class="login-card narrow">
-        <div class="brand big"><span class="logo">codial<i>.</i></span><span class="brand-sub">Parol o'rnatish</span></div>
+        <div class="brand big"><img class="logo-img" src="assets/img/codial-logo.png" alt="Codial"><span class="brand-sub">Parol o'rnatish</span></div>
         <form class="login-form" id="sp-form" novalidate>
           <label class="lbl" for="sp-p1">Yangi parol</label><input id="sp-p1" type="password" autocomplete="new-password" required>
           <div class="help">Kamida 4 belgi.</div>

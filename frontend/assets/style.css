@@ -53,6 +53,9 @@ code { background: var(--gray-50); padding: 1px 5px; border-radius: 4px; font-si
 /* ---- Logo ---- */
 .logo { font-weight: 800; font-size: 24px; letter-spacing: -0.04em; color: inherit; }
 .logo i { color: var(--brand); font-style: normal; }
+.logo-img { display: block; height: 26px; width: auto; }
+.logo-plate { align-self: flex-start; background: #fff; border-radius: 10px; padding: 7px 12px; line-height: 0; margin-bottom: 6px; }
+.brand.big .logo-img { margin-bottom: 8px; }
 
 /* ================= Layout ================= */
 .layout { display: flex; min-height: 100vh; }
@@ -345,6 +348,7 @@ th.num { text-align: right; }
 .link-btn:hover { color: var(--brand); text-decoration: underline; }
 .brand.big { padding: 0 0 18px; color: var(--ink); }
 .brand.big .logo { font-size: 36px; }
+.brand.big .logo-img { height: 46px; align-self: flex-start; }
 .login-form { display: grid; gap: 6px; max-width: 360px; margin-bottom: 18px; }
 .login-form input { font: inherit; border: 1px solid var(--line); border-radius: 9px; padding: 9px 10px; margin-bottom: 6px; background: var(--gray-50); }
 .login-h { margin: 8px 0 10px; }
