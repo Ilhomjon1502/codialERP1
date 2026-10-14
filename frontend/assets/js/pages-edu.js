@@ -173,7 +173,25 @@
 
   const canTake = () => A.can('attendance', 'a');
   const isTeacherSelf = () => ['USTOZ', 'USTOZ_YORDAMCHI'].includes(A.role());
-  const takeGroups = () => A.vis('groups').filter((g) => g.status === 'Faol' && (!isTeacherSelf() || g.teacher === A.S.currentUser));
+  const lessonMins = (g) => {
+    const t = A.get('lessonTimes', g.time) || {};
+    const m = (x) => { const [h, mm] = String(x || '00:00').split(':').map(Number); return h * 60 + mm; };
+    return [m(t.start), m(t.end)];
+  };
+  // Ustoz: faqat bugun darsi bor o'z guruhlari, dars vaqti bo'yicha. Menejerlar — barcha faol guruhlar
+  const takeGroups = () => {
+    const gs = A.vis('groups').filter((g) => g.status === 'Faol' && (!isTeacherSelf() || (g.teacher === A.S.currentUser && A.hasLesson(g, A.today()))));
+    return isTeacherSelf() ? gs.sort((a, b) => lessonMins(a)[0] - lessonMins(b)[0]) : gs;
+  };
+  // Standart guruh: hozir darsi ketayotgan (boshlanishidan 15 daqiqa oldin ham) → oxirgi 30 daqiqada tugagan → keyingisi → bugungi oxirgisi
+  const nowMins = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
+  const isNow = (g) => { const [a, b] = lessonMins(g); const n = nowMins(); return a - 15 <= n && n < b; };
+  const currentGroup = (groups) => {
+    const n = nowMins();
+    return groups.find(isNow)
+      || [...groups].reverse().find((g) => { const b = lessonMins(g)[1]; return b <= n && n < b + 30; })
+      || groups.find((g) => lessonMins(g)[0] > n) || groups[groups.length - 1];
+  };
 
   async function loadTake(q) {
     if (!canTake()) return null;
@@ -181,6 +199,7 @@
     if (q.group) st.group = q.group;
     const groups = takeGroups();
     if (groups.length === 1) st.group = groups[0].id;
+    else if (isTeacherSelf() && !q.group && st.pickedOn !== A.today() && groups.length) st.group = currentGroup(groups).id; // o'zi tanlamagan bo'lsa — dars vaqtidagi guruh
     if (st.group && !groups.some((g) => g.id === st.group)) st.group = '';
     if (!st.date || isTeacherSelf()) st.date = A.today();
     if (!st.group) return null;
@@ -199,15 +218,17 @@
     const managerMode = !isTeacherSelf();
     let html = `<section class="card take-head">
       <div class="field"><label class="lbl">1. Guruh</label>
-        ${groups.length === 1 ? `<div class="computed">${esc(A.groupName(groups[0]))} <span class="muted small">(yagona faol guruhingiz — avtomatik tanlandi)</span></div>` : `<select class="f-input" id="att-group"><option value="">Guruhni tanlang…</option>${groups
-          .map((x) => `<option value="${x.id}" ${x.id === st.group ? 'selected' : ''}>${esc(A.groupName(x))} · ${esc(A.patternName(x.pattern))} ${A.timeName(x.time)}${A.hasLesson(x, today) ? ' · bugun dars bor' : ''}</option>`)
+        ${groups.length === 1 ? `<div class="computed">${esc(A.groupName(groups[0]))} · ${A.timeName(groups[0].time)} <span class="muted small">(${managerMode ? 'yagona faol guruh' : 'bugungi yagona darsingiz'} — avtomatik tanlandi)</span></div>` : `<select class="f-input" id="att-group"><option value="">Guruhni tanlang…</option>${groups
+          .map((x) => `<option value="${x.id}" ${x.id === st.group ? 'selected' : ''}>${managerMode
+            ? `${esc(A.groupName(x))} · ${esc(A.patternName(x.pattern))} ${A.timeName(x.time)}${A.hasLesson(x, today) ? ' · bugun dars bor' : ''}`
+            : `${A.timeName(x.time)} · ${esc(A.groupName(x))}${isNow(x) ? ' · hozir dars' : ''}`}</option>`)
           .join('')}</select>`}
       </div>
       <div class="field"><label class="lbl">2. Sana</label>
         ${managerMode ? `<input type="date" class="f-input" id="att-date" value="${st.date}" max="${today}"><div class="help">Siz o'tgan sanalarni ham tuzata olasiz (≤ bugun, rol muddati bo'yicha)</div>` : `<div class="computed">${A.WD_FULL[A.isoWeekday(today)]}, ${A.fdate(today)} <span class="muted small">— ustoz faqat bugungi davomatni oladi</span></div>`}
       </div>
     </section>`;
-    if (!s) return html + (groups.length ? '' : A.empty("Sizda faol guruh yo'q"));
+    if (!s) return html + (groups.length ? '' : A.empty(managerMode ? "Faol guruh yo'q" : `Bugun (${A.WD_FULL[A.isoWeekday(today)].toLowerCase()}) darsingiz yo'q`));
     const g = s.group;
     if (s.error) {
       return html + `<div class="alert danger">${A.icon('alert')}<div><b>${esc(s.error)}</b>${managerMode && s.nearest ? `<br>Eng yaqin dars kuni: <a href="#" data-act="att-setdate" data-id="${s.nearest}">${A.fdate(s.nearest)}</a>` : ''}</div></div>`;
@@ -251,7 +272,7 @@
   const bindTake = () => {
     const st = A.ui.att;
     const gs = document.getElementById('att-group');
-    if (gs) gs.onchange = () => { st.group = gs.value; st.sub = false; history.replaceState(null, '', '#/attendance?tab=take'); A.refresh(); };
+    if (gs) gs.onchange = () => { st.group = gs.value; st.sub = false; st.pickedOn = A.today(); history.replaceState(null, '', '#/attendance?tab=take'); A.refresh(); };
     const ds = document.getElementById('att-date');
     if (ds) ds.onchange = () => { st.date = ds.value; A.refresh(); };
     const sb = document.getElementById('att-sub');
