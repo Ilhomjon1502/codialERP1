@@ -65,6 +65,7 @@ INSTALLED_APPS = [
     "apps.payroll",
     "apps.notifications",
     "apps.ai_assistant",
+    "apps.importer",
 ]
 
 MIDDLEWARE = [

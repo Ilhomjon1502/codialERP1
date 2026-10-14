@@ -404,7 +404,7 @@
     ['M7', 'Bosh sahifa statistikasi, foyda, guruhlar tahlili', true],
     ['M8', "Telegram bot: xabarlar va kunlik hisobot", true],
     ['M9', "AI yordamchi (Bosh menejer): savol → SQL → jadval va diagramma", true],
-    ['M10', "AppSheet'dan ma'lumotlarni ko'chirish"],
+    ['M10', "AppSheet'dan ma'lumotlarni ko'chirish (faol shartnomalar)", true],
     ['M11', 'Haqiqiy ishga tushirish'],
   ];
   let dash = {};

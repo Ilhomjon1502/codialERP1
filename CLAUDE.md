@@ -7,7 +7,7 @@
 
 ## 0. Joriy holat (2026-10-14) — yangi kelgan dasturchi shu yerdan boshlasin
 
-**Qisqasi:** prototip ma'qullandi va muzlatildi. **M1–M9 tayyor**: haqiqiy tizim (`backend/` — Django + DRF API, `frontend/` — prototip ekranlari API'ga ulangan) **Hetzner serverida ishlayapti**. Keyingi ish — **M10 (AppSheet'dan import)** va **M11 (haqiqiy ishga tushirish)**. Telegram bot tokeni (`deploy/set-telegram.sh`) va Gemini kaliti (`deploy/set-ai.sh`) buyurtmachi tomonidan `deploy/set-telegram.sh` bilan kiritiladi. Buyurtmachi «boshla» deganda boshlanadi. **«50% chegirmalar», «Talaba vazifalari» va «Baholash bo'limi» (ustoz → talaba) olib tashlangan** (buyurtmachi qarori 2026-10-13).
+**Qisqasi:** prototip ma'qullandi va muzlatildi. **M1–M10 tayyor**: haqiqiy tizim (`backend/` — Django + DRF API, `frontend/` — prototip ekranlari API'ga ulangan) **Hetzner serverida ishlayapti**. Keyingi ish — **M11 (haqiqiy ishga tushirish, 2026-11-01)**. Telegram bot tokeni (`deploy/set-telegram.sh`) va Gemini kaliti (`deploy/set-ai.sh`) buyurtmachi tomonidan `deploy/set-telegram.sh` bilan kiritiladi. Buyurtmachi «boshla» deganda boshlanadi. **«50% chegirmalar», «Talaba vazifalari» va «Baholash bo'limi» (ustoz → talaba) olib tashlangan** (buyurtmachi qarori 2026-10-13).
 
 | Bosqich | Holat |
 |---|---|
@@ -23,7 +23,8 @@
 | **M7** — bosh sahifa (guruhlar to'lishi), foyda oyma-oy, statistika (oylik, voronka, birinchi to'lovchilar) | ✅ 2026-10-13, 106 test |
 | **M8** — Telegram bot: bog'lash, xabarlar navbati, 6 xil xabar, davomat eslatmasi va kunlik hisobot (cron) | ✅ 2026-10-13, 111 test |
 | **M9** — AI yordamchi (Bosh menejer): Gemini → SQL → server tekshiruvi → jadval/diagramma, ma'lumot LLM'ga bormaydi | ✅ 2026-10-14, 134 test |
-| M10 import → M11 asosiy muhit | ⏳ navbatda (17-bo'lim) |
+| **M10** — AppSheet importi: faqat faol shartnomalar + kerakli talaba/guruh/ustoz, qarzsiz (`import_appsheet`, sinov rejimi standart) | ✅ 2026-10-14, 140 test; sinov: 73 shartnoma, 21 guruh, xatosiz |
+| M11 asosiy muhit va o'tish kuni | ⏳ navbatda (17-bo'lim) |
 | 18-bo'limdagi ochiq savollar | ⏳ takliflar `docs/architecture.md` 7-bo'limda; buyurtmachi javob bermasa takliflar qo'llanadi. 3-savol yopildi: 50% chegirma bo'limi olib tashlandi |
 | Domen `codialinfo.uz` | ✅ buyurtmachiniki (ahost.uz). DNS: A `erp` → `77.42.9.23` (2026-10-13), Let's Encrypt SSL. Asosiy sayt (`@`, `www` — Vercel) va pochta yozuvlariga tegilmaydi |
 | Pochta (SMTP) | ✅ 2026-10-13: Gmail (`ilhomjonibragimov1502@gmail.com`, App password `deploy/.env` da). Qayta sozlash: serverda `bash /srv/codial-test/deploy/set-smtp.sh` (parolni o'zi so'raydi) |
@@ -56,7 +57,11 @@
 **M9 da nima qilindi (AI yordamchi, buyurtmachi tasdiqlagan variant 2026-10-13).** Provayder — **Gemini** (bepul tarif). **Tasdiqlangan variant:** Gemini'ga faqat savol + `analytics_*` view'lar sxemasi (ustunlarning o'zbekcha tavsifi va namunaviy savollar bilan — sifat uchun) boradi; u SQL qaytaradi; server tekshiradi (faqat SELECT, faqat ruxsat etilgan view'lar, LIMIT, 5 s timeout, faqat o'qish huquqli DB foydalanuvchisi) va bajaradi; natija — talaba ismi, telefon va h.k. bilan — **faqat Bosh menejer ekranida** (jadval yoki Chart.js). «Tahlil» qadamida LLM'ga faqat yig'ma raqamlar (ism/telefonsiz). Natija qatorlari LLM'ga yuborilmaydi. Buyurtmachi sharti: analitika sifati yomonlashmasin. API kaliti — `deploy/set-telegram.sh` kabi skript (`set-ai.sh`) bilan serverda, chatga emas. `AI_PROVIDER` almashtiriladigan; kunlik limit; har savol, SQL va natija hajmi log'ga. Bo'lim `ai` — faqat Bosh menejer (matritsada bor), front-end `pages-admin.js` dagi `A.page('ai')` hozir prototip (6 ta tayyor javob) — API'ga ulanadi; bosh sahifa jadvaliga M9 qatori qo'shiladi.
 Bajarildi: `apps/ai_assistant/` — `analytics.py` (14 ta view, ustun tavsiflari, `pii` belgisi; `pre_migrate`/`post_migrate` da qayta yaratiladi, PostgreSQL'da `codial_ai` roli), `guard.py` (sqlglot tekshiruvi, LIMIT, timeout, READ ONLY), `providers.py` (gemini/anthropic/openai, urllib), `services.py` (prompt, 1 marta qayta urinish, tahlil — PII bo'lsa faqat yig'ma), `models.AIQuery` (jurnal); API `/ai/`, `/ai/ask/`, `/ai/{id}/run/`, `/ai/{id}/analyze/`. Front-end `pages-admin.js` oxiri. Kalit: `deploy/set-ai.sh`. Qo'llanma: `docs/user_guide/m9_ai_yordamchi.md`. **Yangi jadval/ustun qo'shsangiz va AI uni bilishi kerak bo'lsa — `analytics.py` dagi view va tavsifni yangilang** (`test_views_have_declared_columns...` mosligini tekshiradi).
 
-**Keyin — M10 (import).** 16-bo'lim: `python manage.py import_appsheet --dry-run` → `import_data/*.xlsx` (Emirat), `legacy_id` bilan idempotent, boshlang'ich qoldiqlar (`Contract.opening_balance`, `Account.initial_balance`, `SalaryAssignment.opening_balance`, kreditorlar), tekshiruv hisoboti. Buyurtmachidan AppSheet Excel eksport fayllari kerak. Keyin M11 (sinov ma'lumotlarini tozalash, o'tish kuni, monitoring).
+**M10 doirasi — buyurtmachi qarori 2026-10-14 (16-bo'limdan tor):** faqat faol shartnomalar va ularga kerakli talaba, ota-ona, guruh, kurs, dars kunlari/vaqti, xona, ustoz/yordamchi; boshlang'ich qarz yo'q (0); qolgani qo'lda kiritiladi; yangi tizimda hisob 2026-11-01 dan. Manba: `import_data/Codial1.1.xlsx` (Google Sheets'dan, 51 varaq). Batafsil: `docs/decisions.md`.
+
+**M10 da nima qilindi:** `apps/importer/` — `reader.py` (varaqlar, ID/sana/telefon normallashtirish), `services.py` (`run(path, on, dry_run)` — faol shartnomalar va ularga kerakli ma'lumotlar, `legacy_id` bilan idempotent, bitta yozuv xatosi importni to'xtatmaydi, hisobot), buyruq `import_appsheet --file … [--on YYYY-MM-DD] [--commit]`. Tizimda bor xodim (pochta bo'yicha) faqat bog'lanadi. Qo'llanma: `docs/user_guide/m10_import.md`. **M11 rejasi:** o'tish kuni — zaxira → demo ma'lumotlarni tozalash (buyurtmachi akkaunti va ma'lumotnomalar qoladimi — kelishiladi) → o'sha kungi yangi .xlsx bilan `import_appsheet --on 2026-11-01 --commit` → narxlar, dars soni, KPI stavkalari, g'aznalar qo'lda → xodimlarga parol havolasi.
+
+**M10 ning asl rejasi (16-bo'lim, tarix uchun; buyurtmachi doirani toraytirgan — yuqoriga qarang):** 16-bo'lim: `python manage.py import_appsheet --dry-run` → `import_data/*.xlsx` (Emirat), `legacy_id` bilan idempotent, boshlang'ich qoldiqlar (`Contract.opening_balance`, `Account.initial_balance`, `SalaryAssignment.opening_balance`, kreditorlar), tekshiruv hisoboti. Buyurtmachidan AppSheet Excel eksport fayllari kerak. Keyin M11 (sinov ma'lumotlarini tozalash, o'tish kuni, monitoring).
 
 **Oxirgi holat (M4 dan keyin):** M1–M4 `main` da va https://erp.codialinfo.uz da ishlayapti (2026-10-13). Sinov ma'lumotlariga to'lovlar, xarajatlar, o'tkazmalar, kreditor qo'shildi; 84 test yashil.
 
@@ -99,7 +104,7 @@ Bajarildi: `apps/ai_assistant/` — `analytics.py` (14 ta view, ustun tavsiflari
 2. Biznes qoidalar: 6-bo'lim (rollar), 7-bo'lim (modellar), 8-bo'lim (hisob-kitob). Ekranlar va matnlar — prototipda (20-bo'lim).
 3. Lokalda ishga tushiring (`README.md`): `backend` da `seed_demo` → `runserver` → http://localhost:8000.
 4. Testlar: `backend` da `.venv/Scripts/python -m pytest` va `.venv/Scripts/ruff check .` yashil bo'lsin.
-5. Keyingi bosqich (M10) rejasi: shu bo'limdagi «Keyingi ish — M10», 16-bo'lim va 17-bo'lim.
+5. Keyingi bosqich (M11) rejasi: shu bo'limdagi «M10 da nima qilindi» → «M11 rejasi» va 17-bo'lim.
 
 ## 1. Manbalar
 
@@ -172,7 +177,7 @@ backend/
                          + M6: TeacherEvaluation, ParentCall; export.py (.xlsx)
     payroll/       ✅ M5  KPIRate, SalaryAssignment, SalaryPayout; compute() (oylik hisobi), demo.py
     reports/       ✅ M7  foyda, oylik statistika, voronka, birinchi to'lovchilar (modelsiz)
-    importer/      ⏳ M10 AppSheet .xlsx import
+    importer/      ✅ M10 reader.py, services.py (faol shartnomalar importi), import_appsheet buyrug'i
     notifications/ ✅ M8  Telegram: TelegramLink, Outbox; run_bot, notify_attendance, daily_report
     ai_assistant/  ✅ M9  AIQuery (jurnal); analytics.py (view'lar), guard.py (SQL xavfsizligi), providers.py, services.py
   tests/                 pytest (conftest: make_user, api)
@@ -693,8 +698,8 @@ Real ishga tushirish uchun minimal to'plam: **M1–M7 + M10 + M11** (xodimlar Ap
 | M7 | Hisobot va dashboard | Bosh sahifa, oylik statistika, voronka, birinchi to'lovchilar, foyda, guruh tahlili | ✅ 2026-10-13 |
 | M8 | Telegram bot | Bog'lash, xabarlar, kunlik hisobot | ✅ 2026-10-13 |
 | M9 | AI yordamchi | Faqat o'qish view'lari, SQL xavfsizligi, provayder abstraksiyasi | ✅ 2026-10-14 |
-| M10 | Migratsiya | Import skripti, sinov rejimi, tekshiruv hisoboti | ⏳ keyingi |
-| M11 | Ishga tushirish | Asosiy muhit (`erp.codialinfo.uz`), o'tish kuni, monitoring | ⏳ |
+| M10 | Migratsiya | Import skripti, sinov rejimi, tekshiruv hisoboti (doira: faqat faol shartnomalar, qarzsiz) | ✅ 2026-10-14 |
+| M11 | Ishga tushirish | Asosiy muhit (`erp.codialinfo.uz`), o'tish kuni (2026-11-01), monitoring | ⏳ keyingi |
 
 Har bir bosqichda bo'ladi: algoritm va ruxsatlar uchun testlar, `seed_demo` buyrug'i (sinov ma'lumotlari), qisqa foydalanuvchi qo'llanmasi (`docs/user_guide/`).
 
