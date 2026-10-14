@@ -8,8 +8,8 @@ for try in 1 2 3; do
   read -r -s -p "Gemini API kaliti (qo'ying va Enter, ekranda ko'rinmaydi): " K
   echo
   K=$(echo "$K" | tr -d ' ')
-  if echo "$K" | grep -Eq '^[A-Za-z0-9_-]{30,}$'; then break; fi
-  echo "Kalit ko'rinishi noto'g'ri (odatda AIza... bilan boshlanadi). Qaytadan qo'ying."
+  if echo "$K" | grep -Eq '^[A-Za-z0-9._-]{30,}$'; then break; fi
+  echo "Kalit ko'rinishi noto'g'ri (AIza... yoki AQ. bilan boshlanadi). Qaytadan qo'ying."
   K=""
 done
 [ -n "$K" ] || { echo "To'xtatildi."; exit 1; }
