@@ -9,8 +9,9 @@ import urllib.request
 
 from django.conf import settings
 
-DEFAULT_MODELS = {"gemini": "gemini-3.7-flash", "anthropic": "claude-sonnet-5-5", "openai": "gpt-4.1-mini"}
-DEFAULT_FALLBACKS = {"gemini": ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-flash-lite-latest", "gemini-3.8-flash"]}  # lite — 2 s, bepul tarifda kam band
+DEFAULT_MODELS = {"gemini": "gemini-3.5-flash-lite", "anthropic": "claude-sonnet-5-5", "openai": "gpt-4.1-mini"}
+DEFAULT_FALLBACKS = {"gemini": ["gemini-3.1-flash-lite", "gemini-flash-lite-latest", "gemini-3.7-flash"]}  # lite — ~2 s, bepul tarifda kam band
+STRONG_MODELS = {"gemini": ["gemini-3.7-flash", "gemini-3.8-flash"]}  # birinchi SQL xato chiqsa — kuchliroq model (sekinroq)
 
 
 class ProviderError(Exception):
@@ -25,11 +26,12 @@ def model_name():
     return settings.AI_MODEL or DEFAULT_MODELS.get(settings.AI_PROVIDER, "")
 
 
-def model_chain():
+def model_chain(strong=False):
     """Asosiy model + zaxira modellar (AI_MODEL_FALLBACKS): asosiysi band yoki yopilgan bo'lsa navbatdagisi ishlatiladi."""
     fallbacks = settings.AI_MODEL_FALLBACKS if settings.AI_MODEL_FALLBACKS is not None else DEFAULT_FALLBACKS.get(settings.AI_PROVIDER, [])
     out = []
-    for m in [model_name(), *fallbacks]:
+    first = (settings.AI_MODEL_STRONG or STRONG_MODELS.get(settings.AI_PROVIDER, [])) if strong else []
+    for m in [*first, model_name(), *fallbacks]:
         if m and m not in out:
             out.append(m)
     return out
@@ -118,13 +120,13 @@ def _openai(system, user, model, timeout):
 PROVIDERS = {"gemini": _gemini, "anthropic": _anthropic, "openai": _openai}
 
 
-def complete(system, user):
+def complete(system, user, strong=False):
     if not configured():
         raise ProviderError("AI yordamchi hali sozlanmagan: serverda deploy/set-ai.sh bilan API kalitini kiriting")
     _state.model = ""
     deadline = time.monotonic() + settings.AI_TOTAL_TIMEOUT_S
     err = None
-    for model in model_chain():
+    for model in model_chain(strong):
         left = deadline - time.monotonic()
         if left < 3:  # sahifa kutib qolmasin (gunicorn 60 s)
             break
@@ -137,8 +139,8 @@ def complete(system, user):
     raise err or Unavailable("AI javob bermadi")
 
 
-def complete_json(system, user):
-    text = complete(system, user).strip()
+def complete_json(system, user, strong=False):
+    text = complete(system, user, strong).strip()
     if text.startswith("```"):
         text = text.strip("`")
         text = text[text.find("{"):]

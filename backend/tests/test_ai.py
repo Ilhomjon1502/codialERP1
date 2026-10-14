@@ -18,7 +18,7 @@ def llm(monkeypatch, settings):
     settings.AI_API_KEY = "test-key"
     sent, answers = [], []
 
-    def fake(system, user):
+    def fake(system, user, strong=False):
         sent.append((system, user))
         return answers.pop(0)
 
@@ -198,3 +198,10 @@ def test_provider_retries_when_busy(monkeypatch, settings):
     monkeypatch.setattr(providers.urllib.request, "urlopen", lambda req, timeout: (_ for _ in ()).throw(urllib.error.HTTPError(req.full_url, 503, "busy", {}, io.BytesIO(b""))))
     with pytest.raises(providers.ProviderError, match="band"):
         providers.complete("s", "u")
+
+
+def test_model_chain_strong_first_on_retry(settings):
+    settings.AI_PROVIDER, settings.AI_MODEL, settings.AI_MODEL_FALLBACKS, settings.AI_MODEL_STRONG = "gemini", "", None, []
+    assert providers.model_chain()[0] == "gemini-3.5-flash-lite"
+    assert providers.model_chain(strong=True)[:2] == ["gemini-3.7-flash", "gemini-3.8-flash"]
+    assert len(set(providers.model_chain(strong=True))) == len(providers.model_chain(strong=True))  # takrorsiz

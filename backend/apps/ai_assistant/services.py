@@ -137,7 +137,7 @@ def ask(user, question):
     try:
         for attempt in range(2):  # xato bo'lsa — xato matni bilan bir marta qayta so'raladi
             q.llm_calls += 1
-            out = providers.complete_json(system, prompt)
+            out = providers.complete_json(system, prompt, strong=attempt > 0)  # qayta so'rashda — kuchliroq model
             q.sql, q.title, q.note = (out.get("sql") or "").strip(), str(out.get("title") or "")[:200], str(out.get("note") or "")[:2000]
             if not q.sql:
                 q.status = AIQuery.Status.NO_SQL

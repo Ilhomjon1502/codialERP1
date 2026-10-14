@@ -167,6 +167,7 @@ AI_SQL_TIMEOUT_S = float(env("AI_SQL_TIMEOUT_S", "5"))
 AI_HTTP_TIMEOUT_S = float(env("AI_HTTP_TIMEOUT_S", "20"))  # bitta model javobi
 AI_TOTAL_TIMEOUT_S = float(env("AI_TOTAL_TIMEOUT_S", "40"))  # zaxira modellar bilan birga (gunicorn timeout 60 s)
 AI_MODEL_FALLBACKS = env_list("AI_MODEL_FALLBACKS") if env("AI_MODEL_FALLBACKS") is not None else None  # None — provayder standarti
+AI_MODEL_STRONG = env_list("AI_MODEL_STRONG")  # bo'sh — provayder standarti (SQL xato bo'lsa qayta so'rash uchun)
 AI_THINKING = env("AI_THINKING", "low")  # Gemini thinkingLevel: low | high; bo'sh — model standarti
 
 LOGGING = {
