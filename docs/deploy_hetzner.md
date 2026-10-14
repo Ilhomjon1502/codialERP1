@@ -4,8 +4,8 @@ Bitta serverda ikkita muhit ishlaydi:
 
 | Muhit | Manzil (namuna) | Papka | Port | Ma'lumot |
 |---|---|---|---|---|
-| Test | `test.codial.uz` | `/srv/codial-test` | 8001 | sinov (`seed_demo`) |
-| Asosiy | `erp.codial.uz` | `/srv/codial-prod` | 8002 | haqiqiy (M10 importidan keyin) |
+| Haqiqiy tizim | `erp.codialinfo.uz` (zaxira: `test.77-42-9-23.sslip.io`) | `/srv/codial-test` | 8001 | 2026-10-14 dan haqiqiy ma'lumot (ichki nomi «test» qoldi) |
+| ~~Asosiy~~ | — | ~~`/srv/codial-prod`~~ | — | alohida prod muhit **yo'q** (buyurtmachi qarori 2026-10-14) |
 
 Har bir muhit: Docker'da **PostgreSQL + Django (Gunicorn)**. Serverning o'zida: **Nginx** (front-end fayllarini beradi va `/api/` ni Docker'ga yo'naltiradi) va **certbot** (bepul SSL).
 
@@ -64,14 +64,14 @@ Nginx va SSL:
 cp /srv/codial-test/deploy/nginx/codial-test.conf /etc/nginx/sites-available/codial-test
 ln -s /etc/nginx/sites-available/codial-test /etc/nginx/sites-enabled/
 nginx -t && systemctl reload nginx
-certbot --nginx -d test.codial.uz --redirect -m ADMIN_POCHTASI --agree-tos
+certbot --nginx -d erp.codialinfo.uz --redirect -m ADMIN_POCHTASI --agree-tos
 ```
 
-Tekshirish: `https://test.codial.uz` ochiladi, kirish sahifasi chiqadi; `https://test.codial.uz/api/v1/auth/csrf/` → `{"ok": true}`.
+Tekshirish: `https://erp.codialinfo.uz` ochiladi, kirish sahifasi chiqadi; `https://erp.codialinfo.uz/api/v1/auth/csrf/` → `{"ok": true}`.
 
 ## 4. Asosiy muhit (M11 da)
 
-Xuddi shu qadamlar: papka `/srv/codial-prod`, `.env` da `ENV_NAME=prod`, `WEB_PORT=8002`, domen `erp.codial.uz`, Nginx faylida papka/port/domenni almashtiring. **`seed_demo` ishga tushirilmaydi** — ma'lumotlar M10 importi bilan kiritiladi.
+Xuddi shu qadamlar: papka `/srv/codial-prod`, `.env` da `ENV_NAME=prod`, `WEB_PORT=8002`, domen `erp.codialinfo.uz`, Nginx faylida papka/port/domenni almashtiring. **`seed_demo` ishga tushirilmaydi** — ma'lumotlar M10 importi bilan kiritiladi.
 
 ## 5. Avtomatik vazifalar (cron)
 
@@ -108,7 +108,7 @@ Tiklashni ishga tushirishdan oldin **bir marta test muhitida sinab ko'ring**.
 
 | Belgi | Tekshirish |
 |---|---|
-| Sayt ochilmaydi | `systemctl status nginx`, `nginx -t`, DNS: `dig test.codial.uz` |
+| Sayt ochilmaydi | `systemctl status nginx`, `nginx -t`, DNS: `dig erp.codialinfo.uz` |
 | 502 Bad Gateway | `docker compose --env-file .env ps` va `docker compose --env-file .env logs web --tail 100` |
 | Kirishda "CSRF" xatosi | `.env` da `CSRF_TRUSTED_ORIGINS=https://domen` va `ALLOWED_HOSTS=domen` |
 | SSL'dan oldin cheksiz yo'naltirish | avval certbot'ni ishga tushiring (prod sozlama HTTPS'ga yo'naltiradi) |
