@@ -4,6 +4,7 @@ from django.urls import path
 from rest_framework.routers import DefaultRouter
 
 from apps.accounts import views as acc
+from apps.ai_assistant import views as ai
 from apps.crm import views as crm
 from apps.education import views as edu
 from apps.finance import views as fin
@@ -61,6 +62,10 @@ urlpatterns = [
     path("kpi/", pay.kpi_tree),
     path("export/contracts/", edu.export_contracts),
     path("notifications/me/", notif.me),
+    path("ai/", ai.info),
+    path("ai/ask/", ai.ask),
+    path("ai/<int:pk>/run/", ai.rerun),
+    path("ai/<int:pk>/analyze/", ai.analyze),
     path("reports/profit/", rep.profit),
     path("reports/stats/", rep.stats),
     path("reports/funnel/", rep.funnel),

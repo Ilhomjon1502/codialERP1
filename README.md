@@ -15,6 +15,7 @@ Codial IT o'quv markazi (Farg'ona) uchun boshqaruv tizimi. Hozirgi AppSheet ilov
 | **M6 — Qo'shimcha**: ustozni baholash, ota-onalar bilan aloqa, Excel (.xlsx) eksport. «Talaba vazifalari», «Baholash bo'limi» va «50% chegirmalar» — olib tashlangan | ✅ |
 | **M7 — Hisobotlar**: bosh sahifa, foyda (oyma-oy), oylik statistika, sotuv voronkasi, birinchi to'lovchilar | ✅ |
 | **M8 — Telegram bot**: akkaunt bog'lash, yangi lid, tasdiqlar, o'tkazma, qoldirilgan dars, davomat eslatmasi, kunlik hisobot | ✅ |
+| **M9 — AI yordamchi** (Bosh menejer): savol → Gemini SQL yozadi → server tekshirib bajaradi → jadval va diagramma; ma'lumot Gemini'ga bormaydi | ✅ |
 | M10–M11: AppSheet'dan ko'chirish va ishga tushirish | ⏳ navbatda |
 
 Reja: [docs/architecture.md](docs/architecture.md). Texnik topshiriq: [CLAUDE.md](CLAUDE.md).

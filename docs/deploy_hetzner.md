@@ -121,3 +121,9 @@ Tiklashni ishga tushirishdan oldin **bir marta test muhitida sinab ko'ring**.
 - Token: `bash /srv/codial-test/deploy/set-telegram.sh` (buyurtmachi o'zi kiritadi).
 - Cron (host): `*/10 * * * *` — `notify_attendance`; `0 20 * * *` — `daily_report` (ikkalasi `docker compose exec -T web python manage.py ...`, log `/var/log/codial-cron.log`).
 - Navbat holati: Django admin → «Telegram xabarlari».
+
+## AI yordamchi (M9)
+
+- Kalit: `bash /srv/codial-test/deploy/set-ai.sh` (buyurtmachi o'zi kiritadi, Gemini — https://aistudio.google.com/apikey).
+- `analytics_*` view'lar va `codial_ai` roli `migrate` da avtomatik yaratiladi (qo'lda: `docker compose --env-file .env exec web python manage.py ai_views`).
+- Jurnal: Django admin → «AI so'rovlari». Limit: `.env` dagi `AI_DAILY_LIMIT`.

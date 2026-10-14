@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     "apps.education",
     "apps.payroll",
     "apps.notifications",
+    "apps.ai_assistant",
 ]
 
 MIDDLEWARE = [
@@ -155,6 +156,15 @@ DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", "Codial ERP <noreply@localhost>")
 TELEGRAM_BOT_TOKEN = env("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_BOT_USERNAME = env("TELEGRAM_BOT_USERNAME", "")
 TELEGRAM_ATTENDANCE_DELAY_MIN = int(env("TELEGRAM_ATTENDANCE_DELAY_MIN", "30"))
+
+# AI yordamchi (M9, CLAUDE.md 13). Kalit faqat deploy/.env da: serverda `bash deploy/set-ai.sh`
+AI_PROVIDER = env("AI_PROVIDER", "gemini")  # gemini | anthropic | openai
+AI_API_KEY = env("AI_API_KEY", "")
+AI_MODEL = env("AI_MODEL", "")  # bo'sh — provayder standarti (providers.DEFAULT_MODELS)
+AI_DAILY_LIMIT = int(env("AI_DAILY_LIMIT", "50"))  # bir xodimga kuniga LLM so'rovlari
+AI_MAX_ROWS = int(env("AI_MAX_ROWS", "500"))
+AI_SQL_TIMEOUT_S = float(env("AI_SQL_TIMEOUT_S", "5"))
+AI_HTTP_TIMEOUT_S = float(env("AI_HTTP_TIMEOUT_S", "25"))
 
 LOGGING = {
     "version": 1,

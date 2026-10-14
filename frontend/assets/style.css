@@ -289,6 +289,12 @@ th.num { text-align: right; }
 .sql { background: var(--side); color: #f1f1f4; padding: 10px; border-radius: 8px; font-size: 12px; overflow-x: auto; }
 .sugg { margin-bottom: 10px; }
 .chat-input { display: flex; gap: 8px; }
+.settings.ai-layout { grid-template-columns: 260px minmax(0, 1fr); }
+.ai-hist { max-height: 70vh; overflow-y: auto; }
+.ai-h { display: flex; flex-direction: column; gap: 2px; padding: 7px 8px; border-radius: 8px; cursor: pointer; color: var(--ink); }
+.ai-h:hover { background: var(--gray-50); text-decoration: none; }
+.ai-big { font-size: 28px; font-weight: 700; margin: 6px 0; }
+.msg.bot .chart-box { background: #fff; border-radius: 8px; margin: 8px 0; }
 
 /* ================= Modal va forma ================= */
 .overlay { position: fixed; inset: 0; background: rgba(15, 15, 20, 0.45); z-index: 100; display: flex; align-items: flex-start; justify-content: center; padding: 6vh 16px; overflow-y: auto; animation: fade 0.12s ease; }

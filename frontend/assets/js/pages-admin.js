@@ -403,6 +403,7 @@
     ['M6', "Ustozni baholash, ota-onalar bilan aloqa, Excel", true],
     ['M7', 'Bosh sahifa statistikasi, foyda, guruhlar tahlili', true],
     ['M8', "Telegram bot: xabarlar va kunlik hisobot", true],
+    ['M9', "AI yordamchi (Bosh menejer): savol → SQL → jadval va diagramma", true],
     ['M10', "AppSheet'dan ma'lumotlarni ko'chirish"],
     ['M11', 'Haqiqiy ishga tushirish'],
   ];
@@ -465,83 +466,133 @@
     },
   });
 
-  /* ===================================================== AI yordamchi */
+  /* ===================================================== AI yordamchi (M9) */
+  // Savol + view'lar sxemasi → LLM → SQL → server tekshiradi va bajaradi. Natija faqat shu ekranda; LLM'ga ma'lumot bormaydi.
   A.ui.chat = A.ui.chat || [];
-  const SUGG = ["Shu oyda qaysi kurs eng ko'p to'lov keltirdi?", "Manbalar bo'yicha lid konversiyasi qanday?", "Qaysi guruhda qarzdorlik eng ko'p?", "Ustozlar bo'yicha davomat foizi", 'Shu oy xarajatlari kategoriya bo\'yicha', "Ustozlar KPI'si shu oyda"];
+  let ai = null;
+  const RAW_COLS = /(^|_)(id|year|month|ym|number|phone1|phone2|phone)$/;
   A.page('ai', {
     title: 'AI yordamchi',
     section: 'ai',
+    async load() {
+      if (!ai || A.ui.aiStale) {
+        ai = await A.http.get('/ai/');
+        A.ui.aiStale = false;
+      }
+    },
     render() {
-      const used = A.ui.chat.filter((m) => m.role === 'user').length;
-      return `${A.head('AI yordamchi', `Faqat Bosh menejer uchun · bugun ${used}/50 so'rov`)}
-        <div class="alert info">${A.icon('sparkle')}<div><b>Prototip.</b> Bu yerda javoblar oldindan yozilgan namunaviy qoidalar bilan hisoblanadi. Haqiqiy tizimda: savol + view'lar sxemasi LLM'ga yuboriladi → LLM SQL yozadi → server faqat <code>SELECT</code>, faqat <code>analytics_*</code> view'lar, LIMIT va 5 soniya timeout'ni tekshiradi → natija jadval yoki diagramma bo'lib chiqadi. Talabalar ismlari va telefonlar LLM'ga yuborilmaydi.</div></div>
-        <div class="chat" id="chat">${A.ui.chat.map(msgHTML).join('') || `<div class="muted pad">Savol bering yoki quyidagi namunalardan birini tanlang.</div>`}</div>
-        <div class="chips sugg">${SUGG.map((s) => `<button class="chip" data-act="ai-ask" data-id="${esc(s)}">${esc(s)}</button>`).join('')}</div>
-        <form class="chat-input" id="chat-form"><input class="f-input grow" id="chat-q" placeholder="Masalan: Oxirgi oyda Instagram'dan kelgan lidlar konversiyasi qancha?"><button class="btn primary">Yuborish</button></form>`;
+      const busy = A.ui.chat.some((m) => m.pending);
+      const hist = ai.history || [];
+      return `${A.head('AI yordamchi', `Faqat Bosh menejer uchun · bugun ${ai.used}/${ai.limit} so'rov`)}
+        ${ai.configured ? '' : `<div class="alert warn">${A.icon('alert')}<div><b>AI hali sozlanmagan.</b> Serverda <code>bash /srv/codial-test/deploy/set-ai.sh</code> ni ishga tushirib, Gemini API kalitini kiriting.</div></div>`}
+        <div class="alert info">${A.icon('sparkle')}<div>Gemini'ga faqat <b>savolingiz</b> va jadvallar <b>tuzilmasi</b> boradi. Natija (ismlar, telefonlar, summalar) faqat shu ekranda ko'rinadi. «Tahlil» tugmasida shaxsiy ma'lumotsiz yig'ma raqamlar yuboriladi. <span class="muted">Savolga talaba ismini yozsangiz, savol matni Gemini'ga boradi.</span></div></div>
+        <div class="settings tree-layout ai-layout">
+          <section class="card ai-hist"><h2>Oxirgi savollar</h2>${hist.length ? hist.map((h) => `<a class="ai-h" data-act="ai-rerun" data-id="${h.id}" title="Qayta bajarish (limitga kirmaydi)">
+            <span>${esc(h.question)}</span><small class="muted">${A.fdate(h.created_at.slice(0, 10))} · ${h.status === 'ok' ? `${h.row_count} qator` : "natija yo'q"}</small></a>`).join('') : '<div class="muted small">Hali savol berilmagan</div>'}</section>
+          <div class="settings-body">
+            <div class="chat" id="chat">${A.ui.chat.map(msgHTML).join('') || '<div class="muted pad">Savol bering yoki quyidagi namunalardan birini tanlang.</div>'}</div>
+            <div class="chips sugg">${(ai.examples || []).map((s) => `<button class="chip" data-act="ai-ask" data-id="${esc(s)}" ${busy || !ai.configured ? 'disabled' : ''}>${esc(s)}</button>`).join('')}</div>
+            <form class="chat-input" id="chat-form"><input class="f-input grow" id="chat-q" maxlength="1000" placeholder="Masalan: O'tgan oyda Instagram'dan kelgan lidlar konversiyasi qancha?" ${busy ? 'disabled' : ''}><button class="btn primary" ${busy || !ai.configured ? 'disabled' : ''}>Yuborish</button></form>
+          </div>
+        </div>`;
     },
     mount() {
       document.getElementById('chat-form').onsubmit = (e) => {
         e.preventDefault();
         const q = document.getElementById('chat-q').value.trim();
-        if (q) ask(q);
+        if (q && ai.configured) ask(q);
       };
       const c = document.getElementById('chat');
       c.scrollTop = c.scrollHeight;
     },
   });
+  function cell(col, v) {
+    if (v === null || v === undefined) return '<span class="muted">—</span>';
+    if (typeof v === 'number' && !RAW_COLS.test(col)) return A.num(v);
+    return esc(String(v));
+  }
+  function chartOf(r) {
+    const ch = r.chart || {};
+    if (!ch.type || ch.type === 'none' || !r.rows.length || r.rows.length > 60) return '';
+    const xi = r.columns.indexOf(ch.x);
+    const ys = (ch.y || []).map((y) => r.columns.indexOf(y)).filter((i) => i >= 0);
+    if (xi < 0 || !ys.length) return '';
+    const labels = r.rows.map((row) => String(row[xi] ?? '—'));
+    const round = ch.type === 'pie' || ch.type === 'doughnut';
+    const datasets = (round ? ys.slice(0, 1) : ys).map((i, k) => ({
+      label: r.columns[i],
+      data: r.rows.map((row) => Number(row[i]) || 0),
+      backgroundColor: round ? A.PALETTE : A.PALETTE[k % A.PALETTE.length],
+      borderColor: A.PALETTE[k % A.PALETTE.length],
+      tension: 0.25,
+    }));
+    return A.chart({ type: ch.type, data: { labels, datasets }, options: { plugins: { legend: { display: datasets.length > 1 || round } } } }, round ? 240 : 260);
+  }
+  function resultHTML(r) {
+    const sql = r.sql
+      ? `<details><summary class="small muted">SQL (server tekshirdi: faqat o'qish, faqat analytics_* view'lar${r.ms ? ` · ${r.ms.db} ms` : ''})</summary><pre class="sql">${esc(r.sql)}</pre></details>`
+      : '';
+    if (r.status === 'no_sql') return `<p>${esc(r.note || "Bu savolga ma'lumotlardan javob topilmadi. Savolni boshqacha yozib ko'ring.")}</p>`;
+    if (r.status !== 'ok') return `<div class="alert warn">${A.icon('alert')}<div>${esc(r.error || 'Xatolik')}</div></div>${sql}`;
+    const cols = r.columns.map((c, i) => ({ h: c, f: (row) => cell(c, row[i]), cls: r.rows.some((row) => typeof row[i] === 'number') && !RAW_COLS.test(c) ? 'num' : '' }));
+    const one = r.rows.length === 1 && r.columns.length === 1;
+    const tools = r.analysis || r.analyzing ? '' : `<button class="btn sm" data-act="ai-analyze" data-id="${r.id}" ${ai.configured ? '' : 'disabled'}>${A.icon('sparkle')} Tahlil</button>`;
+    return `${r.title ? `<p><b>${esc(r.title)}</b></p>` : ''}${r.note ? `<p class="muted small">${esc(r.note)}</p>` : ''}
+      ${one ? `<p class="ai-big">${cell(r.columns[0], r.rows[0][0])}</p>` : `${chartOf(r)}${A.table(cols, r.rows, { empty: "Natija bo'sh" })}`}
+      <p class="muted small">${r.rows.length} qator${r.truncated ? ` · birinchi ${r.rows.length} tasi ko'rsatildi` : ''}</p>
+      ${r.analysis ? `<div class="alert info">${A.icon('sparkle')}<div><b>Tahlil${r.aggregated ? " (faqat yig'ma raqamlar asosida)" : ''}:</b> ${esc(r.analysis)}</div></div>` : ''}
+      <div class="row gap">${tools}${r.analyzing ? '<span class="muted small">Tahlil qilinmoqda…</span>' : ''}
+        <button class="btn sm ghost" data-act="ai-csv" data-id="${r.id}">CSV yuklash</button></div>${sql}`;
+  }
   function msgHTML(m) {
     if (m.role === 'user') return `<div class="msg user">${esc(m.text)}</div>`;
-    return `<div class="msg bot">${m.html}</div>`;
+    if (m.pending) return '<div class="msg bot"><span class="muted">⏳ Savol tahlil qilinmoqda va SQL tekshirilmoqda…</span></div>';
+    return `<div class="msg bot">${resultHTML(m.r)}</div>`;
   }
-  A.act['ai-ask'] = (el) => ask(el.dataset.id);
-  function ask(q) {
-    A.ui.chat.push({ role: 'user', text: q });
-    A.ui.chat.push({ role: 'bot', html: answer(q) });
+  const findMsg = (id) => A.ui.chat.find((m) => m.r && String(m.r.id) === String(id));
+  async function send(text, call) {
+    const m = { role: 'bot', pending: true };
+    A.ui.chat.push({ role: 'user', text }, m);
+    A.refresh();
+    try {
+      m.r = await call();
+    } catch (e) {
+      m.r = { status: 'error', error: e.message };
+    }
+    m.pending = false;
+    A.ui.aiStale = true;
     A.refresh();
   }
-  function answer(q) {
-    const s = q.toLowerCase();
-    const ym = A.ym(A.today());
-    const sql = (t) => `<details><summary class="small muted">Yaratilgan SQL (tekshirildi: faqat SELECT, analytics_* view, LIMIT 100)</summary><pre class="sql">${esc(t)}</pre></details>`;
-    if (/kurs/.test(s) && /(to'lov|foyda|tushum|keltir)/.test(s)) {
-      const rows = A.rows('courses').map((c) => ({ c, sum: A.sum(A.rows('payments').filter((p) => A.ym(p.date) === ym && (A.get('contracts', p.contract) || {}).course === c.id), 'amount') }));
-      const top = A.sortBy(rows, (r) => r.sum, true);
-      return `<p><b>${esc(top[0].c.name)}</b> ${A.ymLabel(ym)}da eng ko'p to'lov keltirdi: ${A.money(top[0].sum)}.</p>
-        ${A.table([{ h: 'Kurs', f: (r) => esc(r.c.name) }, { h: "To'lovlar", f: (r) => A.num(r.sum), cls: 'num' }], top)}
-        ${A.chart({ type: 'bar', data: { labels: top.map((r) => r.c.name), datasets: [{ label: "To'lovlar", data: top.map((r) => r.sum), backgroundColor: A.PALETTE[0] }] }, options: { plugins: { legend: { display: false } } } }, 200)}
-        ${sql(`SELECT course_name, SUM(amount) AS total\nFROM analytics_payments\nWHERE month = '${ym}'\nGROUP BY course_name\nORDER BY total DESC\nLIMIT 100;`)}`;
+  const ask = (q) => send(q, () => A.http.post('/ai/ask/', { question: q }));
+  A.act['ai-ask'] = (el) => ask(el.dataset.id);
+  A.act['ai-rerun'] = (el) => {
+    const h = (ai.history || []).find((x) => String(x.id) === el.dataset.id);
+    return send(h ? h.question : '…', () => A.http.post(`/ai/${el.dataset.id}/run/`));
+  };
+  A.act['ai-analyze'] = async (el) => {
+    const m = findMsg(el.dataset.id);
+    if (!m) return;
+    m.r.analyzing = true;
+    A.refresh();
+    try {
+      const a = await A.http.post(`/ai/${el.dataset.id}/analyze/`);
+      Object.assign(m.r, { analysis: a.analysis, aggregated: a.aggregated_only });
+    } catch (e) {
+      A.toast(e.message, 'warn');
     }
-    if (/(manba|konversiya|instagram|telegram)/.test(s)) {
-      const rows = A.rows('leadSources').map((src) => { const l = A.rows('leads').filter((x) => x.source === src.id); const c = l.filter((x) => A.hasContract(x.student)).length; return { n: src.name, l: l.length, c, r: l.length ? c / l.length : 0 }; });
-      const best = A.sortBy(rows, (r) => r.r, true)[0];
-      return `<p>Eng yuqori konversiya — <b>${esc(best.n)}</b>: ${A.pct(best.r)} (${best.c}/${best.l}).</p>${A.table([{ h: 'Manba', f: (r) => esc(r.n) }, { h: 'Lidlar', f: (r) => r.l, cls: 'num' }, { h: 'Shartnoma', f: (r) => r.c, cls: 'num' }, { h: 'Konversiya', f: (r) => A.pct(r.r), cls: 'num' }], A.sortBy(rows, (r) => r.l, true))}
-        ${sql("SELECT source, COUNT(*) AS leads,\n  COUNT(*) FILTER (WHERE has_contract) AS converted,\n  ROUND(100.0 * COUNT(*) FILTER (WHERE has_contract) / COUNT(*), 1) AS rate\nFROM analytics_leads\nGROUP BY source\nORDER BY leads DESC\nLIMIT 100;")}`;
-    }
-    if (/qarz/.test(s)) {
-      const rows = [...A.groupBy(A.rows('contracts').filter((c) => A.debtOf(c.id) > 0), (c) => c.group)].map(([g, l]) => ({ g, n: l.length, sum: A.sum(l, (c) => A.debtOf(c.id)) }));
-      const top = A.sortBy(rows, (r) => r.sum, true);
-      return `<p>Eng katta qarzdorlik — <b>${esc(A.groupName(top[0].g))}</b>: ${A.money(top[0].sum)} (${top[0].n} talaba).</p>${A.table([{ h: 'Guruh', f: (r) => esc(A.groupName(r.g)) }, { h: 'Qarzdorlar', f: (r) => r.n, cls: 'num' }, { h: 'Qarz', f: (r) => A.num(r.sum), cls: 'num' }], top)}
-        ${sql('SELECT group_name, COUNT(*) AS debtors, SUM(debt) AS total_debt\nFROM analytics_contracts\nWHERE debt > 0\nGROUP BY group_name\nORDER BY total_debt DESC\nLIMIT 100;')}`;
-    }
-    if (/davomat/.test(s)) {
-      const att = A.rows('attendance').filter((a) => A.ym(a.date) === ym && a.status !== '-');
-      const rows = [...A.groupBy(att, (a) => a.teacher)].map(([t, l]) => ({ t, r: l.filter((a) => a.status === '1').length / l.length, n: l.length }));
-      return `<p>${A.ymLabel(ym)} bo'yicha ustozlar davomat foizi:</p>${A.table([{ h: 'Ustoz', f: (r) => esc(A.userName(r.t)) }, { h: 'Qatorlar', f: (r) => r.n, cls: 'num' }, { h: 'Davomat', f: (r) => A.pct(r.r), cls: 'num' }], A.sortBy(rows, (r) => r.r, true))}
-        ${sql(`SELECT teacher_name,\n  ROUND(100.0 * AVG(CASE WHEN status = '1' THEN 1 ELSE 0 END), 1) AS attendance_pct\nFROM analytics_attendance\nWHERE month = '${ym}' AND status <> '-'\nGROUP BY teacher_name\nORDER BY attendance_pct DESC\nLIMIT 100;`)}`;
-    }
-    if (/xarajat/.test(s)) {
-      const [y, m] = ym.split('-').map(Number);
-      const rows = [...A.groupBy(A.rows('expenses').filter((e) => e.period_year === y && e.period_month === m), (e) => e.category)].map(([c, l]) => ({ c, sum: A.sum(l, (e) => e.quantity * e.price) }));
-      const top = A.sortBy(rows, (r) => r.sum, true);
-      return `<p>${A.ymLabel(ym)} xarajatlari: jami ${A.money(A.sum(top, 'sum'))}.</p>${A.chart({ type: 'doughnut', data: { labels: top.map((r) => A.get('expenseCats', r.c).name), datasets: [{ data: top.map((r) => r.sum), backgroundColor: A.PALETTE }] } }, 220)}
-        ${sql(`SELECT category, kind, SUM(total) AS total\nFROM analytics_expenses\nWHERE period = '${ym}'\nGROUP BY category, kind\nORDER BY total DESC\nLIMIT 100;`)}`;
-    }
-    if (/(kpi|oylik)/.test(s)) {
-      const agg = A.kpiAgg();
-      const rows = A.S.users.filter((u) => ['USTOZ', 'USTOZ_YORDAMCHI', 'YORDAMCHI'].includes(u.role)).map((u) => ({ u, t: agg.get(`T|b1|${u.id}|${ym}`) || 0, sp: agg.get(`S|b1|${u.id}|${ym}`) || 0 }));
-      return `<p>${A.ymLabel(ym)} uchun hisoblangan KPI (bugungi holat):</p>${A.table([{ h: 'Xodim', f: (r) => esc(r.u.full_name) }, { h: 'Ustoz KPI', f: (r) => A.num(r.t), cls: 'num' }, { h: 'Yordamchi KPI', f: (r) => A.num(r.sp), cls: 'num' }, { h: 'Jami', f: (r) => `<b>${A.num(r.t + r.sp)}</b>`, cls: 'num' }], A.sortBy(rows, (r) => r.t + r.sp, true))}
-        ${sql(`SELECT user_name, SUM(teacher_kpi) AS teacher_kpi, SUM(supporter_kpi) AS supporter_kpi\nFROM analytics_kpi\nWHERE month = '${ym}'\nGROUP BY user_name\nLIMIT 100;`)}`;
-    }
-    return `<p>Kechirasiz, prototipda faqat namunaviy savollar ishlaydi: kurslar bo'yicha to'lovlar, manba konversiyasi, qarzdorlik, davomat, xarajatlar va KPI. Haqiqiy tizimda istalgan savol LLM orqali SQL'ga aylantiriladi.</p>`;
-  }
+    m.r.analyzing = false;
+    A.ui.aiStale = true;
+    A.refresh();
+  };
+  A.act['ai-csv'] = (el) => {
+    const m = findMsg(el.dataset.id);
+    if (!m) return;
+    const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const csv = [m.r.columns.map(q).join(';'), ...m.r.rows.map((row) => row.map(q).join(';'))].join('\r\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
+    a.download = `ai-${el.dataset.id}.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
 })(window.App);
