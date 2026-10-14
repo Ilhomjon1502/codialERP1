@@ -18,10 +18,8 @@ LIST=$(curl -s -H @<(printf 'x-goog-api-key: %s\n' "$K") "https://generativelang
 if ! echo "$LIST" | grep -q '"models/'; then
   echo "Xato: Google kalitni qabul qilmadi. Kalitni tekshirib, qayta ishga tushiring."; exit 1
 fi
-MODEL=gemini-2.5-flash
-if ! echo "$LIST" | grep -q "\"models/$MODEL\""; then
-  MODEL=$(echo "$LIST" | grep -o '"models/gemini-[0-9.]*-flash"' | sed 's/"models\///;s/"//' | sort -V | tail -1)
-fi
+# Eng yangi «gemini-N-flash» modeli (eskilari yangi foydalanuvchilarga yopilishi mumkin)
+MODEL=$(echo "$LIST" | grep -o '"models/gemini-[0-9.]*-flash"' | sed 's/"models\///;s/"//' | sort -V | tail -1)
 [ -n "$MODEL" ] || { echo "Xato: mos Gemini modeli topilmadi."; exit 1; }
 sed -i '/^AI_PROVIDER=/d;/^AI_API_KEY=/d;/^AI_MODEL=/d' .env
 { echo "AI_PROVIDER=gemini"; echo "AI_API_KEY=$K"; echo "AI_MODEL=$MODEL"; } >> .env

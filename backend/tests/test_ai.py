@@ -169,3 +169,32 @@ def test_examples_are_valid(fin):  # noqa: F811
         clean, _ = guard.validate(sql)
         r = guard.execute(clean)
         assert chart["type"] == "none" or {chart["x"], *chart["y"]} <= set(r["columns"]), q
+
+
+def test_provider_retries_when_busy(monkeypatch, settings):
+    import io
+    import urllib.error
+
+    settings.AI_API_KEY = "k"
+    calls = []
+
+    class Resp(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    def fake_urlopen(req, timeout):
+        calls.append(1)
+        if len(calls) < 3:
+            raise urllib.error.HTTPError(req.full_url, 503, "busy", {}, io.BytesIO(b"{}"))
+        return Resp(b'{"candidates": [{"content": {"parts": [{"text": "{\\"sql\\": \\"\\"}"}]}}]}')
+
+    monkeypatch.setattr(providers.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(providers.time, "sleep", lambda s: None)
+    assert providers.complete_json("s", "u") == {"sql": ""} and len(calls) == 3
+    calls.clear()
+    monkeypatch.setattr(providers.urllib.request, "urlopen", lambda req, timeout: (_ for _ in ()).throw(urllib.error.HTTPError(req.full_url, 503, "busy", {}, io.BytesIO(b""))))
+    with pytest.raises(providers.ProviderError, match="band"):
+        providers.complete("s", "u")
