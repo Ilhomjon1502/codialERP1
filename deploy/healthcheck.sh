@@ -6,6 +6,7 @@ cd "$(dirname "$0")"
 val() { grep -E "^$1=" .env | tail -1 | cut -d= -f2- | sed 's/[[:space:]]*#.*$//;s/^"//;s/"$//'; }
 TELEGRAM_BOT_TOKEN=$(val TELEGRAM_BOT_TOKEN); ALERT_TELEGRAM_CHAT=$(val ALERT_TELEGRAM_CHAT)
 PORT=$(val WEB_PORT); PORT=${PORT:-8001}
+HOST=$(val ALLOWED_HOSTS | cut -d, -f1 | tr -d ' ')  # Django ALLOWED_HOSTS va HTTPS yo'naltirishidan o'tish uchun
 STATE=/tmp/codial-health-$PORT
 alert() {
   [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$ALERT_TELEGRAM_CHAT" ] || return 0
@@ -14,7 +15,7 @@ alert() {
   touch "$STATE.$key"
   curl -s -m 15 "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" -d chat_id="$ALERT_TELEGRAM_CHAT" --data-urlencode text="⚠️ Codial ERP: $1" > /dev/null
 }
-ok() { curl -fsS -m 10 "http://127.0.0.1:$PORT/api/v1/health/" > /dev/null 2>&1; }
+ok() { curl -fsS -m 10 -H "Host: $HOST" -H "X-Forwarded-Proto: https" "http://127.0.0.1:$PORT/api/v1/health/" > /dev/null 2>&1; }
 if ! ok; then
   sleep 20
   if ! ok; then
