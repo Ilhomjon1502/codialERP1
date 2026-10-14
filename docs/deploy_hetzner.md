@@ -127,3 +127,12 @@ Tiklashni ishga tushirishdan oldin **bir marta test muhitida sinab ko'ring**.
 - Kalit: `bash /srv/codial-test/deploy/set-ai.sh` (buyurtmachi o'zi kiritadi, Gemini — https://aistudio.google.com/apikey).
 - `analytics_*` view'lar va `codial_ai` roli `migrate` da avtomatik yaratiladi (qo'lda: `docker compose --env-file .env exec web python manage.py ai_views`).
 - Jurnal: Django admin → «AI so'rovlari». Limit: `.env` dagi `AI_DAILY_LIMIT`.
+
+## Haqiqiy ishga tushirish (M11)
+
+- Alohida prod muhit **yo'q** (buyurtmachi qarori 2026-10-14): `/srv/codial-test` — haqiqiy tizim (erp.codialinfo.uz). Yuqoridagi «4. Asosiy muhit» bo'limi ishlatilmaydi.
+- **`seed_demo` ishga tushirilmaydi** (haqiqiy ma'lumot bo'lsa o'zi rad etadi).
+- Tartib: `docs/user_guide/m11_ishga_tushirish.md` (`prepare_production`, `import_appsheet`, `send_invites`).
+- Monitoring cron: `*/5 * * * * bash /srv/codial-test/deploy/healthcheck.sh >> /var/log/codial-health.log 2>&1`; `.env` da `ALERT_TELEGRAM_CHAT` — Bosh menejerning Telegram chat raqami.
+- Excel faylni serverga faqat `/srv/import/` ga (checkout'dan tashqari) qo'ying, konteynerga `docker compose --env-file .env cp /srv/import/X.xlsx web:/tmp/appsheet.xlsx` bilan bering (`--file /tmp/appsheet.xlsx`) va importdan keyin ikkala joydan o'chiring — ichida shaxsiy ma'lumot bor.
+

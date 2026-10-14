@@ -10,7 +10,7 @@ import os
 import random
 import zlib
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.utils import timezone
 
@@ -60,6 +60,7 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("--password", default=os.environ.get("DEMO_PASSWORD", ""), help="Barcha demo xodimlar uchun parol")
+        parser.add_argument("--force", action="store_true", help="Bazada haqiqiy (AppSheet'dan ko'chgan) ma'lumot bo'lsa ham")
 
     def upsert(self, model, key, defaults, m2m=None):
         obj = model.all_objects.filter(legacy_id=f"demo:{key}").first() if hasattr(model, "all_objects") else model.objects.filter(legacy_id=f"demo:{key}").first()
@@ -79,6 +80,10 @@ class Command(BaseCommand):
 
     @transaction.atomic
     def handle(self, *args, password, **opts):
+        from apps.education.models import Contract
+
+        if not opts.get("force") and Contract.all_objects.exclude(legacy_id=None).exclude(legacy_id__startswith="demo:").exists():
+            raise CommandError("Bazada haqiqiy ma'lumot bor (AppSheet importi) — demo ma'lumot qo'shilmaydi. Kerak bo'lsa: --force")
         self.created = 0
         roles = {r.code: r for r in Role.objects.all()}
         branch = self.upsert(Branch, "b1", {"name": "Emirat"})

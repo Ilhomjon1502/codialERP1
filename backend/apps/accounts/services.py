@@ -21,14 +21,16 @@ def password_link(user):
     return f"{settings.FRONTEND_URL.rstrip('/')}/#/set-password?uid={uid}&token={token}"
 
 
-def send_password_link(user, *, invited_by=None):
-    """Yangi xodimga (yoki parolni unutganga) bir martalik parol o'rnatish havolasini yuboradi."""
+def send_password_link(user, *, invited_by=None, invite=False):
+    """Yangi xodimga (yoki parolni unutganga) bir martalik parol o'rnatish havolasini yuboradi.
+    invite=True — o'tish kuni AppSheet'dan ko'chgan xodimlarga taklif (send_invites)."""
     if not user.email or not user.is_active:
         raise ValidationError({"detail": "Xodimda pochta yo'q yoki u ishdan ketgan"})
     hours = settings.PASSWORD_RESET_TIMEOUT // 3600
-    if invited_by:
+    if invited_by or invite:
         subject = "Codial ERP: tizimga kirish uchun parol o'rnating"
-        intro = f"Assalomu alaykum, {user.full_name}!\n\n{invited_by.full_name} sizni Codial ERP tizimiga qo'shdi."
+        who = f"{invited_by.full_name} sizni Codial ERP tizimiga qo'shdi." if invited_by else "Codial endi AppSheet o'rniga yangi Codial ERP tizimida ishlaydi."
+        intro = f"Assalomu alaykum, {user.full_name}!\n\n{who}"
     else:
         subject = "Codial ERP: parolni tiklash"
         intro = f"Assalomu alaykum, {user.full_name}!\n\nParolingizni tiklash so'raldi."

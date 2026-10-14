@@ -5,6 +5,7 @@ from rest_framework.routers import DefaultRouter
 
 from apps.accounts import views as acc
 from apps.ai_assistant import views as ai
+from apps.core import views as core
 from apps.crm import views as crm
 from apps.education import views as edu
 from apps.finance import views as fin
@@ -57,6 +58,7 @@ urlpatterns = [
     path("auth/me/", acc.MeView.as_view()),
     path("auth/password/reset/", acc.PasswordResetView.as_view()),
     path("auth/password/set/", acc.PasswordSetView.as_view()),
+    path("health/", core.health),
     path("bootstrap/", ref.bootstrap),
     path("approvals/", fin.approvals),
     path("kpi/", pay.kpi_tree),

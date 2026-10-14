@@ -148,8 +148,9 @@ def _import(wb, on, rep):
     times_src, rooms_src = wb.by_id("LessonTimes", "TimeID"), wb.by_id("Rooms", "RoomID")
 
     # 1. Faol shartnomalar: start ≤ sana va (end bo'sh yoki end ≥ sana)
-    active = []
+    active, all_src = [], {}
     for c in wb["Contracts"]:
+        all_src[r.ident(c.get("ContractID"))] = c
         if r.ident(c.get("BranchID")) != bid:
             continue
         try:
@@ -305,6 +306,8 @@ def _import(wb, on, rep):
             cache.clear()  # savepoint bekor qilingan bo'lishi mumkin — keshdagi obyektlar qaytadan topiladi
             rep.error(f"Shartnoma {cid}: {e}")
 
+    _close_ended(branch, on, {r.ident(c.get("ContractID")) for c, _, _ in active}, all_src, rep)
+
     in_db = Contract.objects.filter(branch=branch).filter(status_q(FAOL, on))
     rep.checks["Tizimda faol shartnomalar (shu sanada)"] = in_db.count()
     rep.checks["Ko'chirilgan faol shartnomalar"] = in_db.exclude(legacy_id=None).filter(legacy_id__in=[r.ident(c.get("ContractID")) for c, _, _ in active]).count()
@@ -322,3 +325,22 @@ def _keep_created(model, obj, raw):
         if timezone.is_naive(dt):
             dt = timezone.make_aware(dt)
         model.all_objects.filter(pk=obj.pk).update(created_at=dt)
+
+
+def _close_ended(branch, on, active_ids, all_src, rep):
+    """Avvalgi importda ko'chgan, lekin endi Excel'da faol bo'lmagan shartnomalar — AppSheet'dagi tugash sanasi va sababi bilan yopiladi
+    (import bir necha marta ishga tushirilsa: masalan bugun va o'tish kuni)."""
+    stale = Contract.objects.filter(branch=branch).filter(status_q(FAOL, on)).exclude(legacy_id=None).exclude(legacy_id__in=active_ids)
+    for c in stale:
+        src = all_src.get(c.legacy_id)
+        try:
+            end = r.date(src.get("EndDate")) if src else None
+        except ValueError:
+            end = None
+        if not end:
+            rep.warn(f"Shartnoma №{c.number} ({c.legacy_id}): Excel'da endi faol emas, lekin tugash sanasi yo'q — qo'lda tekshiring")
+            continue
+        reason = r.text(src.get("StopReason"))
+        c.end_date, c.stop_reason = end, reason if reason in STOP_REASONS else ""
+        c.save(update_fields=["end_date", "stop_reason", "updated_at"])
+        rep.count("Shartnomalar (yopildi)", False)
