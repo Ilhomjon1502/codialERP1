@@ -34,3 +34,17 @@ Hali hech narsa tanlamagan xodimga standart holda quyidagilar keladi:
 Xabar avval bazadagi navbatga yoziladi, `bot` jarayoni har ~20 soniyada yuboradi (Telegram ishlamasa 5 marta qayta urinadi).
 Davomat eslatmasi — cron har 10 daqiqada (`notify_attendance`), kechikish `.env` dagi `TELEGRAM_ATTENDANCE_DELAY_MIN` (standart 30).
 Kunlik hisobot — cron 19:00 (`daily_report`; ko'rib chiqish: `daily_report --print`). Bot xotirasi 200 MB bilan cheklangan.
+
+## Botda davomat olish (Mini App, 2026-10-14)
+
+- «🔔 Dars vaqti — davomatni oling» xabari ostida **«📋 Davomat olish»** tugmasi bor. Uni bossangiz, o'sha guruhning davomat sahifasi Telegram ichida ochiladi. Ustoz parol kiritmaydi.
+- Bot menyusida (yozish maydoni yonida) doimiy **«Davomat»** tugmasi bor: bugungi dars avtomatik tanlanadi.
+- Kirish shartlari:
+  - xodim akkauntini botga bog'lagan bo'lishi kerak (profil → «✈️ Telegram»);
+  - xodim «Faol» holatida bo'lishi kerak.
+
+  Bog'lanmagan bo'lsa, «akkauntingiz bog'lanmagan» degan xabar chiqadi.
+- Qoidalar saytdagidek: ustoz faqat bugungi va faqat o'z guruhlarining davomatini oladi.
+- Telefondagi va kompyuterdagi Telegram ilovasida ishlaydi. Brauzerdagi Telegram Web'da ochilmaydi, chunki xavfsizlik uchun sayt boshqa sayt ichiga joylashtirilishini taqiqlaydi.
+- Texnik: Telegram imzosi (`initData`, HMAC) bot tokeni bilan tekshiriladi va 24 soat amal qiladi (`apps/notifications/webapp.py`, `POST /api/v1/auth/telegram/`). Har bir kirish auditga «Telegram Mini App» deb yoziladi.
+

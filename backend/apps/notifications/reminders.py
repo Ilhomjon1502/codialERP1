@@ -18,7 +18,7 @@ from apps.education.models import Attendance, Contract, Group
 from apps.education.services import FAOL, active_on, has_lesson, status_q, with_balance
 from apps.references.models import Branch
 
-from . import services
+from . import services, webapp
 
 WEEKDAYS = ["dushanba", "seshanba", "chorshanba", "payshanba", "juma", "shanba", "yakshanba"]
 START_WINDOW = 15  # daqiqa: bot qayta ishga tushsa ham shu oraliqda boshlangan dars eslatiladi
@@ -63,8 +63,9 @@ def lesson_starts(now=None):
         start = timezone.make_aware(datetime.datetime.combine(today, g.time.start_time))
         if not (start <= now < start + datetime.timedelta(minutes=START_WINDOW)):
             continue
-        text = (f"🔔 <b>Dars vaqti — davomatni oling</b>\n{e(g.name)} · {g.time.start_time:%H:%M}–{g.time.end_time:%H:%M} · {e(g.room)}\n"
-                f"{link(f'attendance?tab=take&group={g.pk}')}")
+        text = f"🔔 <b>Dars vaqti — davomatni oling</b>\n{e(g.name)} · {g.time.start_time:%H:%M}–{g.time.end_time:%H:%M} · {e(g.room)}"
+        if not webapp.enabled():  # Mini App tugmasi bo'lmasa — oddiy havola
+            text += f"\n{link(f'attendance?tab=take&group={g.pk}')}"
         services.lesson_started(g, text, key=f"start:{g.pk}:{today}")
         n += 1
     return n

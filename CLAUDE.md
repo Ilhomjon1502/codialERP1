@@ -619,6 +619,7 @@ Hisobot so'rovlari aggregatsiya bilan bajariladi. Og'ir hisobotlar uchun kesh (1
   - qoldirilgan dars so'rovi;
   - dars boshlanganidan keyin N daqiqa (standart 30) ichida davomat olinmasa (ustoz va administratorga);
   - **dars boshlanganda** guruh ustoziga «davomat olish vaqti» (bot jarayoni har daqiqada tekshiradi, alohida cron yo'q);
+  - **botda davomat olish — Telegram Mini App** (`apps/notifications/webapp.py`, `POST /api/v1/auth/telegram/`): xabardagi «📋 Davomat olish» tugmasi va bot menyusidagi «Davomat» saytdagi davomat ekranini Telegram ichida parolsiz ochadi (bog'langan faol xodim);
   - **8:30** da Administrator+Hisobchi'ga bugungi ish rejasi: olinadigan to'lovlar (dars vaqti bo'yicha qarzdorlar), sinov darsiga keladiganlar, kelmaganlar bilan bog'lanish, qayta bog'lanish lidlari, kecha olinmagan davomat (`morning_plan`, cron);
   - har kuni **19:00** da Bosh menejerga hisobot (buyurtmachi so'rovi 2026-10-14): to'lovlar, faol shartnomalar (kurslar bo'yicha), lidlar (statuslar va kurslar bo'yicha), bugungi xarajatlar, davomat, g'azna qoldiqlari, tizim auditi. Faqat audit huquqi borlar (Admin, BM) oladi.
 - Har bir xodim qaysi xabarlarni olishini sozlaydi. Token `.env` da saqlanadi.

@@ -202,3 +202,70 @@ def test_chunks_split_long_text():
     text = "\n".join(f"qator {i} " + "x" * 90 for i in range(100))
     parts = chunks(text)
     assert len(parts) == 3 and all(len(p) <= 3900 for p in parts) and "\n".join(parts) == text
+
+
+def _init_data(user_id, token="123:TEST", auth_date=None, tamper=False):
+    import hashlib
+    import hmac
+    import json
+    import time
+    import urllib.parse
+
+    fields = {"auth_date": str(int(auth_date or time.time())), "query_id": "AAE", "user": json.dumps({"id": user_id, "first_name": "Ustoz"})}
+    check = "\n".join(f"{k}={v}" for k, v in sorted(fields.items()))
+    secret = hmac.new(b"WebAppData", token.encode(), hashlib.sha256).digest()
+    fields["hash"] = hmac.new(secret, check.encode(), hashlib.sha256).hexdigest()
+    if tamper:
+        fields["user"] = json.dumps({"id": user_id + 1, "first_name": "X"})
+    return urllib.parse.urlencode(fields)
+
+
+def test_webapp_validate():
+    import time
+
+    from apps.notifications import webapp
+
+    assert webapp.validate(_init_data(55), token="123:TEST")["id"] == 55
+    for bad in (_init_data(55, tamper=True), _init_data(55, token="999:OTHER"), "", "hash=abc&user=%7B%7D"):
+        with pytest.raises(webapp.InvalidInitData):
+            webapp.validate(bad, token="123:TEST")
+    with pytest.raises(webapp.InvalidInitData, match="eskirgan"):
+        webapp.validate(_init_data(55, auth_date=time.time() - 2 * 86400), token="123:TEST")
+
+
+def test_telegram_mini_app_login(make_user, settings):
+    from rest_framework.test import APIClient
+
+    settings.TELEGRAM_BOT_TOKEN = "123:TEST"
+    teacher = make_user("USTOZ")
+    link(teacher, 4242)
+    c = APIClient()
+    r = c.post("/api/v1/auth/telegram/", {"init_data": _init_data(4242)}, format="json")
+    assert r.status_code == 200, r.content
+    assert c.get("/api/v1/auth/me/").status_code == 200  # sessiya ochildi
+    assert APIClient().post("/api/v1/auth/telegram/", {"init_data": _init_data(9999)}, format="json").status_code == 403  # bog'lanmagan
+    assert APIClient().post("/api/v1/auth/telegram/", {"init_data": _init_data(4242, tamper=True)}, format="json").status_code == 400
+    teacher.employment_status = "Ishdan ketgan"
+    teacher.save()
+    assert APIClient().post("/api/v1/auth/telegram/", {"init_data": _init_data(4242)}, format="json").status_code == 403
+
+
+def test_lesson_reminder_has_mini_app_button(make_user, fin, settings, django_capture_on_commit_callbacks):  # noqa: F811
+    import datetime
+
+    from apps.notifications import reminders
+
+    settings.TELEGRAM_BOT_TOKEN, settings.FRONTEND_URL = "123:TEST", "https://erp.codialinfo.uz"
+    g, d = _lesson_today(fin)
+    link(fin["teacher"], 803)
+    start = timezone.make_aware(datetime.datetime.combine(d, datetime.time(14, 0)))
+    with django_capture_on_commit_callbacks(execute=True):
+        reminders.lesson_starts(start + datetime.timedelta(minutes=1))
+    m = Outbox.objects.get(event="lesson_start")
+    btn = m.markup["inline_keyboard"][0][0]
+    assert btn["text"] == "📋 Davomat olish" and btn["web_app"]["url"] == f"https://erp.codialinfo.uz/?tg=attendance&group={g.pk}" and "http" not in m.text
+    sent = []
+    from apps.notifications.services import send_pending
+
+    send_pending(sender=lambda chat, text, markup=None: sent.append((chat, markup)))
+    assert sent == [(803, m.markup)]

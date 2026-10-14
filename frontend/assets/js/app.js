@@ -523,11 +523,13 @@
     document.getElementById('app').innerHTML = '<div class="login"><div class="muted">Yuklanmoqda…</div></div>';
     try {
       await A.http.csrf();
+      await A.telegramAuth();
       await A.boot();
     } catch (e) {
       A.S = A.emptyStore();
       if (e.status !== 401) A.toast(e.message, 'warn');
     }
     A.render();
+    if (A.tgError) A.toast(A.tgError, 'warn');
   });
 })(window.App);

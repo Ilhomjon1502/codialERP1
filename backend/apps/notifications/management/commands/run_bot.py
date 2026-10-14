@@ -3,6 +3,7 @@
     python manage.py run_bot
 """
 
+import json
 import logging
 import time
 
@@ -10,7 +11,7 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db import close_old_connections
 
-from apps.notifications import reminders, services
+from apps.notifications import reminders, services, webapp
 
 log = logging.getLogger(__name__)
 
@@ -25,6 +26,11 @@ class Command(BaseCommand):
                 time.sleep(300)
         me = services.api("getMe")
         self.stdout.write(self.style.SUCCESS(f"Bot ishga tushdi: @{me.get('username')}"))
+        if webapp.enabled():  # bot menyusidagi doimiy «Davomat» tugmasi — Mini App
+            try:
+                services.api("setChatMenuButton", menu_button=json.dumps({"type": "web_app", "text": "Davomat", "web_app": {"url": webapp.url("attendance")}}))
+            except Exception:  # noqa: BLE001
+                log.exception("Menyu tugmasi o'rnatilmadi")
         offset, last_tick = None, 0.0
         while True:
             try:

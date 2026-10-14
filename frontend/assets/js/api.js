@@ -89,6 +89,32 @@
     A.version++;
   };
 
+  /** Telegram Mini App (?tg=attendance&group=…): Telegram tasdiqlagan, botga bog'langan xodim parolsiz kiradi.
+   *  Telegram o'z ma'lumotini URL # qismiga qo'shadi — skript uni o'qib olgach, # bizning sahifa manziliga almashtiriladi. */
+  A.telegramAuth = async () => {
+    const q = new URLSearchParams(location.search);
+    if (!q.has('tg')) return;
+    await new Promise((done) => {
+      const sc = document.createElement('script');
+      sc.src = 'https://telegram.org/js/telegram-web-app.js';
+      sc.onload = done;
+      sc.onerror = done;
+      document.head.appendChild(sc);
+    });
+    const wa = window.Telegram && window.Telegram.WebApp;
+    const route = q.get('tg') === 'attendance' ? `#/attendance?tab=take${q.get('group') ? `&group=${encodeURIComponent(q.get('group'))}` : ''}` : '#/dashboard';
+    history.replaceState(null, '', location.pathname + route);
+    if (!wa || !wa.initData) return; // oddiy brauzerda ochilgan — odatdagi kirish
+    A.inTelegram = true;
+    wa.ready();
+    wa.expand();
+    try {
+      await A.http.post('/auth/telegram/', { init_data: wa.initData });
+    } catch (e) {
+      A.tgError = e.message;
+    }
+  };
+
   /** Kirgandan keyin: joriy xodim, rollar, muddatlar va barcha ma'lumotnomalar */
   A.boot = async () => {
     const b = await A.http.get('/bootstrap/');

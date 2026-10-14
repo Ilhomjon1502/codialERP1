@@ -58,6 +58,7 @@ urlpatterns = [
     path("auth/me/", acc.MeView.as_view()),
     path("auth/password/reset/", acc.PasswordResetView.as_view()),
     path("auth/password/set/", acc.PasswordSetView.as_view()),
+    path("auth/telegram/", notif.TelegramLoginView.as_view()),
     path("health/", core.health),
     path("bootstrap/", ref.bootstrap),
     path("approvals/", fin.approvals),

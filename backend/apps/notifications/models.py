@@ -49,6 +49,7 @@ class Outbox(models.Model):
     event = models.CharField(max_length=32, choices=EVENTS)
     key = models.CharField("Takrorlanmaslik kaliti", max_length=120, blank=True, db_index=True)
     text = models.TextField()
+    markup = models.JSONField("Tugmalar (reply_markup)", default=dict, blank=True)
     status = models.CharField(max_length=8, choices=Status.choices, default=Status.PENDING, db_index=True)
     attempts = models.PositiveSmallIntegerField(default=0)
     error = models.CharField(max_length=255, blank=True)

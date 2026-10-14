@@ -68,7 +68,7 @@ def in_branch(user, branch):
     return branch is None or is_top(user) or user.branches.filter(pk=branch.pk).exists()
 
 
-def notify(event, text, branch=None, default_users=(), key="", only=None):
+def notify(event, text, branch=None, default_users=(), key="", only=None, markup=None):
     """Bog'langan, huquqi bor, filial doirasidagi va shu xabarni tanlagan xodimlarga navbatga qo'yadi (tranzaksiya tugagach).
     default_users — hodisaga bevosita aloqador xodimlar (standart holda oladi); only(user) — qo'shimcha cheklov (masalan ustoz faqat o'z guruhi);
     key — takrorlanmaslik uchun."""
@@ -84,7 +84,7 @@ def notify(event, text, branch=None, default_users=(), key="", only=None):
                 if u.pk in done or not allowed(u, event) or not in_branch(u, branch) or (only and not only(u)):
                     continue
                 if wants(lk, event, default=u.pk in default_ids):
-                    rows.append(Outbox(user=u, chat_id=lk.chat_id, event=event, key=key, text=text))
+                    rows.append(Outbox(user=u, chat_id=lk.chat_id, event=event, key=key, text=text, markup=markup or {}))
             Outbox.objects.bulk_create(rows)
         except Exception:  # noqa: BLE001 — xabar asosiy amalni buzmasin
             log.exception("Telegram navbatiga yozilmadi")
@@ -142,10 +142,14 @@ def attendance_missing(group, text, key):
 
 
 def lesson_started(group, text, key):
-    """Dars boshlandi — guruh ustoziga (standart); ustoz va yordamchilar faqat o'z guruhi haqida oladi."""
+    """Dars boshlandi — guruh ustoziga (standart); ustoz va yordamchilar faqat o'z guruhi haqida oladi.
+    Xabar ostida «Davomat olish» tugmasi — davomat sahifasi Telegram ichida ochiladi (Mini App, parolsiz)."""
+    from . import webapp
+
     mine = {group.teacher_id, group.supporter_id}
+    markup = webapp.button("📋 Davomat olish", group=group.pk) if webapp.enabled() else None
     notify("lesson_start", text, branch=group.branch, default_users=[group.teacher], key=key,
-           only=lambda u: role_code(u) not in TEACHER_ROLES or u.pk in mine)
+           only=lambda u: role_code(u) not in TEACHER_ROLES or u.pk in mine, markup=markup)
 
 
 def chunks(text, limit=3900):
@@ -186,11 +190,18 @@ def api(method, **params):
 
 def send_pending(limit=30, sender=None):
     """Navbatdagi xabarlarni yuboradi. sender(chat_id, text) — testlar uchun almashtiriladi. Qaytaradi: yuborilganlar soni."""
-    sender = sender or (lambda chat, text: api("sendMessage", chat_id=chat, text=text, parse_mode="HTML", disable_web_page_preview="true"))
+    def default_sender(chat, text, markup=None):
+        extra = {"reply_markup": json.dumps(markup)} if markup else {}
+        return api("sendMessage", chat_id=chat, text=text, parse_mode="HTML", disable_web_page_preview="true", **extra)
+
+    sender = sender or default_sender
     n = 0
     for m in Outbox.objects.filter(status=Outbox.Status.PENDING).order_by("created_at")[:limit]:
         try:
-            sender(m.chat_id, m.text)
+            if m.markup:
+                sender(m.chat_id, m.text, m.markup)
+            else:
+                sender(m.chat_id, m.text)
             m.status, m.sent_at = Outbox.Status.SENT, timezone.now()
             n += 1
         except Exception as e:  # noqa: BLE001
