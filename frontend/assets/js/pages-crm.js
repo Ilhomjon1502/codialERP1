@@ -186,7 +186,7 @@
     const cols = Object.keys(LS).map((k) => {
       const list = b.columns[k] || [];
       const n = b.counts[k] || 0;
-      return `<div class="kcol"><div class="kcol-h"><span class="badge ${leadStatusTone[k]}">${k}</span> ${esc(LS[k])} <b>${n}</b></div>
+      return `<div class="kcol"><div class="kcol-h" title="${esc(LS[k])}"><span class="badge ${leadStatusTone[k]}">${k}</span><span class="kcol-t">${esc(LS[k])}</span><b>${n}</b></div>
         ${list
           .map((l) => {
             const st = l.student_data;

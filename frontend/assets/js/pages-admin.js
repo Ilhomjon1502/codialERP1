@@ -397,7 +397,7 @@
   /* ===================================================== Dars jadvali (bosh sahifa) */
   // Guruhlardan avtomatik: kun → xona (yoki ustoz) × vaqt. Bir qatorda vaqti ustma-ust tushgan guruhlar qizil bilan.
   const SLOT = 30; // daqiqa
-  const SLOT_W = 64; // px
+  const SLOT_MIN = 40; // px — bundan tor bo'lsa jadval gorizontal aylanadi
   const SCHED_COLORS = ['#2f80ed', '#27ae60', '#9b51e0', '#F26A1B', '#56ccf2', '#bb6bd9', '#6fcf97', '#f2c94c']; // qizilsiz — qizil faqat ustma-ust uchun
   const mins = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
   const hhmm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
@@ -427,38 +427,50 @@
     const busy = todays.reduce((s, g) => s + (g.e - g.s), 0);
     const roomsUsed = new Set(todays.map((g) => g.room)).size;
     const pct = data.rooms.length ? Math.round((100 * busy) / (data.rooms.length * (t1 - t0))) : 0;
-    const width = slots.length * SLOT_W;
+    const span = t1 - t0;
+    const pos = (m) => `${(100 * m) / span}%`;
     const canEdit = A.can('groups', 'e');
     const rowHTML = (row) => {
       const items = todays.filter((g) => rowKey(g) === row.key).sort((a, b) => a.s - b.s);
       const blocks = items.map((g) => {
         const clash = items.some((o) => o !== g && o.s < g.e && g.s < o.e);
         const c = color(g);
-        const left = ((g.s - t0) / SLOT) * SLOT_W + 3;
-        const w = ((g.e - g.s) / SLOT) * SLOT_W - 6;
         const second = by === 'room' ? g.teacher_name : data.rooms.find((r) => r.id === g.room)?.name || '';
         const title = `${g.name} · ${g.start}–${g.end} · ${g.teacher_name}${g.supporter_name ? ` (yordamchi: ${g.supporter_name})` : ''} · ${g.students}/${g.capacity || '—'} talaba${g.status === 'Rejada' ? ` · Rejada: ${A.fdate(g.start_date)} dan` : ''}${clash ? ' · DIQQAT: vaqti boshqa guruh bilan ustma-ust' : ''}`;
         const cls = `sched-b${g.status === 'Rejada' ? ' plan' : ''}${clash ? ' clash' : ''}`;
         const inner = `<b>${esc(g.name)}</b><small>${esc(second)} · ${g.students}/${g.capacity || '—'}</small>`;
-        const st = `left:${left}px;width:${w}px;--c:${c}`;
+        const st = `left:calc(${pos(g.s - t0)} + 3px);width:calc(${pos(g.e - g.s)} - 6px);--c:${c}`;
         return canEdit
           ? `<div class="${cls}" role="button" tabindex="0" data-act="sched-edit" data-id="${g.id}" title="${esc(title)} · bosing — kun, vaqt, xona yoki ustozni o'zgartirish" style="${st}">${inner}</div>`
           : `<a class="${cls}" href="#/groups/${g.id}" title="${esc(title)}" style="${st}">${inner}</a>`;
       }).join('');
       return `<div class="sched-row"><div class="sched-l"><b>${esc(row.label)}</b>${row.sub ? `<small>${esc(row.sub)}</small>` : ''}</div>
-        <div class="sched-track" style="width:${width}px">${slots.map(() => '<i></i>').join('')}${blocks}</div></div>`;
+        <div class="sched-track">${slots.map(() => '<i></i>').join('')}${blocks}</div></div>`;
     };
     const tabs = days.map((d) => `<button class="sched-day${d === day ? ' on' : ''}" data-act="sched-day" data-id="${d}">${A.WD_FULL[d]}${d === todayWd ? ' •' : ''}
       <span>${groups.filter((g) => g.weekdays.includes(d)).length}</span></button>`).join('');
     const shown = rows.filter((row) => by === 'room' || todays.some((g) => rowKey(g) === row.key));
+    // Telefonda: kun bo'yicha ro'yxat (vaqt · guruh · xona · ustoz)
+    const agendaHTML = () => {
+      const items = [...todays].sort((a, b) => a.s - b.s || a.name.localeCompare(b.name));
+      if (!items.length) return `<ul class="sched-agenda"><li class="muted">${A.WD_FULL[day]} kuni dars yo'q</li></ul>`;
+      return `<ul class="sched-agenda">${items.map((g) => {
+        const clash = items.some((o) => o !== g && (o.room === g.room || o.teacher === g.teacher) && o.s < g.e && g.s < o.e);
+        const room = data.rooms.find((r) => r.id === g.room)?.name || '';
+        const attrs = canEdit ? `data-act="sched-edit" data-id="${g.id}" role="button"` : `href="#/groups/${g.id}"`;
+        return `<li><div class="t">${g.start}<small>${g.end}</small></div>
+          <a class="g${clash ? ' clash' : ''}${g.status === 'Rejada' ? ' plan' : ''}" ${attrs} style="--c:${color(g)}"><b>${esc(g.name)}</b>
+          <small>${esc(room)} · ${esc(g.teacher_name)} · ${g.students}/${g.capacity || '—'}${g.status === 'Rejada' ? ' · rejada' : ''}${clash ? ' · ⚠️ ustma-ust' : ''}</small></a></li>`;
+      }).join('')}</ul>`;
+    };
     return `<section class="card sched"><div class="row between wrap"><h2>Dars jadvali</h2>
         <div class="seg">${[['room', 'Xonalar'], ['teacher', 'Ustozlar']].map(([k, l]) => `<button class="${by === k ? 'on' : ''}" data-act="sched-by" data-id="${k}">${l}</button>`).join('')}</div></div>
       <div class="sched-days">${tabs}</div>
-      <p class="muted small">${todays.length} dars · ${roomsUsed}/${data.rooms.length} xona band · ${pct}% band · ${hhmm(t0)}–${hhmm(t1)}. Jadval guruhlardan avtomatik tuziladi; ${canEdit ? "guruhni bosing — kun, vaqt, xona va ustozni shu yerda o'zgartirasiz." : 'guruhni bosing — batafsil.'} Shtrixli — rejadagi guruh, qizil — vaqti ustma-ust.</p>
-      <div class="sched-wrap"><div class="sched-grid" style="min-width:${width + 150}px">
-        <div class="sched-row head"><div class="sched-l">${by === 'room' ? 'Xona' : 'Ustoz'} / vaqt</div><div class="sched-track" style="width:${width}px">${slots.map((t) => `<span>${hhmm(t)}</span>`).join('')}</div></div>
+      <p class="muted small">${todays.length} dars · ${roomsUsed}/${data.rooms.length} xona band · ${pct}% band<span class="sched-help"> · ${hhmm(t0)}–${hhmm(t1)}. Jadval guruhlardan avtomatik tuziladi; ${canEdit ? "guruhni bosing — kun, vaqt, xona va ustozni shu yerda o'zgartirasiz." : 'guruhni bosing — batafsil.'} Shtrixli — rejadagi guruh, qizil — vaqti ustma-ust.</span></p>
+      <div class="sched-wrap"><div class="sched-grid" style="min-width:${slots.length * SLOT_MIN + 150}px">
+        <div class="sched-row head"><div class="sched-l">${by === 'room' ? 'Xona' : 'Ustoz'} / vaqt</div><div class="sched-track">${slots.map((t) => `<span>${hhmm(t)}</span>`).join('')}</div></div>
         ${shown.map(rowHTML).join('') || `<div class="muted pad">${A.WD_FULL[day]} kuni dars yo'q</div>`}
-      </div></div></section>`;
+      </div></div>${agendaHTML()}</section>`;
   }
   A.act['sched-day'] = (el) => { A.ui.schedDay = el.dataset.id; A.refresh(); };
   A.act['sched-by'] = (el) => { A.ui.schedBy = el.dataset.id; A.refresh(); };

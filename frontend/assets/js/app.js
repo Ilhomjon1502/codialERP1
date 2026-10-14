@@ -257,6 +257,11 @@
       }
     }
     drawCharts();
+    // Aylanadigan tab qatorlarida (telefonda) tanlangan tab ko'rinib tursin
+    view.querySelectorAll('.tabs a.on, .side-tabs a.on, .sched-day.on').forEach((el) => {
+      const box = el.parentElement;
+      if (box.scrollWidth > box.clientWidth) box.scrollLeft += el.getBoundingClientRect().left - box.getBoundingClientRect().left - (box.clientWidth - el.offsetWidth) / 2;
+    });
     if (!A._keepScroll) window.scrollTo(0, 0);
     A._keepScroll = false;
   };
