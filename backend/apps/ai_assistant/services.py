@@ -150,10 +150,11 @@ def ask(user, question):
                 break
             except guard.Blocked as e:
                 q.status, q.error = (AIQuery.Status.ERROR if str(e).startswith("Bajarishda") else AIQuery.Status.BLOCKED), str(e)[:400]
-                if attempt == 0:
+                if attempt == 0 and time.monotonic() - t0 < 15:  # qayta so'rashga vaqt bo'lsa (sahifa 60 s dan oshmasin)
                     prompt = f"{prompt}\n\nSizning SQL'ingiz:\n{q.sql}\nXato: {e}\nTuzatilgan SQL'ni xuddi shu JSON ko'rinishida qaytaring."
     except providers.ProviderError as e:
         q.status, q.error = AIQuery.Status.ERROR, str(e)[:400]
+    q.model = providers.used_model()
     q.llm_ms = int((time.monotonic() - t0) * 1000) - (data["ms"] if data else 0)
     if data:
         q.db_ms, q.row_count, q.truncated = data["ms"], len(data["rows"]), data["truncated"]
@@ -208,6 +209,7 @@ def analyze(user, q):
         a.note = str(providers.complete_json(system, prompt).get("analysis") or "")[:4000]
     except providers.ProviderError as e:
         a.status, a.error = AIQuery.Status.ERROR, str(e)[:400]
+    a.model = providers.used_model()
     a.llm_ms = int((time.monotonic() - t0) * 1000)
     a.save()
     if a.status != AIQuery.Status.OK:

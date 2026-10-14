@@ -18,12 +18,10 @@ LIST=$(curl -s -H @<(printf 'x-goog-api-key: %s\n' "$K") "https://generativelang
 if ! echo "$LIST" | grep -q '"models/'; then
   echo "Xato: Google kalitni qabul qilmadi. Kalitni tekshirib, qayta ishga tushiring."; exit 1
 fi
-# Eng yangi «gemini-N-flash» modeli (eskilari yangi foydalanuvchilarga yopilishi mumkin)
-MODEL=$(echo "$LIST" | grep -o '"models/gemini-[0-9.]*-flash"' | sed 's/"models\///;s/"//' | sort -V | tail -1)
-[ -n "$MODEL" ] || { echo "Xato: mos Gemini modeli topilmadi."; exit 1; }
 sed -i '/^AI_PROVIDER=/d;/^AI_API_KEY=/d;/^AI_MODEL=/d' .env
-{ echo "AI_PROVIDER=gemini"; echo "AI_API_KEY=$K"; echo "AI_MODEL=$MODEL"; } >> .env
+# Model va zaxira modellar kodda (providers.DEFAULT_MODELS/DEFAULT_FALLBACKS); kerak bo'lsa .env da AI_MODEL bilan
+{ echo "AI_PROVIDER=gemini"; echo "AI_API_KEY=$K"; } >> .env
 grep -q '^AI_DAILY_LIMIT=' .env || echo "AI_DAILY_LIMIT=50" >> .env
 chmod 600 .env
 docker compose --env-file .env up -d web > /dev/null 2>&1
-echo "Tayyor: AI yordamchi ulandi (model $MODEL). Bosh menejer menyuda «AI yordamchi» bo'limidan foydalanadi."
+echo "Tayyor: AI yordamchi ulandi. Bosh menejer menyuda «AI yordamchi» bo'limidan foydalanadi."

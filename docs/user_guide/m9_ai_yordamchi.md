@@ -5,7 +5,7 @@ Faqat **Bosh menejer** uchun. Menyu → **AI yordamchi**.
 ## Sozlash (bir marta, administrator)
 
 1. https://aistudio.google.com/apikey → Google akkaunt bilan kiring → **Create API key** → kalitni nusxalang.
-2. Serverda: `bash /srv/codial-test/deploy/set-ai.sh` → kalitni qo'ying (ekranda ko'rinmaydi). Skript kalitni Google'da tekshiradi, mos Gemini modelini tanlaydi va saytni qayta ishga tushiradi.
+2. Serverda: `bash /srv/codial-test/deploy/set-ai.sh` → kalitni qo'ying (ekranda ko'rinmaydi). Skript kalitni Google'da tekshiradi va saytni qayta ishga tushiradi. Model kodda tanlangan (`gemini-3.7-flash`, band bo'lsa avtomatik zaxira modellar).
    Kalitni chatga yoki boshqa joyga yozmang. Kalit oshkor bo'lib qolsa — AI Studio'da o'chirib, yangisini yarating va skriptni qayta ishga tushiring.
 
 ## Qanday ishlaydi

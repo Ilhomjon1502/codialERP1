@@ -164,7 +164,10 @@ AI_MODEL = env("AI_MODEL", "")  # bo'sh — provayder standarti (providers.DEFAU
 AI_DAILY_LIMIT = int(env("AI_DAILY_LIMIT", "50"))  # bir xodimga kuniga LLM so'rovlari
 AI_MAX_ROWS = int(env("AI_MAX_ROWS", "500"))
 AI_SQL_TIMEOUT_S = float(env("AI_SQL_TIMEOUT_S", "5"))
-AI_HTTP_TIMEOUT_S = float(env("AI_HTTP_TIMEOUT_S", "25"))
+AI_HTTP_TIMEOUT_S = float(env("AI_HTTP_TIMEOUT_S", "30"))  # bitta model javobi
+AI_TOTAL_TIMEOUT_S = float(env("AI_TOTAL_TIMEOUT_S", "45"))  # zaxira modellar bilan birga (gunicorn timeout 60 s)
+AI_MODEL_FALLBACKS = env_list("AI_MODEL_FALLBACKS") if env("AI_MODEL_FALLBACKS") is not None else None  # None — provayder standarti
+AI_THINKING = env("AI_THINKING", "low")  # Gemini thinkingLevel: low | high; bo'sh — model standarti
 
 LOGGING = {
     "version": 1,
