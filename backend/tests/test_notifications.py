@@ -148,3 +148,57 @@ def test_daily_report_with_data(api, fin):  # noqa: F811
     assert "2. Yangi guruhga kutyapti — <b>1</b>" in text and "• Frontend — <b>1</b> (2: 1)" in text
     assert "Xarajatlar: 120 000 so'm</b> (1 ta)" in text and "• Kommunal — <b>120 000</b>" in text
     assert "Tizim auditi: 1 amal" in text  # to'lov yaratilgani audit'ga yozilgan
+
+
+def _lesson_today(fin):  # noqa: F811
+    g = fin["contract"].group
+    d = timezone.localdate()
+    g.day_pattern.weekdays = [d.isoweekday()]
+    g.day_pattern.save()
+    return g, d
+
+
+def test_lesson_start_reminder_once_to_own_teacher(make_user, fin, django_capture_on_commit_callbacks):  # noqa: F811
+    import datetime
+
+    from apps.notifications import reminders
+
+    g, d = _lesson_today(fin)
+    link(fin["teacher"], 801)
+    other = make_user("USTOZ")
+    link(other, 802)
+    start = timezone.make_aware(datetime.datetime.combine(d, datetime.time(14, 0)))  # fixture: 14:00–16:00
+    with django_capture_on_commit_callbacks(execute=True):
+        assert reminders.lesson_starts(start - datetime.timedelta(minutes=1)) == 0  # hali boshlanmagan
+        assert reminders.lesson_starts(start + datetime.timedelta(minutes=2)) == 1
+        reminders.lesson_starts(start + datetime.timedelta(minutes=3))  # keyingi daqiqa — takrorlanmaydi
+        assert reminders.lesson_starts(start + datetime.timedelta(minutes=20)) == 0  # 15 daqiqalik oynadan keyin
+    msgs = list(Outbox.objects.filter(event="lesson_start"))
+    assert [m.user_id for m in msgs] == [fin["teacher"].pk] and "davomatni oling" in msgs[0].text and f"group={g.pk}" in msgs[0].text
+
+
+def test_morning_plan_for_admin_cashier(make_user, fin, django_capture_on_commit_callbacks):  # noqa: F811
+    from apps.crm.models import Lead
+    from apps.notifications import reminders
+
+    g, d = _lesson_today(fin)
+    c = fin["contract"]  # boshlang'ich qarz 600 000, to'lov yo'q
+    Lead.objects.create(branch=fin["branch"], student=c.student, course=c.course, status="3", group=g, demo_date=d,
+                        source=LeadSource.objects.create(name="Telegram"))
+    link(fin["cashier"], 811)  # Administrator+Hisobchi — standart oladi
+    teacher = fin["teacher"]
+    link(teacher, 812)  # ustozda to'lovlar huquqi yo'q — olmaydi
+    text = reminders.plan_text(fin["branch"], d)
+    assert "Olinadigan to'lovlar</b> — 1 talaba, jami 600 000" in text and "Ali Valiyev — <b>600 000</b> so'm · +998901112233" in text
+    assert "Bugun sinov darsiga keladiganlar" in text and f"14:00 · {g.name}" in text
+    with django_capture_on_commit_callbacks(execute=True):
+        reminders.morning_plan(d)
+    assert list(Outbox.objects.filter(event="morning_plan").values_list("user_id", flat=True)) == [fin["cashier"].pk]
+
+
+def test_chunks_split_long_text():
+    from apps.notifications.services import chunks
+
+    text = "\n".join(f"qator {i} " + "x" * 90 for i in range(100))
+    parts = chunks(text)
+    assert len(parts) == 3 and all(len(p) <= 3900 for p in parts) and "\n".join(parts) == text

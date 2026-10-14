@@ -32,6 +32,8 @@ EVENT_PERM = {
     "makeup": ("attendance", "p"),
     "attendance_missing": ("attendance", "v"),
     "daily_report": ("audit", "v"),  # hisobotda audit (kim nima qildi) bor — faqat Admin va Bosh menejer
+    "lesson_start": ("attendance", "a"),
+    "morning_plan": ("payments", "v"),  # qarzdorlar ro'yxati bor
 }
 # Xodim hali tanlamagan bo'lsa — kimga standart holda boradi
 DEFAULT_ROLES = {
@@ -41,6 +43,8 @@ DEFAULT_ROLES = {
     "makeup": {R.BOSH_MENEJER, R.FILIAL_MENEJERI, R.ADMINISTRATOR, R.ADMINISTRATOR_HISOBCHI},
     "attendance_missing": {R.ADMINISTRATOR, R.ADMINISTRATOR_HISOBCHI},  # + guruh ustozi (default_users)
     "daily_report": {R.BOSH_MENEJER},
+    "lesson_start": set(),  # standart — faqat guruh ustozi (default_users)
+    "morning_plan": {R.ADMINISTRATOR_HISOBCHI},
 }
 
 
@@ -135,6 +139,31 @@ def attendance_missing(group, text, key):
         return role_code(u) not in TEACHER_ROLES or u.pk in mine
 
     notify("attendance_missing", text, branch=group.branch, default_users=[group.teacher], key=key, only=only)
+
+
+def lesson_started(group, text, key):
+    """Dars boshlandi — guruh ustoziga (standart); ustoz va yordamchilar faqat o'z guruhi haqida oladi."""
+    mine = {group.teacher_id, group.supporter_id}
+    notify("lesson_start", text, branch=group.branch, default_users=[group.teacher], key=key,
+           only=lambda u: role_code(u) not in TEACHER_ROLES or u.pk in mine)
+
+
+def chunks(text, limit=3900):
+    """Telegram xabari 4096 belgigacha — uzun matn qatorlar bo'yicha bo'linadi."""
+    parts, cur = [], ""
+    for line in text.split("\n"):
+        if cur and len(cur) + len(line) + 1 > limit:
+            parts.append(cur)
+            cur = ""
+        cur = f"{cur}\n{line}" if cur else line[:limit]
+    return [*parts, cur] if cur else parts
+
+
+def notify_chunks(event, text, branch=None, key=""):
+    parts = chunks(text)
+    for i, part in enumerate(parts, 1):
+        suffix = f"\n<i>({i}/{len(parts)})</i>" if len(parts) > 1 else ""
+        notify(event, part + suffix, branch=branch, key=f"{key}:{i}" if key else "")
 
 
 def daily_report(text, key):

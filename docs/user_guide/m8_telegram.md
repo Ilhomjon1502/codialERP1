@@ -23,6 +23,8 @@ Hali hech narsa tanlamagan xodimga standart holda quyidagilar keladi:
 | Tasdiq kutayotgan o'tkazma | Qabul qiluvchi g'azna mas'ullari |
 | Qoldirilgan dars so'rovi («Darsni yetkazdim») | Bosh menejer, Filial menejeri, administratorlar |
 | Dars boshlanganiga 30 daqiqa bo'ldi, davomat olinmagan | Guruh ustozi va administratorlar (guruhga kuniga bir marta) |
+| **Dars boshlandi — davomat olish vaqti** (dars boshlanishi bilan, 1 daqiqa aniqlikda; davomat olingan bo'lsa yuborilmaydi), havola bilan | Guruh ustozi |
+| **Ertalabki ish rejasi (8:30)**: olinadigan to'lovlar (bugun darsi bor guruhlardagi qarzdorlar, dars vaqti bo'yicha), bugun sinov darsiga keladiganlar, kelmaganlar bilan bog'lanish (7 kun), qayta bog'lanish kerak lidlar, kecha davomati olinmagan guruhlar — filial bo'yicha | Administrator+Hisobchi (Administrator, menejerlar o'zi yoqishi mumkin) |
 | Kunlik hisobot (har kuni 19:00): to'lovlar, faol shartnomalar kurslar bo'yicha, lidlar holat va kurs bo'yicha, bugungi xarajatlar kategoriya bo'yicha, davomat, g'azna qoldiqlari, tizim auditi (kim nima qildi, nima o'chirildi) | Bosh menejer (faqat audit huquqi bor xodimlar — Admin, Bosh menejer) |
 
 «✈️ Telegram» oynasida har bir xabar turini yoqish yoki o'chirish mumkin. Ustoz «Davomat olinmagan» xabarini faqat o'z guruhlari bo'yicha oladi.

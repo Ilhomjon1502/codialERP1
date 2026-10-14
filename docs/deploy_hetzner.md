@@ -135,4 +135,4 @@ Tiklashni ishga tushirishdan oldin **bir marta test muhitida sinab ko'ring**.
 - Tartib: `docs/user_guide/m11_ishga_tushirish.md` (`prepare_production`, `import_appsheet`, `send_invites`).
 - Monitoring cron: `*/5 * * * * bash /srv/codial-test/deploy/healthcheck.sh >> /var/log/codial-health.log 2>&1`; `.env` da `ALERT_TELEGRAM_CHAT` — Bosh menejerning Telegram chat raqami.
 - Excel faylni serverga faqat `/srv/import/` ga (checkout'dan tashqari) qo'ying, konteynerga `docker compose --env-file .env cp /srv/import/X.xlsx web:/tmp/appsheet.xlsx` bilan bering (`--file /tmp/appsheet.xlsx`) va importdan keyin ikkala joydan o'chiring — ichida shaxsiy ma'lumot bor.
-
+- Cron (2026-10-14): `0 19 * * *` — `daily_report`; `30 8 * * *` — `morning_plan` (ikkalasi `cd /srv/codial-test/deploy && docker compose --env-file .env exec -T web python manage.py ...`). Dars boshlanishi eslatmasi — `bot` konteynerining o'zida.

@@ -8,8 +8,9 @@ import time
 
 from django.conf import settings
 from django.core.management.base import BaseCommand
+from django.db import close_old_connections
 
-from apps.notifications import services
+from apps.notifications import reminders, services
 
 log = logging.getLogger(__name__)
 
@@ -24,7 +25,7 @@ class Command(BaseCommand):
                 time.sleep(300)
         me = services.api("getMe")
         self.stdout.write(self.style.SUCCESS(f"Bot ishga tushdi: @{me.get('username')}"))
-        offset = None
+        offset, last_tick = None, 0.0
         while True:
             try:
                 params = {"timeout": 20, "allowed_updates": '["message"]'}
@@ -37,6 +38,10 @@ class Command(BaseCommand):
                     if chat and msg.get("chat", {}).get("type") == "private":
                         reply = services.handle_message(chat, msg.get("text", ""), (msg.get("from") or {}).get("username", ""))
                         services.api("sendMessage", chat_id=chat, text=reply)
+                if time.monotonic() - last_tick >= 60:  # har daqiqada: boshlangan darslar → ustozga eslatma (1–2 yengil so'rov)
+                    last_tick = time.monotonic()
+                    close_old_connections()
+                    reminders.lesson_starts()
                 services.send_pending()
             except Exception:  # noqa: BLE001 — tarmoq xatosi botni to'xtatmasin
                 log.exception("Bot siklida xato")
