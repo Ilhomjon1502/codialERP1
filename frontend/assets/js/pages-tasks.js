@@ -135,9 +135,10 @@
           remind_assignee: (x.who || []).includes('a'), remind_giver: (x.who || []).includes('g'),
           remind_before: Number(x.remind_before || 60), remind_every: Number(x.remind_every || 0),
         };
-        if (t) await A.http.patch(`/tasks/${t.id}/`, body);
-        else await A.http.post('/tasks/', body);
-        A.toast(t ? 'Saqlandi' : 'Topshiriq berildi — bajaruvchiga Telegram orqali xabar boradi');
+        const saved = t ? await A.http.patch(`/tasks/${t.id}/`, body) : await A.http.post('/tasks/', body);
+        if (saved.assignee_linked === false && saved.assignee !== A.S.currentUser) {
+          A.toast(`${t ? 'Saqlandi' : 'Topshiriq berildi'}. ⚠️ ${saved.assignee_name} Telegram botga ulanmagan — unga xabar bormaydi`, 'warn');
+        } else A.toast(t ? 'Saqlandi' : 'Topshiriq berildi — sizga va bajaruvchiga Telegram orqali xabar boradi');
         await reload();
       },
     });

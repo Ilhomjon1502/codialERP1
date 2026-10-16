@@ -75,9 +75,19 @@ def create(user, data):
     validate(user, data)
     task = StaffTask.objects.create(created_by=user, updated_by=user, **data)
     audit.log_create(user, task)
+    # Berilgan zahoti: bajaruvchiga (o'ziga bergan bo'lsa ham) va beruvchiga tasdiq
+    notify_one(task, task.assignee, f"📌 <b>Yangi topshiriq</b>\n{_card(task)}", done_button=True)
     if task.assignee_id != user.pk:
-        notify_one(task, task.assignee, f"📌 <b>Yangi topshiriq</b>\n{_card(task)}", done_button=True)
+        warn = "" if linked(task.assignee) else "\n⚠️ Bajaruvchi Telegram botga ulanmagan — unga xabar bormaydi. Profil → «Telegram» orqali bog'lashini ayting"
+        notify_one(task, user, f"📤 <b>Topshiriq berildi</b>\n{_card(task)}{warn}")
     return task
+
+
+def linked(user):
+    """Xodim Telegram botga bog'langanmi (xabar yetib boradimi)."""
+    from apps.notifications.models import TelegramLink
+
+    return TelegramLink.objects.filter(user=user, chat_id__isnull=False).exists()
 
 
 @transaction.atomic

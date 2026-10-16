@@ -41,8 +41,10 @@ def test_create_scope_and_notify(api, make_user, people, other_branch, django_ca
     assert r.status_code == 201, r.content
     d = r.json()
     assert d["giver"] == str(boss.pk) and d["status"] == "Ochiq" and d["can_edit"] is True and d["can_done"] is True  # BM — Admin/BM bajarildi deya oladi
-    m = Outbox.objects.get(event="task")
-    assert m.user == admin and "Yangi topshiriq" in m.text and m.markup["inline_keyboard"][0][0]["callback_data"] == f"td:{d['id']}"
+    m = Outbox.objects.get(event="task", user=admin)
+    assert "Yangi topshiriq" in m.text and m.markup["inline_keyboard"][0][0]["callback_data"] == f"td:{d['id']}"
+    g = Outbox.objects.get(event="task", user=boss)  # beruvchiga ham tasdiq
+    assert "Topshiriq berildi" in g.text and "ulanmagan" not in g.text and d["assignee_linked"] is True
     # doira: bajaruvchi va beruvchi ko'radi, boshqa xodim — yo'q
     assert api(admin).get(f"/api/v1/tasks/{d['id']}/").status_code == 200
     assert api(teacher).get(f"/api/v1/tasks/{d['id']}/").status_code == 404
@@ -110,3 +112,13 @@ def test_once_reminder_and_permissions(api, people, django_capture_on_commit_cal
         assert services.due_reminders(later + datetime.timedelta(days=1)) == 0  # bir marta
     assert api(people["teacher"]).delete(f"/api/v1/tasks/{tid}/").status_code == 403  # bajaruvchi o'chira olmaydi
     assert give(api, people["admin"], people["teacher"], remind_every=7).json()["remind_every"] == ["Noto'g'ri qiymat"]
+
+
+def test_giver_warned_when_assignee_not_linked(api, make_user, people, django_capture_on_commit_callbacks):
+    nolink = make_user("ADMINISTRATOR")
+    with django_capture_on_commit_callbacks(execute=True):
+        d = give(api, people["admin"], nolink).json()
+        give(api, people["teacher"], people["teacher"])  # o'ziga
+    assert d["assignee_linked"] is False
+    assert "ulanmagan" in Outbox.objects.get(event="task", user=people["admin"]).text
+    assert Outbox.objects.filter(event="task", user=people["teacher"], text__contains="Yangi topshiriq").count() == 1  # o'ziga ham keladi

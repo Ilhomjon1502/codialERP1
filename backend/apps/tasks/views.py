@@ -22,12 +22,13 @@ class StaffTaskSerializer(serializers.ModelSerializer):
     overdue = serializers.SerializerMethodField()
     can_edit = serializers.SerializerMethodField()
     can_done = serializers.SerializerMethodField()
+    assignee_linked = serializers.SerializerMethodField()
 
     class Meta:
         model = StaffTask
         fields = ["id", "title", "description", "assignee", "assignee_name", "giver", "giver_name", "due_at", "status",
                   "remind_assignee", "remind_giver", "remind_before", "remind_every", "done_at", "done_comment",
-                  "cancelled_at", "cancel_reason", "overdue", "can_edit", "can_done", "created_at"]
+                  "cancelled_at", "cancel_reason", "overdue", "can_edit", "can_done", "assignee_linked", "created_at"]
         read_only_fields = ["status", "done_at", "done_comment", "cancelled_at", "cancel_reason", "created_at"]
 
     def _user(self):
@@ -38,6 +39,10 @@ class StaffTaskSerializer(serializers.ModelSerializer):
 
     def get_can_edit(self, t):
         return t.status == S.OPEN and services.is_giver(t, self._user())
+
+    def get_assignee_linked(self, t):
+        """Faqat bitta topshiriq javobida (yaratish, tahrir) — ro'yxatda har qator uchun so'rov qilinmaydi."""
+        return services.linked(t.assignee) if self.context.get("with_link") else None
 
     def get_can_done(self, t):
         u = self._user()
@@ -68,6 +73,9 @@ class StaffTaskViewSet(AuditedModelViewSet):
         if p.get("q"):
             qs = qs.filter(Q(title__icontains=p["q"]) | Q(description__icontains=p["q"]))
         return qs.order_by("due_at") if status == S.OPEN else qs.order_by("-updated_at")[:200]
+
+    def get_serializer_context(self):
+        return {**super().get_serializer_context(), "with_link": self.action in ("create", "partial_update", "retrieve")}
 
     def perform_create(self, serializer):
         serializer.instance = services.create(self.request.user, serializer.validated_data)
