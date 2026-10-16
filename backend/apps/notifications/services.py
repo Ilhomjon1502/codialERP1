@@ -34,6 +34,7 @@ EVENT_PERM = {
     "daily_report": ("audit", "v"),  # hisobotda audit (kim nima qildi) bor — faqat Admin va Bosh menejer
     "lesson_start": ("attendance", "a"),
     "morning_plan": ("payments", "v"),  # qarzdorlar ro'yxati bor
+    "task": ("staffTasks", "v"),
 }
 # Xodim hali tanlamagan bo'lsa — kimga standart holda boradi
 DEFAULT_ROLES = {
@@ -45,6 +46,7 @@ DEFAULT_ROLES = {
     "daily_report": {R.BOSH_MENEJER},
     "lesson_start": set(),  # standart — faqat guruh ustozi (default_users)
     "morning_plan": {R.ADMINISTRATOR_HISOBCHI},
+    "task": set(),  # faqat topshiriq ishtirokchilari (default_users)
 }
 
 

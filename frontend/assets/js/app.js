@@ -10,6 +10,8 @@
     cash: 'M2 6h20v12H2zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6M6 12h.01M18 12h.01',
     alert: 'M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z',
     check: 'M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11',
+    task: 'M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2M9 14l2 2 4-4',
+    user: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8',
     star: 'M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z',
     trend: 'M23 6l-9.5 9.5-5-5L1 18M17 6h6v6',
     receipt: 'M4 2v20l3-2 3 2 3-2 3 2 3-2 3 2V2l-3 2-3-2-3 2-3-2-3 2zM8 8h8M8 12h8',
@@ -39,7 +41,7 @@
 
   /* ================= Menyu (AppSheet tartibida) ================= */
   A.NAV = [
-    ['dashboard', 'Bosh sahifa', 'home'], ['leads', 'Lidlar', 'leads'], ['contracts', 'Shartnomalar', 'file'],
+    ['dashboard', 'Bosh sahifa', 'home'], ['staffTasks', 'Topshiriqlar', 'task', 'tasks'], ['leads', 'Lidlar', 'leads'], ['contracts', 'Shartnomalar', 'file'],
     ['payments', "To'lovlar", 'cash'], ['debtors', 'Qarzdorlar', 'alert'], ['attendance', 'Davomatlar', 'check'],
     ['profit', 'Foyda (oyma-oy)', 'trend'], ['expenses', 'Xarajatlar', 'receipt'],
     ['export', 'Shartnoma yuklash', 'download'], ['groupAnalysis', 'Guruhlar tahlili', 'pie'], ['groups', 'Guruhlar', 'grid'],
@@ -169,7 +171,7 @@
   /** API'ga ulangan bo'limlar. Qolganlari o'z bosqichida ulanadi (docs/architecture.md, 5-bo'lim) */
   A.CONNECTED = new Set(['dashboard', 'settings', 'audit', 'leads', 'contracts', 'debtors', 'attendance', 'groups', 'groupAnalysis',
     'payments', 'approvals', 'accounts', 'transfers', 'creditors', 'exchange', 'expenses', 'salaries',
-    'evaluations', 'parentCalls', 'export', 'profit', 'ai']);
+    'evaluations', 'parentCalls', 'export', 'profit', 'ai', 'staffTasks']);
   A.MILESTONE = {};
   const PUBLIC = new Set(['set-password']);
 
@@ -275,7 +277,10 @@
   function navHTML() {
     const pc = A.pendingCount();
     return A.NAV.filter(([sec]) => A.can(sec))
-      .map(([sec, label, icon]) => `<a href="#/${sec}" data-nav="${sec}" class="${A.CONNECTED.has(sec) ? '' : 'soon'}">${A.icon(icon)}<span>${esc(label)}</span>${sec === 'approvals' && pc ? `<em class="dot">${pc}</em>` : ''}</a>`)
+      .map(([sec, label, icon, route]) => {
+        const dot = sec === 'approvals' ? pc : sec === 'staffTasks' ? (A.S.taskSummary || {}).in_open : 0;
+        return `<a href="#/${route || sec}" data-nav="${sec}" class="${A.CONNECTED.has(sec) ? '' : 'soon'}">${A.icon(icon)}<span>${esc(label)}</span>${dot ? `<em class="dot">${dot}</em>` : ''}</a>`;
+      })
       .join('');
   }
   function bottomHTML() {

@@ -550,6 +550,7 @@
         A.can('accounts') ? A.reloadMoney() : null,
         A.reloadPending(),
         A.http.get('/schedule/'),
+        A.reloadTaskSummary ? A.reloadTaskSummary() : null,
       ]);
       dash = { debt, counts: contracts ? contracts.counts : null, summary, pays, sched };
     },
@@ -565,6 +566,7 @@
       const unapproved = A.rows('dayPatterns').filter(isActive).filter((p) => !A.rows('lessonFreqs').some((f) => f.pattern === p.id && f.year === y && f.month === m && f.status === 'Tasdiqlangan'));
       return `${A.head(`Assalomu alaykum, ${esc(me.full_name.split(' ')[0])}!`, `${A.WD_FULL[A.isoWeekday(A.today())]}, ${A.fdate(A.today())} · ${esc(A.ROLES[me.role])}`)}
         ${unapproved.length && A.can('settings') ? `<div class="alert warn">${A.icon('alert')}<div><b>${A.ymLabel(ym)} uchun oydagi dars soni tasdiqlanmagan:</b> ${unapproved.map((p) => esc(p.name)).join(', ')}. <a href="#/settings?tab=freq">Tekshirish va tasdiqlash →</a></div></div>` : ''}
+        ${(() => { const ts = A.S.taskSummary; return ts && ts.in_open ? `<div class="alert ${ts.in_overdue ? 'danger' : 'info'}">${A.icon('task')}<div><b>Sizda ${ts.in_open} ta ochiq topshiriq${ts.in_overdue ? `, ${ts.in_overdue} tasining muddati o'tgan` : ''}.</b> <a href="#/tasks">Topshiriqlarni ochish →</a></div></div>` : ''; })()}
         ${notTaken.length && A.can('attendance') ? `<div class="alert info">${A.icon('check')}<div><b>Bugun davomati olinmagan guruhlar (${notTaken.length}):</b> ${notTaken
           .map((g) => `<a href="#/attendance?tab=take&group=${g.id}">${esc(A.groupName(g))}</a> <span class="muted">(${A.timeName(g.time)}, ${esc(A.userName(g.teacher))})</span>`).join(' · ')}</div></div>` : ''}
         <div class="stats">

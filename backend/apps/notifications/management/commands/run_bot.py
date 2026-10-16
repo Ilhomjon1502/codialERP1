@@ -12,6 +12,7 @@ from django.core.management.base import BaseCommand
 from django.db import close_old_connections
 
 from apps.notifications import reminders, services, webapp
+from apps.tasks import services as tasks
 
 log = logging.getLogger(__name__)
 
@@ -34,11 +35,14 @@ class Command(BaseCommand):
         offset, last_tick = None, 0.0
         while True:
             try:
-                params = {"timeout": 20, "allowed_updates": '["message"]'}
+                params = {"timeout": 20, "allowed_updates": '["message", "callback_query"]'}
                 if offset:
                     params["offset"] = offset
                 for upd in services.api("getUpdates", **params):
                     offset = upd["update_id"] + 1
+                    if upd.get("callback_query"):  # xabardagi tugma (masalan topshiriq «✅ Bajarildi»)
+                        self.on_callback(upd["callback_query"])
+                        continue
                     msg = upd.get("message") or {}
                     chat = (msg.get("chat") or {}).get("id")
                     if chat and msg.get("chat", {}).get("type") == "private":
@@ -48,7 +52,23 @@ class Command(BaseCommand):
                     last_tick = time.monotonic()
                     close_old_connections()
                     reminders.lesson_starts()
+                    tasks.due_reminders()
                 services.send_pending()
             except Exception:  # noqa: BLE001 — tarmoq xatosi botni to'xtatmasin
                 log.exception("Bot siklida xato")
                 time.sleep(10)
+
+    def on_callback(self, cb):
+        data, chat = cb.get("data") or "", (cb.get("from") or {}).get("id")
+        text = "Noma'lum amal"
+        if data.startswith("td:") and chat:
+            close_old_connections()
+            text = tasks.done_from_telegram(chat, data[3:])
+        try:
+            services.api("answerCallbackQuery", callback_query_id=cb["id"], text=text)
+            msg = cb.get("message") or {}
+            if text.startswith("✅") and msg.get("message_id"):  # tugma qayta bosilmasin
+                services.api("editMessageReplyMarkup", chat_id=msg["chat"]["id"], message_id=msg["message_id"], reply_markup=json.dumps({"inline_keyboard": []}))
+        except Exception:  # noqa: BLE001
+            log.exception("Callback javobi yuborilmadi")
+

@@ -102,7 +102,9 @@
       document.head.appendChild(sc);
     });
     const wa = window.Telegram && window.Telegram.WebApp;
-    const route = q.get('tg') === 'attendance' ? `#/attendance?tab=take${q.get('group') ? `&group=${encodeURIComponent(q.get('group'))}` : ''}` : '#/dashboard';
+    const tg = q.get('tg');
+    const route = tg === 'attendance' ? `#/attendance?tab=take${q.get('group') ? `&group=${encodeURIComponent(q.get('group'))}` : ''}`
+      : tg === 'tasks' ? `#/tasks${q.get('id') ? `?open=${encodeURIComponent(q.get('id'))}` : ''}` : '#/dashboard';
     history.replaceState(null, '', location.pathname + route);
     if (!wa || !wa.initData) return; // oddiy brauzerda ochilgan — odatdagi kirish
     A.inTelegram = true;
@@ -121,5 +123,6 @@
     A.S = Object.assign(A.emptyStore(), b, { currentUser: b.me.id });
     A.version++;
     await A.reloadPending().catch(() => {});
+    if (A.reloadTaskSummary) await A.reloadTaskSummary().catch(() => {});
   };
 })(window.App);

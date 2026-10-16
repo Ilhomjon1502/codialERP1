@@ -14,6 +14,7 @@ EVENTS = [
     ("daily_report", "Kunlik hisobot (19:00)"),
     ("lesson_start", "Dars boshlandi — davomat olish vaqti"),
     ("morning_plan", "Ertalabki ish rejasi (8:30): to'lovlar, sinov darslari, qo'ng'iroqlar"),
+    ("task", "Topshiriqlar: yangi, eslatma, bajarildi"),
 ]
 EVENT_KEYS = [k for k, _ in EVENTS]
 

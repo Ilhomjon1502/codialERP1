@@ -66,6 +66,7 @@ INSTALLED_APPS = [
     "apps.notifications",
     "apps.ai_assistant",
     "apps.importer",
+    "apps.tasks",
 ]
 
 MIDDLEWARE = [

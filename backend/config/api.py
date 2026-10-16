@@ -13,6 +13,7 @@ from apps.notifications import views as notif
 from apps.payroll import views as pay
 from apps.references import views as ref
 from apps.reports import views as rep
+from apps.tasks import views as tasks
 
 router = DefaultRouter(trailing_slash=True)
 router.include_root_view = False
@@ -50,6 +51,7 @@ router.register("creditor-transactions", fin.CreditorTxViewSet, basename="credit
 router.register("kpi-rates", pay.KPIRateViewSet, basename="kpi-rate")
 router.register("salary-assignments", pay.SalaryAssignmentViewSet, basename="salary-assignment")
 router.register("salary-payouts", pay.SalaryPayoutViewSet, basename="salary-payout")
+router.register("tasks", tasks.StaffTaskViewSet, basename="task")
 
 urlpatterns = [
     path("auth/csrf/", acc.CsrfView.as_view()),

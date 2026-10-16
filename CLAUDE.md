@@ -25,6 +25,7 @@
 | **M9** — AI yordamchi (Bosh menejer): Gemini → SQL → server tekshiruvi → jadval/diagramma, ma'lumot LLM'ga bormaydi | ✅ 2026-10-14, 134 test |
 | **M10** — AppSheet importi: faqat faol shartnomalar + kerakli talaba/guruh/ustoz, qarzsiz (`import_appsheet`, sinov rejimi standart) | ✅ 2026-10-14, 140 test; sinov: 73 shartnoma, 21 guruh, xatosiz |
 | **M11** — haqiqiy ishga tushirish: alohida sinov muhiti yo'q, hozirgi erp.codialinfo.uz haqiqiy tizim bo'ladi; `prepare_production` (demo tozalash), takroriy importda tugagan shartnomalarni yopish, `send_invites`, `/api/v1/health/` + `deploy/healthcheck.sh` | ⏳ kod tayyor 2026-10-14 (145 test); serverda tozalash buyurtmachi tasdig'idan keyin; o'tish kuni 2026-10-31/11-01 |
+| **Topshiriqlar** (2026-10-16) — xodimlar bir-biriga topshiriq beradi, bot eslatadi (`apps/tasks`, `docs/user_guide/topshiriqlar.md`) | ✅ |
 | 18-bo'limdagi ochiq savollar | ⏳ takliflar `docs/architecture.md` 7-bo'limda; buyurtmachi javob bermasa takliflar qo'llanadi. 3-savol yopildi: 50% chegirma bo'limi olib tashlandi |
 | Domen `codialinfo.uz` | ✅ buyurtmachiniki (ahost.uz). DNS: A `erp` → `77.42.9.23` (2026-10-13), Let's Encrypt SSL. Asosiy sayt (`@`, `www` — Vercel) va pochta yozuvlariga tegilmaydi |
 | Pochta (SMTP) | ✅ 2026-10-13: Gmail (`ilhomjonibragimov1502@gmail.com`, App password `deploy/.env` da). Qayta sozlash: serverda `bash /srv/codial-test/deploy/set-smtp.sh` (parolni o'zi so'raydi) |
@@ -177,6 +178,7 @@ backend/
                          + M6: TeacherEvaluation, ParentCall; export.py (.xlsx)
     payroll/       ✅ M5  KPIRate, SalaryAssignment, SalaryPayout; compute() (oylik hisobi), demo.py
     reports/       ✅ M7  foyda, oylik statistika, voronka, birinchi to'lovchilar (modelsiz)
+    tasks/         ✅    StaffTask — topshiriqlar va bot eslatmalari (2026-10-16)
     importer/      ✅ M10 reader.py, services.py (faol shartnomalar importi), import_appsheet buyrug'i
     notifications/ ✅ M8  Telegram: TelegramLink, Outbox; run_bot, notify_attendance, daily_report
     ai_assistant/  ✅ M9  AIQuery (jurnal); analytics.py (view'lar), guard.py (SQL xavfsizligi), providers.py, services.py

@@ -437,7 +437,8 @@ th.num { text-align: right; }
   .tbl:not(.perm) tfoot td:empty { display: none; }
   .filters { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .filters > * { width: 100%; min-width: 0; }
-  .filters > input[type="search"], .filters > .grow { grid-column: 1 / -1; }
+  .filters > input[type="search"], .filters > .grow, .filters > .seg { grid-column: 1 / -1; }
+  .filters > .seg { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
   .page-head { margin-bottom: 14px; gap: 10px; }
   .page-head .actions { width: 100%; }
   .page-head .actions .btn { flex: 1; }
@@ -522,3 +523,26 @@ button[disabled] { cursor: not-allowed; }
   .sched .sched-help { display: none; }
 }
 
+
+/* ---- Topshiriqlar ---- */
+.task-list { display: flex; flex-direction: column; gap: 10px; }
+.task-card { background: #fff; border: 1px solid var(--line); border-left: 4px solid var(--blue); border-radius: 12px; padding: 12px 14px; box-shadow: var(--shadow); cursor: pointer; }
+.task-card:hover { border-color: #cfd8e3; }
+.task-card.tone-red { border-left-color: var(--red); }
+.task-card.tone-orange { border-left-color: var(--orange); }
+.task-card.tone-green { border-left-color: var(--green); }
+.task-card.tone-gray { border-left-color: #b9bfc8; opacity: 0.85; }
+.task-top { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+.task-top b { font-size: 15px; }
+.task-desc { color: var(--ink-2); margin: 4px 0 6px; white-space: pre-wrap; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.modal .task-card { box-shadow: none; cursor: default; }
+.modal .task-desc { display: block; -webkit-line-clamp: unset; }
+.task-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; color: var(--ink-2); margin-top: 4px; }
+.task-meta span { display: inline-flex; gap: 4px; align-items: center; }
+.task-meta .ic { width: 14px; height: 14px; }
+.tone-red .t-due { color: var(--red); font-weight: 600; }
+.tone-orange .t-due { color: var(--orange); font-weight: 600; }
+.task-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+@media (max-width: 900px) {
+  .task-actions .btn { flex: 1 1 auto; }
+}
