@@ -9,6 +9,6 @@ mkdir -p "$OUT"
 cd "$DIR"
 FILE="$OUT/codial-$ENV_NAME-$(date +%Y%m%d-%H%M).sql.gz"
 # Baza nomi va foydalanuvchi konteynerning o'z muhitidan olinadi
-docker compose --env-file .env exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" --no-owner' | gzip > "$FILE"
+docker compose --env-file .env exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" --no-owner' < /dev/null | gzip > "$FILE"
 find "$OUT" -name "*.sql.gz" -mtime +30 -delete
 echo "$(date '+%F %T') zaxira: $FILE ($(du -h "$FILE" | cut -f1))"
