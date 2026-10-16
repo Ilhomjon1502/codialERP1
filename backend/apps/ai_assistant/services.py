@@ -11,7 +11,7 @@ from django.conf import settings
 from django.utils import timezone
 from rest_framework.exceptions import Throttled, ValidationError
 
-from . import analytics, guard, providers
+from . import analytics, context, guard, providers
 from .models import AIQuery
 
 CHART_TYPES = {"bar", "line", "pie", "doughnut", "none"}
@@ -41,6 +41,9 @@ EXAMPLES = [
      "SELECT teacher_name, COUNT(*) AS qatorlar, ROUND(100.0 * SUM(CASE WHEN status = '1' THEN 1 ELSE 0 END) / COUNT(*), 1) AS davomat_foiz "
      "FROM analytics_attendance WHERE ym = '{ym}' AND status <> '-' GROUP BY teacher_name ORDER BY davomat_foiz DESC",
      {"type": "bar", "x": "teacher_name", "y": ["davomat_foiz"]}),
+    ("Bugun qaysi guruhlarda davomat olinmadi?",
+     "SELECT group_name, teacher_name, lesson_time, students FROM analytics_lessons WHERE date = '{today}' AND started = 1 AND taken = 0 ORDER BY start_time",
+     {"type": "none"}),
 ]
 
 
@@ -54,12 +57,13 @@ def _months_back(d, n):
 def examples():
     today = timezone.localdate()
     ym, ym6 = f"{today:%Y-%m}", _months_back(today, 5)
-    return [(q, sql.format(ym=ym, ym6=ym6), chart) for q, sql, chart in EXAMPLES]
+    return [(q, sql.format(ym=ym, ym6=ym6, today=f"{today:%Y-%m-%d}"), chart) for q, sql, chart in EXAMPLES]
 
 
 def system_prompt():
     today = timezone.localdate()
-    dialect = "PostgreSQL 16" if guard.dialect() == "postgres" else "SQLite"
+    pg = guard.dialect() == "postgres"
+    dialect, like = ("PostgreSQL 16", "ILIKE") if pg else ("SQLite", "LIKE")
     ex = "\n\n".join(f"Savol: {q}\nJavob: {json.dumps({'sql': sql, 'title': q, 'chart': chart, 'note': ''}, ensure_ascii=False)}" for q, sql, chart in examples())
     return f"""Siz Codial IT o'quv markazi (Farg'ona) ERP tizimining ma'lumotlar tahlilchisisiz. Bosh menejer o'zbek tilida savol beradi.
 Vazifangiz — savolga javob beradigan BITTA SQL SELECT so'rovini yozish. So'rovni server bajaradi va natijani menejerga o'zi ko'rsatadi; siz ma'lumotni ko'rmaysiz.
@@ -73,12 +77,22 @@ Qoidalar:
 - Ustun nomlarini tushunarli o'zbekcha snake_case aliaslar bilan bering (tolovlar, soni, foiz ...). ORDER BY qo'ying. Ro'yxat so'ralsa LIMIT 100 dan oshmasin.
 - Foiz hisoblashda 100.0 ga ko'paytiring (butun bo'linish bo'lmasin) va ROUND(..., 1).
 - Faol talabalar/shartnomalar: analytics_contracts.status = 'Faol'. Qarzdor: debt > 0.
+- Guruh nomi 'Kurs / #raqam' ko'rinishida (masalan 'Flutter / #14'). Menejer «flutter14», «flutter 14-guruh», «14-flutter» deb yozsa — quyidagi
+  MA'LUMOTLAR HOLATI dagi aniq nomni ishlating: group_name = 'Flutter / #14'. Kurs nomida ham shunday — ro'yxatdagi aniq nom.
+- Odam ismi (ustoz, xodim, talaba) bo'yicha qidirishda to'liq ism bilan = qilmang: har bir so'zni alohida {like} '%so'z%' bilan (AND).
+  Ustoz ismi ro'yxatda bo'lsa — o'sha yozilishini ishlating.
+- «Davomat olinmadi / olinmagan darslar» — analytics_lessons (started = 1 AND taken = 0). analytics_attendance dagi status '-' bu «olinmagan» EMAS.
+- «Eng ko'p / eng kam … kim» savollarida LIMIT 5 qo'ying (tenglar ham ko'rinsin) va o'sha sonli ustunni ko'rsating.
+- Bo'sh natija ehtimoli bo'lsa ham (masalan to'lovlar hali yo'q) to'g'ri SQL yozing; server menejerga sababini o'zi tushuntiradi.
 - Foyda = to'lovlar (analytics_payments.amount) − xarajatlar (analytics_expenses, kind = 'Xarajat', period_ym bo'yicha) − hisoblangan oyliklar (analytics_salaries.total).
 - Savol tushunarsiz yoki ma'lumotlarda javob yo'q bo'lsa sql bo'sh bo'lsin va note da sababini o'zbekcha yozing.
 
 Javobni faqat JSON ko'rinishida qaytaring:
 {{"sql": "...", "title": "natija sarlavhasi (o'zbekcha, qisqa)", "chart": {{"type": "bar|line|pie|doughnut|none", "x": "ustun", "y": ["sonli ustun", ...]}}, "note": "ixtiyoriy qisqa izoh"}}
 Diagramma: vaqt (oy) bo'yicha — line, toifalar bo'yicha taqqoslash — bar, ulushlar (≤ 8 toifa) — doughnut, ro'yxat yoki bitta raqam — none.
+
+MA'LUMOTLAR HOLATI (bugun; talabalar ma'lumoti berilmaydi):
+{context.data_context()}
 
 VIEW'LAR:
 {analytics.schema_text()}
@@ -115,13 +129,18 @@ def _chart(raw, columns):
     return {"type": raw["type"], "x": x, "y": ys[:4]}
 
 
-def _result(q, data):
+def _result(q, data, explain=None):
     return {
         "id": q.id, "question": q.question, "sql": q.sql, "title": q.title, "note": q.note, "status": q.status, "error": q.error,
         "chart": q.chart or {"type": "none"}, "uses_pii": q.uses_pii, "created_at": q.created_at,
         "columns": data["columns"] if data else [], "rows": data["rows"] if data else [], "truncated": bool(data and data["truncated"]),
-        "row_count": q.row_count, "ms": {"llm": q.llm_ms, "db": q.db_ms},
+        "row_count": q.row_count, "ms": {"llm": q.llm_ms, "db": q.db_ms}, "explain": explain or [],
     }
+
+
+def _explain(q, data):
+    """Natija bo'sh bo'lsa — sababi (ekranda)."""
+    return context.diagnose(q.sql)["lines"] if data and not data["rows"] and q.sql else []
 
 
 def ask(user, question):
@@ -133,34 +152,49 @@ def ask(user, question):
     check_limit(user)
     q = AIQuery(user=user, question=question, provider=settings.AI_PROVIDER, model=providers.model_name())
     system, prompt = system_prompt(), f"{_history(user)}Savol: {question}"
-    data, t0 = None, time.monotonic()
+    data, chart, t0 = None, None, time.monotonic()
     try:
-        for attempt in range(2):  # xato bo'lsa — xato matni bilan bir marta qayta so'raladi
+        for attempt in range(2):  # SQL xato yoki natija bo'sh (nom topilmadi) bo'lsa — sababi bilan bir marta qayta so'raladi
             q.llm_calls += 1
             out = providers.complete_json(system, prompt, strong=attempt > 0)  # qayta so'rashda — kuchliroq model
-            q.sql, q.title, q.note = (out.get("sql") or "").strip(), str(out.get("title") or "")[:200], str(out.get("note") or "")[:2000]
-            if not q.sql:
-                q.status = AIQuery.Status.NO_SQL
+            sql = (out.get("sql") or "").strip()
+            if not sql:
+                if data is None:
+                    q.sql, q.title, q.note, q.status = "", str(out.get("title") or "")[:200], str(out.get("note") or "")[:2000], AIQuery.Status.NO_SQL
                 break
             try:
-                sql, q.uses_pii = guard.validate(q.sql)
-                q.sql = sql
-                data = guard.execute(sql)
-                q.status, q.error = AIQuery.Status.OK, ""
-                break
+                clean, pii = guard.validate(sql)
+                res = guard.execute(clean)
             except guard.Blocked as e:
+                if data is not None:  # bo'sh natijani tuzatish urinishi xato — avvalgi natija qoladi
+                    break
+                q.sql, q.title, q.note = sql, str(out.get("title") or "")[:200], str(out.get("note") or "")[:2000]
                 q.status, q.error = (AIQuery.Status.ERROR if str(e).startswith("Bajarishda") else AIQuery.Status.BLOCKED), str(e)[:400]
                 if attempt == 0 and time.monotonic() - t0 < 12:  # qayta so'rashga vaqt bo'lsa (sahifa 60 s dan oshmasin)
-                    prompt = f"{prompt}\n\nSizning SQL'ingiz:\n{q.sql}\nXato: {e}\nTuzatilgan SQL'ni xuddi shu JSON ko'rinishida qaytaring."
+                    prompt = f"{prompt}\n\nSizning SQL'ingiz:\n{sql}\nXato: {e}\nTuzatilgan SQL'ni xuddi shu JSON ko'rinishida qaytaring."
+                    continue
+                break
+            if data is not None and not res["rows"]:  # tuzatilgan SQL ham bo'sh — birinchisi qoladi
+                break
+            q.sql, q.uses_pii, q.title, q.note = clean, pii, str(out.get("title") or "")[:200], str(out.get("note") or "")[:2000]
+            q.status, q.error, data, chart = AIQuery.Status.OK, "", res, out.get("chart")
+            if res["rows"] or attempt > 0 or time.monotonic() - t0 >= 12:
+                break
+            hint = context.diagnose(clean)["retry"]
+            if not hint:
+                break
+            prompt = (f"{prompt}\n\nSizning SQL'ingiz:\n{clean}\nNatija bo'sh chiqdi. {hint}\n"
+                      "Menejer shu qiymatlardan birini nazarda tutgan bo'lsa SQL'ni tuzating, aks holda o'sha SQL'ni qaytaring. Xuddi shu JSON ko'rinishida.")
     except providers.ProviderError as e:
-        q.status, q.error = AIQuery.Status.ERROR, str(e)[:400]
+        if data is None:
+            q.status, q.error = AIQuery.Status.ERROR, str(e)[:400]
     q.model = providers.used_model()
     q.llm_ms = int((time.monotonic() - t0) * 1000) - (data["ms"] if data else 0)
     if data:
         q.db_ms, q.row_count, q.truncated = data["ms"], len(data["rows"]), data["truncated"]
-        q.chart = _chart(out.get("chart"), data["columns"])
+        q.chart = _chart(chart, data["columns"])
     q.save()
-    return _result(q, data)
+    return _result(q, data, _explain(q, data))
 
 
 def rerun(user, q):
@@ -172,7 +206,7 @@ def rerun(user, q):
         data = guard.execute(sql)
     except guard.Blocked as e:
         raise ValidationError({"detail": str(e)}) from None
-    return _result(q, data)
+    return _result(q, data, _explain(q, data))
 
 
 def summary_for_llm(columns, rows, uses_pii):
@@ -198,6 +232,8 @@ def analyze(user, q):
         data = guard.execute(sql)
     except guard.Blocked as e:
         raise ValidationError({"detail": str(e)}) from None
+    if not data["rows"]:
+        raise ValidationError({"detail": "Natija bo'sh — tahlil qiladigan raqam yo'q"})
     system = ("Siz Codial o'quv markazi Bosh menejeriga yordam beradigan tahlilchisiz. Berilgan natija asosida o'zbek tilida 3–6 gapdan iborat qisqa, "
               "aniq tahlil yozing: asosiy xulosa, e'tiborga loyiq farqlar, amaliy tavsiya. Raqamlarni o'ylab topmang. "
               'Javob JSON: {"analysis": "..."}')

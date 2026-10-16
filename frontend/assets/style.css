@@ -307,6 +307,7 @@ th.num { text-align: right; }
 .ai-h { display: flex; flex-direction: column; gap: 2px; padding: 7px 8px; border-radius: 8px; cursor: pointer; color: var(--ink); }
 .ai-h:hover { background: var(--gray-50); text-decoration: none; }
 .ai-big { font-size: 28px; font-weight: 700; margin: 6px 0; }
+.ai-why { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; }
 .msg.bot .chart-box { background: #fff; border-radius: 8px; margin: 8px 0; }
 
 /* ================= Modal va forma ================= */

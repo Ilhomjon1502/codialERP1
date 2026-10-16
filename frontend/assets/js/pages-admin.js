@@ -668,6 +668,12 @@
     if (r.status !== 'ok') return `<div class="alert warn">${A.icon('alert')}<div>${esc(r.error || 'Xatolik')}</div></div>${sql}`;
     const cols = r.columns.map((c, i) => ({ h: c, f: (row) => cell(c, row[i]), cls: r.rows.some((row) => typeof row[i] === 'number') && !RAW_COLS.test(c) ? 'num' : '' }));
     const one = r.rows.length === 1 && r.columns.length === 1;
+    if (!r.rows.length) {
+      // Bo'sh natija: server sababini aytadi (ma'lumot hali yo'q, shartga mos yozuv yo'q, kurs narxi kiritilmagan…)
+      const why = (r.explain || []).map((x) => `<li>${esc(x)}</li>`).join('');
+      return `${r.title ? `<p><b>${esc(r.title)}</b></p>` : ''}${r.note ? `<p class="muted small">${esc(r.note)}</p>` : ''}
+        <div class="alert info">${A.icon('alert')}<div><b>Savolga mos ma'lumot topilmadi.</b>${why ? `<ul class="ai-why">${why}</ul>` : ' Savolni boshqacha yozib ko\'ring yoki davrni o\'zgartiring.'}</div></div>${sql}`;
+    }
     const tools = r.analysis || r.analyzing ? '' : `<button class="btn sm" data-act="ai-analyze" data-id="${r.id}" ${ai.configured ? '' : 'disabled'}>${A.icon('sparkle')} Tahlil</button>`;
     return `${r.title ? `<p><b>${esc(r.title)}</b></p>` : ''}${r.note ? `<p class="muted small">${esc(r.note)}</p>` : ''}
       ${one ? `<p class="ai-big">${cell(r.columns[0], r.rows[0][0])}</p>` : `${chartOf(r)}${A.table(cols, r.rows, { empty: "Natija bo'sh" })}`}

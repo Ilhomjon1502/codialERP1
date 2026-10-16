@@ -205,3 +205,61 @@ def test_model_chain_strong_first_on_retry(settings):
     assert providers.model_chain()[0] == "gemini-3.5-flash-lite"
     assert providers.model_chain(strong=True)[:2] == ["gemini-3.7-flash", "gemini-3.8-flash"]
     assert len(set(providers.model_chain(strong=True))) == len(providers.model_chain(strong=True))  # takrorsiz
+
+
+# ------------------------------------------------------------------ sifat: dars jadvali, bo'sh natija izohi, ma'lumotlar holati
+
+def test_lessons_view_shows_missing_attendance(fin):  # noqa: F811
+    import datetime
+
+    from django.utils import timezone
+
+    from apps.education.models import Attendance, Group
+    from apps.references.models import DayPattern
+
+    today = timezone.localdate()
+    g0 = fin["contract"].group
+    g = Group.objects.create(branch=fin["branch"], course=g0.course, day_pattern=DayPattern.objects.create(name="", weekdays=[1, 2, 3, 4, 5, 6, 7]),
+                             time=g0.time, room=g0.room, teacher=fin["teacher"], start_date=today - datetime.timedelta(days=6), number=2)
+    c = fin["contract"]
+    c.group, c.start_date = g, today - datetime.timedelta(days=6)
+    c.save()
+    Attendance.objects.create(branch=fin["branch"], group=g, course=g.course, contract=c, day_pattern=g.day_pattern,
+                              date=today - datetime.timedelta(days=2), status="1", teacher=fin["teacher"])
+    rows = _rows("SELECT date, weekday, taken, came, students, started FROM analytics_lessons WHERE group_name = 'Frontend / #2' ORDER BY date")
+    assert len(rows) == 3 and [r[2] for r in rows].count(1) == 1  # tizimdagi birinchi davomat kunidan: 3 kun, bittasida olingan
+    taken = next(r for r in rows if r[2] == 1)
+    assert str(taken[0])[:10] == str(today - datetime.timedelta(days=2)) and taken[3] == 1 and taken[4] == 1
+    assert rows[0][5] == 1 and rows[0][1] == (today - datetime.timedelta(days=2)).isoweekday()
+    # Dush/Chor/Jum guruhida faqat shu kunlar
+    wd = {r[0] for r in _rows("SELECT weekday FROM analytics_lessons WHERE group_name = 'Frontend / #1'")}
+    assert wd <= {1, 3, 5}
+
+
+def test_empty_result_is_explained_and_retried_with_values(api, fin, llm):  # noqa: F811
+    bm = api(fin["boss"])
+    # 1) Nom noto'g'ri: «flutter14» → bo'sh → mavjud guruh nomlari bilan qayta so'raladi
+    llm["answers"] += [{"sql": "SELECT student_name FROM analytics_contracts WHERE group_name LIKE '%frontend1%'"},
+                       {"sql": "SELECT student_name FROM analytics_contracts WHERE group_name = 'Frontend / #1'", "title": "Guruh talabalari"}]
+    d = bm.post("/api/v1/ai/ask/", {"question": "frontend1 guruhida kimlar bor"}, format="json").json()
+    assert d["status"] == "ok" and d["rows"] == [["Ali Valiyev"]] and d["explain"] == []
+    retry = llm["sent"][1][1]
+    assert "Natija bo'sh" in retry and "'Frontend / #1'" in retry and "Ali Valiyev" not in retry  # faqat guruh nomlari, talaba emas
+    assert AIQuery.objects.latest("created_at").llm_calls == 2
+    # 2) Ma'lumot haqiqatan yo'q: to'lovlar kiritilmagan — qayta so'ralmaydi, sababi ekranda
+    llm["answers"].append({"sql": "SELECT course, SUM(amount) AS s FROM analytics_payments GROUP BY course"})
+    d = bm.post("/api/v1/ai/ask/", {"question": "To'lovlar kurslar bo'yicha"}, format="json").json()
+    assert d["rows"] == [] and any("to'lov kiritilmagan" in x for x in d["explain"]) and AIQuery.objects.latest("created_at").llm_calls == 1
+    assert bm.post(f"/api/v1/ai/{d['id']}/analyze/").status_code == 400  # bo'sh natijani tahlil qilish — LLM chaqirilmaydi
+    # 3) Qarz 0: kurs narxi kiritilmagan
+    Contract.objects.filter(pk=fin["contract"].pk).update(opening_balance=0)
+    llm["answers"].append({"sql": "SELECT student_name, debt FROM analytics_contracts WHERE status = 'Faol' AND debt > 0 ORDER BY debt DESC LIMIT 5"})
+    d = bm.post("/api/v1/ai/ask/", {"question": "eng ko'p qarzi bor o'quvchi kim"}, format="json").json()
+    assert d["rows"] == [] and any("debt > 0" in x for x in d["explain"]) and any("Kurs narxlari kiritilmagan" in x for x in d["explain"])
+    assert bm.post(f"/api/v1/ai/{d['id']}/run/").json()["explain"] == d["explain"]  # qayta bajarishda ham
+
+
+def test_data_context_has_names_but_no_student_data(fin):  # noqa: F811
+    p = services.system_prompt()
+    assert "Frontend / #1" in p and "Emirat g'azna" in p and "Shartnomalar: 1 ta" in p and "analytics_lessons" in p
+    assert "Ali Valiyev" not in p and "901112233" not in p

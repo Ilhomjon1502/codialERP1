@@ -11,7 +11,11 @@ Faqat **Bosh menejer** uchun. Menyu → **AI yordamchi**.
 ## Qanday ishlaydi
 
 1. Savolni o'zbekcha yozasiz. Masalan: «O'tgan oyda Instagram'dan kelgan lidlar konversiyasi qancha?», «Qaysi guruhda qarzdorlik eng ko'p?», «Oxirgi 6 oyda foyda oyma-oy».
-2. Gemini'ga **faqat savolingiz** va jadvallar **tuzilmasi** (ustun nomlari va tavsiflari) boradi. U SQL so'rovini yozadi.
+2. Gemini'ga savolingiz, jadvallar **tuzilmasi** (ustun nomlari va tavsiflari) va **ma'lumotlar holati** boradi. Ma'lumotlar holati — bu:
+   - yozuvlar soni (masalan «to'lovlar: 0 ta», «shartnomalar: 73 ta»);
+   - kurslar, guruhlar (ustozi, dars kunlari va vaqti bilan), xodimlar, lid manbalari, g'aznalar va xarajat kategoriyalari nomlari.
+
+   Shu ro'yxat tufayli «flutter14» deb yozsangiz ham u 'Flutter / #14' guruhini topadi. **Talabalar, ota-onalar, telefonlar va qarzlar Gemini'ga bormaydi.** Gemini SQL so'rovini yozadi.
 3. Server SQL'ni tekshiradi:
    - faqat o'qish;
    - faqat hisobot ko'rinishlari (`analytics_*`);
@@ -25,6 +29,16 @@ Faqat **Bosh menejer** uchun. Menyu → **AI yordamchi**.
    - aks holda faqat yig'ma raqamlar (qatorlar soni, yig'indi, o'rtacha) yuboriladi.
 
 Diqqat: savolga talaba ismini yozsangiz, savol matni Gemini'ga boradi.
+
+**Natija bo'sh chiqsa**, tizim sababini o'zi aytadi:
+- bu bo'limda hali yozuv yo'q (masalan, to'lovlar kiritilmagan);
+- qaysi shartga mos yozuv yo'q (masalan «debt > 0»);
+- kurs narxlari kiritilmagan, shuning uchun qarz 0;
+- shu oy uchun dars soni tasdiqlanmagan.
+
+Guruh, kurs yoki ustoz nomi topilmasa, Gemini'dan mavjud nomlar ro'yxati bilan bir marta qayta so'raladi. Bo'sh natijada «Tahlil» tugmasi chiqmaydi.
+
+**Davomat olinmagan darslar:** «Bugun qaysi guruhlarda davomat olinmadi?» kabi savollar dars jadvali bo'yicha javob beradi (`analytics_lessons`). Darslar tizimda birinchi davomat olingan kundan boshlab hisoblanadi.
 
 ## Qulayliklar
 

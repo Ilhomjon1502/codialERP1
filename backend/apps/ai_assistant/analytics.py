@@ -22,6 +22,15 @@ def _fns(vendor):
             "LD": lambda c: f"CAST(({c} AT TIME ZONE 'Asia/Tashkent') AS DATE)",
             "HM": lambda c: f"to_char({c}, 'HH24:MI')",
             "TODAY": "CAST((now() AT TIME ZONE 'Asia/Tashkent') AS DATE)",
+            "NOW_HM": "to_char(now() AT TIME ZONE 'Asia/Tashkent', 'HH24:MI')",
+            # guruh × kun: guruh boshlangan va tizimda birinchi davomat olingan kundan (ko'pi bilan 120 kun oldin) bugungacha
+            "DAYS_WITH": "",
+            "DAYS_JOIN": "CROSS JOIN LATERAL (SELECT CAST(gs AS DATE) AS x FROM generate_series("
+                         "CAST(GREATEST(g.start_date, CAST((now() AT TIME ZONE 'Asia/Tashkent') AS DATE) - 120, "
+                         "COALESCE((SELECT MIN(fa.date) FROM education_attendance fa WHERE NOT fa.is_deleted), CAST((now() AT TIME ZONE 'Asia/Tashkent') AS DATE))) AS timestamp), "
+                         "CAST(LEAST(COALESCE(g.end_date, CAST((now() AT TIME ZONE 'Asia/Tashkent') AS DATE)), CAST((now() AT TIME ZONE 'Asia/Tashkent') AS DATE)) AS timestamp), "
+                         "interval '1 day') gs) d",
+            "ISODOW": lambda c: f"CAST(EXTRACT(ISODOW FROM {c}) AS INTEGER)",
         }
     return {
         "Y": lambda c: f"CAST(strftime('%Y', {c}) AS INTEGER)",
@@ -30,6 +39,12 @@ def _fns(vendor):
         "LD": lambda c: f"date({c}, '+5 hours')",
         "HM": lambda c: f"substr({c}, 1, 5)",
         "TODAY": "date('now', '+5 hours')",
+        "NOW_HM": "strftime('%H:%M', 'now', '+5 hours')",
+        "DAYS_WITH": "WITH RECURSIVE d(x) AS (SELECT MAX(date('now', '+5 hours', '-120 days'), "
+                     "COALESCE((SELECT MIN(fa.date) FROM education_attendance fa WHERE NOT fa.is_deleted), date('now', '+5 hours'))) UNION ALL "
+                     "SELECT date(x, '+1 day') FROM d WHERE x < date('now', '+5 hours'))",
+        "DAYS_JOIN": "JOIN d ON d.x >= g.start_date AND (g.end_date IS NULL OR d.x <= g.end_date)",
+        "ISODOW": lambda c: f"CASE strftime('%w', {c}) WHEN '0' THEN 7 ELSE CAST(strftime('%w', {c}) AS INTEGER) END",
     }
 
 
@@ -149,6 +164,41 @@ LEFT JOIN references_attendancestatus st ON st.code = a.status
 LEFT JOIN accounts_user tu ON tu.id = a.teacher_id
 LEFT JOIN accounts_user su ON su.id = a.supporter_id
 WHERE NOT a.is_deleted"""),
+
+        ("analytics_lessons", "Dars jadvali bo'yicha bo'lishi kerak bo'lgan darslar: guruh × dars kuni — tizimda birinchi davomat olingan kundan "
+         "(ko'pi bilan 120 kun oldin) bugungacha. "
+         "Davomat OLINMAGAN darslar: taken = 0 AND started = 1. analytics_attendance da faqat olingan davomat bor.", [
+            *[(c, d, False) for c, d in YMD], ("weekday", "hafta kuni: 1 Dushanba … 7 Yakshanba", False),
+            ("branch", "filial", False), ("course", "kurs", False), ("group_id", "guruh ID", False), ("group_name", "guruh nomi", False),
+            ("teacher_name", "guruh ustozi", False), ("supporter_name", "guruh yordamchisi", False),
+            ("lesson_time", "dars vaqti, masalan '14:00-16:00'", False), ("start_time", "dars boshlanishi 'HH:MM'", False),
+            ("started", "1 — dars boshlangan (o'tgan kun yoki bugun boshlanish vaqti o'tgan), 0 — hali boshlanmagan", False),
+            ("students", "shu kuni guruhdagi faol shartnomalar (talabalar) soni", False),
+            ("marked", "davomat belgilangan talabalar soni", False), ("came", "keldi ('1')", False), ("excused", "sababli ('0')", False),
+            ("absent", "besabab kelmadi ('X')", False), ("taken", "1 — davomat olingan, 0 — olinmagan", False),
+        ], f"""{f['DAYS_WITH']}
+SELECT y.*, CASE WHEN y.marked > 0 THEN 1 ELSE 0 END AS taken
+FROM (
+  SELECT d.x AS date, {f['Y']('d.x')} AS year, {f['M']('d.x')} AS month, {f['YM']('d.x')} AS ym, {f['ISODOW']('d.x')} AS weekday,
+    b.name AS branch, co.name AS course, g.id AS group_id, {_gn('co', 'g')} AS group_name, tu.full_name AS teacher_name, su.full_name AS supporter_name,
+    {f['HM']('lt.start_time')} || '-' || {f['HM']('lt.end_time')} AS lesson_time, {f['HM']('lt.start_time')} AS start_time,
+    CASE WHEN d.x < {f['TODAY']} THEN 1 WHEN d.x = {f['TODAY']} AND {f['HM']('lt.start_time')} <= {f['NOW_HM']} THEN 1 ELSE 0 END AS started,
+    (SELECT COUNT(*) FROM education_contract c WHERE c.group_id = g.id AND NOT c.is_deleted AND c.start_date <= d.x
+       AND (c.end_date IS NULL OR c.end_date >= d.x)) AS students,
+    COALESCE(att.marked, 0) AS marked, COALESCE(att.came, 0) AS came, COALESCE(att.excused, 0) AS excused, COALESCE(att.absent, 0) AS absent
+  FROM education_group g
+  {f['DAYS_JOIN']}
+  JOIN references_branch b ON b.id = g.branch_id
+  JOIN references_course co ON co.id = g.course_id
+  JOIN references_daypattern dp ON dp.id = g.day_pattern_id
+  LEFT JOIN references_lessontime lt ON lt.id = g.time_id
+  LEFT JOIN accounts_user tu ON tu.id = g.teacher_id
+  LEFT JOIN accounts_user su ON su.id = g.supporter_id
+  LEFT JOIN (SELECT group_id, date, COUNT(*) AS marked, SUM(CASE WHEN status = '1' THEN 1 ELSE 0 END) AS came,
+               SUM(CASE WHEN status = '0' THEN 1 ELSE 0 END) AS excused, SUM(CASE WHEN status = 'X' THEN 1 ELSE 0 END) AS absent
+             FROM education_attendance WHERE NOT is_deleted GROUP BY group_id, date) att ON att.group_id = g.id AND att.date = d.x
+  WHERE NOT g.is_deleted AND ',' || dp.weekdays_key || ',' LIKE '%,' || CAST({f['ISODOW']('d.x')} AS VARCHAR) || ',%'
+) y"""),
 
         ("analytics_leads", "Lidlar (murojaatlar). Konversiya = has_contract = 1 bo'lgan lidlar ulushi. Lid sanasi — yaratilgan kun.", [
             ("lead_id", "lid ID", False), ("created_date", "lid yaratilgan sana", False), ("year", "yil", False), ("month", "oy (1–12)", False), ("ym", "lid oyi 'YYYY-MM'", False),
