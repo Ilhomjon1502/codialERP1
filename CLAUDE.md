@@ -62,6 +62,17 @@
   - `notify_attendance` — */10;
   - `propose_lesson_frequencies` — har oy 1-kuni.
 
+**2026-10-18 da qo'shilganlar** (ishga tushirish kuni; hammasi `main` da va serverda):
+- **Menyu:** chap menyu ☰ bilan ikonkalarga yig'iladi (`body.side-collapsed`, holati `localStorage`); telefonda yon panel (`A.act.drawer`). «Baholash (ustozni)» menyudan olib tashlandi (`A.NAV`; API va ma'lumot qoldi).
+- **Dars jadvali** (`pages-admin.js`): bo'sh joyni bosish → «Yangi guruh» formasi (kun, vaqt, xona/ustoz oldindan to'ldirilgan, `A.act['sched-add']`, `A.groupForm(null, preset)`).
+- **Guruh formasi** (`pages-edu.js`): dars vaqti — Sozlamalardagi vaqtlar yoki «＋ Boshqa vaqt» (yangi `LessonTime` yaratiladi); xona/ustoz band bo'lsa sariq ogohlantirish, baribir saqlash mumkin (server to'sib qo'ymaydi).
+- **Marketolog roli** (`RoleCode.MARKETOLOG`, migratsiya `accounts/0008`): lidlar to'liq, qolgan bo'limlar ko'rish, topshiriqlar; qo'shimcha ruxsatni BM/FM «Rollar va ruxsatlar»da beradi. Bot (standart): `new_lead`, yangi hodisalar `lead_change` (status o'zgarishi) va `contract_change` (yangi/o'zgargan shartnoma); o'z amali haqida xabar kelmaydi (`notify(exclude=)`). Tahrirlash muddati — 7 kun.
+- **Topshiriqlar:** berilganda/o'zgarganda/bajarilganda/bekor qilinganda xabar xodim sozlamasidan qat'i nazar boradi (`notify(force=True)`), takroriy eslatmalar — sozlamaga ko'ra. Eslatma oynasi ichida berilgan topshiriqda darhol takror yo'q; bir martalik eslatma muddat vaqtida (`tasks.services.due_reminders`). Bot navbatni 5 s da yuboradi (long poll `timeout` 5).
+- **Davomatlar → Statistika** AppSheet kabi: chapda sanalar (sonlari), o'ngda qatorlar (o'quvchi, sana, status, kurs, ustoz, guruh, dars kunlari, KPI, qarz); filtrlar oy/kurs/guruh/o'quvchi; davomat olinmagan sanalar qizil (`/attendance/dates/`, `/attendance/gaps/`, `?date=&course=&search=`). Eski guruh/ustoz jamlamasi — «Jamlama».
+- **Telegram:** `debt_lesson` — dars boshlanishiga 10 daqiqa qolganda Administrator+Hisobchi'ga shu guruhdagi qarzdorlar (`reminders.debt_before_lessons`, bot tick). `run_bot` guruh `chat_id` ni jurnalga yozadi (`GURUH chat_id=…`); Codial ichki guruhi: `-1001530659909` (e'lonlar qo'lda `services.api("sendMessage")` bilan; avtomatik guruh xabarlari hali yo'q — «Ochiq ishlar» 1).
+- **Import** (`apps/importer/extra.py`): yuqorida (M11). `CashMovement.Source.OPENING`.
+- 2026-10-18 kechqurun barcha botga ulangan xodimlarga va ichki guruhga ishga tushish e'loni yuborildi. Botga ulanmaganlar: Akbarxo'ja, Ilhomjon Developer.
+
 **2026-10-14 … 10-16 da qo'shilganlar** (buyurtmachi so'rovlari, hammasi `main` da va serverda):
 - **Dars jadvali** bosh sahifada (xona × vaqt). Blokni bosib guruh vaqtini o'zgartirish mumkin — `pages-admin.js` (`schedHTML`, `sched-edit`), API `/schedule/` (`education/views.py`).
 - **Telegram:**
@@ -94,7 +105,7 @@
 3. Ixtiyoriy: AI'da prognoz (buyurtmachi tilga olgan, boshlanmagan).
 
 **Ish usullari** (tokenni tejash va xatosiz ishlash uchun):
-- **Testlar:** `cd backend && .venv/Scripts/python -m pytest -q` (164 test) va `.venv/Scripts/ruff check .`. Front-end o'zgarsa — `frontend/index.html` dagi `?v=` ni oshiring (hozir `m12-4`).
+- **Testlar:** `cd backend && .venv/Scripts/python -m pytest -q` (168 test) va `.venv/Scripts/ruff check .`. Front-end o'zgarsa — `frontend/index.html` dagi `?v=` ni oshiring (hozir `m12-10`).
 - **Serverga joylash — bitta SSH ulanishda**, skript bilan (server tez-tez ulanishni cheklaydi):
   1. Skriptni scratchpad'ga yozing va `ssh -i ~/.ssh/codial_hetzner root@77.42.9.23 'bash -s' < skript.sh` bilan ishga tushiring.
   2. Skript ichida: `cd /srv/codial-test && git pull && cd deploy && docker compose --env-file .env up -d --build web bot`.
