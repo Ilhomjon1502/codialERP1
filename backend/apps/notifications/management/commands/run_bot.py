@@ -45,6 +45,8 @@ class Command(BaseCommand):
                         continue
                     msg = upd.get("message") or {}
                     chat = (msg.get("chat") or {}).get("id")
+                    if chat and msg.get("chat", {}).get("type") in ("group", "supergroup"):  # guruhga yuborish uchun chat_id ni bilish (jurnalga)
+                        log.warning("GURUH chat_id=%s nomi=%s", chat, (msg.get("chat") or {}).get("title"))
                     if chat and msg.get("chat", {}).get("type") == "private":
                         reply = services.handle_message(chat, msg.get("text", ""), (msg.get("from") or {}).get("username", ""))
                         services.api("sendMessage", chat_id=chat, text=reply)
