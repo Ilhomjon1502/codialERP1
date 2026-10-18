@@ -9,7 +9,7 @@
 
 > **Yangi sessiya: avval pastdagi «Keyingi sessiya uchun (2026-10-18)» blokini o'qing** — u eng so'nggi holat, ochiq ishlar va ish usullari.
 
-**Qisqasi:** prototip ma'qullandi va muzlatildi. **M1–M10 tayyor, tizim haqiqiy ma'lumot bilan ishlayapti**: haqiqiy tizim (`backend/` — Django + DRF API, `frontend/` — prototip ekranlari API'ga ulangan) **Hetzner serverida ishlayapti**. Keyingi ish — **M11 o'tish kuni (2026-11-01)** va buyurtmachining yangi so'rovlari. Telegram bot tokeni (`deploy/set-telegram.sh`) va Gemini kaliti (`deploy/set-ai.sh`) kiritilgan — buni faqat buyurtmachi o'zi qiladi. Buyurtmachi «boshla» deganda boshlanadi. **«50% chegirmalar», «Talaba vazifalari» va «Baholash bo'limi» (ustoz → talaba) olib tashlangan** (buyurtmachi qarori 2026-10-13).
+**Qisqasi:** prototip ma'qullandi va muzlatildi. **M1–M11 tayyor: 2026-10-18 dan haqiqiy tizim ishga tushdi, AppSheet to'xtatildi**: haqiqiy tizim (`backend/` — Django + DRF API, `frontend/` — prototip ekranlari API'ga ulangan) **Hetzner serverida ishlayapti**. Keyingi ish — buyurtmachining yangi so'rovlari. Telegram bot tokeni (`deploy/set-telegram.sh`) va Gemini kaliti (`deploy/set-ai.sh`) kiritilgan — buni faqat buyurtmachi o'zi qiladi. Buyurtmachi «boshla» deganda boshlanadi. **«50% chegirmalar», «Talaba vazifalari» va «Baholash bo'limi» (ustoz → talaba) olib tashlangan** (buyurtmachi qarori 2026-10-13).
 
 | Bosqich | Holat |
 |---|---|
@@ -26,7 +26,7 @@
 | **M8** — Telegram bot: bog'lash, xabarlar navbati, 6 xil xabar, davomat eslatmasi va kunlik hisobot (cron) | ✅ 2026-10-13, 111 test |
 | **M9** — AI yordamchi (Bosh menejer): Gemini → SQL → server tekshiruvi → jadval/diagramma, ma'lumot LLM'ga bormaydi | ✅ 2026-10-14, 134 test |
 | **M10** — AppSheet importi: faqat faol shartnomalar + kerakli talaba/guruh/ustoz, qarzsiz (`import_appsheet`, sinov rejimi standart) | ✅ 2026-10-14, 140 test; sinov: 73 shartnoma, 21 guruh, xatosiz |
-| **M11** — haqiqiy ishga tushirish: alohida sinov muhiti yo'q, hozirgi erp.codialinfo.uz haqiqiy tizim bo'ladi; `prepare_production` (demo tozalash), takroriy importda tugagan shartnomalarni yopish, `send_invites`, `/api/v1/health/` + `deploy/healthcheck.sh` | ⏳ 2026-10-14: demo tozalandi, haqiqiy ma'lumot import qilindi (73 shartnoma, 21 guruh, 7 ustoz), xodimlar ishlayapti; qolgan: o'tish kuni 2026-10-31/11-01 (pastga qarang) |
+| **M11** — haqiqiy ishga tushirish: alohida sinov muhiti yo'q, hozirgi erp.codialinfo.uz haqiqiy tizim bo'ladi; `prepare_production` (demo tozalash), takroriy importda tugagan shartnomalarni yopish, `send_invites`, `/api/v1/health/` + `deploy/healthcheck.sh` | ✅ 2026-10-18: o'tish bajarildi — 83 shartnoma boshlang'ich qarz bilan, 61 ochiq lid, narx/dars soni, KPI, g'azna qoldiqlari (`importer/extra.py`) |
 | **Topshiriqlar** (2026-10-16) — xodimlar bir-biriga topshiriq beradi, bot eslatadi (`apps/tasks`, `docs/user_guide/topshiriqlar.md`) | ✅ |
 | **AI yordamchi sifati** (2026-10-16) — ma'lumotlar holati, bo'sh natija sababi, `analytics_lessons` (`ai_assistant/context.py`) | ✅ 164 test |
 | 18-bo'limdagi ochiq savollar | ⏳ takliflar `docs/architecture.md` 7-bo'limda; buyurtmachi javob bermasa takliflar qo'llanadi. 3-savol yopildi: 50% chegirma bo'limi olib tashlandi |
@@ -47,9 +47,13 @@
 ### Keyingi sessiya uchun (2026-10-18) — eng so'nggi holat
 
 **Serverda (https://erp.codialinfo.uz, `/srv/codial-test`):**
-- Haqiqiy ma'lumot: 73 faol shartnoma, 21 guruh, 7 ustoz (AppSheet'dan, qarzsiz).
+- **2026-10-18 kechqurun haqiqiy ishga tushirildi** (AppSheet o'rniga). Import (`import_appsheet --on 2026-10-19 --commit`, `apps/importer/extra.py`):
+  - 83 faol/rejadagi shartnoma, `opening_balance` = AppSheet `ContractDebt` (28 qarzdor 3 910 727; 55 oldindan to'lagan −22 579 758). Nofaol shartnomalar qarzi ko'chmadi (AppSheet'dagi 3 964 763 dan ~54 ming farq — buyurtmachi qabul qildi);
+  - 61 ochiq lid (1–4, 8) + 109 izoh, 19 lid manbasi; okt–noy kurs narxlari va dars soni (Tasdiqlangan); okt KPI stavkalari;
+  - g'azna qoldiqlari — `CashMovement` manba `opening` (pul turlari bo'yicha): Emirat 750 000, Bosh g'azna 8 222 507;
+  - yangi tizimdagi 14–17.10 davomati (22 qator) o'chirildi (AppSheet qarziga kirgan).
+  - Qayta import qilish **kerak emas** (AppSheet to'xtatildi); qilinsa — `opening_balance` va g'azna qoldig'i Excel holatiga qaytadi.
 - Bosh menejer akkaunti `ilhomjon.office@gmail.com` (buyurtmachi, botga bog'langan). Botga hozir faqat 3 xodim bog'langan.
-- Kurs narxlari va to'lovlar **hali kiritilmagan**, shuning uchun hamma qarz 0. Bu xato emas: hisob 2026-11-01 dan boshlanadi.
 - Zaxiralar: `/srv/backups/codial-test/` (har kuni 03:15).
 - Monitoring: `deploy/healthcheck.sh`, cron */5; xato bo'lsa Telegram'ga (`ALERT_TELEGRAM_CHAT`).
 - Cron:
@@ -86,12 +90,7 @@
    - Guruhdagi «✅ Bajarildi»: `callback_query.from.id` bo'yicha (bu xodimning shaxsiy chat_id si); faqat bajaruvchi yoki Admin/BM bosa oladi.
    - Formada «Guruhga ham yuborilsin» belgisi (standart yoqilgan).
    - Buyurtmachidan so'ralgan: 1) guruhga nimalar chiqsin; 2) kunlik ro'yxat soati; 3) belgi kerakmi.
-2. **O'tish kuni 2026-10-31/11-01.** Oldin zaxira oling. Tartib (batafsil: `docs/user_guide/m11_ishga_tushirish.md`):
-   1. Buyurtmachidan yangi xlsx olinadi → `/srv/import/`.
-   2. `import_appsheet --file … --on 2026-11-01` (sinov), keyin `--commit`.
-   3. Faylni o'chirish.
-   4. `send_invites --send`.
-   5. Bosh sahifa `PLAN` dagi M11 ni ✅ qilish.
+2. Noyabr narxi AppSheet'da yo'q bo'lsa oktyabrniki amal qiladi; noyabr dars soni 1-noyabr cron taklifi + BM tasdig'i.
 3. Ixtiyoriy: AI'da prognoz (buyurtmachi tilga olgan, boshlanmagan).
 
 **Ish usullari** (tokenni tejash va xatosiz ishlash uchun):
@@ -777,7 +776,7 @@ Real ishga tushirish uchun minimal to'plam: **M1–M7 + M10 + M11** (xodimlar Ap
 | M8 | Telegram bot | Bog'lash, xabarlar, kunlik hisobot | ✅ 2026-10-13 |
 | M9 | AI yordamchi | Faqat o'qish view'lari, SQL xavfsizligi, provayder abstraksiyasi | ✅ 2026-10-14 |
 | M10 | Migratsiya | Import skripti, sinov rejimi, tekshiruv hisoboti (doira: faqat faol shartnomalar, qarzsiz) | ✅ 2026-10-14 |
-| M11 | Ishga tushirish | Asosiy muhit (`erp.codialinfo.uz`), o'tish kuni (2026-11-01), monitoring | ⏳ keyingi |
+| M11 | Ishga tushirish | Asosiy muhit (`erp.codialinfo.uz`), o'tish kuni, monitoring | ✅ 2026-10-18 |
 
 Har bir bosqichda bo'ladi: algoritm va ruxsatlar uchun testlar, `seed_demo` buyrug'i (sinov ma'lumotlari), qisqa foydalanuvchi qo'llanmasi (`docs/user_guide/`).
 
