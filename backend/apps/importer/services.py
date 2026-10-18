@@ -2,7 +2,8 @@
 
 Faqat Emirat filialidagi import kuni FAOL shartnomalar va ularga kerakli ma'lumotlar ko'chiriladi:
 talaba (+ ota-ona), guruh, kurs, dars kunlari, dars vaqti, xona, guruh ustozi va yordamchisi.
-Boshlang'ich qarz ko'chirilmaydi (opening_balance = 0) — hisob 2026-11-01 dan yangi tizimda.
+Rejadagi shartnomalar ham (boshlanishi sanadan keyin). 2026-10-18 qarori: boshlang'ich qarz, ochiq lidlar, narxlar, dars soni,
+KPI stavkalari va g'azna qoldiqlari ham ko'chadi — `extra.py`.
 
 Har bir yozuvda `legacy_id` = AppSheet kaliti. Qayta ishga tushirish dublikat yaratmaydi: avval legacy_id, keyin
 tabiiy kalit (nom, pochta, hafta kunlari…) bo'yicha topadi va maydonlarni Excel'dagidek yangilaydi.
@@ -21,6 +22,7 @@ from apps.education.models import Contract, Group
 from apps.education.services import FAOL, status_q
 from apps.references.models import Branch, Course, DayPattern, LessonTime, Room
 
+from . import extra
 from . import reader as r
 
 SHEETS = ["Branches", "Courses", "LessonDays", "LessonTimes", "Rooms", "Users", "Groups", "Contracts", "Students", "Parents"]
@@ -123,7 +125,7 @@ def _user(row, branch, rep, roles):
 def run(path, on=None, dry_run=True):
     on = on or timezone.localdate()
     rep = Report(on, dry_run)
-    wb = r.Workbook(path, SHEETS)
+    wb = r.Workbook(path, SHEETS, optional=extra.EXTRA_SHEETS)
     try:
         with transaction.atomic():
             _import(wb, on, rep)
@@ -147,7 +149,7 @@ def _import(wb, on, rep):
     courses_src, days_src = wb.by_id("Courses", "CourseID"), wb.by_id("LessonDays", "DayID")
     times_src, rooms_src = wb.by_id("LessonTimes", "TimeID"), wb.by_id("Rooms", "RoomID")
 
-    # 1. Faol shartnomalar: start ≤ sana va (end bo'sh yoki end ≥ sana)
+    # 1. Faol va rejadagi shartnomalar: (end bo'sh yoki end ≥ sana) va boshlanish sanasi bor
     active, all_src = [], {}
     for c in wb["Contracts"]:
         all_src[r.ident(c.get("ContractID"))] = c
@@ -158,7 +160,7 @@ def _import(wb, on, rep):
         except ValueError as e:
             rep.error(f"Shartnoma {r.ident(c.get('ContractID'))}: {e}")
             continue
-        if start and start <= on and (end is None or end >= on):
+        if start and (end is None or end >= max(on, start)):
             active.append((c, start, end))
     rep.checks["Excel'da faol shartnomalar"] = len(active)
 
@@ -307,6 +309,12 @@ def _import(wb, on, rep):
             rep.error(f"Shartnoma {cid}: {e}")
 
     _close_ended(branch, on, {r.ident(c.get("ContractID")) for c, _, _ in active}, all_src, rep)
+
+    import types
+
+    helpers = types.SimpleNamespace(course=course, pattern=pattern, lesson_time=lesson_time, room=room, user=user, group=group,
+                                    parent=parent, student=student, reset=cache.clear)
+    extra.run_all(wb, on, rep, branch, bid, helpers)
 
     in_db = Contract.objects.filter(branch=branch).filter(status_q(FAOL, on))
     rep.checks["Tizimda faol shartnomalar (shu sanada)"] = in_db.count()

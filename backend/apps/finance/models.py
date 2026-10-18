@@ -60,6 +60,7 @@ class CashMovement(models.Model):
         EXCHANGE = "exchange", "Ayirboshlash"
         CREDITOR = "creditor", "Kreditor"
         SALARY = "salary", "Oylik berish"
+        OPENING = "opening", "Boshlang'ich qoldiq"
 
     account = models.ForeignKey(Account, on_delete=models.PROTECT, related_name="movements")
     cash_type = models.CharField(max_length=4, choices=MONEY_TYPES)

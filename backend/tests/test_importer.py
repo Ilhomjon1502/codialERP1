@@ -60,13 +60,13 @@ def xlsx(tmp_path):
 
 def test_dry_run_writes_nothing(xlsx):
     rep = services.run(xlsx, on=ON, dry_run=True)
-    assert rep.checks["Excel'da faol shartnomalar"] == 3 and rep.checks["Ko'chirilgan faol shartnomalar"] == 2
+    assert rep.checks["Excel'da faol shartnomalar"] == 4 and rep.checks["Ko'chirilgan faol shartnomalar"] == 2
     assert Contract.objects.count() == 0 and Student.objects.count() == 0 and not User.objects.filter(legacy_id="u1").exists()
 
 
 def test_import_only_active_contracts_and_dependencies(xlsx):
     rep = services.run(xlsx, on=ON, dry_run=False)
-    assert set(Contract.objects.values_list("legacy_id", flat=True)) == {"1001_1", "c2"}  # nofaol, rejada, boshqa filial va xatoli — yo'q
+    assert set(Contract.objects.values_list("legacy_id", flat=True)) == {"1001_1", "c2", "c5"}  # rejada ham; nofaol, boshqa filial va xatoli — yo'q
     assert any("c3" in e and "telefon" in e for e in rep.errors)
     c1 = Contract.objects.get(legacy_id="1001_1")
     assert c1.start_date == datetime.date(2026, 9, 1) and c1.opening_balance == 0 and c1.number == 1 and c1.branch.name == "Emirat"
@@ -90,8 +90,8 @@ def test_rerun_is_idempotent_and_links_existing_user(xlsx, make_user):
     me = make_user("BOSH_MENEJER", email="ustoz1@mail.test", full_name="Mening akkauntim")  # tizimda allaqachon bor pochta
     services.run(xlsx, on=ON, dry_run=False)
     rep = services.run(xlsx, on=ON, dry_run=False)
-    assert Contract.objects.count() == 2 and Group.objects.count() == 1 and Student.objects.count() == 2 and DayPattern.objects.count() == 1
-    assert rep.counts["Shartnomalar"] == {"yangilandi": 2}
+    assert Contract.objects.count() == 3 and Group.objects.count() == 1 and Student.objects.count() == 3 and DayPattern.objects.count() == 1
+    assert rep.counts["Shartnomalar"] == {"yangilandi": 3}
     me.refresh_from_db()
     assert me.legacy_id == "u1" and me.role.code == "BOSH_MENEJER" and me.full_name == "Mening akkauntim"  # roli va ismi o'zgarmadi
 
@@ -103,3 +103,63 @@ def test_reader_normalizes_values():
     assert reader.phone(998901234567.0) == "901234567" and reader.phone("90 123-45-67") == "901234567" and reader.phone(123) == ""
     assert reader.date("05.03.2010") == datetime.date(2010, 3, 5) and reader.ident(1001.0) == "1001"
     assert Role.objects.filter(code="YORDAMCHI").exists()
+
+
+def test_transition_extras_opening_leads_prices_kpi_accounts(tmp_path):
+    """2026-10-18 qarori: boshlang'ich qarz (AppSheet formulasi), ochiq lidlar, narx va dars soni, KPI, g'azna qoldiqlari."""
+    from apps.crm.models import Lead
+    from apps.finance.models import Account
+    from apps.finance.services import balances
+    from apps.payroll.models import KPIRate
+    from apps.references.models import CoursePrice, LessonFrequency
+
+    extra = {
+        "Students": [*SHEETS["Students"], ("s6", EM, "Yangi", "Lidov", None, "Erkak", 907776655.0, None, None, None, None)],
+        "CoursePrices": [("PriceID", "BranchID", "CourseID", "Year", "Month", "Price", "ToExport"), ("pr1", EM, "crs1", 2026.0, 10.0, 1200000.0, f"{EM}crs1202610")],
+        "LessonFrequency": [("FrequenceID", "BranchID", "DayID", "CourceID", "Year", "Month", "Frequency"), ("f1", EM, "d1", "crs1 , crsX", 2026.0, 10.0, 12.0)],
+        "Attendance": [("AttendanceID", "BranchID", "CourseID", "GroupID", "Date", "ContractID", "Status", "Year", "Month", "DayID"),
+                       *[(f"a{i}", EM, "crs1", "g1", None, "1001_1", st, 2026.0, 10.0, "d1") for i, st in enumerate(["1", "X", "0", "-"])],
+                       ("a9", EM, "crs1", "g1", None, "c2", "1", 2026.0, 10.0, "d1")],  # Grant — qarz yo'q
+        "Payments": [("PaymentID", "BranchID", "ContractID", "Summa", "Discount", "Type", "Cashbox"), ("p1", EM, "1001_1", 350000.0, 50000.0, "Cash", "acc1")],
+        "LeadSources": [("SourceID", "Name"), ("src1", "Instagram"), ("src2", "")],
+        "Leads": [("LeadID", "StudentID", "Tags", "Noutbook", "AgeGroup", "StudentSocialStatus", "SourceID", "BranchID", "CourseID", "DayID", "TimeID",
+                   "Status", "GroupID", "DemoDate", "Demo_Come", "CreatedTime", "CreatedBy"),
+                  ("l1", "s6", "grand, tez", "Bor", "13-15", "Maktab o'quvchisi", "src1", EM, "crs1", "d1", "t1", "3.Sinov darsga yozildi", "g1", "20.10.2026", "", None, None),
+                  ("l2", 1001.0, "", "Bor", "13-15", "", "src1", EM, "crs1", "d1", "t1", "5.O'qishni boshladi", "g1", None, "True", None, None)],
+        "LeadComments": [("CommentID", "BranchID", "LeadID", "Comment", "CreatedTime", "CreatedBy"), ("lc1", EM, "l1", "Qo'ng'iroq qilindi", None, None)],
+        "TeacherKPI": [("KPIID", "BranchID", "Status", "TeacherSupporter", "CourseID", "Year", "Month", "Type", "Fixed", "Percent"),
+                       ("k1", EM, "Ustoz", "u1", "crs1", 2026.0, 10.0, "O'zgarmas", 120000.0, 0.0)],
+        "Accounts": [("AccountID", "Name", "Responsible", "InitialBalance", "Status", "Cashtype"),
+                     ("acc1", "Emirat g'azna", None, 100000.0, "Faol", "Cash"), ("acc2", "Bosh g'azna", None, None, "Faol", "All"), ("acc3", "Eski", None, 5.0, "Nofaol", "All")],
+        "Transactions": [("TransactionID", "SenderCashbox", "Sum", "PaymentType", "RecieverCashbox", "ConfirmationStatus"),
+                         ("t1", "acc1", 50000.0, "Cash", "acc2", "Tasdiqlandi"), ("t2", "acc1", 70000.0, "Cash", "acc2", "Tasdiqlashga")],
+        "Expenses": [("ExpenseID", "Summa", "TypeID", "Cashbox"), ("e1", 30000.0, "Card", "acc2")],
+        "SalaryGiving": [("SalaryID", "Summa", "CashType", "CashBox")], "CashFlow": [("CashID", "Summa", "CashType", "Cashbox")],
+        "Exchange": [("ExchangeID", "Cashbox", "CashTypeFrom", "Summa", "CashTypeTo", "SummaTo"), ("x1", "acc2", "Cash", 20000.0, "Card", 19000.0)],
+    }
+    wb = openpyxl.Workbook()
+    wb.remove(wb.active)
+    for name, rows in {**SHEETS, **extra}.items():
+        ws = wb.create_sheet(name)
+        for row in rows:
+            ws.append(row)
+    path = str(tmp_path / "full.xlsx")
+    wb.save(path)
+    emirat, bosh = Account.objects.create(name="Emirat"), Account.objects.create(name="Bosh gʻazna", cash_type="ALL")
+
+    rep = services.run(path, on=datetime.date(2026, 10, 19), dry_run=False)
+    assert [e for e in rep.errors if "c3" not in e] == []  # c3 — ataylab yaroqsiz telefon
+    # 3 dars × 1 200 000 / 12 = 300 000; to'lov 350 000 + chegirma 50 000 → −100 000 (oldindan to'lagan); Grant — 0
+    assert Contract.objects.get(legacy_id="1001_1").opening_balance == -100000 and Contract.objects.get(legacy_id="c2").opening_balance == 0
+    lead = Lead.objects.get(legacy_id="l1")
+    assert lead.status == "3" and lead.group.legacy_id == "g1" and lead.tags == ["grand", "tez"] and lead.source.name == "Instagram"
+    assert lead.comments.get().comment == "Qo'ng'iroq qilindi" and not Lead.objects.filter(legacy_id="l2").exists()  # 5-status ko'chmaydi
+    assert CoursePrice.objects.get().price == 1200000
+    f = LessonFrequency.objects.get(legacy_id="f1")
+    assert f.status == "Tasdiqlangan" and f.frequency == 12 and [c.name for c in f.courses.all()] == ["Frontend"]
+    assert KPIRate.objects.get(legacy_id="k1").fixed_amount == 120000
+    b = balances()
+    assert b[emirat.pk]["balance"] == 100000 + 350000 - 50000 and b[emirat.pk]["by_type"] == {"CASH": 400000}
+    assert b[bosh.pk]["by_type"] == {"CASH": 50000 - 20000, "CARD": -30000 + 19000}
+    services.run(path, on=datetime.date(2026, 10, 19), dry_run=False)  # takroriy — dublikatsiz
+    assert Lead.objects.count() == 1 and balances()[emirat.pk]["balance"] == 400000 and KPIRate.objects.count() == 1

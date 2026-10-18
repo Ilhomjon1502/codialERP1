@@ -7,12 +7,13 @@ import openpyxl
 
 
 class Workbook:
-    def __init__(self, path, sheets):
+    def __init__(self, path, sheets, optional=()):
         wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
         missing = [s for s in sheets if s not in wb.sheetnames]
         if missing:
             raise ValueError(f"Faylda varaq yo'q: {', '.join(missing)}")
-        self.rows = {}
+        self.rows = {name: [] for name in optional}  # ixtiyoriy varaq bo'lmasa — bo'sh
+        sheets = [*sheets, *(s for s in optional if s in wb.sheetnames)]
         for name in sheets:
             it = wb[name].iter_rows(values_only=True)
             head = [str(h).strip() if h is not None else "" for h in next(it, ())]
