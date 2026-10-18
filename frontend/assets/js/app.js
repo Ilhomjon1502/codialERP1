@@ -47,7 +47,7 @@
     ['export', 'Shartnoma yuklash', 'download'], ['groupAnalysis', 'Guruhlar tahlili', 'pie'], ['groups', 'Guruhlar', 'grid'],
     ['approvals', 'Tasdiqlashlar', 'shield'], ['salaries', 'Oyliklar', 'wallet'],
     ['transfers', 'Ichki pul oqimi', 'repeat'], ['creditors', 'Tashqi pul oqimi', 'bank'], ['exchange', 'Pul ayirboshlash', 'swap'],
-    ['accounts', "G'aznalar", 'safe'], ['evaluations', 'Baholash (ustozni)', 'thumbs'],
+    ['accounts', "G'aznalar", 'safe'], 
     ['parentCalls', 'Ota-onalar bilan aloqa', 'phone'], ['settings', 'Sozlamalar', 'sliders'], ['ai', 'AI yordamchi', 'sparkle'],
     ['audit', 'Audit tarixi', 'history'],
   ];
@@ -279,7 +279,7 @@
     return A.NAV.filter(([sec]) => A.can(sec))
       .map(([sec, label, icon, route]) => {
         const dot = sec === 'approvals' ? pc : sec === 'staffTasks' ? (A.S.taskSummary || {}).in_open : 0;
-        return `<a href="#/${route || sec}" data-nav="${sec}" class="${A.CONNECTED.has(sec) ? '' : 'soon'}">${A.icon(icon)}<span>${esc(label)}</span>${dot ? `<em class="dot">${dot}</em>` : ''}</a>`;
+        return `<a href="#/${route || sec}" data-nav="${sec}" title="${esc(label)}" class="${A.CONNECTED.has(sec) ? '' : 'soon'}">${A.icon(icon)}<span>${esc(label)}</span>${dot ? `<em class="dot">${dot}</em>` : ''}</a>`;
       })
       .join('');
   }
@@ -309,7 +309,7 @@
       <div class="scrim" data-act="drawer-close"></div>
       <div class="main">
         <header class="topbar">
-          <button class="icon-btn only-mobile" data-act="drawer" aria-label="Menyu">${A.icon('menu')}</button>
+          <button class="icon-btn" data-act="drawer" aria-label="Menyu" title="Menyuni yig'ish / ochish">${A.icon('menu')}</button>
           <div class="top-title" id="top-title"></div>
           <span class="date-pill">${A.icon('calendar')}<span id="top-date"></span></span>
           <a class="icon-btn bell" href="#/approvals" id="top-bell" title="Tasdiqlashlar">${A.icon('bell')}<em class="dot" id="bell-dot" hidden></em></a>
@@ -438,7 +438,14 @@
     A.ui.q[key + ':tree'] = path;
     A.refresh();
   };
-  A.act.drawer = () => document.body.classList.toggle('drawer-open');
+  // Telefonda — yon panel (drawer); kompyuterda — menyu faqat ikonkalarga yig'iladi (holati eslab qolinadi)
+  try { if (localStorage.getItem('sideCollapsed') === '1') document.body.classList.add('side-collapsed'); } catch (e) { /* ixtiyoriy */ }
+  A.act.drawer = () => {
+    if (window.innerWidth > 900) {
+      const on = document.body.classList.toggle('side-collapsed');
+      try { localStorage.setItem('sideCollapsed', on ? '1' : '0'); } catch (e) { /* ixtiyoriy */ }
+    } else document.body.classList.toggle('drawer-open');
+  };
   A.act['drawer-close'] = () => document.body.classList.remove('drawer-open');
   A.act.account = () => {
     const me = A.me();

@@ -269,3 +269,43 @@ def test_lesson_reminder_has_mini_app_button(make_user, fin, settings, django_ca
 
     send_pending(sender=lambda chat, text, markup=None: sent.append((chat, markup)))
     assert sent == [(803, m.markup)]
+
+
+def test_marketolog_gets_lead_and_contract_changes(api, make_user, world, django_capture_on_commit_callbacks):  # noqa: F811
+    mk, fm = make_user("MARKETOLOG"), make_user("FILIAL_MENEJERI")
+    link(mk, 200)
+    body = {"mode": "new", "first_name": "Marketing", "last_name": "Lidov", "phone1": "933334455", "phone2": "944445566",
+            "source": str(LeadSource.objects.create(name="Instagram").pk), "course": str(world["course"].pk), "status": "2"}
+    with django_capture_on_commit_callbacks(execute=True):
+        r = api(fm).post("/api/v1/leads/", body, format="json")
+    assert r.status_code == 201 and Outbox.objects.filter(user=mk, event="new_lead").count() == 1
+    lead_id = r.json()["id"]
+    with django_capture_on_commit_callbacks(execute=True):
+        assert api(fm).patch(f"/api/v1/leads/{lead_id}/", {"status": "3"}, format="json").status_code == 200
+    assert Outbox.objects.filter(user=mk, event="lead_change").count() == 1
+    with django_capture_on_commit_callbacks(execute=True):  # o'z o'zgarishi haqida xabar kelmaydi
+        assert api(mk).patch(f"/api/v1/leads/{lead_id}/", {"status": "1"}, format="json").status_code == 200
+    assert Outbox.objects.filter(user=mk, event="lead_change").count() == 1
+    with django_capture_on_commit_callbacks(execute=True):
+        services.contract_saved(world["contracts"][0], fm, True)
+    assert Outbox.objects.filter(user=mk, event="contract_change").count() == 1
+    assert api(mk).get("/api/v1/payments/").status_code == 403  # qo'shimcha ruxsatni menejer beradi
+
+
+def test_debt_reminder_10_minutes_before_lesson(fin, django_capture_on_commit_callbacks):  # noqa: F811
+    import datetime
+
+    from apps.notifications import reminders
+
+    g, d = _lesson_today(fin)
+    link(fin["cashier"], 821)  # Administrator+Hisobchi — standart oladi
+    link(fin["teacher"], 822)  # ustozda qarzdorlar huquqi yo'q
+    start = timezone.make_aware(datetime.datetime.combine(d, datetime.time(14, 0)))  # fixture: 14:00–16:00
+    with django_capture_on_commit_callbacks(execute=True):
+        assert reminders.debt_before_lessons(start - datetime.timedelta(minutes=11)) == 0  # hali erta
+        assert reminders.debt_before_lessons(start - datetime.timedelta(minutes=9)) == 1
+        reminders.debt_before_lessons(start - datetime.timedelta(minutes=8))  # takrorlanmaydi
+        assert reminders.debt_before_lessons(start + datetime.timedelta(minutes=1)) == 0  # dars boshlangan
+    msgs = list(Outbox.objects.filter(event="debt_lesson"))
+    assert [m.user_id for m in msgs] == [fin["cashier"].pk]
+    assert "10 daqiqadan keyin" in msgs[0].text and "Ali Valiyev — <b>600 000</b> so'm" in msgs[0].text and g.name in msgs[0].text

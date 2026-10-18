@@ -363,3 +363,19 @@ def test_administrator_can_stop_old_contract_within_30_days(api, make_user, worl
     r = adm.patch(f"/api/v1/contracts/{c.pk}/", {"end": ok, "stop_reason": "Moliyaviy qiyinchilik", "comment": "To'xtatildi"}, format="json")
     assert r.status_code == 200 and r.json()["status"] == "Nofaol"
     assert api(make_user("USTOZ")).patch(f"/api/v1/contracts/{c.pk}/", {"end": ok}, format="json").status_code in (403, 404)
+
+
+def test_attendance_ledger_dates_filters_and_gaps(api, make_user, world):
+    w = world
+    take(api(w["teacher"]), w, [(w["contracts"][0], "1", ""), (w["contracts"][1], "X", "")])
+    bm = api(make_user("BOSH_MENEJER"))
+    ym = f"{TODAY:%Y-%m}"
+    d = bm.get(f"/api/v1/attendance/dates/?month={ym}&course={w['course'].pk}").json()
+    assert d["dates"] == [{"date": TODAY.isoformat(), "n": 2}] and d["totals"]["n"] == 2
+    rows = bm.get(f"/api/v1/attendance/?month={ym}&group={w['group'].pk}&date={TODAY.isoformat()}&search=Talaba0").json()["results"]
+    assert len(rows) == 1 and rows[0]["student_name"].startswith("Talaba0")
+    # Davomat olinmagan sanalar: shartnoma bo'yicha — o'quvchining o'zi, guruh bo'yicha — hech kimga olinmagan kunlar
+    gaps = bm.get(f"/api/v1/attendance/gaps/?month={ym}&contract={w['contracts'][2].pk}").json()["dates"]
+    assert TODAY.isoformat() in gaps and len(gaps) == TODAY.day
+    assert TODAY.isoformat() not in bm.get(f"/api/v1/attendance/gaps/?month={ym}&group={w['group'].pk}").json()["dates"]
+    assert TODAY.isoformat() not in bm.get(f"/api/v1/attendance/gaps/?month={ym}&contract={w['contracts'][0].pk}").json()["dates"]

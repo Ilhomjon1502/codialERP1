@@ -17,6 +17,7 @@ class RoleCode(models.TextChoices):
     USTOZ = "USTOZ", "Ustoz"
     YORDAMCHI = "YORDAMCHI", "Yordamchi ustoz"
     USTOZ_YORDAMCHI = "USTOZ_YORDAMCHI", "Ustoz+Yordamchi"
+    MARKETOLOG = "MARKETOLOG", "Marketolog"
     BOSHQA = "BOSHQA", "Boshqa"
 
 
@@ -40,19 +41,19 @@ SECTIONS = [
 SECTION_KEYS = [k for k, _ in SECTIONS]
 
 _S = {"AD": "ADMIN", "BM": "BOSH_MENEJER", "FM": "FILIAL_MENEJERI", "A": "ADMINISTRATOR",
-      "AH": "ADMINISTRATOR_HISOBCHI", "H": "HISOBCHI", "U": "USTOZ", "Y": "YORDAMCHI", "UY": "USTOZ_YORDAMCHI"}
+      "AH": "ADMINISTRATOR_HISOBCHI", "H": "HISOBCHI", "U": "USTOZ", "Y": "YORDAMCHI", "UY": "USTOZ_YORDAMCHI", "M": "MARKETOLOG"}
 _MATRIX = {
-    "dashboard": {"AD": "v", "BM": "v", "FM": "v", "A": "v", "AH": "v", "H": "v", "U": "v", "Y": "v", "UY": "v"},
-    "leads": {"AD": "vaed", "BM": "vaed", "FM": "vaed", "A": "vaed", "AH": "vaed", "H": "v", "U": "v", "Y": "v", "UY": "v"},
-    "contracts": {"AD": "vaed", "BM": "vaed", "FM": "vaed", "A": "vaed", "AH": "vaed", "H": "v", "U": "v", "UY": "v"},
+    "dashboard": {"AD": "v", "BM": "v", "FM": "v", "A": "v", "AH": "v", "H": "v", "U": "v", "Y": "v", "UY": "v", "M": "v"},
+    "leads": {"AD": "vaed", "BM": "vaed", "FM": "vaed", "A": "vaed", "AH": "vaed", "H": "v", "U": "v", "Y": "v", "UY": "v", "M": "vaed"},
+    "contracts": {"AD": "vaed", "BM": "vaed", "FM": "vaed", "A": "vaed", "AH": "vaed", "H": "v", "U": "v", "UY": "v", "M": "v"},
     "payments": {"AD": "vaedp", "BM": "vaedp", "FM": "vp", "AH": "vaed", "H": "vaed"},
     "debtors": {"AD": "v", "BM": "v", "FM": "v", "AH": "v", "H": "v"},
     "attendance": {"AD": "vaedp", "BM": "vaedp", "FM": "vaedp", "A": "vaedp", "AH": "vaedp", "U": "vae", "UY": "vae", "Y": "v"},
     "profit": {"AD": "v", "BM": "v"},
     "expenses": {"AD": "vaed", "BM": "vaed", "FM": "v", "AH": "vaed", "H": "vaed"},
     "export": {"AD": "v", "BM": "v", "FM": "v", "A": "v", "AH": "v", "H": "v"},
-    "groupAnalysis": {"AD": "v", "BM": "v", "FM": "v", "A": "v", "AH": "v", "H": "v", "U": "v"},
-    "groups": {"AD": "vaed", "BM": "vaed", "FM": "vaed", "A": "vae", "AH": "vae", "H": "v", "U": "v", "Y": "v", "UY": "v"},
+    "groupAnalysis": {"AD": "v", "BM": "v", "FM": "v", "A": "v", "AH": "v", "H": "v", "U": "v", "M": "v"},
+    "groups": {"AD": "vaed", "BM": "vaed", "FM": "vaed", "A": "vae", "AH": "vae", "H": "v", "U": "v", "Y": "v", "UY": "v", "M": "v"},
     "approvals": {"AD": "v", "BM": "v", "FM": "v", "A": "v", "AH": "v", "H": "v", "U": "v", "UY": "v"},
     "salaries": {"AD": "vaed", "BM": "vaed", "FM": "vaed", "AH": "va", "H": "va", "A": "v", "U": "v", "Y": "v", "UY": "v"},
     "transfers": {"AD": "vaed", "BM": "vaed", "FM": "v", "AH": "vaed", "H": "vaed"},
@@ -64,7 +65,7 @@ _MATRIX = {
     "settings": {"AD": "vaed", "BM": "vaed", "FM": "vae", "A": "v", "AH": "v", "H": "v"},
     "ai": {"BM": "v"},
     "audit": {"AD": "v", "BM": "v"},
-    "staffTasks": {"AD": "vaed", "BM": "vaed", "FM": "vaed", "A": "vae", "AH": "vae", "H": "vae", "U": "vae", "Y": "vae", "UY": "vae"},
+    "staffTasks": {"AD": "vaed", "BM": "vaed", "FM": "vaed", "A": "vae", "AH": "vae", "H": "vae", "U": "vae", "Y": "vae", "UY": "vae", "M": "vae"},
 }
 DEFAULT_PERMISSIONS = {
     code: {sec: next((ops for short, ops in _MATRIX.get(sec, {}).items() if _S[short] == code), "") for sec in SECTION_KEYS}
@@ -78,7 +79,7 @@ DEFAULT_ROLE_POWER = {
     RoleCode.BOSH_MENEJER: [r for r in _ALL if r != RoleCode.ADMIN],
     RoleCode.FILIAL_MENEJERI: [
         RoleCode.ADMINISTRATOR, RoleCode.ADMINISTRATOR_HISOBCHI, RoleCode.HISOBCHI, RoleCode.USTOZ,
-        RoleCode.YORDAMCHI, RoleCode.USTOZ_YORDAMCHI, RoleCode.BOSHQA,
+        RoleCode.YORDAMCHI, RoleCode.USTOZ_YORDAMCHI, RoleCode.MARKETOLOG, RoleCode.BOSHQA,
     ],
 }
 
@@ -91,7 +92,7 @@ def edit_days(role_code, section):
         return None
     if role_code == RoleCode.FILIAL_MENEJERI:
         return 15
-    if role_code in (RoleCode.ADMINISTRATOR, RoleCode.ADMINISTRATOR_HISOBCHI):
+    if role_code in (RoleCode.ADMINISTRATOR, RoleCode.ADMINISTRATOR_HISOBCHI, RoleCode.MARKETOLOG):
         return 0 if section in _TODAY_ONLY_FOR_ADMINISTRATORS else 7
     if role_code == RoleCode.HISOBCHI or role_code in TEACHER_ROLES:
         return 0

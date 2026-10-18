@@ -166,7 +166,8 @@ def _card(task, now=None):
             f"👤 Bajaruvchi: {escape(str(task.assignee))} · beruvchi: {escape(str(task.created_by or '—'))}")
 
 
-def notify_one(task, user, text, done_button=False):
+def notify_one(task, user, text, done_button=False, force=True):
+    """Topshiriq berilgan, o'zgargan, bajarilgan, bekor qilingan zahoti — tanlovdan qat'i nazar boradi; takroriy eslatmalar — tanlovga ko'ra."""
     from apps.notifications import services as notif
     from apps.notifications import webapp
 
@@ -175,7 +176,7 @@ def notify_one(task, user, text, done_button=False):
         rows.append([{"text": "✅ Bajarildi", "callback_data": f"td:{task.pk}"}])
     if webapp.enabled():
         rows.append([{"text": "📋 Topshiriqni ochish", "web_app": {"url": webapp.url("tasks", id=task.pk)}}])
-    notif.notify("task", text, default_users=[user], only=lambda u: u.pk == user.pk, markup={"inline_keyboard": rows} if rows else None)
+    notif.notify("task", text, default_users=[user], only=lambda u: u.pk == user.pk, markup={"inline_keyboard": rows} if rows else None, force=force)
 
 
 def due_reminders(now=None):
@@ -185,15 +186,22 @@ def due_reminders(now=None):
           .filter(Q(remind_assignee=True) | Q(remind_giver=True)).select_related("assignee", "created_by"))
     n = 0
     for t in qs:
-        if now < t.due_at - datetime.timedelta(minutes=t.remind_before):
+        start = t.due_at - datetime.timedelta(minutes=t.remind_before)
+        last = t.last_reminded_at
+        if t.updated_at >= start:  # topshiriq (yoki muddat) eslatma oynasi ichida berilgan — «Yangi topshiriq» xabari birinchi eslatma o'rnida
+            if t.remind_every:
+                last = last or t.updated_at
+            else:
+                start = t.due_at  # bir martalik eslatma — muddat vaqtida
+        if now < start:
             continue
-        if t.last_reminded_at and (not t.remind_every or now - t.last_reminded_at < datetime.timedelta(minutes=t.remind_every)):
+        if last and (not t.remind_every or now - last < datetime.timedelta(minutes=t.remind_every)):
             continue
         StaffTask.all_objects.filter(pk=t.pk).update(last_reminded_at=now)
         if t.remind_assignee:
-            notify_one(t, t.assignee, f"🔔 <b>Eslatma — topshiriq</b>\n{_card(t, now)}", done_button=True)
+            notify_one(t, t.assignee, f"🔔 <b>Eslatma — topshiriq</b>\n{_card(t, now)}", done_button=True, force=False)
         if t.remind_giver and t.created_by_id and t.created_by_id != t.assignee_id:
-            notify_one(t, t.created_by, f"🔔 <b>Eslatma — siz bergan topshiriq</b>\n{_card(t, now)}")
+            notify_one(t, t.created_by, f"🔔 <b>Eslatma — siz bergan topshiriq</b>\n{_card(t, now)}", force=False)
         n += 1
     return n
 

@@ -21,6 +21,7 @@ from apps.references.models import Branch
 from . import services, webapp
 
 WEEKDAYS = ["dushanba", "seshanba", "chorshanba", "payshanba", "juma", "shanba", "yakshanba"]
+DEBT_BEFORE = 10  # daqiqa: dars boshlanishidan oldin qarzdorlar haqida eslatma
 START_WINDOW = 15  # daqiqa: bot qayta ishga tushsa ham shu oraliqda boshlangan dars eslatiladi
 PER_GROUP = 12
 PER_LIST = 15
@@ -67,6 +68,29 @@ def lesson_starts(now=None):
         if not webapp.enabled():  # Mini App tugmasi bo'lmasa — oddiy havola
             text += f"\n{link(f'attendance?tab=take&group={g.pk}')}"
         services.lesson_started(g, text, key=f"start:{g.pk}:{today}")
+        n += 1
+    return n
+
+
+def debt_before_lessons(now=None):
+    """Dars boshlanishiga 10 daqiqa qolganda — shu guruhdagi qarzdor talabalar ro'yxati (to'lovni undirish uchun). Har guruhga kuniga bir marta."""
+    now = now or timezone.localtime()
+    today = now.date()
+    n = 0
+    for g in _lesson_groups(today):
+        start = timezone.make_aware(datetime.datetime.combine(today, g.time.start_time))
+        if not (start - datetime.timedelta(minutes=DEBT_BEFORE) <= now < start):
+            continue
+        debtors = list(with_balance(Contract.objects.filter(group=g).filter(active_on(today))).filter(balance__gt=0).select_related("student").order_by("-balance"))
+        if not debtors:
+            continue
+        L = [f"💰 <b>{DEBT_BEFORE} daqiqadan keyin dars — to'lovni eslating</b>",
+             f"{e(g.name)} · {g.time.start_time:%H:%M}–{g.time.end_time:%H:%M} · {e(g.room)}",
+             f"Qarzdor talabalar: {len(debtors)} ta, jami {num(sum(c.balance for c in debtors))} so'm"]
+        L += [f"  • {e(c.student.full_name)} — <b>{num(c.balance)}</b> so'm · {phone(c.student.phone1)}" for c in debtors[:PER_GROUP]]
+        if len(debtors) > PER_GROUP:
+            L.append(f"  <i>… yana {len(debtors) - PER_GROUP} ta — Qarzdorlar bo'limi</i>")
+        services.notify("debt_lesson", "\n".join(L),branch=g.branch, key=f"debt10:{g.pk}:{today}")
         n += 1
     return n
 

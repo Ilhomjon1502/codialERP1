@@ -430,6 +430,7 @@
     const span = t1 - t0;
     const pos = (m) => `${(100 * m) / span}%`;
     const canEdit = A.can('groups', 'e');
+    const canAdd = A.can('groups', 'a');
     const rowHTML = (row) => {
       const items = todays.filter((g) => rowKey(g) === row.key).sort((a, b) => a.s - b.s);
       const blocks = items.map((g) => {
@@ -445,7 +446,7 @@
           : `<a class="${cls}" href="#/groups/${g.id}" title="${esc(title)}" style="${st}">${inner}</a>`;
       }).join('');
       return `<div class="sched-row"><div class="sched-l"><b>${esc(row.label)}</b>${row.sub ? `<small>${esc(row.sub)}</small>` : ''}</div>
-        <div class="sched-track">${slots.map(() => '<i></i>').join('')}${blocks}</div></div>`;
+        <div class="sched-track${canAdd ? ' addable' : ''}" ${canAdd ? `data-act="sched-add" data-key="${row.key}" data-day="${day}" data-by="${by}" data-t0="${t0}" data-span="${span}" title="Bo'sh joyni bosing — shu vaqtga yangi guruh ochish"` : ''}>${slots.map(() => '<i></i>').join('')}${blocks}</div></div>`;
     };
     const tabs = days.map((d) => `<button class="sched-day${d === day ? ' on' : ''}" data-act="sched-day" data-id="${d}">${A.WD_FULL[d]}${d === todayWd ? ' •' : ''}
       <span>${groups.filter((g) => g.weekdays.includes(d)).length}</span></button>`).join('');
@@ -474,6 +475,28 @@
   }
   A.act['sched-day'] = (el) => { A.ui.schedDay = el.dataset.id; A.refresh(); };
   A.act['sched-by'] = (el) => { A.ui.schedBy = el.dataset.id; A.refresh(); };
+  // Bo'sh joyni bosish → yangi guruh formasi (kun, vaqt, xona/ustoz oldindan to'ldiriladi)
+  A.act['sched-add'] = (el, ev) => {
+    const r = el.getBoundingClientRect();
+    const t0 = Number(el.dataset.t0);
+    const at = t0 + (Number(el.dataset.span) * (ev.clientX - r.left)) / r.width;
+    const day = Number(el.dataset.day);
+    const preset = {};
+    const pat = A.rows('dayPatterns').find((p) => (p.status || 'Faol') === 'Faol' && (p.weekdays || []).includes(day));
+    if (pat) preset.pattern = pat.id;
+    const times = A.rows('lessonTimes').filter((t) => (t.status || 'Faol') === 'Faol');
+    const tm = times.find((t) => mins(t.start) <= at && at < mins(t.end))
+      || times.filter((t) => mins(t.start) >= at).sort((a, b) => mins(a.start) - mins(b.start))[0];
+    if (tm && mins(tm.start) <= at && at < mins(tm.end)) preset.time = tm.id;
+    else {
+      // mos vaqt yo'q — bosilgan joydan boshlab yangi vaqt (2 soat) taklif qilinadi
+      const s0 = Math.floor(at / SLOT) * SLOT;
+      Object.assign(preset, { time: '__new', new_start: hhmm(s0), new_end: hhmm(Math.min(s0 + 120, 23 * 60 + 59)) });
+    }
+    if (el.dataset.by === 'room') preset.room = el.dataset.key;
+    else preset.teacher = el.dataset.key;
+    A.groupForm(null, preset);
+  };
 
   // Jadvaldan tez tahrir: dars kunlari, vaqti, xona, ustoz (to'liq forma — guruh sahifasida). Ustma-ust tushish oldindan ogohlantiriladi.
   const overlap = (a, b) => a.weekdays.some((d) => b.weekdays.includes(d)) && a.s < b.e && b.s < a.e;

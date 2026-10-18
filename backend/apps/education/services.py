@@ -247,6 +247,7 @@ def save_contract(user, d, instance=None):
         c = Contract(**d, number=next_contract_number(d["branch"]), created_by=user, updated_by=user)
         c.save()
         audit.log_create(user, c)
+        notif.contract_saved(c, user, True)
         return c
     before = audit.snapshot(instance)
     type_changed = "type" in d and d["type"] != instance.type
@@ -256,6 +257,13 @@ def save_contract(user, d, instance=None):
     instance.save()
     n = calc.recalculate(instance.attendance.all()) if type_changed else 0
     audit.log_update(user, instance, before, detail=f"Turi o'zgardi — {n} ta davomat qatori qayta hisoblandi" if type_changed else "")
+    notes = []
+    if type_changed:
+        notes.append(f"Turi: {instance.type}")
+    if instance.end_date and str(instance.end_date) != str(before.get("end_date") or ""):
+        notes.append(f"Tugadi: {instance.end_date:%d.%m.%Y}" + (f" ({instance.stop_reason})" if instance.stop_reason else ""))
+    if notes:
+        notif.contract_saved(instance, user, False, "; ".join(notes))
     return instance
 
 

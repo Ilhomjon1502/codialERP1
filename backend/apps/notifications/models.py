@@ -7,6 +7,8 @@ from django.db import models
 
 EVENTS = [
     ("new_lead", "Yangi lid"),
+    ("lead_change", "Lid o'zgarishi (status)"),
+    ("contract_change", "Shartnoma: yangi yoki o'zgargan"),
     ("approval", "Tasdiq kutayotgan chegirma yoki naqdsiz to'lov"),
     ("transfer", "Tasdiq kutayotgan o'tkazma"),
     ("makeup", "Qoldirilgan dars so'rovi"),
@@ -14,6 +16,7 @@ EVENTS = [
     ("daily_report", "Kunlik hisobot (19:00)"),
     ("lesson_start", "Dars boshlandi — davomat olish vaqti"),
     ("morning_plan", "Ertalabki ish rejasi (8:30): to'lovlar, sinov darslari, qo'ng'iroqlar"),
+    ("debt_lesson", "Dars boshlanishiga 10 daqiqa: shu guruhdagi qarzdor talabalar"),
     ("task", "Topshiriqlar: yangi, eslatma, bajarildi"),
 ]
 EVENT_KEYS = [k for k, _ in EVENTS]

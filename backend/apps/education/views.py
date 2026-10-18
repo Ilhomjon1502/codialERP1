@@ -221,7 +221,7 @@ class AttendanceViewSet(AuditedModelViewSet):
     serializer_class = AttendanceSerializer
     branch_field = "branch"
     pagination_class = Pagination
-    action_ops = {"take": "v", "stats": "v", "summary": "v"}
+    action_ops = {"take": "v", "stats": "v", "summary": "v", "dates": "v", "gaps": "v"}
     http_method_names = ["get", "post", "patch", "head", "options"]
 
     def get_queryset(self):
@@ -232,9 +232,11 @@ class AttendanceViewSet(AuditedModelViewSet):
             qs = qs.filter(date__gte=start, date__lt=end)
         if p.get("status"):
             qs = qs.filter(status__in=p["status"].split(","))
-        for key in ("group", "contract", "contact"):
+        for key in ("group", "contract", "contact", "course", "date"):
             if p.get(key):
                 qs = qs.filter(**{"contact_status" if key == "contact" else key: p[key]})
+        if p.get("search"):
+            qs = qs.filter(search_q(p["search"], "contract__student__"))
         return qs
 
     def list(self, request, *args, **kwargs):
@@ -300,6 +302,33 @@ class AttendanceViewSet(AuditedModelViewSet):
         if not request.query_params.get("month"):
             raise ValidationError({"month": "Oyni tanlang"})
         return Response(services.attendance_stats(self.get_queryset()))
+
+    @action(detail=False)
+    def dates(self, request):
+        """Statistika (AppSheet'dagidek): tanlangan filtrlar (oy, kurs, guruh, shartnoma, qidiruv; `date` yuborilmaydi) bo'yicha sanalar va ularning qatorlar soni + jami KPI."""
+        qs = self.get_queryset()
+        days = list(qs.values("date").annotate(n=Count("id")).order_by("-date"))
+        tot = qs.aggregate(n=Count("id"), tkpi=Sum("teacher_kpi"), skpi=Sum("supporter_kpi"), debt=Sum("student_debt"))
+        return Response({"dates": days, "totals": {k: v or 0 for k, v in tot.items()}})
+
+    @action(detail=False)
+    def gaps(self, request):
+        """Davomat olinmagan sanalar: shartnoma bo'yicha — shu o'quvchiga, guruh bo'yicha — butun guruhga (oy ichida, bugungacha)."""
+        p = request.query_params
+        start, end = month_bounds(p.get("month") or f"{today():%Y-%m}")
+        last = min(end - datetime.timedelta(days=1), today())
+        if p.get("contract"):
+            c = _contract_in_scope(request.user, Contract.objects.get(pk=p["contract"]))
+            lo, hi, g = max(start, c.start_date), min(last, c.end_date or last), c.group
+            have = set(Attendance.objects.filter(contract=c, date__gte=lo, date__lte=hi).values_list("date", flat=True))
+        elif p.get("group"):
+            g = self._group(p["group"])
+            lo, hi = start, last
+            have = set(Attendance.objects.filter(group=g, date__gte=lo, date__lte=hi).values_list("date", flat=True))
+        else:
+            return Response({"dates": []})
+        days = [lo + datetime.timedelta(days=i) for i in range((hi - lo).days + 1)] if hi >= lo else []
+        return Response({"dates": [d for d in days if services.has_lesson(g, d) and d not in have]})
 
     @action(detail=False)
     def summary(self, request):

@@ -122,3 +122,18 @@ def test_giver_warned_when_assignee_not_linked(api, make_user, people, django_ca
     assert d["assignee_linked"] is False
     assert "ulanmagan" in Outbox.objects.get(event="task", user=people["admin"]).text
     assert Outbox.objects.filter(event="task", user=people["teacher"], text__contains="Yangi topshiriq").count() == 1  # o'ziga ham keladi
+
+
+def test_given_inside_reminder_window_and_prefs_off(api, people, django_capture_on_commit_callbacks):
+    admin, teacher = people["admin"], people["teacher"]
+    TelegramLink.objects.filter(user__in=[admin, teacher]).update(prefs={"task": False})  # eslatmalarni o'chirgan
+    with django_capture_on_commit_callbacks(execute=True):
+        tid = give(api, admin, teacher, hours=1, remind_before=180, remind_every=0).json()["id"]  # eslatma oynasi allaqachon ochiq
+    assert set(Outbox.objects.filter(event="task").values_list("user_id", flat=True)) == {admin.pk, teacher.pk}  # berilganda ikkalasiga ham boradi
+    Outbox.objects.all().delete()
+    now = timezone.now()
+    with django_capture_on_commit_callbacks(execute=True):
+        assert services.due_reminders(now + datetime.timedelta(minutes=5)) == 0  # «Yangi topshiriq» xabari yetarli — darhol takror yo'q
+        assert services.due_reminders(now + datetime.timedelta(hours=1, minutes=1)) == 1  # bir martalik — muddat vaqtida
+    assert not Outbox.objects.exists()  # xodim eslatmalarni o'chirgan — takroriy eslatma yuborilmaydi
+    assert StaffTask.objects.get(pk=tid).last_reminded_at

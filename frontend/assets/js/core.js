@@ -11,6 +11,7 @@
     USTOZ: 'Ustoz',
     YORDAMCHI: 'Yordamchi ustoz',
     USTOZ_YORDAMCHI: 'Ustoz+Yordamchi',
+    MARKETOLOG: 'Marketolog',
     BOSHQA: 'Boshqa',
   };
   A.SECTIONS = [

@@ -27,6 +27,8 @@ R = RoleCode
 # Xabar turini olish uchun kerakli ko'rish huquqi (bo'lim, amal)
 EVENT_PERM = {
     "new_lead": ("leads", "v"),
+    "lead_change": ("leads", "v"),
+    "contract_change": ("contracts", "v"),
     "approval": ("payments", "v"),
     "transfer": ("transfers", "v"),
     "makeup": ("attendance", "p"),
@@ -35,10 +37,13 @@ EVENT_PERM = {
     "lesson_start": ("attendance", "a"),
     "morning_plan": ("payments", "v"),  # qarzdorlar ro'yxati bor
     "task": ("staffTasks", "v"),
+    "debt_lesson": ("debtors", "v"),
 }
 # Xodim hali tanlamagan bo'lsa — kimga standart holda boradi
 DEFAULT_ROLES = {
-    "new_lead": {R.ADMINISTRATOR, R.ADMINISTRATOR_HISOBCHI, R.BOSH_MENEJER, R.FILIAL_MENEJERI},
+    "new_lead": {R.ADMINISTRATOR, R.ADMINISTRATOR_HISOBCHI, R.BOSH_MENEJER, R.FILIAL_MENEJERI, R.MARKETOLOG},
+    "lead_change": {R.MARKETOLOG},
+    "contract_change": {R.MARKETOLOG},
     "approval": {R.ADMIN, R.BOSH_MENEJER, R.FILIAL_MENEJERI},
     "transfer": set(),  # standart — faqat qabul qiluvchi g'azna mas'ullari (default_users)
     "makeup": {R.BOSH_MENEJER, R.FILIAL_MENEJERI, R.ADMINISTRATOR, R.ADMINISTRATOR_HISOBCHI},
@@ -47,6 +52,7 @@ DEFAULT_ROLES = {
     "lesson_start": set(),  # standart — faqat guruh ustozi (default_users)
     "morning_plan": {R.ADMINISTRATOR_HISOBCHI},
     "task": set(),  # faqat topshiriq ishtirokchilari (default_users)
+    "debt_lesson": {R.ADMINISTRATOR_HISOBCHI},
 }
 
 
@@ -70,10 +76,10 @@ def in_branch(user, branch):
     return branch is None or is_top(user) or user.branches.filter(pk=branch.pk).exists()
 
 
-def notify(event, text, branch=None, default_users=(), key="", only=None, markup=None):
+def notify(event, text, branch=None, default_users=(), key="", only=None, markup=None, exclude=None, force=False):
     """Bog'langan, huquqi bor, filial doirasidagi va shu xabarni tanlagan xodimlarga navbatga qo'yadi (tranzaksiya tugagach).
     default_users — hodisaga bevosita aloqador xodimlar (standart holda oladi); only(user) — qo'shimcha cheklov (masalan ustoz faqat o'z guruhi);
-    key — takrorlanmaslik uchun."""
+    key — takrorlanmaslik uchun; force — xodimning «o'chirilgan» tanlovini hisobga olmaydi (huquq va filial baribir tekshiriladi)."""
     default_ids = {u.pk for u in default_users if u}
 
     def enqueue():
@@ -83,9 +89,9 @@ def notify(event, text, branch=None, default_users=(), key="", only=None, markup
             rows = []
             for lk in links:
                 u = lk.user
-                if u.pk in done or not allowed(u, event) or not in_branch(u, branch) or (only and not only(u)):
+                if u.pk in done or (exclude and u.pk == exclude.pk) or not allowed(u, event) or not in_branch(u, branch) or (only and not only(u)):
                     continue
-                if wants(lk, event, default=u.pk in default_ids):
+                if force or wants(lk, event, default=u.pk in default_ids):
                     rows.append(Outbox(user=u, chat_id=lk.chat_id, event=event, key=key, text=text, markup=markup or {}))
             Outbox.objects.bulk_create(rows)
         except Exception:  # noqa: BLE001 — xabar asosiy amalni buzmasin
@@ -104,6 +110,18 @@ def lead_created(lead):
     st = lead.student
     notify("new_lead", f"🆕 <b>Yangi lid</b>\n{escape(st.full_name)} · +998{st.phone1}\nKurs: {escape(str(lead.course))} · manba: {escape(str(lead.source))}",
            branch=lead.branch)
+
+
+def lead_changed(lead, old_status, user):
+    st = lead.student
+    notify("lead_change", f"🔄 <b>Lid o'zgardi</b>\n{escape(st.full_name)} · {escape(str(lead.course))}\n"
+                          f"{escape(old_status)} → <b>{escape(lead.status)}</b>\n✍️ {escape(str(user))}", branch=lead.branch, exclude=user)
+
+
+def contract_saved(c, user, created, note=""):
+    head = "📄 <b>Yangi shartnoma</b>" if created else "📄 <b>Shartnoma o'zgardi</b>"
+    extra = f"\n{escape(note)}" if note else ""
+    notify("contract_change", f"{head}\n{escape(c.name)} · {escape(str(c.course))}{extra}\n✍️ {escape(str(user))}", branch=c.branch, exclude=user)
 
 
 def payment_pending(p):

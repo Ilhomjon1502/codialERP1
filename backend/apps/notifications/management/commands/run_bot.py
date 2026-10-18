@@ -35,7 +35,7 @@ class Command(BaseCommand):
         offset, last_tick = None, 0.0
         while True:
             try:
-                params = {"timeout": 20, "allowed_updates": '["message", "callback_query"]'}
+                params = {"timeout": 5, "allowed_updates": '["message", "callback_query"]'}
                 if offset:
                     params["offset"] = offset
                 for upd in services.api("getUpdates", **params):
@@ -52,6 +52,7 @@ class Command(BaseCommand):
                     last_tick = time.monotonic()
                     close_old_connections()
                     reminders.lesson_starts()
+                    reminders.debt_before_lessons()
                     tasks.due_reminders()
                 services.send_pending()
             except Exception:  # noqa: BLE001 — tarmoq xatosi botni to'xtatmasin

@@ -100,7 +100,10 @@ class LeadViewSet(AuditedModelViewSet):
 
     def perform_update(self, serializer):
         check_edit_window(self.request.user, "leads", serializer.instance.created_at)
+        old = serializer.instance.status
         super().perform_update(serializer)
+        if serializer.instance.status != old:
+            services.notif.lead_changed(serializer.instance, old, self.request.user)
 
     def update(self, request, *args, **kwargs):
         super().update(request, *args, **kwargs)
