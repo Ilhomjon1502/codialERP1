@@ -5,9 +5,11 @@
 
 ---
 
-## 0. Joriy holat (2026-10-14) — yangi kelgan dasturchi shu yerdan boshlasin
+## 0. Joriy holat (2026-10-18) — yangi kelgan dasturchi shu yerdan boshlasin
 
-**Qisqasi:** prototip ma'qullandi va muzlatildi. **M1–M10 tayyor**: haqiqiy tizim (`backend/` — Django + DRF API, `frontend/` — prototip ekranlari API'ga ulangan) **Hetzner serverida ishlayapti**. Keyingi ish — **M11 (haqiqiy ishga tushirish, 2026-11-01)**. Telegram bot tokeni (`deploy/set-telegram.sh`) va Gemini kaliti (`deploy/set-ai.sh`) buyurtmachi tomonidan `deploy/set-telegram.sh` bilan kiritiladi. Buyurtmachi «boshla» deganda boshlanadi. **«50% chegirmalar», «Talaba vazifalari» va «Baholash bo'limi» (ustoz → talaba) olib tashlangan** (buyurtmachi qarori 2026-10-13).
+> **Yangi sessiya: avval pastdagi «Keyingi sessiya uchun (2026-10-18)» blokini o'qing** — u eng so'nggi holat, ochiq ishlar va ish usullari.
+
+**Qisqasi:** prototip ma'qullandi va muzlatildi. **M1–M10 tayyor, tizim haqiqiy ma'lumot bilan ishlayapti**: haqiqiy tizim (`backend/` — Django + DRF API, `frontend/` — prototip ekranlari API'ga ulangan) **Hetzner serverida ishlayapti**. Keyingi ish — **M11 o'tish kuni (2026-11-01)** va buyurtmachining yangi so'rovlari. Telegram bot tokeni (`deploy/set-telegram.sh`) va Gemini kaliti (`deploy/set-ai.sh`) kiritilgan — buni faqat buyurtmachi o'zi qiladi. Buyurtmachi «boshla» deganda boshlanadi. **«50% chegirmalar», «Talaba vazifalari» va «Baholash bo'limi» (ustoz → talaba) olib tashlangan** (buyurtmachi qarori 2026-10-13).
 
 | Bosqich | Holat |
 |---|---|
@@ -24,8 +26,9 @@
 | **M8** — Telegram bot: bog'lash, xabarlar navbati, 6 xil xabar, davomat eslatmasi va kunlik hisobot (cron) | ✅ 2026-10-13, 111 test |
 | **M9** — AI yordamchi (Bosh menejer): Gemini → SQL → server tekshiruvi → jadval/diagramma, ma'lumot LLM'ga bormaydi | ✅ 2026-10-14, 134 test |
 | **M10** — AppSheet importi: faqat faol shartnomalar + kerakli talaba/guruh/ustoz, qarzsiz (`import_appsheet`, sinov rejimi standart) | ✅ 2026-10-14, 140 test; sinov: 73 shartnoma, 21 guruh, xatosiz |
-| **M11** — haqiqiy ishga tushirish: alohida sinov muhiti yo'q, hozirgi erp.codialinfo.uz haqiqiy tizim bo'ladi; `prepare_production` (demo tozalash), takroriy importda tugagan shartnomalarni yopish, `send_invites`, `/api/v1/health/` + `deploy/healthcheck.sh` | ⏳ kod tayyor 2026-10-14 (145 test); serverda tozalash buyurtmachi tasdig'idan keyin; o'tish kuni 2026-10-31/11-01 |
+| **M11** — haqiqiy ishga tushirish: alohida sinov muhiti yo'q, hozirgi erp.codialinfo.uz haqiqiy tizim bo'ladi; `prepare_production` (demo tozalash), takroriy importda tugagan shartnomalarni yopish, `send_invites`, `/api/v1/health/` + `deploy/healthcheck.sh` | ⏳ 2026-10-14: demo tozalandi, haqiqiy ma'lumot import qilindi (73 shartnoma, 21 guruh, 7 ustoz), xodimlar ishlayapti; qolgan: o'tish kuni 2026-10-31/11-01 (pastga qarang) |
 | **Topshiriqlar** (2026-10-16) — xodimlar bir-biriga topshiriq beradi, bot eslatadi (`apps/tasks`, `docs/user_guide/topshiriqlar.md`) | ✅ |
+| **AI yordamchi sifati** (2026-10-16) — ma'lumotlar holati, bo'sh natija sababi, `analytics_lessons` (`ai_assistant/context.py`) | ✅ 164 test |
 | 18-bo'limdagi ochiq savollar | ⏳ takliflar `docs/architecture.md` 7-bo'limda; buyurtmachi javob bermasa takliflar qo'llanadi. 3-savol yopildi: 50% chegirma bo'limi olib tashlandi |
 | Domen `codialinfo.uz` | ✅ buyurtmachiniki (ahost.uz). DNS: A `erp` → `77.42.9.23` (2026-10-13), Let's Encrypt SSL. Asosiy sayt (`@`, `www` — Vercel) va pochta yozuvlariga tegilmaydi |
 | Pochta (SMTP) | ✅ 2026-10-13: Gmail (`ilhomjonibragimov1502@gmail.com`, App password `deploy/.env` da). Qayta sozlash: serverda `bash /srv/codial-test/deploy/set-smtp.sh` (parolni o'zi so'raydi) |
@@ -34,12 +37,82 @@
 
 | Nima | Qayerda |
 |---|---|
-| Haqiqiy tizim | **https://erp.codialinfo.uz** — hozircha **sinov ma'lumotlari** bilan (M1). M10–M11 da sinov ma'lumotlari tozalanib, AppSheet'dan haqiqiy ma'lumot yuklanadi, manzil o'zgarmaydi. Demo xodimlar va parol `deploy/test-server.local.md` da (faqat buyurtmachi kompyuterida, git'ga kirmaydi). Zaxira manzil: https://test.77-42-9-23.sslip.io |
+| Haqiqiy tizim | **https://erp.codialinfo.uz** — **haqiqiy ma'lumot** (2026-10-14 dan; demo o'chirilgan). Serverdagi papka nomi tarixiy: `/srv/codial-test` — bu haqiqiy tizim, alohida prod yo'q. Zaxira manzil: https://test.77-42-9-23.sslip.io |
 | Prototip (dizayn namunasi) | https://ilhomjon1502.github.io/codialERP1/ |
 | Server | Hetzner CAX11 «codial-1», `77.42.9.23`, `ssh -i ~/.ssh/codial_hetzner root@77.42.9.23` |
 | Kod | https://github.com/Ilhomjon1502/codialERP1 (`main`) |
 
 **Ish qoidalari (o'zgarmagan):** keyingi bosqich buyurtmachi «boshla» deganda boshlanadi; commit/push faqat u so'raganda; noaniq biznes qoidani so'ra yoki `docs/decisions.md` ga yoz.
+
+### Keyingi sessiya uchun (2026-10-18) — eng so'nggi holat
+
+**Serverda (https://erp.codialinfo.uz, `/srv/codial-test`):**
+- Haqiqiy ma'lumot: 73 faol shartnoma, 21 guruh, 7 ustoz (AppSheet'dan, qarzsiz).
+- Bosh menejer akkaunti `ilhomjon.office@gmail.com` (buyurtmachi, botga bog'langan). Botga hozir faqat 3 xodim bog'langan.
+- Kurs narxlari va to'lovlar **hali kiritilmagan**, shuning uchun hamma qarz 0. Bu xato emas: hisob 2026-11-01 dan boshlanadi.
+- Zaxiralar: `/srv/backups/codial-test/` (har kuni 03:15).
+- Monitoring: `deploy/healthcheck.sh`, cron */5; xato bo'lsa Telegram'ga (`ALERT_TELEGRAM_CHAT`).
+- Cron:
+  - `daily_report` — 19:00 (BM);
+  - `morning_plan` — 08:30 (Adm+Hisobchi);
+  - `notify_attendance` — */10;
+  - `propose_lesson_frequencies` — har oy 1-kuni.
+
+**2026-10-14 … 10-16 da qo'shilganlar** (buyurtmachi so'rovlari, hammasi `main` da va serverda):
+- **Dars jadvali** bosh sahifada (xona × vaqt). Blokni bosib guruh vaqtini o'zgartirish mumkin — `pages-admin.js` (`schedHTML`, `sched-edit`), API `/schedule/` (`education/views.py`).
+- **Telegram:**
+  - 19:00 BM hisoboti (`daily_report.py`);
+  - dars boshlanganda ustozga xabar va 08:30 ertalabki reja (`notifications/reminders.py`, bot har 60 s `tick`);
+  - **Mini App** — botdan parolsiz davomat va topshiriq (`notifications/webapp.py`, `POST /api/v1/auth/telegram/`, `?tg=attendance|tasks`);
+  - Outbox'da `markup` (inline tugmalar), `callback_query` (`td:<id>` — «✅ Bajarildi»).
+- **Davomat** (`pages-edu.js`):
+  - ustoz faqat bugungi guruhlarini ko'radi, joriy dars avtomatik tanlanadi;
+  - ustoz faqat **Keldi/Besabab** qo'yadi (Sababli — menejerlar);
+  - menejerlar: sana → kurs → shu kungi guruh.
+- **Topshiriqlar** (`apps/tasks`, `pages-tasks.js`): berilganda bajaruvchiga «📌 Yangi topshiriq» (+ Bajarildi tugmasi), beruvchiga «📤 Topshiriq berildi». Bajaruvchi botga ulanmagan bo'lsa — ogohlantirish (botda ham, saytda ham).
+- **Dizayn:** navy menyu, Codial logotipi, telefonda ixcham kartochkalar (`style.css`).
+- **AI yordamchi:**
+  - Gemini'ga sxema va «ma'lumotlar holati» boradi: yozuvlar soni; kurs, guruh, xodim, manba, g'azna nomlari — talaba ma'lumotisiz;
+  - bo'sh natija sababi ekranda (`context.diagnose`);
+  - nom topilmasa, mavjud qiymatlar bilan 1 marta qayta so'raladi;
+  - yangi view `analytics_lessons` (davomat olinmagan darslar);
+  - model: `gemini-3.5-flash-lite` → zaxiralar → qayta so'rashda `gemini-3.7-flash` (`providers.py`).
+
+**Ochiq ishlar (navbat bilan):**
+1. **Telegram guruhga topshiriqlar** — buyurtmachi 2026-10-16 da so'radi, javob kutilmoqda. **Javobsiz boshlamang.**
+   - Taklif: botni guruhga qo'shib BM `/ulash` yozadi, guruh chat_id saqlanadi.
+   - Guruhga chiqadi: yangi topshiriq, bajarildi/bekor qilindi, har kuni ertalab ro'yxat (bugun tugaydigan + muddati o'tgan). Takroriy eslatmalar guruhga chiqmaydi (shovqin bo'lmasin).
+   - Guruhda `web_app` tugmasi ishlamaydi → oddiy `url` havola.
+   - Guruhdagi «✅ Bajarildi»: `callback_query.from.id` bo'yicha (bu xodimning shaxsiy chat_id si); faqat bajaruvchi yoki Admin/BM bosa oladi.
+   - Formada «Guruhga ham yuborilsin» belgisi (standart yoqilgan).
+   - Buyurtmachidan so'ralgan: 1) guruhga nimalar chiqsin; 2) kunlik ro'yxat soati; 3) belgi kerakmi.
+2. **O'tish kuni 2026-10-31/11-01.** Oldin zaxira oling. Tartib (batafsil: `docs/user_guide/m11_ishga_tushirish.md`):
+   1. Buyurtmachidan yangi xlsx olinadi → `/srv/import/`.
+   2. `import_appsheet --file … --on 2026-11-01` (sinov), keyin `--commit`.
+   3. Faylni o'chirish.
+   4. `send_invites --send`.
+   5. Bosh sahifa `PLAN` dagi M11 ni ✅ qilish.
+3. Ixtiyoriy: AI'da prognoz (buyurtmachi tilga olgan, boshlanmagan).
+
+**Ish usullari** (tokenni tejash va xatosiz ishlash uchun):
+- **Testlar:** `cd backend && .venv/Scripts/python -m pytest -q` (164 test) va `.venv/Scripts/ruff check .`. Front-end o'zgarsa — `frontend/index.html` dagi `?v=` ni oshiring (hozir `m12-4`).
+- **Serverga joylash — bitta SSH ulanishda**, skript bilan (server tez-tez ulanishni cheklaydi):
+  1. Skriptni scratchpad'ga yozing va `ssh -i ~/.ssh/codial_hetzner root@77.42.9.23 'bash -s' < skript.sh` bilan ishga tushiring.
+  2. Skript ichida: `cd /srv/codial-test && git pull && cd deploy && docker compose --env-file .env up -d --build web bot`.
+  3. Keyin tekshiruv: `curl -H "Host: erp.codialinfo.uz" -H "X-Forwarded-Proto: https" http://127.0.0.1:8001/api/v1/health/`.
+  4. Skript ichidagi `docker compose exec -T …` ga `< /dev/null` qo'shing, aks holda u skriptning qolgan qatorlarini yutib yuboradi. Django shell uchun heredoc (`<<'PY'`) ishlating.
+- **Windows:**
+  - katta tahrirlarni Python skript faylida qiling (fayl Write vositasi bilan yozilsin — Git Bash heredoc'i ba'zan buziladi);
+  - Windows Python'ga `/c/...` yo'l bermang — `cygpath -w` yoki `D:\...` ishlating;
+  - `python -` (stdin) ishlatmang — osilib qoladi.
+- **Buyurtmachi bilan:** u o'zbek tilida yozadi; javob qisqa va o'zbekcha bo'lsin. U «push qil», «serverga joyla» deb so'raydi; har yangi funksiyadan keyin odatda GitHub va serverga joylanishini kutadi. Ikkilansangiz — so'rang.
+- **Xavfsizlik:**
+  - sirlarni (Gemini, Telegram token, parollar) hech qachon chatga yozdirmang va o'zingiz kiritmang — faqat `deploy/set-*.sh`;
+  - repo ochiq: `.env`, `*.local.md`, `import_data/` git'ga kirmasin; xlsx'dagi shaxsiy ma'lumotlarni chiqarmang;
+  - buzadigan amaldan oldin zaxira oling;
+  - jonli AppSheet/Google Sheets'ga ulanmang;
+  - AI: talaba ma'lumoti Gemini'ga bormaydi.
+
 
 ### Ishni topshirish (2026-10-13) — keyingi dasturchi shundan davom etadi
 
