@@ -182,3 +182,15 @@ def test_stats_durations(api, paired):
     assert s["talk"] == 810 and s["talked"] == 3 and s["avg_talk"] == 270 and s["longest"] == 700
     assert (s["talk_in"], s["talk_out"]) == (720, 90)
     assert {d["label"]: d["n"] for d in s["by_duration"]} == {"1–30 s": 1, "30 s–1 daq": 0, "1–3 daq": 1, "3–5 daq": 0, "5–10 daq": 0, "10 daq+": 1}
+
+
+def test_calls_section_in_roles_matrix(api, make_user):
+    """Bo'lim «Rollar va ruxsatlar» jadvalida chiqadi (bootstrap sections) va Bosh menejer uni istalgan rolga bera/ola oladi."""
+    bm, hisobchi = make_user("BOSH_MENEJER"), make_user("HISOBCHI")
+    assert "calls" in [k for k, _ in api(bm).get("/api/v1/bootstrap/").data["sections"]]
+    assert api(hisobchi).get("/api/v1/calls/").status_code == 403
+    r = api(bm).post("/api/v1/roles/HISOBCHI/toggle/", {"section": "calls", "op": "v"}, format="json")
+    assert r.status_code == 200 and "v" in r.data["perms"]["calls"]
+    assert api(hisobchi).get("/api/v1/calls/").status_code == 200
+    api(bm).post("/api/v1/roles/HISOBCHI/toggle/", {"section": "calls", "op": "v"}, format="json")
+    assert api(make_user("HISOBCHI")).get("/api/v1/calls/").status_code == 403

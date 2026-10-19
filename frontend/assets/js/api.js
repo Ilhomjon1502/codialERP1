@@ -121,6 +121,7 @@
   A.boot = async () => {
     const b = await A.http.get('/bootstrap/');
     A.S = Object.assign(A.emptyStore(), b, { currentUser: b.me.id });
+    if (Array.isArray(b.sections) && b.sections.length) A.SECTIONS = b.sections; // ruxsatlar jadvali bo'limlari — serverdan (yangi bo'lim o'zi chiqadi)
     A.version++;
     await A.reloadPending().catch(() => {});
     if (A.reloadTaskSummary) await A.reloadTaskSummary().catch(() => {});
