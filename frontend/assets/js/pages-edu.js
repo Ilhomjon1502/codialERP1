@@ -545,6 +545,28 @@
     const clear = { 'ast:course': ['ast:group', 'ast:contract', 'ast:date'], 'ast:group': ['ast:contract', 'ast:date'], 'ast:month': ['ast:date'], 'ast:contract': ['ast:date'], 'ast:search': ['ast:date'] }[el.dataset.filter] || [];
     clear.forEach((k) => { A.ui.q[k] = ''; });
   }, true);
+  // Davomatni tuzatish: statusni bosib o'zgartiriladi, qarz va KPI darhol qayta hisoblanadi (server: bo'sh sana — «Belgilash»)
+  let attRows = {};
+  const ST_OPTS = [['1', '✅ Keldi'], ['0', '🟡 Sababli'], ['X', '🔴 Besabab'], ['-', '⚪ Nofaol']];
+  A.act['att-fix'] = (el) => {
+    const r = attRows[el.dataset.id];
+    if (!r) return;
+    A.form({
+      title: `${r.student_name} — ${A.fdate(r.date)}, ${A.WD[A.isoWeekday(r.date)]}`,
+      intro: `<p class="muted small">${esc(A.groupName(r.group))}${r.gap ? ' · bu sanaga davomat olinmagan' : ' · hozirgi holat: ' + esc(ATT_NAME[r.status] || r.status)}. Saqlanganda qarz va KPI qayta hisoblanadi.</p>`,
+      values: { status: r.gap ? '1' : r.status, comment: r.comment || '' },
+      submit: 'Saqlash',
+      fields: [
+        { name: 'status', label: 'Status', type: 'seg', big: true, required: true, options: ST_OPTS },
+        { name: 'comment', label: "Izoh (sababli bo'lsa — sababi)", type: 'textarea', show: (x) => x.status === '0', required: (x) => x.status === '0' },
+      ],
+      async onSubmit(x) {
+        await A.http.post('/attendance/take/', { group: r.group, date: r.date, marks: [{ contract: r.contract, status: x.status, ...(x.comment ? { comment: x.comment } : {}) }] });
+        A.toast(`${r.student_name}: ${ATT_NAME[x.status]}`);
+        A.refresh();
+      },
+    });
+  };
   A.act['ast-date'] =(el) => { A.ui.q['ast:date'] = el.dataset.id; A.ui.q['ast:page'] = 1; A.refresh(); };
   A.act['ast-view'] = (el) => { A.ui.q['ast:view'] = el.dataset.id; A.refresh(); };
 
@@ -562,6 +584,7 @@
     const stName = (c) => c.student_name || (A.get('students', c.student) || {}).full_name || `№${c.number}`;
     const students = ledgerContracts.map((c) => [c.id, stName(c)]);
     const showDebt = A.can('payments', 'v');
+    const canFix = A.can('attendance', 'a') && !isTeacherSelf(); // menejerlar va administratorlar tuzata oladi (ustoz — faqat o'z bugungisini davomat olish ekranida)
     const gapSet = s.gaps || [];
 
     // Chapda — sanalar (AppSheet daraxti kabi)
@@ -592,8 +615,10 @@
       { h: 'Dars kunlari', f: (r) => esc(patternOf(r)) },
       { h: 'Ustoz KPI', f: (r) => (r.gap || r.no_freq ? '—' : A.num(r.tkpi)), cls: 'num', sum: (rs) => A.num(A.sum(real(rs), 'tkpi')) },
       { h: 'Yordamchi KPI', f: (r) => (r.gap || r.no_freq ? '—' : A.num(r.skpi)), cls: 'num', sum: (rs) => A.num(A.sum(real(rs), 'skpi')) },
+      ...(canFix ? [{ h: '', f: (r) => `<button class="btn sm ${r.gap ? 'primary' : 'ghost'}" data-act="att-fix" data-id="${r.id}" title="${r.gap ? 'Davomatni belgilash' : 'Davomatni tuzatish'}">${r.gap ? 'Belgilash' : '✎'}</button>` }] : []),
       ...(showDebt ? [{ h: 'Qarz (dars narxi)', f: (r) => (r.gap || r.no_freq ? '—' : A.num(r.debt)), cls: 'num', sum: (rs) => A.num(A.sum(real(rs), 'debt')) }] : []),
     ];
+    attRows = Object.fromEntries(rows.map((r) => [r.id, r]));
     const t = s.dates.totals;
     const gapBox = gapSet.length
       ? `<div class="note warn" style="margin-bottom:10px">⚠️ <b>${f.contract ? "Bu o'quvchiga davomat olinmagan" : 'Butun guruhga davomat olinmagan'} sanalar (${gapSet.length}):</b> ${gapSet.map((d) => `<span class="badge red">${A.fdate(d).slice(0, 5)}</span>`).join(' ')}</div>`
