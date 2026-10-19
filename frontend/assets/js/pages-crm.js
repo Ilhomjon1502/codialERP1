@@ -193,7 +193,7 @@
             return `<button class="kcard" data-act="lead-open" data-id="${l.id}">
               <b>${esc(st.first_name)} ${esc(st.last_name)}</b>
               <span class="muted small">${esc(A.courseName(l.course))} · ${esc(A.sourceName(l.source))}</span>
-              ${l.demo_date && ['3', '4'].includes(l.status) ? `<span class="small">Sinov: ${A.fdate(l.demo_date)}</span>` : ''}
+              ${l.demo_date && ['3', '4'].includes(l.status) ? `<span class="small">Sinov: ${demoTime(l) ? `${demoTime(l)} · ` : ''}${A.fdate(l.demo_date)}</span>` : ''}
               ${l.status === '5' || l.has_contract ? `<span class="small">Shartnoma: ${contractStatusOf(l)}</span>` : ''}
             </button>`;
           })
@@ -264,6 +264,12 @@
   }
 
   /* ---- Lid formasi (AppSheet Show_If zanjiri bo'yicha). Tekshiruvlar serverda ham bor ---- */
+  // Sinov dars vaqti: tanlangan guruhning dars vaqti, bo'lmasa lidning ma'qul vaqti
+  const demoTime = (l) => {
+    const g = l.group && A.get('groups', l.group);
+    const id = g ? g.time : (l.times || [])[0];
+    return id ? A.timeName(id) : '';
+  };
   A.leadForm = (lead, freeStudents = []) => {
     const isNew = !lead;
     const B = lead ? lead.branch : A.branchIds()[0];
