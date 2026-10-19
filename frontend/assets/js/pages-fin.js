@@ -922,7 +922,7 @@
           [
             { h: 'Sana', f: (a) => A.fdate(a.date) },
             { h: 'Shartnoma', f: (a) => `<a href="#/contracts/${a.contract}">${esc(a.student_name)} №${a.contract_number}</a>` },
-            { h: 'Status', f: (a) => A.attBadge(a.status) },
+            { h: 'Status', f: (a) => A.attSelect({ contract: a.contract, group: a.group, date: a.date, status: a.status, comment: a.comment }) },
             { h: 'KPI', f: (a) => { const v = (A.q('kpi:tree', '').split('|')[4] || '').endsWith('YORDAMCHI') ? a.skpi : a.tkpi; return v === null ? A.badge('kutilmoqda', 'orange') : A.num(v); }, cls: 'num' },
           ],
           leafRows,

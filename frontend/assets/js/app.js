@@ -128,6 +128,41 @@
   A.match = (text, q) => !q || String(text).toLowerCase().includes(q.toLowerCase());
   A.contractStatusBadge = (s) => A.badge(s, s === 'Faol' ? 'green' : s === 'Nofaol' ? 'red' : 'blue');
   A.attBadge = (s) => `<span class="att att-${s === '-' ? 'n' : s}">${s === '-' ? '–' : s}</span>`;
+  /* ---- Davomat statusini jadvalning o'zida tahrirlash (spinner bilan). Server qoidalari «Davomat olish» bilan bir xil:
+     rol, muddat (A.canEdit), dars kuni. o = { contract, group, date, status ('' — olinmagan), comment, compact } ---- */
+  A.attSelect = (o) => {
+    const allowed = A.rows('attendanceStatuses').filter((x) => (x.roles || []).includes(A.role()));
+    const view = o.status ? A.attBadge(o.status) + (o.compact ? '' : ' ' + A.ATT[o.status]) : '<span class="att att-empty">·</span>';
+    if (!allowed.length || !A.canEdit('attendance', { date: o.date }, 'date', 'a').ok) return view;
+    const opts = allowed.some((x) => x.code === o.status) || !o.status ? allowed : [{ code: o.status, name: A.ATT[o.status] }, ...allowed];
+    const lab = (c, n) => (o.compact ? (c === '-' ? '–' : c) : `${c === '-' ? '–' : c} · ${n}`);
+    return `<span class="inl-sel${o.compact ? ' compact' : ''}"><select class="f-input sm att-sel att-${o.status === '-' ? 'n' : o.status || 'empty'}" data-ae="${esc(o.contract)}|${esc(o.group)}|${esc(o.date)}" data-prev="${esc(o.status || '')}" data-comment="${esc(o.comment || '')}" title="Davomat statusini o'zgartirish">` +
+      `${o.status ? '' : '<option value="" selected disabled>·</option>'}${opts.map((x) => `<option value="${esc(x.code)}" ${x.code === o.status ? 'selected' : ''}>${esc(lab(x.code, x.name))}</option>`).join('')}</select><i class="spin" hidden></i></span>`;
+  };
+  document.addEventListener('change', async (e) => {
+    const sel = e.target.closest('select[data-ae]');
+    if (!sel || !sel.value) return;
+    const [contract, group, date] = sel.dataset.ae.split('|');
+    const prev = sel.dataset.prev;
+    let comment = '';
+    if (sel.value === '0') {
+      comment = (window.prompt(`${A.fdate(date)}: sababli — sababini yozing`, sel.dataset.comment || '') || '').trim();
+      if (!comment) { sel.value = prev; return; }
+    }
+    const spin = sel.parentElement.querySelector('.spin');
+    sel.disabled = true;
+    if (spin) spin.hidden = false;
+    try {
+      await A.http.post('/attendance/take/', { group, date, marks: [{ contract, status: sel.value, ...(comment ? { comment } : {}) }] });
+      A.toast(`${A.fdate(date)}: ${A.ATT[sel.value]}`);
+      A.refresh();
+    } catch (err) {
+      A.toast(err.message || 'Saqlanmadi', 'warn');
+      sel.value = prev;
+      sel.disabled = false;
+      if (spin) spin.hidden = true;
+    }
+  });
   A.moneyCell = (n, colored) => `<span class="money ${colored ? (n > 0 ? 'neg' : n < 0 ? 'pos' : '') : ''}">${A.num(n)}</span>`;
   A.monthOptions = () => {
     const out = [];

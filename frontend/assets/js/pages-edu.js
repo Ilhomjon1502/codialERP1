@@ -146,7 +146,8 @@
       const inactive = j.contracts.filter((c) => c.status === 'Nofaol');
       const cell = (cid, d) => {
         const s = (j.marks[cid] || {})[d];
-        return s ? A.attBadge(s) : d < today ? '<span class="att att-empty">·</span>' : '';
+        const st = s || '';
+        return st || d < today ? A.attSelect({ contract: cid, group: g.id, date: d, status: st, compact: true }) : '';
       };
       const freq = j.frequency;
       return `<a class="back" href="#/groups">← Guruhlar</a>
@@ -426,7 +427,7 @@
           { h: 'Sana', f: (a) => `${A.fdate(a.date)} <span class="muted small">${A.WD[A.isoWeekday(a.date)]}</span>` },
           { h: 'Talaba', f: (a) => `<a href="#/contracts/${a.contract}">${esc(a.student_name)}</a><br><a class="small" href="tel:+998${a.phone1}">+998 ${a.phone1}</a>` },
           { h: 'Guruh', f: (a) => esc(A.groupName(a.group)) },
-          { h: 'Status', f: (a) => A.attBadge(a.status) + ' ' + A.ATT[a.status] },
+          { h: 'Status', f: (a) => A.attSelect({ contract: a.contract, group: a.group, date: a.date, status: a.status, comment: a.comment }) },
           { h: "Bog'lanish holati", f: (a) => (canC ? `<select class="f-input sm" data-act-change="att-contact" data-id="${a.id}">${A.CONTACT.map((c) => `<option ${a.contact === c ? 'selected' : ''}>${c}</option>`).join('')}</select>` : esc(a.contact)) },
           { h: 'Izoh', f: (a) => esc(a.comment || '') },
           {

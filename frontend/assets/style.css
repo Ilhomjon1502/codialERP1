@@ -577,3 +577,14 @@ select.att-inline.st-\- { background: #eef0f3; color: #5b6472; }
 /* Qo'ng'iroqlar */
 .tbl tr.row-warn td { background: var(--red-50); }
 .pair-code { font-size: 18px; font-weight: 700; letter-spacing: .12em; background: var(--orange-50); padding: 2px 8px; border-radius: 6px; }
+
+/* Jadval ichidagi tanlash + saqlanayotgan paytdagi spinner */
+.inl-sel { display: inline-flex; align-items: center; gap: 6px; }
+.inl-sel select:disabled { opacity: .6; }
+.spin { width: 14px; height: 14px; border: 2px solid var(--line, #d8dde6); border-top-color: var(--brand, #f26a1b); border-radius: 50%; animation: spin .7s linear infinite; display: inline-block; }
+.spin[hidden] { display: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.inl-sel { position: relative; }
+.inl-sel.compact select { width: 46px; min-height: 26px; padding: 1px 2px; font-size: 12px; text-align: center; }
+.inl-sel.compact .spin { position: absolute; right: 3px; top: 6px; background: var(--card, #fff); }
+.journal .inl-sel.compact select { appearance: none; -webkit-appearance: none; cursor: pointer; }
