@@ -406,7 +406,8 @@ def exchanges(c):
 
 
 def creditors(c):
-    """Faqat oktyabrda amali bor kreditorlar. Yangi tizimda joriy haqqi = boshlang'ich − Σ amallar, shuning uchun boshlang'ich = AppSheet boshlang'ichi − 01.10 gacha amallar."""
+    """Faqat oktyabrda amali bor kreditorlar. Buyurtmachi qarori (2026-10-19): boshlang'ich haqqi 0 — kreditor ekranida faqat oktyabrdagi amallar chiqadi
+    (AppSheet'dagi eski qoldiq, masalan MNSH −284,9 mln, ko'chirilmaydi; g'azna qoldig'iga ta'siri 01.10 qoldig'ida allaqachon bor)."""
     rep = c.rep
     flows = c.wb["CashFlow"]
     oct_rows = [x for x in flows if dt(x.get("Date")) and dt(x.get("Date")) >= CUT]
@@ -415,13 +416,12 @@ def creditors(c):
         if src is None:
             rep.error(f"Kreditor {cr_id} Excel'da yo'q")
             continue
-        before = sum(num(x.get("Summa")) for x in flows if r.ident(x.get("CreditorID")) == cr_id and dt(x.get("Date")) and dt(x.get("Date")) < CUT)
         name = r.text(src.get("Name"))
         cr = Creditor.objects.filter(legacy_id=cr_id).first() or Creditor.objects.filter(name=name).first()
         created = cr is None
         if created:
             cr = Creditor(legacy_id=cr_id, name=name)
-        cr.legacy_id, cr.initial_balance = cr_id, rnd(num(src.get("InitialBalance")) - before)
+        cr.legacy_id, cr.initial_balance = cr_id, ZERO  # buyurtmachi qarori 2026-10-19: boshlang'ich — 0, faqat oktyabrdagi amallar (eski qoldiq ko'chmaydi)
         cr.save()
         rep.count("Kreditorlar", created)
         for x in oct_rows:
