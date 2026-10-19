@@ -151,10 +151,30 @@ def test_transfer_flow(api, make_user, fin):
     assert bal(fin["cash"]) == 1_000_000  # tasdiqlanmaguncha hisobga olinmaydi
     tid = r.json()["id"]
     assert c.post(f"/api/v1/transfers/{tid}/confirm/").status_code == 403  # yuboruvchi o'zi tasdiqlamaydi
-    assert c.patch(f"/api/v1/transfers/{tid}/", {"amount": 100}, format="json").status_code == 403  # summani faqat Admin
+    r = c.patch(f"/api/v1/transfers/{tid}/", {"amount": 300000}, format="json")  # tasdiqlanmaguncha yuboruvchi o'zgartira oladi
+    assert r.status_code == 200 and r.json()["amount"] == 300000
     assert api(fin["boss"]).post(f"/api/v1/transfers/{tid}/confirm/").status_code == 200
-    assert bal(fin["cash"]) == 600000 and bal(fin["card"], "CASH") == 400000
+    assert bal(fin["cash"]) == 700000 and bal(fin["card"], "CASH") == 300000
     assert Transfer.objects.get().confirmed_by == fin["boss"]
+    assert c.patch(f"/api/v1/transfers/{tid}/", {"amount": 100}, format="json").status_code == 403  # tasdiqlangach — faqat Admin / Bosh menejer
+    assert c.delete(f"/api/v1/transfers/{tid}/").status_code == 403
+
+
+def test_pending_transfer_edit_delete(api, make_user, fin):
+    ah = api(fin["cashier"])  # Administrator+Hisobchi, jo'natuvchi g'azna mas'uli
+    old = TODAY - datetime.timedelta(days=5)
+    t = Transfer.objects.create(date=old, sender_account=fin["cash"], sender_cashier=fin["cashier"], amount=100000, receiver_account=fin["card"],
+                                receiver_cashier=fin["boss"], created_by=make_user("ADMINISTRATOR_HISOBCHI"))
+    # sana o'tgan bo'lsa ham, tasdiqlanmaguncha sender g'azna mas'uli o'zgartiradi va o'chiradi
+    r = ah.patch(f"/api/v1/transfers/{t.pk}/", {"amount": 250000, "date": old.isoformat(), "comment": "tuzatildi"}, format="json")
+    assert r.status_code == 200, r.content
+    assert r.json()["amount"] == 250000 and r.json()["comment"] == "tuzatildi" and r.json()["can_modify"] is True
+    # begona (g'azna mas'uli ham, yaratuvchi ham emas) — o'zgartira olmaydi
+    stranger = api(make_user("ADMINISTRATOR_HISOBCHI"))
+    assert stranger.patch(f"/api/v1/transfers/{t.pk}/", {"comment": "x"}, format="json").status_code in (403, 404)
+    assert stranger.delete(f"/api/v1/transfers/{t.pk}/").status_code in (403, 404)
+    assert ah.delete(f"/api/v1/transfers/{t.pk}/").status_code == 204
+    assert not Transfer.objects.filter(pk=t.pk).exists() and bal(fin["cash"]) == 1_000_000
 
 
 def test_exchange_only_top(api, make_user, fin):

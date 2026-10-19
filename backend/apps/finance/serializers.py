@@ -58,11 +58,12 @@ class TransferSerializer(serializers.ModelSerializer):
     date = serializers.DateField(required=False)
     direction = serializers.SerializerMethodField()
     can_confirm = serializers.SerializerMethodField()
+    can_modify = serializers.SerializerMethodField()
 
     class Meta:
         model = Transfer
         fields = ["id", "date", "sender", "sender_cashier", "cash_type", "amount", "receiver", "receiver_cashier", "status", "confirmed_by", "confirmed_at",
-                  "comment", "direction", "can_confirm", "created_by", "created_at"]
+                  "comment", "direction", "can_confirm", "can_modify", "created_by", "created_at"]
         read_only_fields = ["cash_type", "status", "confirmed_by", "confirmed_at", "created_by", "created_at"]
 
     def _mine(self):
@@ -73,6 +74,13 @@ class TransferSerializer(serializers.ModelSerializer):
     def get_direction(self, t):
         mine = self._mine()
         return "Chiquvchi" if t.sender_account_id in mine else "Kiruvchi" if t.receiver_account_id in mine else "Boshqa"
+
+    def get_can_modify(self, t):
+        """Tasdiqlanmaguncha tahrirlash va o'chirish (finance.services.can_modify_pending)."""
+        from .services import can_modify_pending
+
+        u = self.context["request"].user
+        return can_modify_pending(u, t)
 
     def get_can_confirm(self, t):
         return t.status == "Tasdiqlashga" and (role_code(self.context["request"].user) == "ADMIN" or t.receiver_account_id in self._mine())

@@ -290,23 +290,33 @@ def transfer_rows(t):
     return [(t.sender_account, t.cash_type, -t.amount, ok, f"→ {t.receiver_account}"), (t.receiver_account, t.cash_type, t.amount, ok, f"← {t.sender_account}")]
 
 
+def can_modify_pending(user, t):
+    """Tasdiqlanmagan o'tkazmani (tranzit) tahrirlash va o'chirish — buyurtmachi qarori 2026-10-19: tasdiqlanmaguncha sana muddatisiz,
+    yaratgan xodim, jo'natuvchi g'azna mas'uli (Administrator+Hisobchi, Hisobchi), Admin va Bosh menejer."""
+    return t.status == Confirm.PENDING and (is_top(user) or t.created_by_id == user.pk or t.sender_account.responsible.filter(pk=user.pk).exists())
+
+
 @transaction.atomic
 def save_transfer(user, d, instance=None):
     d = dict(d)
     if instance is not None:
-        if role_code(user) != RoleCode.ADMIN and any(k in d and d[k] != getattr(instance, k) for k in ("amount", "cash_type", "sender_account", "receiver_account")):
-            raise PermissionDenied("O'tkazma summasi, pul turi va g'aznalarini faqat Admin o'zgartiradi")
-        if instance.status == Confirm.CONFIRMED and not is_top(user):
-            raise PermissionDenied("Tasdiqlangan o'tkazmani faqat Admin va Bosh menejer o'zgartiradi")
-        check_edit_window(user, "transfers", instance.date)
+        if instance.status == Confirm.PENDING:
+            if not can_modify_pending(user, instance):
+                raise PermissionDenied("Tasdiqlanmagan o'tkazmani uni yaratgan, jo'natuvchi g'azna mas'uli, Admin yoki Bosh menejer o'zgartiradi")
+        else:
+            if role_code(user) != RoleCode.ADMIN and any(k in d and d[k] != getattr(instance, k) for k in ("amount", "cash_type", "sender_account", "receiver_account")):
+                raise PermissionDenied("Tasdiqlangan o'tkazma summasi, pul turi va g'aznalarini faqat Admin o'zgartiradi")
+            if not is_top(user):
+                raise PermissionDenied("Tasdiqlangan o'tkazmani faqat Admin va Bosh menejer o'zgartiradi")
+            check_edit_window(user, "transfers", instance.date)
     get = lambda k: d.get(k, getattr(instance, k, None))  # noqa: E731
     sender, receiver, amount = get("sender_account"), get("receiver_account"), Decimal(get("amount") or 0)
     d["date"] = get("date") or today()
     if d["date"] > today():
         raise ValidationError({"date": "Kelajak sana bo'lishi mumkin emas"})
-    if not is_top(user) and (instance is None or "date" in d) and d["date"] != today():
+    if not is_top(user) and d["date"] != today() and (instance is None or d["date"] != instance.date):
         raise ValidationError({"date": "Sanani faqat Admin va Bosh menejer o'zgartiradi"})
-    if instance is None and not my_accounts(user).filter(pk=sender.pk).exists():
+    if (instance is None or sender.pk != instance.sender_account_id) and not my_accounts(user).filter(pk=sender.pk).exists():
         raise ValidationError({"sender_account": "Siz mas'ul bo'lgan faol g'aznani tanlang"})
     if receiver.status != Status.ACTIVE or receiver.pk == sender.pk:
         raise ValidationError({"receiver_account": "Boshqa faol g'aznani tanlang"})
@@ -324,6 +334,7 @@ def save_transfer(user, d, instance=None):
         t = instance
         before = _update(t, user, d)
         audit.log_update(user, t, before)
+        notif.transfer_changed(t, "o'zgardi", user)
     sync_movements(S.TRANSFER, t, transfer_rows(t))
     return t
 
@@ -348,11 +359,17 @@ def confirm_transfer(user, t):
 
 @transaction.atomic
 def delete_transfer(user, t):
-    if t.status == Confirm.CONFIRMED and not is_top(user):
-        raise PermissionDenied("Tasdiqlangan o'tkazmani faqat Admin va Bosh menejer o'chiradi")
-    check_edit_window(user, "transfers", t.date, op="d")
+    if t.status == Confirm.PENDING:
+        if not can_modify_pending(user, t):
+            raise PermissionDenied("Tasdiqlanmagan o'tkazmani uni yaratgan, jo'natuvchi g'azna mas'uli, Admin yoki Bosh menejer o'chiradi")
+    else:
+        if not is_top(user):
+            raise PermissionDenied("Tasdiqlangan o'tkazmani faqat Admin va Bosh menejer o'chiradi")
+        check_edit_window(user, "transfers", t.date, op="d")
     soft_delete(t, user, check_usage=False)
     sync_movements(S.TRANSFER, t, [])
+    if t.status == Confirm.PENDING:
+        notif.transfer_changed(t, "bekor qilindi", user)
 
 
 # ------------------------------------------------------------------ pul ayirboshlash

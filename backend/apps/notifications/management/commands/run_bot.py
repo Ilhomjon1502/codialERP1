@@ -72,6 +72,9 @@ class Command(BaseCommand):
         if data.startswith("td:") and chat:
             close_old_connections()
             text = tasks.done_from_telegram(chat, data[3:])
+        elif data.startswith("ap:") and chat:  # tasdiqlash tugmalari: chegirma, naqdsiz to'lov, o'tkazma, qoldirilgan dars
+            close_old_connections()
+            text = services.approve_from_telegram(chat, data)
         try:
             services.api("answerCallbackQuery", callback_query_id=cb["id"], text=text)
             msg = cb.get("message") or {}

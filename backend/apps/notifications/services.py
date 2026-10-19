@@ -144,14 +144,28 @@ def contract_saved(c, user, created, note=""):
     notify("contract_change", f"{head}\n{escape(c.name)} · {escape(str(c.course))}{extra}\n✍️ {escape(str(user))}", branch=c.branch, exclude=user)
 
 
+def _buttons(*pairs):
+    """Xabar ostidagi tugmalar: [(matn, callback_data)] — har biri alohida qatorda."""
+    return {"inline_keyboard": [[{"text": t, "callback_data": d}] for t, d in pairs]}
+
+
+def _comment(text):
+    text = (text or "").strip()
+    return f"\n💬 {escape(text[:500])}" if text else ""
+
+
 def payment_pending(p):
-    parts = []
+    parts, buttons = [], []
     if p.discount_status == "Tasdiqlashga":
         parts.append(f"chegirma {money(p.discount)} ({escape(str(p.discount_type))})")
+        buttons.append(("✅ Chegirmani tasdiqlash", f"ap:d:{p.pk}"))
     if p.noncash_status == "Tasdiqlashga":
         parts.append(f"naqdsiz to'lov {money(p.amount)} ({p.get_cash_type_display()})")
+        buttons.append(("✅ Naqdsiz to'lovni tasdiqlash", f"ap:n:{p.pk}"))
     if parts:
-        notify("approval", f"⏳ <b>Tasdiq kutilmoqda</b>: {', '.join(parts)}\n{escape(p.contract.name)}", branch=p.branch)
+        who = f"\n✍️ {escape(str(p.created_by))}" if p.created_by_id else ""
+        notify("approval", f"⏳ <b>Tasdiq kutilmoqda</b>: {', '.join(parts)}\n{escape(p.contract.name)}{_comment(p.comment)}{who}",
+               branch=p.branch, markup=_buttons(*buttons))
 
 
 def transfer_created(t):
@@ -161,14 +175,72 @@ def transfer_created(t):
         ids = scoped_account_ids(u)
         return ids is None or t.sender_account_id in ids or t.receiver_account_id in ids
 
-    notify("transfer", f"🔁 <b>O'tkazma kutilmoqda</b>: {money(t.amount)}\n{escape(str(t.sender_account))} → {escape(str(t.receiver_account))}",
-           default_users=list(t.receiver_account.responsible.all()), only=sees)
+    notify("transfer", f"🔁 <b>O'tkazma kutilmoqda</b>: {money(t.amount)}\n{escape(str(t.sender_account))} → {escape(str(t.receiver_account))}{_comment(t.comment)}",
+           default_users=list(t.receiver_account.responsible.all()), only=sees, markup=_buttons(("✅ Qabul qildim", f"ap:t:{t.pk}")))
+
+
+def transfer_changed(t, what, user):
+    """Tasdiqlanmagan o'tkazma o'zgardi yoki bekor qilindi — qabul qiluvchiga xabar (tugmasiz: eski tugma ishlamaydi yoki yangilangan summani tasdiqlaydi)."""
+    from apps.finance.services import scoped_account_ids
+
+    def sees(u):
+        ids = scoped_account_ids(u)
+        return ids is None or t.sender_account_id in ids or t.receiver_account_id in ids
+
+    markup = None if what != "o'zgardi" else _buttons(("✅ Qabul qildim", f"ap:t:{t.pk}"))
+    notify("transfer", f"✏️ <b>O'tkazma {what}</b>: {money(t.amount)}\n{escape(str(t.sender_account))} → {escape(str(t.receiver_account))}{_comment(t.comment)}\n✍️ {escape(str(user))}",
+           default_users=list(t.receiver_account.responsible.all()), only=sees, markup=markup, exclude=user)
 
 
 def makeup_requested(m):
     a = m.attendance
     notify("makeup", f"📚 <b>Dars yetkazildi — so'rov</b>\n{escape(str(m.teacher))}: {escape(a.contract.student.full_name)}, {a.date:%d.%m.%Y} "
-                     f"(yetkazildi {m.makeup_date:%d.%m.%Y})\n{escape(m.comment)}", branch=a.branch)
+                     f"(yetkazildi {m.makeup_date:%d.%m.%Y}){_comment(m.comment)}", branch=a.branch, markup=_buttons(("✅ Tasdiqlash", f"ap:m:{m.pk}")))
+
+
+def approve_from_telegram(chat_id, data):
+    """Botdagi «✅ Tasdiqlash» tugmalari (callback `ap:<tur>:<id>`): d — chegirma, n — naqdsiz to'lov, t — o'tkazma, m — qoldirilgan dars.
+    Tasdiqlovchi — chat_id bo'yicha topilgan xodim; huquq va muddatlar saytdagi bilan bir xil (servislar tekshiradi). Qaytaradi: qisqa javob."""
+    from rest_framework.exceptions import PermissionDenied, ValidationError
+
+    from apps.education import services as edu
+    from apps.education.models import MakeupRequest
+    from apps.finance import services as fin
+    from apps.finance.models import Payment, Transfer
+
+    link = TelegramLink.objects.filter(chat_id=chat_id, user__employment_status=User.Employment.ACTIVE).select_related("user").first()
+    try:
+        _, kind, pk = data.split(":", 2)
+    except ValueError:
+        return "Noma'lum amal"
+    if not link:
+        return "Siz botga ulanmagansiz"
+    user = link.user
+    try:
+        if kind in ("d", "n"):
+            p = Payment.objects.select_related("contract", "branch").filter(pk=pk).first()
+            if not p:
+                return "To'lov topilmadi (o'chirilgan bo'lishi mumkin)"
+            (fin.approve_discount if kind == "d" else fin.approve_noncash)(user, p)
+            return "✅ Chegirma tasdiqlandi" if kind == "d" else "✅ Naqdsiz to'lov tasdiqlandi"
+        if kind == "t":
+            t = Transfer.objects.select_related("sender_account", "receiver_account").filter(pk=pk).first()
+            if not t:
+                return "O'tkazma topilmadi (bekor qilingan bo'lishi mumkin)"
+            fin.confirm_transfer(user, t)
+            return "✅ O'tkazma qabul qilindi"
+        if kind == "m":
+            m = MakeupRequest.objects.select_related("attendance").filter(pk=pk).first()
+            if not m:
+                return "So'rov topilmadi"
+            edu.approve_makeup(user, m)
+            return "✅ Dars yetkazilgani tasdiqlandi"
+    except (ValidationError, PermissionDenied) as e:
+        detail = e.detail.get("detail") if isinstance(e.detail, dict) else e.detail
+        if isinstance(detail, list):
+            detail = detail[0]
+        return f"⚠️ {detail}"[:190]
+    return "Noma'lum amal"
 
 
 def attendance_missing(group, text, key):

@@ -370,3 +370,25 @@ def test_demo_reminder_cannot_be_turned_off(fin, django_capture_on_commit_callba
     with django_capture_on_commit_callbacks(execute=True):
         reminders.demo_before_lessons(start - datetime.timedelta(minutes=9))
     assert Outbox.objects.filter(chat_id=841, event="demo_soon").exists()
+
+
+def test_approval_buttons_and_telegram_approve(api, fin, django_capture_on_commit_callbacks):  # noqa: F811
+    from apps.finance.models import Payment
+
+    link(fin["boss"], 901)
+    pay = api(fin["cashier"]).post("/api/v1/payments/", {"contract": str(fin["contract"].pk), "amount": 100000, "cash_type": "CASH", "cashbox": str(fin["cash"].pk),
+                                                          "discount_type": str(fin["discount"].pk), "discount": 100000, "comment": "Ikkinchi farzand"}, format="json")
+    assert pay.status_code == 201, pay.content
+    with django_capture_on_commit_callbacks(execute=True):
+        services.payment_pending(Payment.objects.get())
+    m = Outbox.objects.get(event="approval")
+    assert "Ikkinchi farzand" in m.text and m.markup["inline_keyboard"][0][0]["callback_data"] == f"ap:d:{Payment.objects.get().pk}"
+    assert services.approve_from_telegram(901, m.markup["inline_keyboard"][0][0]["callback_data"]).startswith("✅")
+    assert Payment.objects.get().discount_status == "Tasdiqlandi"
+    assert services.approve_from_telegram(901, m.markup["inline_keyboard"][0][0]["callback_data"]).startswith("⚠️")  # qayta bosilsa
+    assert services.approve_from_telegram(999, "ap:d:x").startswith("Siz botga ulanmagansiz")
+    link(fin["cashier"], 902)  # ruxsati yo'q xodim — server rad etadi
+    p2 = Payment.objects.get()
+    p2.discount_status = "Tasdiqlashga"
+    p2.save()
+    assert services.approve_from_telegram(902, f"ap:d:{p2.pk}").startswith("⚠️")

@@ -318,7 +318,15 @@
         { h: 'Summa', f: (t) => `<b>${A.num(t.amount)}</b>`, cls: 'num' },
         { h: 'Holat', f: (t) => A.badge(t.status, t.status === 'Tasdiqlandi' ? 'green' : 'orange') + (t.confirmed_by ? `<br><small class="muted">${esc(A.userName(t.confirmed_by))}</small>` : '') },
         { h: 'Izoh', f: (t) => esc(t.comment) },
-        { h: '', f: (t) => (t.status === 'Tasdiqlashga' ? (t.can_confirm ? `<button class="btn sm primary" data-act="ok-tr" data-id="${t.id}">Qabul qildim</button>` : '<span class="muted small">Qabul qiluvchi tasdiqlaydi</span>') : '') },
+        {
+          h: '',
+          f: (t) => {
+            if (t.status !== 'Tasdiqlashga') return '';
+            const own = t.can_modify ? `<button class="btn sm ghost" data-act="tr-edit" data-id="${t.id}" title="Tasdiqlanmaguncha tahrirlash">✎</button> <button class="btn sm ghost" data-act="tr-del" data-id="${t.id}" title="Tasdiqlanmaguncha o'chirish">🗑</button>` : '';
+            const ok = t.can_confirm ? `<button class="btn sm primary" data-act="ok-tr" data-id="${t.id}">Qabul qildim</button>` : '<span class="muted small">Qabul qiluvchi tasdiqlaydi</span>';
+            return `${ok} ${own}`;
+          },
+        },
       ],
       rows,
       { empty: "O'tkazma yo'q" },
@@ -341,15 +349,21 @@
     A.toast("O'tkazma tasdiqlandi — ikkala g'azna balansi yangilandi");
     A.refresh();
   };
-  A.act['tr-new'] = async () => {
+  /* O'tkazma formasi: yangi yoki tasdiqlanmagan o'tkazmani tahrirlash (rec) */
+  async function transferForm(rec) {
     await A.reloadMoney();
     const top = A.isTop();
+    const sender0 = rec ? A.get('accounts', rec.sender) : null;
+    const myAcc = () => {
+      const l = A.myAccounts();
+      return sender0 && !l.some((a) => a.id === sender0.id) ? [sender0, ...l] : l;
+    };
     A.form({
-      title: "G'aznalar orasida o'tkazma",
-      values: { date: A.today() },
+      title: rec ? "O'tkazmani tahrirlash (tasdiqlanmagan)" : "G'aznalar orasida o'tkazma",
+      values: rec ? { date: rec.date, sender: rec.sender, sender_cashier: rec.sender_cashier, amount: Number(rec.amount), receiver: rec.receiver, receiver_cashier: rec.receiver_cashier, comment: rec.comment || '' } : { date: A.today() },
       fields: [
-        noAccount('sender', () => !A.myAccounts().length),
-        { name: 'sender', label: "Yuboruvchi g'azna", type: 'select', required: true, auto: true, show: () => A.myAccounts().length, options: () => A.myAccounts().map((a) => [a.id, `${a.name} (naqd: ${A.num(A.accBal(a.id, 'CASH'))})`]), resets: ['sender_cashier', 'amount'], onChange: (x) => { if (x.sender) x.amount = A.accBal(x.sender, 'CASH'); } },
+        noAccount('sender', () => !myAcc().length),
+        { name: 'sender', label: "Yuboruvchi g'azna", type: 'select', required: true, auto: !rec, show: () => myAcc().length, options: () => myAcc().map((a) => [a.id, `${a.name} (naqd: ${A.num(A.accBal(a.id, 'CASH'))})`]), resets: ['sender_cashier', 'amount'], onChange: (x) => { if (x.sender && !rec) x.amount = A.accBal(x.sender, 'CASH'); } },
         { name: 'sender_cashier', label: "Yuboruvchi g'aznachi", type: 'select', auto: true, show: (x) => x.sender, options: (x) => (A.get('accounts', x.sender) || { responsible: [] }).responsible.map((u) => [u, A.userName(u)]) },
         { name: 'cash_type', label: 'Pul shakli', type: 'computed', show: (x) => x.sender, compute: () => "Naqd (o'tkazma faqat naqd pul uchun)" },
         { name: 'amount', label: 'Summa', type: 'money', required: true, show: (x) => x.sender, help: (x) => `G'aznada naqd: ${A.money(A.accBal(x.sender, 'CASH'))}`, validate: (n, x) => (n <= 0 ? "0 dan katta bo'lsin" : !top && n > A.accBal(x.sender, 'CASH') ? `G'aznada ${A.num(A.accBal(x.sender, 'CASH'))} so'm pul bor` : '') },
@@ -359,12 +373,25 @@
         { name: 'comment', label: 'Izoh', type: 'textarea', show: (x) => x.receiver },
       ],
       async onSubmit(x) {
-        await A.http.post('/transfers/', { date: x.date, sender: x.sender, sender_cashier: x.sender_cashier || null, amount: x.amount, receiver: x.receiver, receiver_cashier: x.receiver_cashier || null, comment: x.comment || '' });
+        const body = { date: x.date, sender: x.sender, sender_cashier: x.sender_cashier || null, amount: x.amount, receiver: x.receiver, receiver_cashier: x.receiver_cashier || null, comment: x.comment || '' };
+        if (rec) await A.http.patch(`/transfers/${rec.id}/`, body);
+        else await A.http.post('/transfers/', body);
         await A.reloadMoney();
-        A.toast("Yuborildi. Qabul qiluvchi tasdiqlaguncha balanslar o'zgarmaydi");
+        A.toast(rec ? "O'tkazma yangilandi. Qabul qiluvchiga xabar yuborildi" : "Yuborildi. Qabul qiluvchi tasdiqlaguncha balanslar o'zgarmaydi");
         A.refresh();
       },
     });
+  }
+  A.act['tr-new'] = () => transferForm(null);
+  const findTr = (id) => [...trData.results, ...(typeof apData !== 'undefined' && apData.rows ? apData.rows : [])].find((t) => t.id === id);
+  A.act['tr-edit'] = async (el) => transferForm(findTr(el.dataset.id) || (await A.http.get(`/transfers/${el.dataset.id}/`)));
+  A.act['tr-del'] = async (el) => {
+    const t = findTr(el.dataset.id) || (await A.http.get(`/transfers/${el.dataset.id}/`));
+    if (!(await A.confirm(`${esc(A.accName(t.sender))} → ${esc(A.accName(t.receiver))}: ${A.money(t.amount)} o'tkazmasini o'chirasizmi? Qabul qiluvchiga xabar yuboriladi.`, "O'chirish", true))) return;
+    await A.http.del(`/transfers/${t.id}/`);
+    await A.reloadMoney();
+    A.toast("O'tkazma o'chirildi");
+    A.refresh();
   };
 
   /* ===================================================== Pul ayirboshlash (/exchanges/) */
