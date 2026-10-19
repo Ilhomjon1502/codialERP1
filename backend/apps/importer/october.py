@@ -463,10 +463,10 @@ def salaries(c):
     for a in assigns:
         t = num(a.get("Fixed")) + num(a.get("Bonus")) + num(a.get("KPI")) + num(a.get("TeacherKPI")) + num(a.get("SupporterKPI")) - num(a.get("Fine"))
         total_by[(r.ident(a.get("UserID")), *ym(a))] = t
-        if ym(a) < FIRST_SALARY:
+        if ym(a) < FIRST_SALARY and ym(a)[0] >= FIRST_SALARY[0]:  # AppSheet qoidasi: qoldiq faqat shu yil ichida o'tadi (buyurtmachi qarori 2026-10-19)
             carry[r.ident(a.get("UserID"))] += t
     for g in gives:
-        if ym(g) < FIRST_SALARY and not imported(g):
+        if ym(g) < FIRST_SALARY and ym(g)[0] >= FIRST_SALARY[0] and not imported(g):
             carry[r.ident(g.get("UserID"))] -= num(g.get("Summa"))
     users = {r.ident(a.get("UserID")) for a in assigns if ym(a) >= FIRST_SALARY} | {r.ident(g.get("UserID")) for g in gives if imported(g)}
     users |= {u for u, v in carry.items() if v}
@@ -480,7 +480,7 @@ def salaries(c):
         user = c.user(uid)
         if user is None:
             continue
-        if uid not in busy:
+        if uid not in busy or (user.employment_status != User.Employment.ACTIVE and uid not in working):
             continue  # buyurtmachi qarori 2026-10-19: ishlamayotgan xodimlar bilan hisob yopilgan — oylik belgilash va qoldig'i ko'chirilmaydi (berilgan pul g'aznada qoladi)
         row = next((a for a in assigns if r.ident(a.get("UserID")) == uid and ym(a) == FIRST_SALARY), None)
         values = {"fixed": num(row.get("Fixed")) if row else ZERO, "bonus": num(row.get("Bonus")) if row else ZERO,
@@ -538,13 +538,14 @@ def salaries(c):
     rep.checks["Oylik berish (oktyabr): Excel / tizimda summa"] = pair(sum(num(g.get("Summa")) for g in oct_gives), out.aggregate(s=Sum("amount"))["s"])
     plus, minus = [v for v in carry.values() if v > 0], [v for v in carry.values() if v < 0]
     rep.checks["Xodimlarning 01.10 qoldig'i (haqdor +, qarzdor −)"] = f"{len(plus)} ta +{money(sum(plus))}; {len(minus)} ta {money(sum(minus))}"
-    # Solishtirish: AppSheet qoidasi (jarima ayirilgan) bo'yicha xodim balansi — oldingi oylar + sentyabr − hamma berilganlar; oktyabrdan keyin yangi tizimda KPI qo'shiladi
+    # Solishtirish: AppSheet qoidasi bo'yicha xodim balansi (qoldiq faqat shu yil ichida) — 2026 oylari + sentyabr − 2026 dagi berilganlar; oktyabrdan keyin yangi tizimda KPI qo'shiladi
     excel_net = collections.defaultdict(Decimal)
     for (uid, y, m), t in total_by.items():
-        if (y, m) <= FIRST_SALARY:
+        if FIRST_SALARY[0] <= y and (y, m) <= FIRST_SALARY:
             excel_net[uid] += t
     for g in gives:
-        excel_net[r.ident(g.get("UserID"))] -= num(g.get("Summa"))
+        if ym(g)[0] >= FIRST_SALARY[0]:
+            excel_net[r.ident(g.get("UserID"))] -= num(g.get("Summa"))
     system_net, bad = {}, 0
     for a in pay.latest_per_user(SalaryAssignment.objects.filter(branch=c.branch)):
         later = SalaryPayout.objects.filter(branch=c.branch, user=a.user).filter(Q(year__gt=a.year) | Q(year=a.year, month__gt=a.month)).aggregate(s=Sum("amount"))["s"] or ZERO
