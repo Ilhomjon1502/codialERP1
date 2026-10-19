@@ -807,7 +807,17 @@
       } else if (tab === 'rates') {
         A.S.kpiRates = await A.http.get('/kpi-rates/');
         A.version++;
-      } else if (tab === 'payout') salData.page = await A.http.get(`/salary-payouts/?page=${A.q('sp:page', 1)}`);
+      } else if (tab === 'payout') {
+        // Iyerarxik ko'rinish uchun hammasi yuklanadi (yil → oy → xodim, har tugunda summa)
+        let page = 1;
+        salData.payouts = [];
+        for (;;) {
+          const d = await A.http.get(`/salary-payouts/?page_size=200&page=${page}`);
+          salData.payouts = salData.payouts.concat(d.results);
+          if (page >= (d.pages || 1)) break;
+          page++;
+        }
+      }
       else salData.rows = await A.http.get('/salary-assignments/balances/');
     },
     render(p, q) {
@@ -822,7 +832,7 @@
       if (tab === 'assign') body = monthSel + assignView(ym, salData.rows || []);
       else if (tab === 'kpi') body = kpiView(salData.entries || [], salData.rows);
       else if (tab === 'rates') body = ratesView();
-      else if (tab === 'payout') body = payoutView(salData.page || { results: [] });
+      else if (tab === 'payout') body = payoutView(salData.payouts || []);
       else body = balanceView(salData.rows || []);
       return `${A.head('Oyliklar', "Jami = belgilangan + bonus + KPI (qo'lda) + ustoz KPI + yordamchi KPI − jarima")}${A.tabs(tabs, tab, 'salaries')}${body}`;
     },
@@ -973,8 +983,17 @@
   };
   A.act['rate-copy'] = () => A.toast("«Amal qilish oyi» mantiqida o'tgan oy stavkalari yangi oyda ham avtomatik amal qiladi — nusxalash shart emas. Faqat o'zgargan stavkani yangi oydan kiriting.", 'warn');
 
-  function payoutView(d) {
-    return `${A.can('salaries', 'a') ? `<div class="row gap">${A.btn('Oylik berish', 'sp-new', { icon: 'plus' })}</div>` : ''}${A.table(
+  // Oylik berish — «Hisoblangan KPI» kabi iyerarxik: Barchasi → yil → oy (berilgan sana) → xodim, har tugunda berilgan summa
+  const SP_LEVELS = [
+    { key: (s) => s.date.slice(0, 4), label: (k) => k, desc: true },
+    { key: (s) => s.date.slice(0, 7), label: (k) => A.ymLabel(k).split(' ')[0], sort: (k) => k, desc: true },
+    { key: (s) => s.user, label: (k) => A.userName(k) },
+  ];
+  function payoutView(rows) {
+    const latest = A.sortBy(rows, (s) => s.date, true)[0];
+    const opts = { levels: SP_LEVELS, value: (l) => A.num(A.sum(l, (s) => Number(s.amount))), def: latest ? `${latest.date.slice(0, 4)}|${latest.date.slice(0, 7)}` : '' };
+    const sel = A.treeFilter('sp', rows, opts);
+    const table = A.table(
       [
         { h: 'Sana', f: (s) => A.fdate(s.date) },
         { h: 'Xodim', f: (s) => esc(A.userName(s.user)) },
@@ -986,9 +1005,11 @@
         { h: 'Izoh', f: (s) => esc(s.comment || '') },
         { h: '', f: (s) => { const del = A.canEdit('salaries', s, 'date', 'd'); return A.can('salaries', 'd') ? `<button class="btn sm ghost" data-act="sp-del" data-id="${s.id}" ${del.ok ? '' : `disabled title="${esc(del.why)}"`}>🗑</button>` : ''; } },
       ],
-      d.results,
+      A.sortBy(sel, (s) => s.date, true),
       { empty: "Yozuv yo'q" },
-    )}${A.pager('sp', d)}`;
+    );
+    return `${A.can('salaries', 'a') ? `<div class="row gap" style="margin-bottom:8px">${A.btn('Oylik berish', 'sp-new', { icon: 'plus' })}</div>` : ''}
+      <div class="settings tree-layout">${A.treeNav('sp', rows, opts)}<div class="settings-body">${table}</div></div>`;
   }
   A.act['sp-new'] = async () => {
     const top = A.isTop();
