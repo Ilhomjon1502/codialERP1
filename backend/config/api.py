@@ -5,6 +5,7 @@ from rest_framework.routers import DefaultRouter
 
 from apps.accounts import views as acc
 from apps.ai_assistant import views as ai
+from apps.calls import views as calls
 from apps.core import views as core
 from apps.crm import views as crm
 from apps.education import views as edu
@@ -52,6 +53,8 @@ router.register("kpi-rates", pay.KPIRateViewSet, basename="kpi-rate")
 router.register("salary-assignments", pay.SalaryAssignmentViewSet, basename="salary-assignment")
 router.register("salary-payouts", pay.SalaryPayoutViewSet, basename="salary-payout")
 router.register("tasks", tasks.StaffTaskViewSet, basename="task")
+router.register("calls", calls.CallRecordViewSet, basename="call")
+router.register("call-devices", calls.CallDeviceViewSet, basename="call-device")
 
 urlpatterns = [
     path("auth/csrf/", acc.CsrfView.as_view()),
@@ -77,5 +80,8 @@ urlpatterns = [
     path("reports/funnel/", rep.funnel),
     path("reports/first-payers/", rep.first_payers),
     path("kpi/rows/", pay.kpi_rows),
+    path("calls/pair/", calls.PairView.as_view()),
+    path("calls/ingest/", calls.IngestView.as_view()),
+    path("calls/ping/", calls.PingView.as_view()),
     *router.urls,
 ]

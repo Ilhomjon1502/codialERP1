@@ -270,10 +270,10 @@
     const id = g ? g.time : (l.times || [])[0];
     return id ? A.timeName(id) : '';
   };
-  A.leadForm = (lead, freeStudents = []) => {
+  A.leadForm = (lead, freeStudents = [], preset = {}) => {
     const isNew = !lead;
     const B = lead ? lead.branch : A.branchIds()[0];
-    const v = lead ? { ...lead } : { status: '2', times: [], tags: [], mode: 'new' };
+    const v = lead ? { ...lead } : { status: '2', times: [], tags: [], mode: 'new', ...preset };
     if (v.demo_date == null) delete v.demo_date; // standart — bugun (guruh tanlanganda ko'rinadi)
     const phone = (t) => (!/^\d{9}$/.test(t) ? "9 sondan iborat bo'lsin. Masalan, 998883322" : '');
     const fields = [

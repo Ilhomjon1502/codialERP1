@@ -573,3 +573,7 @@ select.att-inline.st-0 { background: #fff5d6; color: #8a6100; }
 select.att-inline.st-X { background: #fde8e8; color: #b42318; }
 select.att-inline.st-gap { background: #fde8e8; color: #b42318; border-color: #f3b4b4; }
 select.att-inline.st-\- { background: #eef0f3; color: #5b6472; }
+
+/* Qo'ng'iroqlar */
+.tbl tr.row-warn td { background: var(--red-50); }
+.pair-code { font-size: 18px; font-weight: 700; letter-spacing: .12em; background: var(--orange-50); padding: 2px 8px; border-radius: 6px; }

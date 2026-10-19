@@ -48,7 +48,7 @@
     ['approvals', 'Tasdiqlashlar', 'shield'], ['salaries', 'Oyliklar', 'wallet'],
     ['transfers', 'Ichki pul oqimi', 'repeat'], ['creditors', 'Tashqi pul oqimi', 'bank'], ['exchange', 'Pul ayirboshlash', 'swap'],
     ['accounts', "G'aznalar", 'safe'], 
-    ['parentCalls', 'Ota-onalar bilan aloqa', 'phone'], ['settings', 'Sozlamalar', 'sliders'], ['ai', 'AI yordamchi', 'sparkle'],
+    ['calls', "Qo'ng'iroqlar", 'phone'], ['parentCalls', 'Ota-onalar bilan aloqa', 'phone'], ['settings', 'Sozlamalar', 'sliders'], ['ai', 'AI yordamchi', 'sparkle'],
     ['audit', 'Audit tarixi', 'history'],
   ];
 
@@ -171,7 +171,7 @@
   /** API'ga ulangan bo'limlar. Qolganlari o'z bosqichida ulanadi (docs/architecture.md, 5-bo'lim) */
   A.CONNECTED = new Set(['dashboard', 'settings', 'audit', 'leads', 'contracts', 'debtors', 'attendance', 'groups', 'groupAnalysis',
     'payments', 'approvals', 'accounts', 'transfers', 'creditors', 'exchange', 'expenses', 'salaries',
-    'evaluations', 'parentCalls', 'export', 'profit', 'ai', 'staffTasks']);
+    'evaluations', 'parentCalls', 'export', 'profit', 'ai', 'staffTasks', 'calls']);
   A.MILESTONE = {};
   const PUBLIC = new Set(['set-password']);
 
