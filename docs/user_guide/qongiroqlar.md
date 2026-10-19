@@ -28,7 +28,7 @@ Bildirishnomalar panelida «Qo'ng'iroqlar ERP tizimiga yuborilmoqda» yozuvi doi
 
 ## Statistika
 
-Jami, kiruvchi, chiquvchi, javobsiz (qancha javobsiz qolgan), javobsizga o'rtacha qayta javob vaqti, yangi raqamlar; soatlar va kunlar bo'yicha diagramma; lid manbasi va lid statusi bo'yicha.
+Jami, kiruvchi, chiquvchi, javobsiz (qancha javobsiz qolgan), javobsizga o'rtacha qayta javob vaqti, yangi raqamlar; suhbat vaqti: umumiy (kiruvchi/chiquvchi alohida), o'rtacha, eng uzun, davomiylik bo'yicha taqsimot (1–30 s … 10 daq+); soatlar va kunlar bo'yicha diagramma; lid manbasi va lid statusi bo'yicha.
 
 ## Ertalabki reja (08:30)
 

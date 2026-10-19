@@ -57,7 +57,8 @@ def calls_section(day):
     s = call_services.stats(qs)
     D = CallRecord.Direction
     L = [f"\n📞 <b>Qo'ng'iroqlar: {num(s['total'])}</b> (kiruvchi {s['answered']} · chiquvchi {s['outgoing']} · javobsiz {s['missed']})"
-         + (f" · suhbat {num(s['talk'] // 60)} daq" if s["talk"] else "")]
+         + (f" · suhbat {num(s['talk'] // 60)} daq, o'rtacha {s['avg_talk'] // 60}:{s['avg_talk'] % 60:02d}, eng uzuni {s['longest'] // 60}:{s['longest'] % 60:02d}"
+            if s["talk"] else "")]
     if s["missed"]:
         wait = f", o'rtacha {s['callback_minutes']} daqiqada" if s["callback_minutes"] is not None else ""
         L.append(f"  Javobsizlarga qayta bog'lanildi: {s['missed'] - s['missed_open']} ta{wait}")

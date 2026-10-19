@@ -127,6 +127,9 @@
       ${A.stat('Chiquvchi', A.num(s.outgoing), '', '', '#/calls?tab=list&f=dir:Chiquvchi')}
       ${A.stat('Javobsiz', A.num(s.missed), s.missed_open ? `<b>${s.missed_open}</b> tasiga hali qo'ng'iroq qilinmagan` : "hammasiga qayta qo'ng'iroq qilingan", s.missed_open ? 'danger' : '', '#/calls?tab=list&f=dir:missed')}
       ${A.stat("O'rtacha qayta javob", s.callback_minutes == null ? '—' : `${s.callback_minutes} daq`, "javobsizdan keyin qo'ng'iroq qilinguncha")}
+      ${A.stat('Umumiy suhbat vaqti', durLong(s.talk), `kiruvchi ${durLong(s.talk_in)} · chiquvchi ${durLong(s.talk_out)}`)}
+      ${A.stat("O'rtacha suhbat", dur(s.avg_talk), `${s.talked} ta gaplashilgan qo'ng'iroq bo'yicha`)}
+      ${A.stat('Eng uzun suhbat', dur(s.longest), 'daqiqa:soniya')}
       ${A.stat('Yangi raqamlar', A.num(s.new_numbers), `bazada yo'q: ${s.unknown}`, 'warn', '#/calls?tab=list&f=first:1')}
     </div>`;
     const hours = s.by_hour.filter((h) => h.hour >= 7 && h.hour <= 22);
@@ -145,11 +148,17 @@
         { label: 'Javobsiz', data: s.by_day.map((d) => d.missed), borderColor: '#eb5757', tension: 0.3 }] },
       options: { scales: { y: { ticks: { precision: 0 } } } },
     }, 220) : '';
+    const durChart = s.talked ? A.chart({
+      type: 'bar',
+      data: { labels: s.by_duration.map((d) => d.label), datasets: [{ label: "Qo'ng'iroqlar", data: s.by_duration.map((d) => d.n), backgroundColor: '#F26A1B' }] },
+      options: { plugins: { legend: { display: false } }, scales: { y: { ticks: { precision: 0 } } } },
+    }, 220) : '';
     const src = A.table([{ h: 'Manba', f: (r) => esc(r.name) }, { h: "Qo'ng'iroqlar", cls: 'num', f: (r) => r.n }, { h: 'Raqamlar', cls: 'num', f: (r) => r.numbers }],
       s.by_source, { empty: "Bazadagi lidlardan qo'ng'iroq yo'q" });
     const sts = A.table([{ h: 'Lid statusi', f: (r) => esc(r.label) }, { h: 'Raqamlar', cls: 'num', f: (r) => r.n }], s.by_lead_status, { empty: '—' });
     return `${cards}
       <div class="grid-2"><div class="card"><h3>Soatlar bo'yicha</h3>${hourChart}</div>${dayChart ? `<div class="card"><h3>Kunlar bo'yicha</h3>${dayChart}</div>` : ''}</div>
+      ${durChart ? `<div class="grid-2"><div class="card"><h3>Suhbat davomiyligi bo'yicha</h3>${durChart}</div></div>` : ''}
       <div class="grid-2"><div class="card"><h3>Lid manbasi bo'yicha</h3>${src}</div><div class="card"><h3>Qo'ng'iroq qilganlarning lid statusi</h3>${sts}</div></div>`;
   }
 

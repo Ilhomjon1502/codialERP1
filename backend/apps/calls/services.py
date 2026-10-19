@@ -7,7 +7,7 @@ import re
 import secrets
 
 from django.db import transaction
-from django.db.models import Avg, Count, DurationField, ExpressionWrapper, F, Q, Sum
+from django.db.models import Avg, Count, DurationField, ExpressionWrapper, F, Max, Q, Sum
 from django.db.models.functions import ExtractHour, TruncDate
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
@@ -22,6 +22,8 @@ D = CallRecord.Direction
 # 7 boshqa qurilmada javob berilgan
 ANDROID_TYPES = {1: D.INCOMING, 2: D.OUTGOING, 3: D.MISSED, 4: D.MISSED, 5: D.REJECTED, 6: D.BLOCKED, 7: D.INCOMING}
 MAX_BATCH = 500
+# Suhbat davomiyligi oraliqlari (soniya): [lo, hi) — gaplashilmagan (0) alohida hisoblanmaydi
+DURATION_BUCKETS = [("1–30 s", 1, 31), ("30 s–1 daq", 31, 61), ("1–3 daq", 61, 181), ("3–5 daq", 181, 301), ("5–10 daq", 301, 601), ("10 daq+", 601, None)]
 PAIR_MINUTES = 60
 PAIR_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # O/0, I/1 yo'q — telefonda terish oson
 
@@ -198,12 +200,19 @@ def stats(qs):
         total=Count("id"), talk=Sum("duration"), answered=Count("id", filter=Q(direction=D.INCOMING)),
         outgoing=Count("id", filter=Q(direction=D.OUTGOING)), missed=Count("id", filter=missed),
         missed_open=Count("id", filter=missed & Q(callback_at__isnull=True)),
+        talked=Count("id", filter=Q(duration__gt=0)), longest=Max("duration"),
+        talk_in=Sum("duration", filter=Q(direction=D.INCOMING)), talk_out=Sum("duration", filter=Q(direction=D.OUTGOING)),
         new_numbers=Count("phone", filter=Q(is_first=True), distinct=True),
         unknown=Count("phone", filter=Q(student__isnull=True, parent__isnull=True) & ~Q(phone=""), distinct=True),
     )
     wait = qs.filter(missed, callback_at__isnull=False).annotate(
         w=ExpressionWrapper(F("callback_at") - F("started_at"), output_field=DurationField())).aggregate(a=Avg("w"))["a"]
     total["talk"] = total["talk"] or 0
+    total["talk_in"], total["talk_out"], total["longest"] = total["talk_in"] or 0, total["talk_out"] or 0, total["longest"] or 0
+    total["avg_talk"] = round(total["talk"] / total["talked"]) if total["talked"] else 0  # faqat gaplashilganlar bo'yicha
+    buckets = qs.aggregate(**{f"b{i}": Count("id", filter=Q(duration__gte=lo) & (Q(duration__lt=hi) if hi else Q()))
+                              for i, (_, lo, hi) in enumerate(DURATION_BUCKETS)})
+    total["by_duration"] = [{"label": label, "n": buckets[f"b{i}"]} for i, (label, _, _) in enumerate(DURATION_BUCKETS)]
     total["callback_minutes"] = round(wait.total_seconds() / 60) if wait else None
     local = timezone.get_current_timezone()
     by_hour = {h: {"in": 0, "out": 0, "missed": 0} for h in range(24)}

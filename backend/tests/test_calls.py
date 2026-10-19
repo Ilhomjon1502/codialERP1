@@ -173,3 +173,12 @@ def test_list_query_count(api, make_user, paired, django_assert_max_num_queries)
     c = api(adm)
     with django_assert_max_num_queries(12):
         assert c.get("/api/v1/calls/").data["count"] == 30
+
+
+def test_stats_durations(api, paired):
+    ingest(api, paired, [call(1, "991234567", duration=20), call(2, "991234568", kind=2, minutes=1, duration=90),
+                         call(3, "991234569", minutes=2, duration=700), call(4, "991234560", kind=3, minutes=3, duration=0)])
+    s = services.stats(CallRecord.objects.all())
+    assert s["talk"] == 810 and s["talked"] == 3 and s["avg_talk"] == 270 and s["longest"] == 700
+    assert (s["talk_in"], s["talk_out"]) == (720, 90)
+    assert {d["label"]: d["n"] for d in s["by_duration"]} == {"1–30 s": 1, "30 s–1 daq": 0, "1–3 daq": 1, "3–5 daq": 0, "5–10 daq": 0, "10 daq+": 1}
