@@ -63,15 +63,20 @@ def allowed(user, event):
     return can(user, sec, op)
 
 
+LOCKED = {"demo_soon"}  # o'chirib bo'lmaydigan xabarlar (buyurtmachi qarori 2026-10-19): standart oluvchilarga har doim boradi
+
+
 def wants(link, event, default=False):
-    """Xodimning tanlovi; tanlamagan bo'lsa — standart."""
+    """Xodimning tanlovi; tanlamagan bo'lsa — standart. Qulflangan xabarlar — standart oluvchilarga (rol yoki hodisaga aloqador) har doim."""
+    if event in LOCKED:
+        return default or role_code(link.user) in DEFAULT_ROLES[event]
     v = link.prefs.get(event)
     return v if v is not None else (default or role_code(link.user) in DEFAULT_ROLES[event])
 
 
 def events_for(user, link):
     """«Telegram» oynasi uchun: xodimga ruxsat etilgan xabar turlari va hozirgi holati."""
-    return [{"key": k, "label": label, "on": wants(link, k)} for k, label in EVENTS if allowed(user, k)]
+    return [{"key": k, "label": label, "on": wants(link, k)} for k, label in EVENTS if allowed(user, k) and k not in LOCKED]
 
 
 def in_branch(user, branch):
