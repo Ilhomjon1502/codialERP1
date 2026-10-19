@@ -1028,8 +1028,16 @@
     A.refresh();
   };
 
-  function balanceView(rows) {
-    return `${A.table(
+  A.act['bal-left'] = () => { A.ui.balLeft = !A.ui.balLeft; A.refresh(); };
+  function balanceView(all) {
+    // Ishdan ketgan xodimlar standart holda yashirin (qoldig'i bo'lsa — pastda eslatma va ko'rsatish tugmasi)
+    const left = all.filter((r) => ((A.get('users', r.user) || {}).status || 'Faol') !== 'Faol');
+    const rows = A.ui.balLeft ? all : all.filter((r) => !left.includes(r));
+    const owed = left.filter((r) => Number(r.final));
+    const note = left.length
+      ? `<p class="muted small">Ishdan ketgan ${left.length} ta xodim ${A.ui.balLeft ? "ko'rsatilgan" : 'yashirilgan'}${owed.length ? ` (shulardan ${owed.length} tasida qoldiq bor: ${A.num(A.sum(owed, (r) => Number(r.final)))} so'm)` : ''}. <a href="#" data-act="bal-left">${A.ui.balLeft ? 'Yashirish' : "Ko'rsatish"}</a></p>`
+      : '';
+    return `${note}${A.table(
       [
         { h: 'Xodim', f: (r) => `<b>${esc(A.userName(r.user))}</b><br><small class="muted">${esc(A.ROLES[(A.get('users', r.user) || {}).role] || '')}</small>` },
         { h: 'Oxirgi davr', f: (r) => `${A.MONTHS[r.month - 1]} ${r.year}` },
