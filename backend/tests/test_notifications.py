@@ -189,7 +189,7 @@ def test_morning_plan_for_admin_cashier(make_user, fin, django_capture_on_commit
     teacher = fin["teacher"]
     link(teacher, 812)  # ustozda to'lovlar huquqi yo'q — olmaydi
     text = reminders.plan_text(fin["branch"], d)
-    assert "Olinadigan to'lovlar</b> — 1 talaba, jami 600 000" in text and "Ali Valiyev — <b>600 000</b> so'm · +998901112233" in text
+    assert "Bugun olinadigan to'lovlar</b> (shu oy uchun) — 1 talaba, jami 600 000" in text and "🔴 Ali Valiyev — <b>600 000</b> so'm · +998901112233" in text
     assert "Bugun sinov darsiga keladiganlar" in text and f"14:00 · {g.name}" in text
     with django_capture_on_commit_callbacks(execute=True):
         reminders.morning_plan(d)

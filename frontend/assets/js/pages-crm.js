@@ -670,19 +670,58 @@
 
   /* ===================================================== Qarzdorlar */
   let dData = { results: [], total: 0, count: 0 };
+  let mData = { results: [], total: 0, count: 0, overdue_count: 0, overdue_total: 0 };
   A.page('debtors', {
     title: 'Qarzdorlar',
     section: 'debtors',
-    async load() {
-      dData = await A.http.get('/debtors/?' + filterQS('debtors', ['search', 'course', 'status']));
-      dData.results.forEach(A.keepContract);
+    async load(p, q) {
+      if ((q.tab || 'month') === 'month') {
+        mData = await A.http.get('/debtors/month/?' + filterQS('debtors', ['search', 'course', 'state', 'month']));
+        mData.results.forEach(A.keepContract);
+      } else {
+        dData = await A.http.get('/debtors/?' + filterQS('debtors', ['search', 'course', 'status']));
+        dData.results.forEach(A.keepContract);
+      }
     },
-    render() {
-      return `${A.head('Qarzdorlar', "Qarzi 0 dan katta shartnomalar. Guruhlash: kurs → guruh, saralash: qarz bo'yicha", A.btn('Excel', 'debtors-csv', { cls: 'ghost', icon: 'download' }))}
+    render(p, q) {
+      const tab = q.tab || 'month';
+      const tabs = A.tabs([['month', "Shu oy to'lovi"], ['debt', 'Qarz (davomat bo\'yicha)']], tab, 'debtors');
+      const month = `<input class="f-input" type="month" data-filter="debtors:month" title="Oy" value="${esc(A.q('debtors:month', '') || mData.month || '')}">`;
+      if (tab === 'month') {
+        return `${A.head("Shu oy to'lovi", "Shu oy uchun to'lov qilmaganlar — kurs narxi bo'yicha (davomatga bog'liq emas). «To'lashi kerak» — o'quvchidan so'raladigan summa", A.btn('Excel', 'debtors-csv', { cls: 'ghost', icon: 'download' }))}
+        ${tabs}
+        ${A.filterBar('debtors', [A.fSearch('debtors'), A.fSelect('debtors', 'course', A.optList('courses'), 'Barcha kurslar'),
+          A.fSelect('debtors', 'state', [['wait', 'Kutilmoqda'], ['overdue', "Muddati o'tgan"]], 'Barcha holatlar'), month])}
+        <div>${monthDues(mData)}</div>`;
+      }
+      return `${A.head('Qarzdorlar', "Davomat bo'yicha qarzi 0 dan katta shartnomalar. Guruhlash: kurs → guruh, saralash: qarz bo'yicha", A.btn('Excel', 'debtors-csv', { cls: 'ghost', icon: 'download' }))}
+        ${tabs}
         ${A.filterBar('debtors', [A.fSearch('debtors'), A.fSelect('debtors', 'course', A.optList('courses'), 'Barcha kurslar'), A.fSelect('debtors', 'status', [['Faol', 'Faol'], ['Nofaol', 'Nofaol']], 'Barcha statuslar')])}
         <div>${debtorGroups(dData)}</div>`;
     },
   });
+  function monthDues(d) {
+    if (!d.results.length) return A.empty("Bu oy uchun to'lamagan o'quvchi yo'q");
+    const byG = A.groupBy(A.sortBy(d.results, (c) => A.groupName(c.group)), (c) => c.group);
+    const prev = (c) => (c.prev_balance > 0 ? `<span class="t-red">${A.num(c.prev_balance)} qarz</span>` : c.prev_balance < 0 ? `<span class="t-green">${A.num(-c.prev_balance)} oldindan</span>` : '—');
+    return `<div class="stats">${A.stat("To'lashi kerak (jami)", A.money(d.total), `${d.count} ta o'quvchi`, 'danger')}
+        ${A.stat("Muddati o'tgan", A.money(d.overdue_total), `${d.overdue_count} ta o'quvchi`, d.overdue_count ? 'danger' : '')}</div>` +
+      [...byG]
+        .map(([gid, list]) => `<section class="group-block"><h3>${esc(A.groupName(gid))} <span class="muted">· ${list.length} ta · ${A.money(A.sum(list, 'to_pay'))}</span></h3>${A.table(
+          [
+            { h: "O'quvchi", f: (c) => `<a class="t-red" href="#/contracts/${c.id}">${esc(c.name)}</a>` },
+            { h: 'Telefon', f: (c) => [c.student_data.phone1, c.student_data.phone2].filter(Boolean).map((t) => `<a href="tel:+998${t}">${t}</a>`).join('<br>') },
+            { h: 'Oy narxi', f: (c) => `${A.num(c.month_price)}${c.lessons < c.lessons_total ? ` <span class="muted" title="Oyning ${c.lessons}/${c.lessons_total} darsi">(${c.lessons}/${c.lessons_total})</span>` : ''}${c.no_price ? ' ' + A.badge('narx yo\'q', 'orange') : ''}`, cls: 'num' },
+            { h: 'Oldingi balans', f: prev, cls: 'num' },
+            { h: "Shu oy to'langan", f: (c) => A.num(c.paid_month), cls: 'num' },
+            { h: "To'lashi kerak", f: (c) => `<b class="t-red">${A.num(c.to_pay)}</b>`, cls: 'num', sum: (r) => A.num(A.sum(r, 'to_pay')) },
+            { h: 'Holat', f: (c) => (c.overdue ? A.badge(`Muddati o'tgan · ${c.days_over} kun`, 'red') : A.badge(`${c.deadline.slice(8)}.${c.deadline.slice(5, 7)} gacha`, 'orange')) },
+            { h: '', f: (c) => (paymentsReady() ? `<button class="btn sm" data-act="pay-new" data-id="${c.id}">To'lov</button>` : '') },
+          ],
+          A.sortBy(list, (c) => c.to_pay, true),
+        )}</section>`)
+        .join('');
+  }
   function debtorGroups(d) {
     if (!d.results.length) return A.empty("Qarzdor yo'q");
     const byG = A.groupBy(A.sortBy(d.results, (c) => A.groupName(c.group)), (c) => c.group);
@@ -701,6 +740,11 @@
         .join('');
   }
   A.act['debtors-csv'] = () => {
-    A.downloadCSV('qarzdorlar.csv', [['Shartnoma', 'Telefon', 'Guruh', 'Status', 'Qarz'], ...dData.results.map((c) => [c.name, c.student_data.phone1, A.groupName(c.group), c.status, c.balance])]);
+    if ((A.route && A.route.q && A.route.q.tab) === 'debt' || /tab=debt/.test(location.hash)) {
+      A.downloadCSV('qarzdorlar.csv', [['Shartnoma', 'Telefon', 'Guruh', 'Status', 'Qarz'], ...dData.results.map((c) => [c.name, c.student_data.phone1, A.groupName(c.group), c.status, c.balance])]);
+    } else {
+      A.downloadCSV('shu-oy-tolovi.csv', [['Oquvchi', 'Telefon', 'Telefon 2', 'Guruh', 'Oy narxi', 'Oldingi balans', 'Shu oy tolangan', 'Tolashi kerak', 'Muddat'],
+        ...mData.results.map((c) => [c.name, c.student_data.phone1, c.student_data.phone2 || '', A.groupName(c.group), c.month_price, c.prev_balance, c.paid_month, c.to_pay, c.deadline])]);
+    }
   };
 })(window.App);

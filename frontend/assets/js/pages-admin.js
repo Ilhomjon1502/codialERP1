@@ -127,10 +127,11 @@
       { name: 'name', label: 'Nomi', required: true },
       { name: 'default_cashbox', label: "Standart g'azna", type: 'select', options: () => A.optList('accounts') },
       { name: 'noncash_cashbox', label: "Naqdsiz to'lovlar g'aznasi", type: 'select', options: () => A.optList('accounts'), help: "AppSheet'da «cb4963b4» deb qattiq yozilgan edi" },
+      { name: 'payment_due_day', label: "Oylik to'lov muddati (oyning kuni)", type: 'number', default: 10, help: "Shu kungacha o'quvchi shu oy uchun to'lashi kerak; undan keyin Qarzdorlar → «Shu oy to'lovi»da «muddati o'tgan» bo'ladi" },
       STATUS_FIELD,
     ],
     save: async (x, rec) => {
-      const data = { ...x, default_cashbox: x.default_cashbox || null, noncash_cashbox: x.noncash_cashbox || null };
+      const data = { ...x, default_cashbox: x.default_cashbox || null, noncash_cashbox: x.noncash_cashbox || null, payment_due_day: Number(x.payment_due_day) || 10 };
       if (rec) await A.update('branches', rec.id, data);
       else await A.create('branches', data);
     },

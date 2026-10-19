@@ -42,7 +42,8 @@ def unique_name(model, value, instance, message, field="name"):
 class BranchSerializer(serializers.ModelSerializer):
     class Meta:
         model = Branch
-        fields = ["id", "name", "status", "default_cashbox", "noncash_cashbox"]
+        fields = ["id", "name", "status", "default_cashbox", "noncash_cashbox", "payment_due_day"]
+        extra_kwargs = {"payment_due_day": {"min_value": 1, "max_value": 28, "error_messages": {"min_value": "1 dan 28 gacha", "max_value": "1 dan 28 gacha"}}}
 
     def validate_name(self, v):
         return unique_name(Branch, v, self.instance, "Avval qo'shilgan")

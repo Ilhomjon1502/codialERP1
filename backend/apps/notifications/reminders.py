@@ -6,7 +6,6 @@
 """
 
 import datetime
-from collections import defaultdict
 from html import escape
 
 from django.conf import settings
@@ -16,8 +15,9 @@ from django.utils import timezone
 from apps.core.permissions import role_code
 from apps.core.roles import TEACHER_ROLES
 from apps.crm.models import Lead
+from apps.education.dues import due_map_by_group, month_dues
 from apps.education.models import Attendance, Contract, Group
-from apps.education.services import FAOL, active_on, has_lesson, status_q, with_balance
+from apps.education.services import FAOL, active_on, has_lesson, status_q
 from apps.references.models import Branch
 
 from . import services, webapp
@@ -83,13 +83,13 @@ def debt_before_lessons(now=None):
         start = timezone.make_aware(datetime.datetime.combine(today, g.time.start_time))
         if not (start - datetime.timedelta(minutes=DEBT_BEFORE) <= now < start):
             continue
-        debtors = list(with_balance(Contract.objects.filter(group=g).filter(active_on(today))).filter(balance__gt=0).select_related("student").order_by("-balance"))
+        debtors = due_map_by_group(Contract.objects.filter(group=g).filter(active_on(today)), today).get(g.pk, [])
         if not debtors:
             continue
         L = [f"💰 <b>{DEBT_BEFORE} daqiqadan keyin dars — to'lovni eslating</b>",
              f"{e(g.name)} · {g.time.start_time:%H:%M}–{g.time.end_time:%H:%M} · {e(g.room)}",
-             f"Qarzdor talabalar: {len(debtors)} ta, jami {num(sum(c.balance for c in debtors))} so'm"]
-        L += [f"  • {e(c.student.full_name)} — <b>{num(c.balance)}</b> so'm · {phone(c.student.phone1)}" for c in debtors[:PER_GROUP]]
+             f"Shu oy to'lamaganlar: {len(debtors)} ta, jami {num(sum(i['to_pay'] for _, i in debtors))} so'm"]
+        L += [f"  {'🔴' if i['overdue'] else '•'} {e(c.student.full_name)} — <b>{num(i['to_pay'])}</b> so'm · {phone(c.student.phone1)}" for c, i in debtors[:PER_GROUP]]
         if len(debtors) > PER_GROUP:
             L.append(f"  <i>… yana {len(debtors) - PER_GROUP} ta — Qarzdorlar bo'limi</i>")
         services.notify("debt_lesson", "\n".join(L),branch=g.branch, key=f"debt10:{g.pk}:{today}")
@@ -176,22 +176,25 @@ def plan_text(branch, day):
     L += _night_missed(branch, day)
 
     # 1. To'lov kutilayotganlar: bugun darsi bor guruhlardagi qarzdorlar, dars vaqti bo'yicha
-    debt = (with_balance(Contract.objects.filter(group__in=groups).filter(active_on(day))).filter(balance__gt=0)
-            .select_related("student").order_by("-balance"))
-    by_group = defaultdict(list)
-    for c in debt:
-        by_group[c.group_id].append(c)
-    total = sum(c.balance for c in debt)
+    # Shu oy kurs narxi bo'yicha (davomatga bog'liq emas) — education/dues.py
+    by_group = due_map_by_group(Contract.objects.filter(group__in=groups).filter(active_on(day)), day)
+    n_due = sum(len(v) for v in by_group.values())
+    total = sum(i["to_pay"] for v in by_group.values() for _, i in v)
     if by_group:
-        L.append(f"\n💰 <b>Olinadigan to'lovlar</b> — {len(debt)} talaba, jami {num(total)} so'm")
+        L.append(f"\n💰 <b>Bugun olinadigan to'lovlar</b> (shu oy uchun) — {n_due} talaba, jami {num(total)} so'm")
         for g in groups:
             cs = by_group.get(g.pk)
             if not cs:
                 continue
             L.append(f"⏰ <b>{g.time.start_time:%H:%M}</b> · {e(g.name)} ({e(g.room)})")
-            L += [f"  • {e(c.student.full_name)} — <b>{num(c.balance)}</b> so'm · {phone(c.student.phone1)}" for c in cs[:PER_GROUP]]
+            L += [f"  {'🔴' if i['overdue'] else '•'} {e(c.student.full_name)} — <b>{num(i['to_pay'])}</b> so'm · {phone(c.student.phone1)}"
+                  for c, i in cs[:PER_GROUP]]
             if len(cs) > PER_GROUP:
                 L.append(f"  <i>… yana {len(cs) - PER_GROUP} ta</i>")
+    all_due = month_dues(Contract.objects.filter(branch=branch).filter(active_on(day)), day, day)
+    over = [i for i in all_due.values() if i["overdue"]]
+    if over:
+        L.append(f"\n🔴 <b>Muddati o'tgan</b> (shu oy to'lovi) — {len(over)} talaba, jami {num(sum(i['to_pay'] for i in over))} so'm · Qarzdorlar → «Shu oy to'lovi»")
 
     # 2. Bugungi sinov darslari — qayta aloqa (eslatish)
     demos = (Lead.objects.filter(branch=branch, demo_date=day, status__in=["3", "4"]).select_related("student", "group__time", "group__course", "course")

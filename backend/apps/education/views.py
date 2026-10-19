@@ -1,4 +1,5 @@
 import datetime
+from decimal import Decimal
 
 from django.db.models import Count, Prefetch, Q, Sum
 from django.http import HttpResponse
@@ -18,6 +19,7 @@ from apps.references.models import LessonFrequency, Room
 from apps.references.services import month_start
 
 from . import calc, export, services
+from . import dues as dues_mod
 from .models import Attendance, Contract, Group, MakeupRequest, ParentCall, TeacherEvaluation
 from .serializers import (
     AttendanceSerializer,
@@ -191,6 +193,42 @@ class DebtorViewSet(AuditedModelViewSet):
     serializer_class = ContractSerializer
     branch_field = "branch"
     http_method_names = ["get", "head", "options"]
+    action_ops = {"month": "v"}
+
+    @action(detail=False, methods=["get"])
+    def month(self, request):
+        """GET /debtors/month/?month=YYYY-MM&course=&group=&search=&state=wait|overdue — shu oy to'lovini qilmaganlar
+        (kurs narxi bo'yicha, davomatga bog'liq emas; dues.py)."""
+        p = request.query_params
+        on = today()
+        first = month_bounds(p["month"])[0] if p.get("month") else on.replace(day=1)
+        base = CONTRACT_QS.filter(pk__in=self.get_queryset_unfiltered().values("pk"))
+        if p.get("course"):
+            base = base.filter(course=p["course"])
+        if p.get("group"):
+            base = base.filter(group=p["group"])
+        if p.get("search"):
+            base = base.filter(search_q(p["search"], "student__"))
+        dues = {str(k): v for k, v in dues_mod.month_dues(base, first, on).items()}
+        qs = services.with_balance(base.filter(pk__in=list(dues)))
+        rows = []
+        for r in self.get_serializer(qs, many=True).data:
+            d = dues[str(r["id"])]
+            conv = lambda v: str(v) if isinstance(v, datetime.date) else (int(v) if isinstance(v, Decimal) else v)  # noqa: E731
+            rows.append({**r, **{k: conv(v) for k, v in d.items()}})
+        if p.get("state") == "overdue":
+            rows = [r for r in rows if r["overdue"]]
+        elif p.get("state") == "wait":
+            rows = [r for r in rows if not r["overdue"]]
+        rows.sort(key=lambda r: (-r["to_pay"]))
+        over = [r for r in rows if r["overdue"]]
+        return Response({
+            "month": f"{first:%Y-%m}", "count": len(rows), "total": sum(r["to_pay"] for r in rows),
+            "overdue_count": len(over), "overdue_total": sum(r["to_pay"] for r in over), "results": rows,
+        })
+
+    def get_queryset_unfiltered(self):
+        return super().get_queryset()
 
     def get_queryset(self):
         qs = services.with_balance(super().get_queryset()).filter(balance__gt=0)

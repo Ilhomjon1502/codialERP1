@@ -16,6 +16,7 @@ class Branch(BaseModel):
     status = models.CharField(max_length=8, choices=Status.choices, default=Status.ACTIVE)
     default_cashbox = models.ForeignKey("finance.Account", null=True, blank=True, on_delete=models.PROTECT, related_name="default_for_branches", verbose_name="Standart g'azna")
     noncash_cashbox = models.ForeignKey("finance.Account", null=True, blank=True, on_delete=models.PROTECT, related_name="noncash_for_branches", verbose_name="Naqdsiz to'lovlar g'aznasi")
+    payment_due_day = models.PositiveSmallIntegerField("Oylik to'lov muddati (oyning kuni)", default=10)
 
     class Meta:
         verbose_name = "Filial"
