@@ -118,6 +118,9 @@
   };
 
   /* ---------- Statistika ---------- */
+  // Eng uzun / eng qisqa suhbat: kim bilan, qachon (bosilsa shu raqamning qo'ng'iroqlari ochiladi)
+  const callWho = (c) => (c ? `${esc(c.name || (c.phone ? fphone(c.phone) : c.number || 'Yashirin raqam'))}${c.name && c.phone ? ` · ${fphone(c.phone)}` : ''}<br>${A.fdt(c.started_at)} · ${esc(c.direction.toLowerCase())}` : '');
+  const callLink = (c) => (c && (c.phone || c.number) ? `#/calls?tab=list&f=${encodeURIComponent('search:' + (c.phone || c.number))}` : '');
   function statsView() {
     if (!st) return '';
     const s = st;
@@ -129,7 +132,8 @@
       ${A.stat("O'rtacha qayta javob", s.callback_minutes == null ? '—' : `${s.callback_minutes} daq`, "javobsizdan keyin qo'ng'iroq qilinguncha")}
       ${A.stat('Umumiy suhbat vaqti', durLong(s.talk), `kiruvchi ${durLong(s.talk_in)} · chiquvchi ${durLong(s.talk_out)}`)}
       ${A.stat("O'rtacha suhbat", dur(s.avg_talk), `${s.talked} ta gaplashilgan qo'ng'iroq bo'yicha`)}
-      ${A.stat('Eng uzun suhbat', dur(s.longest), 'daqiqa:soniya')}
+      ${A.stat('Eng uzun suhbat', dur(s.longest), callWho(s.longest_call), '', callLink(s.longest_call))}
+      ${A.stat('Eng qisqa suhbat', dur(s.shortest), callWho(s.shortest_call), '', callLink(s.shortest_call))}
       ${A.stat('Yangi raqamlar', A.num(s.new_numbers), `bazada yo'q: ${s.unknown}`, 'warn', '#/calls?tab=list&f=first:1')}
     </div>`;
     const hours = s.by_hour.filter((h) => h.hour >= 7 && h.hour <= 22);

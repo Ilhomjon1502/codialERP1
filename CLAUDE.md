@@ -83,9 +83,9 @@
   - Rollar jadvali (Sozlamalar → Rollar va ruxsatlar) bo'limlar ro'yxatini endi serverdan oladi (`bootstrap.sections` → `A.SECTIONS`, `api.js`) — yangi bo'lim `roles.py` `SECTIONS` ga qo'shilsa jadvalda o'zi chiqadi (`core.js` dagi ro'yxat faqat zaxira). Bosh menejer/Admin istalgan rolga `calls` ni bera oladi.
   - Ruxsat bo'limi `calls` (`accounts/0010`): Admin/BM `vaed` (qurilmalar ham), FM, Administrator, Adm+Hisobchi — `ve`, Marketolog — `v`.
   - Testlar: `tests/test_calls.py`.
-- **Front-end** `frontend/assets/js/pages-calls.js` (`#/calls`; menyuda «Ota-onalar bilan aloqa» oldida, `?v=m12-26`). Uchta tab:
+- **Front-end** `frontend/assets/js/pages-calls.js` (`#/calls`; menyuda «Ota-onalar bilan aloqa» oldida, `?v=m12-27`). Uchta tab:
   - Ro'yxat: javobsiz qatorlar qizil; «✓ Qo'ng'iroq qilindi»; ✎ izoh; noma'lum raqamdan «＋ Lid yaratish» — `A.leadForm(null, free, preset)` ga 3-parametr `preset` qo'shildi; telefon 6 soat jim bo'lsa ogohlantirish.
-  - Statistika: kartochkalar (jami, kiruvchi, chiquvchi, javobsiz, umumiy/o'rtacha/eng uzun suhbat, yangi raqamlar — bosilganda mos filtrlangan ro'yxat); soatlar, kunlar va suhbat davomiyligi (oraliqlar `DURATION_BUCKETS`) diagrammasi; lid manbasi va statusi bo'yicha.
+  - Statistika: kartochkalar (jami, kiruvchi, chiquvchi, javobsiz, umumiy/o'rtacha suhbat, eng uzun va eng qisqa suhbat (kim bilan, qachon — `stats.longest_call`/`shortest_call`; bosilsa shu raqam qo'ng'iroqlari), yangi raqamlar — bosilganda mos filtrlangan ro'yxat); soatlar, kunlar va suhbat davomiyligi (oraliqlar `DURATION_BUCKETS`) diagrammasi; lid manbasi va statusi bo'yicha.
   - Qurilmalar (faqat `calls:a`): qo'shish, 8 belgili kod, yoqish va o'chirish.
 - **Android ilova `android/`** (Java, tashqi kutubxonasiz; `uz.codial.calls`, minSdk 26, target/compile 36, AGP 9.0.1, Gradle 9.1):
   - `MainActivity` — ekran: ruxsatlar, batareya, MIUI Avtozapusk, server + kod, «Hozir yuborish»;
@@ -163,7 +163,7 @@
 3. Ixtiyoriy: AI'da prognoz (buyurtmachi tilga olgan, boshlanmagan).
 
 **Ish usullari** (tokenni tejash va xatosiz ishlash uchun):
-- **Testlar:** `cd backend && .venv/Scripts/python -m pytest -q` (182 test) va `.venv/Scripts/ruff check .`. Front-end o'zgarsa — `frontend/index.html` dagi `?v=` ni oshiring (hozir `m12-26`). Android ilova o'zgarsa — yuqoridagi «APK yig'ish» bandi.
+- **Testlar:** `cd backend && .venv/Scripts/python -m pytest -q` (182 test) va `.venv/Scripts/ruff check .`. Front-end o'zgarsa — `frontend/index.html` dagi `?v=` ni oshiring (hozir `m12-27`). Android ilova o'zgarsa — yuqoridagi «APK yig'ish» bandi.
 - **Serverdagi holatni tekshirish** (masalan, qo'ng'iroqlar tushyaptimi): skript ichida `docker compose --env-file .env exec -T web python manage.py shell <<'PY' … PY` (heredoc), ssh esa `dangerouslyDisableSandbox` bilan ishga tushiriladi. Telefon raqamlarini chatga chiqarmang — kerak bo'lsa yashiring.
 - **Serverga joylash — bitta SSH ulanishda**, skript bilan (server tez-tez ulanishni cheklaydi):
   1. Skriptni scratchpad'ga yozing va `ssh -i ~/.ssh/codial_hetzner root@77.42.9.23 'bash -s' < skript.sh` bilan ishga tushiring.

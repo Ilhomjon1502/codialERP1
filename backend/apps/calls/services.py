@@ -193,6 +193,15 @@ def set_callback(user, rec, done=True):
 # ---------- Statistika ----------
 
 
+def _brief(r):
+    """Statistikada «kim bilan» ko'rsatish uchun: eng uzun va eng qisqa suhbat."""
+    if r is None:
+        return None
+    name = r.student.full_name if r.student_id else str(r.parent) if r.parent_id else r.contact_name
+    return {"id": r.pk, "name": name, "phone": r.phone, "number": r.number, "direction": r.direction,
+            "started_at": r.started_at.isoformat(), "duration": r.duration}
+
+
 def stats(qs):
     """Yo'nalishlar, javobsiz (qayta qo'ng'iroq qilinmagan), o'rtacha qayta javob vaqti, soatlar va kunlar, manba va lid statusi."""
     missed = Q(direction__in=[D.MISSED, D.REJECTED])
@@ -210,6 +219,10 @@ def stats(qs):
     total["talk"] = total["talk"] or 0
     total["talk_in"], total["talk_out"], total["longest"] = total["talk_in"] or 0, total["talk_out"] or 0, total["longest"] or 0
     total["avg_talk"] = round(total["talk"] / total["talked"]) if total["talked"] else 0  # faqat gaplashilganlar bo'yicha
+    talk = qs.filter(duration__gt=0).select_related("student", "parent")
+    total["longest_call"] = _brief(talk.order_by("-duration", "started_at").first())
+    total["shortest_call"] = _brief(talk.order_by("duration", "started_at").first())
+    total["shortest"] = total["shortest_call"]["duration"] if total["shortest_call"] else 0
     buckets = qs.aggregate(**{f"b{i}": Count("id", filter=Q(duration__gte=lo) & (Q(duration__lt=hi) if hi else Q()))
                               for i, (_, lo, hi) in enumerate(DURATION_BUCKETS)})
     total["by_duration"] = [{"label": label, "n": buckets[f"b{i}"]} for i, (label, _, _) in enumerate(DURATION_BUCKETS)]

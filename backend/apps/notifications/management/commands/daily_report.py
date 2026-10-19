@@ -59,6 +59,11 @@ def calls_section(day):
     L = [f"\n📞 <b>Qo'ng'iroqlar: {num(s['total'])}</b> (kiruvchi {s['answered']} · chiquvchi {s['outgoing']} · javobsiz {s['missed']})"
          + (f" · suhbat {num(s['talk'] // 60)} daq, o'rtacha {s['avg_talk'] // 60}:{s['avg_talk'] % 60:02d}, eng uzuni {s['longest'] // 60}:{s['longest'] % 60:02d}"
             if s["talk"] else "")]
+    for title, c in (("Eng uzun", s["longest_call"]), ("Eng qisqa", s["shortest_call"])):
+        if c:
+            who = c["name"] or (f"+998{c['phone']}" if c["phone"] else c["number"] or "yashirin raqam")
+            L.append(f"  {title} suhbat: <b>{c['duration'] // 60}:{c['duration'] % 60:02d}</b> — {e(who)}"
+                     + (f" · +998{c['phone']}" if c["name"] and c["phone"] else ""))
     if s["missed"]:
         wait = f", o'rtacha {s['callback_minutes']} daqiqada" if s["callback_minutes"] is not None else ""
         L.append(f"  Javobsizlarga qayta bog'lanildi: {s['missed'] - s['missed_open']} ta{wait}")

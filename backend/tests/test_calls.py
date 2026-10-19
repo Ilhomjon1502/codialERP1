@@ -181,6 +181,8 @@ def test_stats_durations(api, paired):
     s = services.stats(CallRecord.objects.all())
     assert s["talk"] == 810 and s["talked"] == 3 and s["avg_talk"] == 270 and s["longest"] == 700
     assert (s["talk_in"], s["talk_out"]) == (720, 90)
+    assert s["shortest"] == 20 and s["longest_call"]["duration"] == 700 and s["longest_call"]["phone"] == "991234569"
+    assert s["shortest_call"]["phone"] == "991234567" and s["shortest_call"]["direction"] == "Kiruvchi"
     assert {d["label"]: d["n"] for d in s["by_duration"]} == {"1–30 s": 1, "30 s–1 daq": 0, "1–3 daq": 1, "3–5 daq": 0, "5–10 daq": 0, "10 daq+": 1}
 
 
