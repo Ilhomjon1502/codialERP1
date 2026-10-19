@@ -30,6 +30,10 @@ Bildirishnomalar panelida «Qo'ng'iroqlar ERP tizimiga yuborilmoqda» yozuvi doi
 
 Jami, kiruvchi, chiquvchi, javobsiz (qancha javobsiz qolgan), javobsizga o'rtacha qayta javob vaqti, yangi raqamlar; soatlar va kunlar bo'yicha diagramma; lid manbasi va lid statusi bo'yicha.
 
+## Ertalabki reja (08:30)
+
+Administrator+Hisobchi'ga boradigan «Bugungi ish rejasi»ning boshida: kecha 18:30 dan bugun 8:30 gacha **javobsiz qolgan va hali qayta terilmagan** raqamlar (ism, raqam, vaqt; bir raqam bir necha marta qo'ng'iroq qilgan bo'lsa ×soni). Birinchi bo'lib shularga qo'ng'iroq qiling.
+
 ## Ruxsatlar
 
 | Rol | Imkoniyat |

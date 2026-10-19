@@ -130,6 +130,35 @@ def test_daily_report_calls_section(api, branch, device, paired):
     assert "Qabul telefoni aloqaga chiqmayapti" in build(timezone.localdate())
 
 
+def test_morning_plan_night_missed_calls(api, branch, device, paired):
+    from django.utils import timezone
+
+    from apps.notifications import reminders
+
+    day = datetime.date(2026, 10, 20)
+    tz = timezone.get_current_timezone()
+
+    def ms(d, h, m):
+        return int(datetime.datetime.combine(d, datetime.time(h, m), tz).timestamp() * 1000)
+
+    y = day - datetime.timedelta(days=1)
+    Student.objects.create(branch=branch, first_name="Ali", last_name="Valiyev", phone1="901112233")
+    ingest(api, paired, [
+        {"id": 1, "date": ms(y, 18, 0), "type": 3, "number": "+998971110001", "duration": 0},   # 18:30 dan oldin — kirmaydi
+        {"id": 2, "date": ms(y, 21, 15), "type": 3, "number": "+998901112233", "duration": 0},  # kirishi kerak (talaba)
+        {"id": 3, "date": ms(day, 7, 45), "type": 3, "number": "+998901112233", "duration": 0},  # shu raqam yana — ×2
+        {"id": 4, "date": ms(y, 22, 0), "type": 3, "number": "+998931110002", "duration": 0},   # keyin o'zi terdik — kirmaydi
+        {"id": 5, "date": ms(day, 7, 0), "type": 2, "number": "+998931110002", "duration": 40},
+        {"id": 6, "date": ms(day, 8, 40), "type": 3, "number": "+998941110003", "duration": 0},  # 8:30 dan keyin — kirmaydi
+        {"id": 7, "date": ms(y, 23, 0), "type": 5, "number": "+998951110004", "duration": 0},   # rad etilgan, noma'lum
+    ])
+    text = reminders.plan_text(branch, day)
+    assert "Tunda javobsiz qo'ng'iroqlar" in text and "2 raqam" in text
+    assert "Ali Valiyev · +998901112233 — 21:15 (×2)" in text
+    assert "noma'lum raqam · +998951110004" in text
+    assert "971110001" not in text and "931110002" not in text and "941110003" not in text
+
+
 def test_daily_report_without_device(db):
     from django.utils import timezone
 

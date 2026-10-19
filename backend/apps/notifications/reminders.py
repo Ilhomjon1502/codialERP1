@@ -126,11 +126,54 @@ def demo_before_lessons(now=None):
 
 # ------------------------------------------------------------------ ertalabki reja
 
+NIGHT_FROM = datetime.time(18, 30)  # kechagi ish kuni oxiri
+NIGHT_TO = datetime.time(8, 30)     # bugungi reja vaqti
+
+
+def _night_missed(branch, day):
+    """Kecha 18:30 → bugun 8:30 oralig'ida javobsiz (yoki rad etilgan) qo'ng'iroqlar, shu raqamga hali qo'ng'iroq qilinmagan
+    (`callback_at` bo'sh — chiquvchi yoki gaplashilgan kiruvchi qo'ng'iroq bo'lsa tizim o'zi yopadi). Raqam bo'yicha jamlanadi."""
+    from apps.calls.models import CallRecord
+
+    tz = timezone.get_current_timezone()
+    start = datetime.datetime.combine(day - datetime.timedelta(days=1), NIGHT_FROM, tz)
+    end = datetime.datetime.combine(day, NIGHT_TO, tz)
+    rows = list(CallRecord.objects.filter(branch=branch, direction__in=[CallRecord.Direction.MISSED, CallRecord.Direction.REJECTED],
+                                          callback_at__isnull=True, started_at__gte=start, started_at__lt=end)
+                .select_related("student", "parent").order_by("started_at"))
+    if not rows:
+        return []
+    groups = {}
+    for r in rows:
+        key = r.phone or r.number or r.pk
+        g = groups.setdefault(key, {"first": r, "n": 0})
+        g["n"] += 1
+    items = list(groups.values())
+    L = [f"\n📵 <b>Tunda javobsiz qo'ng'iroqlar</b> ({start:%d.%m} {NIGHT_FROM:%H:%M} – {NIGHT_TO:%H:%M}) — {len(items)} raqam, qayta qo'ng'iroq qiling"]
+    for g in items[:PER_LIST]:
+        r = g["first"]
+        if r.student_id:
+            who = r.student.full_name
+        elif r.parent_id:
+            who = f"{r.parent} (vasiy)"
+        else:
+            who = r.contact_name or "noma'lum raqam"
+        num_txt = phone(r.phone) if r.phone else e(r.number or "yashirin raqam")
+        times = timezone.localtime(r.started_at)
+        L.append(f"  • {e(who)} · {num_txt} — {times:%H:%M}" + (f" (×{g['n']})" if g["n"] > 1 else ""))
+    if len(items) > PER_LIST:
+        L.append(f"  <i>… yana {len(items) - PER_LIST} ta — Qo'ng'iroqlar bo'limi</i>")
+    return L
+
+
 def plan_text(branch, day):
     """Filial uchun bugungi tavsiya etilgan ishlar."""
     L = [f"📋 <b>Bugungi ish rejasi</b> · {day:%d.%m.%Y}, {WEEKDAYS[day.weekday()]}"]
     groups = sorted(_lesson_groups(day, branch), key=lambda g: (g.time.start_time, g.name))
     L.append(f"Bugun {len(groups)} ta dars." if groups else "Bugun dars yo'q.")
+
+    # 0. Kechagi 18:30 dan bugungi 8:30 gacha javobsiz qolgan qo'ng'iroqlar (qayta terilmaganlari)
+    L += _night_missed(branch, day)
 
     # 1. To'lov kutilayotganlar: bugun darsi bor guruhlardagi qarzdorlar, dars vaqti bo'yicha
     debt = (with_balance(Contract.objects.filter(group__in=groups).filter(active_on(day))).filter(balance__gt=0)

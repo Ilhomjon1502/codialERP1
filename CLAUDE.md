@@ -59,7 +59,7 @@
 - Monitoring: `deploy/healthcheck.sh`, cron */5; xato bo'lsa Telegram'ga (`ALERT_TELEGRAM_CHAT`).
 - Cron:
   - `daily_report` — 19:00 (BM; 2026-10-19 dan qo'ng'iroqlar bo'limi bilan);
-  - `morning_plan` — 08:30 (Adm+Hisobchi);
+  - `morning_plan` — 08:30 (Adm+Hisobchi; tunda javobsiz qo'ng'iroqlar bilan);
   - `notify_attendance` — */10;
   - `propose_lesson_frequencies` — har oy 1-kuni.
 
@@ -102,6 +102,7 @@
   - Yangi versiyada `app/build.gradle.kts` dagi `versionCode` va `versionName` ni oshiring.
 - **Ulash tartibi** (buyurtmachi bajardi, 2026-10-19): ERP → Qo'ng'iroqlar → Qurilmalar → «Qurilma qo'shish» → kod. APK telefonga Telegram orqali o'rnatiladi. Ilovada ruxsatlar, batareya va Avtozapusk sozlanadi, kod kiritiladi va «Ulash» bosiladi. Qo'llanma: `docs/user_guide/qongiroqlar.md`. Birinchi kuni 80 qo'ng'iroq tushdi, ularning ~35 foizi bazadagi talaba yoki lidga bog'landi.
 - **19:00 hisobot:** `daily_report.calls_section(day)` — jami, yo'nalishlar va suhbat vaqti, javobsizlarga qayta bog'lanish va o'rtacha vaqti, **javobsiz qolganlar ro'yxati** (vaqt, raqam, ism; 10 tagacha), yangi raqamlar, lid manbalari, telefon 6 soatdan ko'p jim bo'lsa ⚠️. Faol qurilma bo'lmasa, bo'lim chiqmaydi. Tekshirish: `daily_report --print`.
+- **08:30 ertalabki reja:** `reminders._night_missed` — kecha 18:30 dan bugun 8:30 gacha javobsiz/rad etilgan va **qayta terilmagan** (`callback_at` bo'sh) qo'ng'iroqlar, raqam bo'yicha jamlangan (×N), reja boshida «📵 Tunda javobsiz qo'ng'iroqlar» (15 tagacha). Oyna `NIGHT_FROM`/`NIGHT_TO`.
 - **Keyingi g'oyalar** (so'ralmagan, buyurtmachi aytsa):
   - suhbatni yozib olish — Android 10+ da cheklangan; MIUI'ning o'z yozuvchisi fayllarini yuklash mumkin;
   - javobsiz qo'ng'iroq bo'lsa administratorlarga darhol Telegram xabar;
