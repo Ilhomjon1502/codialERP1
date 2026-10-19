@@ -397,7 +397,7 @@
   /* ===================================================== Dars jadvali (bosh sahifa) */
   // Guruhlardan avtomatik: kun → xona (yoki ustoz) × vaqt. Bir qatorda vaqti ustma-ust tushgan guruhlar qizil bilan.
   const SLOT = 30; // daqiqa
-  const LANE_H = 58; // px — ustma-ust guruhlar uchun bitta qator balandligi
+  const STRIP = 17; // px — ustma-ust guruhlarda orqadagisining chiqib turadigan qirrasi
   const SLOT_MIN = 40; // px — bundan tor bo'lsa jadval gorizontal aylanadi
   const SCHED_COLORS = ['#2f80ed', '#27ae60', '#9b51e0', '#F26A1B', '#56ccf2', '#bb6bd9', '#6fcf97', '#f2c94c']; // qizilsiz — qizil faqat ustma-ust uchun
   const mins = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
@@ -434,7 +434,7 @@
     const canAdd = A.can('groups', 'a');
     const rowHTML = (row) => {
       const items = todays.filter((g) => rowKey(g) === row.key).sort((a, b) => a.s - b.s);
-      // Vaqti ustma-ust guruhlar bir-birining ustini yopmasin: qatorlarga (lane) bo'linadi, har biri alohida bosiladi
+      // Vaqti ustma-ust guruhlar pog'onaga joylanadi: orqadagisining yuqori qirrasi (ushlagich) chiqib turadi — bosib tanlanadi
       const laneEnd = [];
       items.forEach((g) => {
         let i = laneEnd.findIndex((e) => e <= g.s);
@@ -448,15 +448,15 @@
         const c = color(g);
         const second = by === 'room' ? g.teacher_name : data.rooms.find((r) => r.id === g.room)?.name || '';
         const title = `${g.name} · ${g.start}–${g.end} · ${g.teacher_name}${g.supporter_name ? ` (yordamchi: ${g.supporter_name})` : ''} · ${g.students}/${g.capacity || '—'} talaba${g.status === 'Rejada' ? ` · Rejada: ${A.fdate(g.start_date)} dan` : ''}${clash ? ' · DIQQAT: vaqti boshqa guruh bilan ustma-ust' : ''}`;
-        const cls = `sched-b${g.status === 'Rejada' ? ' plan' : ''}${clash ? ' clash' : ''}`;
+        const cls = `sched-b${g.status === 'Rejada' ? ' plan' : ''}${clash ? ' clash' : ''}${lanes > 1 ? ' stack' : ''}`;
         const inner = `<b>${esc(g.name)}</b><small>${esc(second)} · ${g.students}/${g.capacity || '—'}</small>`;
-        const st = `left:calc(${pos(g.s - t0)} + 3px);width:calc(${pos(g.e - g.s)} - 6px);--c:${c}${lanes > 1 ? `;top:${g.lane * LANE_H + 5}px;bottom:auto;height:${LANE_H - 6}px` : ''}`;
+        const st = `left:calc(${pos(g.s - t0)} + 3px);width:calc(${pos(g.e - g.s)} - 6px);--c:${c}${lanes > 1 ? `;top:${6 + g.lane * STRIP}px;z-index:${g.lane + 1}` : ''}`;
         return canEdit
           ? `<div class="${cls}" role="button" tabindex="0" data-act="group-manage" data-id="${g.id}" title="${esc(title)} · bosing — guruhni boshqarish" style="${st}">${inner}</div>`
           : `<a class="${cls}" href="#/groups/${g.id}" title="${esc(title)}" style="${st}">${inner}</a>`;
       }).join('');
       return `<div class="sched-row"><div class="sched-l"><b>${esc(row.label)}</b>${row.sub ? `<small>${esc(row.sub)}</small>` : ''}</div>
-        <div class="sched-track${canAdd ? ' addable' : ''}" ${lanes > 1 ? `style="min-height:${lanes * LANE_H + 6}px"` : ''} ${canAdd ? `data-act="sched-add" data-key="${row.key}" data-day="${day}" data-by="${by}" data-t0="${t0}" data-span="${span}" title="Bo'sh joyni bosing — shu vaqtga yangi guruh ochish"` : ''}>${slots.map(() => '<i></i>').join('')}${blocks}</div></div>`;
+        <div class="sched-track${canAdd ? ' addable' : ''}" ${lanes > 1 ? `style="min-height:${64 + (lanes - 1) * STRIP}px"` : ''} ${canAdd ? `data-act="sched-add" data-key="${row.key}" data-day="${day}" data-by="${by}" data-t0="${t0}" data-span="${span}" title="Bo'sh joyni bosing — shu vaqtga yangi guruh ochish"` : ''}>${slots.map(() => '<i></i>').join('')}${blocks}</div></div>`;
     };
     const tabs = days.map((d) => `<button class="sched-day${d === day ? ' on' : ''}" data-act="sched-day" data-id="${d}">${A.WD_FULL[d]}${d === todayWd ? ' •' : ''}
       <span>${groups.filter((g) => g.weekdays.includes(d)).length}</span></button>`).join('');

@@ -521,6 +521,9 @@ button[disabled] { cursor: not-allowed; }
 .sched-b b { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sched-b small { font-size: 11.5px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sched-b.plan { border-style: dashed; opacity: 0.8; }
+.sched-b.stack { justify-content: flex-start; padding-top: 1px; padding-bottom: 2px; }
+.sched-b.stack b { line-height: 15px; font-size: 12px; }
+.sched-b.stack:hover { z-index: 30 !important; }
 .sched-b.clash { border-color: #eb5757; box-shadow: inset 0 0 0 1.5px #eb5757; }
 
 /* ---- Dars jadvali — telefonda ro'yxat ko'rinishi ---- */
