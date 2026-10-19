@@ -235,6 +235,18 @@ def test_manager_past_dates_window_and_substitute(api, make_user, world):
     assert take(adm, w, [(c1, "1", "")], sub_teacher=str(w["teacher"].pk)).status_code == 400  # o'z ustozi o'rindosh emas
 
 
+def test_administrator_accountant_edits_attendance_without_window(api, make_user, world):
+    w = world
+    ah = api(make_user("ADMINISTRATOR_HISOBCHI"))
+    old = TODAY - datetime.timedelta(days=20)
+    c0 = w["contracts"][0]
+    assert take(ah, w, [(c0, "1", "")], date=old).status_code == 200  # muddatsiz (oddiy administrator uchun 7 kun)
+    assert take(ah, w, [(c0, "X", "")], date=old).status_code == 200  # qayta tahrirlash
+    assert take(ah, w, [(c0, "-", "")], date=old).status_code == 200  # Nofaol ham qo'ya oladi
+    assert Attendance.objects.get(contract=c0, date=old).status == "-"
+    assert take(api(make_user("ADMINISTRATOR")), w, [(c0, "1", "")], date=old).status_code == 403
+
+
 def test_contact_status_and_absent_list(api, make_user, world):
     w = world
     take(api(w["teacher"]), w, [(w["contracts"][0], "X", ""), (w["contracts"][1], "1", "")])

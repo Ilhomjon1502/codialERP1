@@ -71,6 +71,9 @@ def test_edit_days_rules():
     assert edit_days("ADMINISTRATOR", "payments") == 0
     assert edit_days("HISOBCHI", "expenses") == 0
     assert edit_days("USTOZ", "attendance") == 0
+    assert edit_days("ADMINISTRATOR_HISOBCHI", "attendance") is None  # davomat — muddatsiz
+    assert edit_days("ADMINISTRATOR_HISOBCHI", "contracts") == 7
+    assert edit_days("ADMINISTRATOR", "attendance") == 7
 
 
 def test_check_edit_window(make_user, monkeypatch):
