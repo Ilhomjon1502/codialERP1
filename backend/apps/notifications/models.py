@@ -42,13 +42,30 @@ class TelegramLink(models.Model):
         return f"{self.user} → {self.chat_id or 'bog`lanmagan'}"
 
 
+class ExtraRecipient(models.Model):
+    """Qo'shimcha qabul qiluvchi (xodim akkaunti emas — masalan umumiy @codial_admin): tanlangan rollarga standart keladigan xabarlarning nusxasi shu chatga ham yuboriladi."""
+
+    label = models.CharField("Nomi", max_length=80)
+    chat_id = models.BigIntegerField(unique=True)
+    username = models.CharField(max_length=64, blank=True)
+    roles = models.JSONField("Qaysi rollar xabarlarining nusxasi", default=list)
+    active = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = "Qo'shimcha Telegram qabul qiluvchi"
+        verbose_name_plural = "Qo'shimcha Telegram qabul qiluvchilar"
+
+    def __str__(self):
+        return f"{self.label} ({self.chat_id})"
+
+
 class Outbox(models.Model):
     class Status(models.TextChoices):
         PENDING = "pending", "Navbatda"
         SENT = "sent", "Yuborildi"
         FAILED = "failed", "Xato"
 
-    user = models.ForeignKey("accounts.User", on_delete=models.CASCADE, related_name="+")
+    user = models.ForeignKey("accounts.User", null=True, blank=True, on_delete=models.CASCADE, related_name="+")  # bo'sh — qo'shimcha qabul qiluvchi (ExtraRecipient)
     chat_id = models.BigIntegerField()
     event = models.CharField(max_length=32, choices=EVENTS)
     key = models.CharField("Takrorlanmaslik kaliti", max_length=120, blank=True, db_index=True)

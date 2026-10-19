@@ -19,7 +19,7 @@ from apps.accounts.models import User
 from apps.core.permissions import can, is_top, role_code
 from apps.core.roles import TEACHER_ROLES, RoleCode
 
-from .models import EVENTS, Outbox, TelegramLink, new_code
+from .models import EVENTS, ExtraRecipient, Outbox, TelegramLink, new_code
 
 log = logging.getLogger(__name__)
 R = RoleCode
@@ -93,6 +93,14 @@ def notify(event, text, branch=None, default_users=(), key="", only=None, markup
                     continue
                 if force or wants(lk, event, default=u.pk in default_ids):
                     rows.append(Outbox(user=u, chat_id=lk.chat_id, event=event, key=key, text=text, markup=markup or {}))
+            # Qo'shimcha qabul qiluvchilar: shu xabar tanlangan rollarga standart keladigan turdan bo'lsa — nusxa (bitta chatga bir marta)
+            sent_to = {x.chat_id for x in rows}
+            for er in ExtraRecipient.objects.filter(active=True):
+                if er.chat_id in sent_to or not any(role in DEFAULT_ROLES.get(event, ()) for role in er.roles):
+                    continue
+                if key and Outbox.objects.filter(chat_id=er.chat_id, key=key).exists():
+                    continue
+                rows.append(Outbox(user=None, chat_id=er.chat_id, event=event, key=key, text=text, markup=markup or {}))
             Outbox.objects.bulk_create(rows)
         except Exception:  # noqa: BLE001 — xabar asosiy amalni buzmasin
             log.exception("Telegram navbatiga yozilmadi")

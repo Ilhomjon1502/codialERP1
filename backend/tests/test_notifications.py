@@ -309,3 +309,21 @@ def test_debt_reminder_10_minutes_before_lesson(fin, django_capture_on_commit_ca
     msgs = list(Outbox.objects.filter(event="debt_lesson"))
     assert [m.user_id for m in msgs] == [fin["cashier"].pk]
     assert "10 daqiqadan keyin" in msgs[0].text and "Ali Valiyev — <b>600 000</b> so'm" in msgs[0].text and g.name in msgs[0].text
+
+
+def test_extra_recipient_gets_copy_of_role_default_messages(api, make_user, world, django_capture_on_commit_callbacks):  # noqa: F811
+    from apps.notifications.models import ExtraRecipient
+
+    adm, fm = make_user("ADMINISTRATOR_HISOBCHI"), make_user("FILIAL_MENEJERI")
+    link(adm, 900)
+    ExtraRecipient.objects.create(label="Codial admin", chat_id=777, roles=["ADMINISTRATOR_HISOBCHI"])
+    ExtraRecipient.objects.create(label="Faqat BM", chat_id=778, roles=["BOSH_MENEJER"], active=False)
+    body = {"mode": "new", "first_name": "Nusxa", "last_name": "Lidov", "phone1": "933334455", "phone2": "944445566",
+            "source": str(LeadSource.objects.create(name="Instagram").pk), "course": str(world["course"].pk), "status": "2"}
+    with django_capture_on_commit_callbacks(execute=True):
+        assert api(fm).post("/api/v1/leads/", body, format="json").status_code == 201
+    got = {(m.chat_id, m.event) for m in Outbox.objects.all()}
+    assert (900, "new_lead") in got and (777, "new_lead") in got and not any(c == 778 for c, _ in got)  # nusxa bor; nofaol qabul qiluvchi — yo'q
+    with django_capture_on_commit_callbacks(execute=True):  # topshiriq — rol standartida emas, nusxa bormaydi
+        services.notify("task", "x", default_users=[adm], only=lambda u: u.pk == adm.pk)
+    assert not Outbox.objects.filter(chat_id=777, event="task").exists()
