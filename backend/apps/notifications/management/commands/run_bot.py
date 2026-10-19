@@ -12,6 +12,7 @@ from django.core.management.base import BaseCommand
 from django.db import close_old_connections
 
 from apps.notifications import reminders, services, webapp
+from apps.notifications.models import TelegramLink
 from apps.tasks import services as tasks
 
 log = logging.getLogger(__name__)
@@ -49,8 +50,9 @@ class Command(BaseCommand):
                         log.warning("GURUH chat_id=%s nomi=%s", chat, (msg.get("chat") or {}).get("title"))
                     if chat and msg.get("chat", {}).get("type") == "private":
                         reply = services.handle_message(chat, msg.get("text", ""), (msg.get("from") or {}).get("username", ""))
-                        if reply == services.HELP:  # bog'lanmagan chat (masalan qo'shimcha qabul qiluvchi) — chat_id ni jurnalga
+                        if not TelegramLink.objects.filter(chat_id=chat).exists():  # bog'lanmagan chat (masalan qo'shimcha qabul qiluvchi) — chat_id jurnalga va javobga
                             log.warning("BOT chat_id=%s username=%s", chat, (msg.get("from") or {}).get("username", ""))
+                            reply += f"\n\nChat ID: {chat}"
                         services.api("sendMessage", chat_id=chat, text=reply)
                 if time.monotonic() - last_tick >= 60:  # har daqiqada: boshlangan darslar → ustozga eslatma (1–2 yengil so'rov)
                     last_tick = time.monotonic()
