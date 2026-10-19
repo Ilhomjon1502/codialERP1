@@ -565,7 +565,8 @@
         A.keepContract(saved);
         await A.reloadGroups();
         A.toast(isNew ? `Shartnoma №${saved.number} tuzildi` : 'Saqlandi');
-        if (isNew) A.go('contracts/' + saved.id);
+        if (preset._after) preset._after(saved); // guruhni boshqarish oynasidan — oynaga qaytadi
+        else if (isNew) A.go('contracts/' + saved.id);
         else A.refresh();
       },
     });

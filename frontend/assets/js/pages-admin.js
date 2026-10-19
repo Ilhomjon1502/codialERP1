@@ -442,7 +442,7 @@
         const inner = `<b>${esc(g.name)}</b><small>${esc(second)} · ${g.students}/${g.capacity || '—'}</small>`;
         const st = `left:calc(${pos(g.s - t0)} + 3px);width:calc(${pos(g.e - g.s)} - 6px);--c:${c}`;
         return canEdit
-          ? `<div class="${cls}" role="button" tabindex="0" data-act="sched-edit" data-id="${g.id}" title="${esc(title)} · bosing — kun, vaqt, xona yoki ustozni o'zgartirish" style="${st}">${inner}</div>`
+          ? `<div class="${cls}" role="button" tabindex="0" data-act="group-manage" data-id="${g.id}" title="${esc(title)} · bosing — guruhni boshqarish" style="${st}">${inner}</div>`
           : `<a class="${cls}" href="#/groups/${g.id}" title="${esc(title)}" style="${st}">${inner}</a>`;
       }).join('');
       return `<div class="sched-row"><div class="sched-l"><b>${esc(row.label)}</b>${row.sub ? `<small>${esc(row.sub)}</small>` : ''}</div>
@@ -458,7 +458,7 @@
       return `<ul class="sched-agenda">${items.map((g) => {
         const clash = items.some((o) => o !== g && (o.room === g.room || o.teacher === g.teacher) && o.s < g.e && g.s < o.e);
         const room = data.rooms.find((r) => r.id === g.room)?.name || '';
-        const attrs = canEdit ? `data-act="sched-edit" data-id="${g.id}" role="button"` : `href="#/groups/${g.id}"`;
+        const attrs = canEdit ? `data-act="group-manage" data-id="${g.id}" role="button"` : `href="#/groups/${g.id}"`;
         return `<li><div class="t">${g.start}<small>${g.end}</small></div>
           <a class="g${clash ? ' clash' : ''}${g.status === 'Rejada' ? ' plan' : ''}" ${attrs} style="--c:${color(g)}"><b>${esc(g.name)}</b>
           <small>${esc(room)} · ${esc(g.teacher_name)} · ${g.students}/${g.capacity || '—'}${g.status === 'Rejada' ? ' · rejada' : ''}${clash ? ' · ⚠️ ustma-ust' : ''}</small></a></li>`;
@@ -467,7 +467,7 @@
     return `<section class="card sched"><div class="row between wrap"><h2>Dars jadvali</h2>
         <div class="seg">${[['room', 'Xonalar'], ['teacher', 'Ustozlar']].map(([k, l]) => `<button class="${by === k ? 'on' : ''}" data-act="sched-by" data-id="${k}">${l}</button>`).join('')}</div></div>
       <div class="sched-days">${tabs}</div>
-      <p class="muted small">${todays.length} dars · ${roomsUsed}/${data.rooms.length} xona band · ${pct}% band<span class="sched-help"> · ${hhmm(t0)}–${hhmm(t1)}. Jadval guruhlardan avtomatik tuziladi; ${canEdit ? "guruhni bosing — kun, vaqt, xona va ustozni shu yerda o'zgartirasiz." : 'guruhni bosing — batafsil.'} Shtrixli — rejadagi guruh, qizil — vaqti ustma-ust.</span></p>
+      <p class="muted small">${todays.length} dars · ${roomsUsed}/${data.rooms.length} xona band · ${pct}% band<span class="sched-help"> · ${hhmm(t0)}–${hhmm(t1)}. Jadval guruhlardan avtomatik tuziladi; ${canEdit ? "guruhni bosing — uni shu yerda to'liq boshqarasiz (jadval, o'quvchilar, yopish)." : 'guruhni bosing — batafsil.'} Shtrixli — rejadagi guruh, qizil — vaqti ustma-ust.</span></p>
       <div class="sched-wrap"><div class="sched-grid" style="min-width:${slots.length * SLOT_MIN + 150}px">
         <div class="sched-row head"><div class="sched-l">${by === 'room' ? 'Xona' : 'Ustoz'} / vaqt</div><div class="sched-track">${slots.map((t) => `<span>${hhmm(t)}</span>`).join('')}</div></div>
         ${shown.map(rowHTML).join('') || `<div class="muted pad">${A.WD_FULL[day]} kuni dars yo'q</div>`}
@@ -497,6 +497,82 @@
     else preset.teacher = el.dataset.key;
     A.groupForm(null, preset);
   };
+
+  /* ---- Guruhni boshqarish oynasi (jadvaldagi guruh ustiga bosilganda): jadval, tahrir, yopish/qayta ochish, o'quvchilar ---- */
+  async function manageGroup(id) {
+    const g = A.get('groups', id);
+    if (!g) return A.go('groups/' + id);
+    const res = await A.http.get(`/contracts/?group=${id}&page_size=200`);
+    res.results.forEach(A.keepContract);
+    const list = res.results;
+    const active = A.sortBy(list.filter((c) => c.status !== 'Nofaol'), (c) => (c.student_data || {}).full_name || c.name);
+    const ended = list.filter((c) => c.status === 'Nofaol');
+    const f = A.groupFill(g);
+    const canE = A.can('groups', 'e');
+    const canC = A.can('contracts', 'a');
+    const today = A.today();
+    const m = A.modal({
+      title: `${A.groupName(g)} — boshqarish`,
+      wide: true,
+      body: `<div class="row gap wrap" style="margin-bottom:10px">${A.badge(g.status, g.status === 'Faol' ? 'green' : g.status === 'Rejada' ? 'blue' : 'red')}
+          <span>${esc(A.patternName(g.pattern))} · ${A.timeName(g.time)} · ${esc(A.roomName(g.room))}</span></div>
+        <p class="muted small">Ustoz: <b>${esc(A.userName(g.teacher))}</b>${g.supporter ? ` · yordamchi: <b>${esc(A.userName(g.supporter))}</b>` : ''} · o'quvchilar: <b>${f.n}/${f.cap || '—'}</b>${g.end ? ` · tugash: ${A.fdate(g.end)}` : ''}</p>
+        <div class="row gap wrap" style="margin:10px 0">
+          ${canE ? '<button class="btn ghost" data-m="sched">🗓 Kun, vaqt, xona, ustoz</button><button class="btn ghost" data-m="edit">✏️ To\'liq tahrirlash</button>' : ''}
+          ${A.can('attendance', 'a') && g.status === 'Faol' && A.hasLesson(g, today) ? `<a class="btn ghost" href="#/attendance?tab=take&group=${g.id}" data-close>📋 Davomat olish</a>` : ''}
+          <a class="btn ghost" href="#/groups/${g.id}" data-close>📊 Jurnal va sahifa</a>
+          ${canE ? (g.status === 'Nofaol' ? '<button class="btn ghost" data-m="reopen">♻️ Qayta faollashtirish</button>' : '<button class="btn danger" data-m="close">⛔ Guruhni yopish (nofaol)</button>') : ''}
+        </div>
+        <div class="row between" style="margin:14px 0 6px"><h3 style="margin:0">O'quvchilar (${active.length})</h3>${canC && g.status !== 'Nofaol' ? '<button class="btn primary sm" data-m="add">＋ O\'quvchi qo\'shish</button>' : ''}</div>
+        ${active.length ? A.table([
+          { h: "O'quvchi", f: (c) => `<a href="#/contracts/${c.id}" data-close class="${Number(c.balance) > 0 ? 't-red' : ''}">${esc((c.student_data || {}).full_name || c.name)}</a>` },
+          { h: 'Telefon', f: (c) => ((c.student_data || {}).phone1 ? `<a href="tel:+998${c.student_data.phone1}">${c.student_data.phone1}</a>` : '') },
+          { h: 'Holat', f: (c) => A.contractStatusBadge(c.status) },
+          { h: 'Balans', f: (c) => A.num(c.balance), cls: 'num' },
+          { h: '', f: (c) => (A.can('contracts', 'e') ? `<button class="btn sm ghost" data-m="out" data-id="${c.id}" title="Guruhdan chiqarish (shartnomani to'xtatish)">Chiqarish</button>` : '') },
+        ], active) : A.empty("Faol o'quvchi yo'q")}
+        ${ended.length ? `<p class="muted small" style="margin-top:10px">Nofaol shartnomalar: ${ended.length} ta (guruh sahifasida ko'rinadi)</p>` : ''}`,
+    });
+    const again = () => { A.refresh(); setTimeout(() => manageGroup(id), 50); };
+    m.el.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-m]');
+      if (!b) return;
+      const what = b.dataset.m;
+      m.close();
+      if (what === 'sched') A.act['sched-edit']({ dataset: { id } });
+      else if (what === 'edit') A.groupForm(A.get('groups', id));
+      else if (what === 'add') A.contractForm(null, { course: g.course, group: g.id, _after: again }, false);
+      else if (what === 'out') A.contractForm(A.get('contracts', b.dataset.id), { _after: again }, true);
+      else if (what === 'close') closeGroup(id, again);
+      else if (what === 'reopen') reopenGroup(id, again);
+    });
+  }
+  function closeGroup(id, done) {
+    const g = A.get('groups', id);
+    A.form({
+      title: `${A.groupName(g)} — guruhni yopish`,
+      intro: "<p class=\"muted\">Tanlangan sanagacha guruh faol, ertasidan <b>nofaol</b> bo'ladi: jadvalda, davomat olishda va yangi shartnomalarda chiqmaydi. Shartnomalar o'z holicha qoladi — o'quvchilarni alohida «Chiqarish» yoki boshqa guruhga o'tkazish mumkin.</p>",
+      values: { end: today0() },
+      submit: 'Yopish',
+      fields: [{ name: 'end', label: 'Oxirgi faol kun', type: 'date', required: true, validate: (d) => (d && g.start && d <= g.start ? "Boshlanish sanadan keyin bo'lsin" : '') }],
+      async onSubmit(x) {
+        const saved = await A.http.patch(`/groups/${id}/`, { end: x.end });
+        A.putLocal('groups', saved);
+        A.toast(`${A.groupName(g)}: ${x.end < today0() ? 'guruh yopildi' : A.fdate(x.end) + ' dan keyin yopiladi'}`);
+        done();
+      },
+    });
+  }
+  const today0 = () => A.today();
+  async function reopenGroup(id, done) {
+    const g = A.get('groups', id);
+    if (!(await A.confirm(`${A.groupName(g)} qayta faollashtirilsinmi? Tugash sanasi olib tashlanadi.`, 'Faollashtirish'))) return done();
+    const saved = await A.http.patch(`/groups/${id}/`, { end: null });
+    A.putLocal('groups', saved);
+    A.toast('Guruh qayta faollashtirildi');
+    done();
+  }
+  A.act['group-manage'] = (el) => manageGroup(el.dataset.id);
 
   // Jadvaldan tez tahrir: dars kunlari, vaqti, xona, ustoz (to'liq forma — guruh sahifasida). Ustma-ust tushish oldindan ogohlantiriladi.
   const overlap = (a, b) => a.weekdays.some((d) => b.weekdays.includes(d)) && a.s < b.e && b.s < a.e;
