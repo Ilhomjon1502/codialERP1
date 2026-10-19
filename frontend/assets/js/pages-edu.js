@@ -30,6 +30,15 @@
   });
 
   /* ---- Guruh formasi. Tekshiruvlar serverda ham bor (services.validate_group) ---- */
+  /* ---- Qo'lda dars vaqti kiritish (hamma joyda): Sozlamalardagi vaqt bo'lmasa yangisi yaratiladi va Sozlamalarga ham qo'shiladi ---- */
+  A.NEW_TIME = '__new';
+  A.ensureTime = async (start, end, B) => {
+    const ex = A.rows('lessonTimes').find((t) => t.branch === B && t.start === start && t.end === end);
+    if (ex) return ex.id;
+    const t = await A.http.post('/lesson-times/', { branch: B, start, end });
+    A.putLocal('lessonTimes', t);
+    return t.id;
+  };
   A.groupForm = (g, preset) => {
     const isNew = !g;
     const B = g ? g.branch : A.branchIds()[0];

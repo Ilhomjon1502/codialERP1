@@ -594,7 +594,7 @@
     const others = ((dash.sched && dash.sched.groups) || []).filter((o) => o.id !== g.id).map((o) => ({ ...o, s: mins(o.start), e: mins(o.end) }));
     const probe = (x) => {
       const p = A.get('dayPatterns', x.pattern);
-      const t = A.get('lessonTimes', x.time);
+      const t = x.time === A.NEW_TIME ? (x.new_start && x.new_end && x.new_end > x.new_start ? { start: x.new_start, end: x.new_end } : null) : A.get('lessonTimes', x.time);
       return p && t ? { weekdays: p.weekdays || [], s: mins(t.start), e: mins(t.end) } : null;
     };
     const clashes = (x) => {
@@ -608,7 +608,9 @@
       values: { pattern: g.pattern, time: g.time, room: g.room, teacher: g.teacher, supporter: g.supporter || '' },
       fields: [
         { name: 'pattern', label: 'Dars kunlari', type: 'seg', required: true, options: (x) => A.optList('dayPatterns', 'name', (p) => (p.status || 'Faol') === 'Faol' || p.id === x.pattern) },
-        { name: 'time', label: 'Dars vaqti', type: 'seg', required: true, options: (x) => A.optList('lessonTimes', (t) => `${t.start}-${t.end}`, (t) => t.branch === B && ((t.status || 'Faol') === 'Faol' || t.id === x.time)) },
+        { name: 'time', label: 'Dars vaqti', type: 'seg', required: true, options: (x) => [...A.optList('lessonTimes', (t) => `${t.start}-${t.end}`, (t) => t.branch === B && ((t.status || 'Faol') === 'Faol' || t.id === x.time)), [A.NEW_TIME, "＋ Boshqa vaqt"]], help: "Sozlamalardagi vaqtlardan tanlang yoki «Boshqa vaqt» orqali o'zingiz kiriting" },
+        { name: 'new_start', label: 'Boshlanish vaqti', type: 'time', required: true, half: true, show: (x) => x.time === A.NEW_TIME, validate: (d, x) => (x.new_end && x.new_end <= d ? "Tugash vaqti boshlanishdan keyin bo'lsin" : '') },
+        { name: 'new_end', label: 'Tugash vaqti', type: 'time', required: true, half: true, show: (x) => x.time === A.NEW_TIME },
         {
           name: 'room', label: 'Xona', type: 'select', required: true,
           options: (x) => A.rows('rooms').filter((r) => r.branch === B && (r.status === 'Faol' || r.id === x.room)).map((r) => {
@@ -622,7 +624,8 @@
         { name: 'warn', label: 'Tekshiruv', type: 'computed', compute: (x) => { const c = clashes(x); return c.length ? `⚠️ Ustma-ust: ${c.join('; ')}` : "✓ Xona va ustoz bu vaqtda bo'sh"; } },
       ],
       async onSubmit(x) {
-        const saved = await A.http.patch(`/groups/${g.id}/`, { pattern: x.pattern, time: x.time, room: x.room, teacher: x.teacher, supporter: x.supporter || null });
+        const time = x.time === A.NEW_TIME ? await A.ensureTime(x.new_start, x.new_end, B) : x.time;
+        const saved = await A.http.patch(`/groups/${g.id}/`, { pattern: x.pattern, time, room: x.room, teacher: x.teacher, supporter: x.supporter || null });
         A.putLocal('groups', saved);
         A.toast(`Saqlandi: ${saved.name}`);
         A.refresh();
