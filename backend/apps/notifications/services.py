@@ -38,6 +38,7 @@ EVENT_PERM = {
     "morning_plan": ("payments", "v"),  # qarzdorlar ro'yxati bor
     "task": ("staffTasks", "v"),
     "debt_lesson": ("debtors", "v"),
+    "demo_soon": ("leads", "v"),
 }
 # Xodim hali tanlamagan bo'lsa — kimga standart holda boradi
 DEFAULT_ROLES = {
@@ -53,6 +54,7 @@ DEFAULT_ROLES = {
     "morning_plan": {R.ADMINISTRATOR_HISOBCHI},
     "task": set(),  # faqat topshiriq ishtirokchilari (default_users)
     "debt_lesson": {R.ADMINISTRATOR_HISOBCHI},
+    "demo_soon": {R.ADMINISTRATOR_HISOBCHI},  # + guruh ustozi (default_users)
 }
 
 

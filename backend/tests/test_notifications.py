@@ -329,3 +329,26 @@ def test_extra_recipient_gets_copy_of_role_default_messages(api, make_user, worl
         services.notify("task", "boshqa", default_users=[fm], only=lambda u: u.pk == fm.pk)
     copies = list(Outbox.objects.filter(chat_id=777, event="task"))
     assert len(copies) == 1 and copies[0].text.startswith("👤 <b>Kimga:</b> ") and str(adm) in copies[0].text and "Yangi topshiriq" in copies[0].text
+
+
+def test_demo_lesson_reminder_10_minutes_before(fin, django_capture_on_commit_callbacks):  # noqa: F811
+    import datetime
+
+    from apps.crm.models import Lead
+    from apps.notifications import reminders
+    from apps.notifications.models import ExtraRecipient
+
+    g, d = _lesson_today(fin)
+    c = fin["contract"]
+    Lead.objects.create(branch=fin["branch"], student=c.student, course=c.course, status="3", group=g, demo_date=d, source=LeadSource.objects.create(name="Telegram"))
+    link(fin["cashier"], 831)
+    link(fin["teacher"], 832)
+    ExtraRecipient.objects.create(label="Codial admin", chat_id=833, roles=["ADMINISTRATOR_HISOBCHI"])
+    start = timezone.make_aware(datetime.datetime.combine(d, datetime.time(14, 0)))  # fixture: 14:00–16:00
+    with django_capture_on_commit_callbacks(execute=True):
+        assert reminders.demo_before_lessons(start - datetime.timedelta(minutes=11)) == 0
+        assert reminders.demo_before_lessons(start - datetime.timedelta(minutes=9)) == 1
+        reminders.demo_before_lessons(start - datetime.timedelta(minutes=5))  # takrorlanmaydi
+    got = {m.chat_id for m in Outbox.objects.filter(event="demo_soon")}
+    assert got == {831, 832, 833}  # Administrator+Hisobchi, guruh ustozi va qo'shimcha qabul qiluvchi
+    assert "sinov darsi" in Outbox.objects.filter(event="demo_soon").first().text

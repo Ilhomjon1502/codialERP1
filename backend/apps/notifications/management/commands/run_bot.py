@@ -59,6 +59,7 @@ class Command(BaseCommand):
                     close_old_connections()
                     reminders.lesson_starts()
                     reminders.debt_before_lessons()
+                    reminders.demo_before_lessons()
                     tasks.due_reminders()
                 services.send_pending()
             except Exception:  # noqa: BLE001 — tarmoq xatosi botni to'xtatmasin

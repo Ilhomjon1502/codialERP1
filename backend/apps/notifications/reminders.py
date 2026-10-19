@@ -13,6 +13,8 @@ from django.conf import settings
 from django.db.models import Q
 from django.utils import timezone
 
+from apps.core.permissions import role_code
+from apps.core.roles import TEACHER_ROLES
 from apps.crm.models import Lead
 from apps.education.models import Attendance, Contract, Group
 from apps.education.services import FAOL, active_on, has_lesson, status_q, with_balance
@@ -91,6 +93,33 @@ def debt_before_lessons(now=None):
         if len(debtors) > PER_GROUP:
             L.append(f"  <i>… yana {len(debtors) - PER_GROUP} ta — Qarzdorlar bo'limi</i>")
         services.notify("debt_lesson", "\n".join(L),branch=g.branch, key=f"debt10:{g.pk}:{today}")
+        n += 1
+    return n
+
+
+def demo_before_lessons(now=None):
+    """Sinov darsiga yozilgan lid (3-status): dars boshlanishiga 10 daqiqa qolganda Administrator+Hisobchiga (va qo'shimcha qabul qiluvchilarga) hamda
+    guruh ustoziga — talaba, telefon, guruh, xona. Har lidga kuniga bir marta."""
+    now = now or timezone.localtime()
+    today = now.date()
+    n = 0
+    leads = Lead.objects.filter(demo_date=today, status=Lead.LeadStatus.DEMO_BOOKED).select_related("student", "course", "group__time", "group__room", "group__teacher", "branch")
+    for ld in leads:
+        g = ld.group
+        t = g.time if g else ld.preferred_times.order_by("start_time").first()
+        if t is None:
+            continue
+        start = timezone.make_aware(datetime.datetime.combine(today, t.start_time))
+        if not (start - datetime.timedelta(minutes=DEBT_BEFORE) <= now < start):
+            continue
+        st = ld.student
+        where = f"{e(g.name)} · {e(g.room)}" if g else e(ld.course)
+        teacher = f"\nUstoz: {e(g.teacher)}" if g else ""
+        text = (f"🧪 <b>{DEBT_BEFORE} daqiqadan keyin sinov darsi</b>\n{e(st.full_name)} · {phone(st.phone1)}\n"
+                f"{where} · {t.start_time:%H:%M}–{t.end_time:%H:%M}{teacher}")
+        mine = {g.teacher_id, g.supporter_id} if g else set()
+        services.notify("demo_soon", text, branch=ld.branch, default_users=[g.teacher] if g else [], key=f"demo10:{ld.pk}:{today}",
+                        only=lambda u, mine=mine: role_code(u) not in TEACHER_ROLES or u.pk in mine)
         n += 1
     return n
 
