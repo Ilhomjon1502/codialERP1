@@ -117,10 +117,11 @@ def test_transition_extras_opening_leads_prices_kpi_accounts(tmp_path):
         "Students": [*SHEETS["Students"], ("s6", EM, "Yangi", "Lidov", None, "Erkak", 907776655.0, None, None, None, None)],
         "CoursePrices": [("PriceID", "BranchID", "CourseID", "Year", "Month", "Price", "ToExport"), ("pr1", EM, "crs1", 2026.0, 10.0, 1200000.0, f"{EM}crs1202610")],
         "LessonFrequency": [("FrequenceID", "BranchID", "DayID", "CourceID", "Year", "Month", "Frequency"), ("f1", EM, "d1", "crs1 , crsX", 2026.0, 10.0, 12.0)],
-        "Attendance": [("AttendanceID", "BranchID", "CourseID", "GroupID", "Date", "ContractID", "Status", "Year", "Month", "DayID"),
-                       *[(f"a{i}", EM, "crs1", "g1", None, "1001_1", st, 2026.0, 10.0, "d1") for i, st in enumerate(["1", "X", "0", "-"])],
-                       ("a9", EM, "crs1", "g1", None, "c2", "1", 2026.0, 10.0, "d1")],  # Grant — qarz yo'q
-        "Payments": [("PaymentID", "BranchID", "ContractID", "Summa", "Discount", "Type", "Cashbox"), ("p1", EM, "1001_1", 350000.0, 50000.0, "Cash", "acc1")],
+        "Attendance": [("AttendanceID", "BranchID", "TeacherID", "CourseID", "GroupID", "Date", "ContractID", "Status", "Year", "Month", "DayID"),
+                       *[(f"a{i}", EM, "u1", "crs1", "g1", datetime.datetime(2026, 10, 5 + i), "1001_1", st, 2026.0, 10.0, "d1") for i, st in enumerate(["1", "X", "0", "-"])],
+                       ("a9", EM, "u1", "crs1", "g1", datetime.datetime(2026, 10, 5), "c2", "1", 2026.0, 10.0, "d1")],  # Grant — qarz yo'q
+        "Payments": [("PaymentID", "BranchID", "ContractID", "Date", "Summa", "Discount", "Type", "Cashbox"),
+                     ("p1", EM, "1001_1", datetime.datetime(2026, 10, 6), 350000.0, 50000.0, "Cash", "acc1")],
         "LeadSources": [("SourceID", "Name"), ("src1", "Instagram"), ("src2", "")],
         "Leads": [("LeadID", "StudentID", "Tags", "Noutbook", "AgeGroup", "StudentSocialStatus", "SourceID", "BranchID", "CourseID", "DayID", "TimeID",
                    "Status", "GroupID", "DemoDate", "Demo_Come", "CreatedTime", "CreatedBy"),
@@ -131,11 +132,15 @@ def test_transition_extras_opening_leads_prices_kpi_accounts(tmp_path):
                        ("k1", EM, "Ustoz", "u1", "crs1", 2026.0, 10.0, "O'zgarmas", 120000.0, 0.0)],
         "Accounts": [("AccountID", "Name", "Responsible", "InitialBalance", "Status", "Cashtype"),
                      ("acc1", "Emirat g'azna", None, 100000.0, "Faol", "Cash"), ("acc2", "Bosh g'azna", None, None, "Faol", "All"), ("acc3", "Eski", None, 5.0, "Nofaol", "All")],
-        "Transactions": [("TransactionID", "SenderCashbox", "Sum", "PaymentType", "RecieverCashbox", "ConfirmationStatus"),
-                         ("t1", "acc1", 50000.0, "Cash", "acc2", "Tasdiqlandi"), ("t2", "acc1", 70000.0, "Cash", "acc2", "Tasdiqlashga")],
-        "Expenses": [("ExpenseID", "Summa", "TypeID", "Cashbox"), ("e1", 30000.0, "Card", "acc2")],
+        "Transactions": [("TransactionID", "Date", "SenderCashbox", "Sum", "PaymentType", "RecieverCashbox", "ConfirmationStatus"),
+                         ("t1", datetime.datetime(2026, 10, 7), "acc1", 50000.0, "Cash", "acc2", "Tasdiqlandi"),
+                         ("t2", datetime.datetime(2026, 10, 8), "acc1", 70000.0, "Cash", "acc2", "Tasdiqlashga")],
+        "Expenses": [("ExpenseID", "BranchID", "Date", "CategoryID", "Name", "Amount", "Price", "Summa", "TypeID", "Cashbox", "Year", "Month"),
+                     ("e1", EM, datetime.datetime(2026, 10, 9), "cat1", "Printer", 1.0, 30000.0, 30000.0, "Card", "acc2", 2026.0, 10.0)],
+        "Categories": [("CategoryID", "Name", "Status", "RoleID"), ("cat1", "Xo'jalik", "Xarajat", "Admin")],
         "SalaryGiving": [("SalaryID", "Summa", "CashType", "CashBox")], "CashFlow": [("CashID", "Summa", "CashType", "Cashbox")],
-        "Exchange": [("ExchangeID", "Cashbox", "CashTypeFrom", "Summa", "CashTypeTo", "SummaTo"), ("x1", "acc2", "Cash", 20000.0, "Card", 19000.0)],
+        "Exchange": [("ExchangeID", "Date", "Cashbox", "CashTypeFrom", "Summa", "CashTypeTo", "SummaTo"),
+                     ("x1", datetime.datetime(2026, 10, 10), "acc2", "Cash", 20000.0, "Card", 19000.0)],
     }
     wb = openpyxl.Workbook()
     wb.remove(wb.active)
@@ -149,8 +154,16 @@ def test_transition_extras_opening_leads_prices_kpi_accounts(tmp_path):
 
     rep = services.run(path, on=datetime.date(2026, 10, 19), dry_run=False)
     assert [e for e in rep.errors if "c3" not in e] == []  # c3 — ataylab yaroqsiz telefon
-    # 3 dars × 1 200 000 / 12 = 300 000; to'lov 350 000 + chegirma 50 000 → −100 000 (oldindan to'lagan); Grant — 0
-    assert Contract.objects.get(legacy_id="1001_1").opening_balance == -100000 and Contract.objects.get(legacy_id="c2").opening_balance == 0
+    # Oktyabr qatorlari 01.10 qoldig'iga kirmaydi (boshlang'ich 0) va alohida ko'chadi:
+    # 3 dars × 1 200 000 / 12 = 300 000; to'lov 350 000 + chegirma 50 000 → balans −100 000 (oldindan to'lagan); Grant — 0
+    from apps.education.models import Attendance
+    from apps.education.services import with_balance
+    from apps.finance.models import Expense, Payment
+
+    assert Contract.objects.get(legacy_id="1001_1").opening_balance == 0 and Attendance.objects.filter(date__gte="2026-10-01").count() == 5
+    assert Payment.objects.get().cashbox == emirat and Expense.objects.get().category.name == "Xo'jalik"
+    assert {c.legacy_id: c.balance for c in with_balance(Contract.objects.all())}["1001_1"] == -100000
+    assert [e for e in rep.checks if "farqli shartnomalar" in e] and rep.checks["Shartnoma balansi tizim ↔ AppSheet: farqli shartnomalar"].startswith("0 /")
     lead = Lead.objects.get(legacy_id="l1")
     assert lead.status == "3" and lead.group.legacy_id == "g1" and lead.tags == ["grand", "tez"] and lead.source.name == "Instagram"
     assert lead.comments.get().comment == "Qo'ng'iroq qilindi" and not Lead.objects.filter(legacy_id="l2").exists()  # 5-status ko'chmaydi

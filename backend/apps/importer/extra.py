@@ -10,7 +10,6 @@ AppSheet formulalari (codial_appdoc.json):
 
 import collections
 import datetime
-import re
 from decimal import ROUND_HALF_UP, Decimal
 
 from django.db import transaction
@@ -21,14 +20,15 @@ from apps.core.models import Status
 from apps.crm.models import Lead, LeadComment
 from apps.education import calc
 from apps.education.models import Attendance, Contract
-from apps.finance.models import Account, CashMovement
+from apps.finance.models import CashMovement
 from apps.payroll.models import KPIRate
 from apps.references.models import Course, CoursePrice, LeadSource, LessonFrequency
 
+from . import october
 from . import reader as r
 
 EXTRA_SHEETS = ["Attendance", "Payments", "CoursePrices", "LessonFrequency", "Leads", "LeadSources", "LeadComments", "TeacherKPI",
-                "Accounts", "Transactions", "Expenses", "SalaryGiving", "CashFlow", "Exchange"]
+                "Accounts", "Transactions", "Expenses", "SalaryGiving", "CashFlow", "Exchange", "Categories", "DiscountTypes", "SalaryAppoinment", "Creditors"]
 MONTHS = [(2026, 10), (2026, 11)]  # narx va dars soni
 KPI_MONTHS = [(2026, 10), (2026, 11)]
 OPEN_LEADS = {"1", "2", "3", "4", "8"}
@@ -52,26 +52,33 @@ def month_start(y, m):
 
 
 def run_all(wb, on, rep, branch, bid, h):
-    drop_new_attendance(branch, on, rep)
-    opening_balances(wb, branch, rep)
+    """Tartib muhim: shartnomalar doirasi → qoldiqlar (01.10) → oktyabr qatorlari → narx/dars soni va qayta hisoblash → KPI → g'azna qoldig'i → solishtirish."""
+    c = october.Ctx(wb, rep, branch, bid, h)
+    excel_max = max((october.dt(a.get("Date")) for a in wb["Attendance"] if october.dt(a.get("Date"))), default=october.CUT)
+    october.drop_new_attendance(c, excel_max)
+    ctr = october.scope_contracts(c)
+    excel_balance = opening_balances(wb, branch, rep)
     sources = lead_sources(wb, rep)
     leads(wb, bid, branch, rep, h, sources)
+    october.attendance(c, ctr)
+    october.payments(c, ctr)
+    october.expenses(c)
+    october.transfers(c)
+    october.exchanges(c)
+    october.creditors(c)
+    october.salaries(c)
     prices_and_frequencies(wb, bid, branch, rep, h)
     kpi_rates(wb, bid, branch, rep, h)
-    accounts(wb, on, rep)
-
-
-# ------------------------------------------------------------------ davomat (yangi tizimdagi o'tish oldi qatorlari)
-
-def drop_new_attendance(branch, on, rep):
-    qs = Attendance.objects.filter(branch=branch, legacy_id=None, date__lt=on)
-    n = qs.update(is_deleted=True, updated_at=timezone.now())
-    rep.checks["O'chirilgan davomat (yangi tizimda, o'tish sanasidan oldin)"] = n
+    accounts(wb, on, rep, c)
+    october.reconcile(c, ctr, excel_balance)
 
 
 # ------------------------------------------------------------------ boshlang'ich qarz
 
 def opening_balances(wb, branch, rep):
+    """Shartnoma boshlang'ich qarzi — **01.10.2026 holatida**: shu sanagacha davomat qarzi − to'lov − chegirma. Oktyabr qatorlari alohida ko'chadi.
+    Qaytaradi: {AppSheet shartnoma kaliti: bugungi (to'liq) balans} — oxirida tizim bilan solishtirish uchun."""
+    cut = october.CUT
     contracts = {r.ident(c.get("ContractID")): c for c in wb["Contracts"]}
     prices = {}
     for p in wb["CoursePrices"]:
@@ -87,7 +94,7 @@ def opening_balances(wb, branch, rep):
         return None
 
     ours = {c.legacy_id: c for c in Contract.objects.filter(branch=branch).exclude(legacy_id=None)}
-    charged, missing, fcache = collections.Counter(), collections.Counter(), {}
+    before, total, missing, fcache = collections.Counter(), collections.Counter(), collections.Counter(), {}
     for a in wb["Attendance"]:
         cid = r.ident(a.get("ContractID"))
         if cid not in ours or r.text(a.get("Status")) == "-" or r.text((contracts.get(cid) or {}).get("ContractType")) == "Grant":
@@ -100,24 +107,35 @@ def opening_balances(wb, branch, rep):
         if price is None or not fcache[fk]:
             missing[f"{y}-{m:02d}"] += 1
             continue
-        charged[cid] += price / fcache[fk]
-    paid = collections.Counter()
+        part = price / fcache[fk]
+        total[cid] += part
+        if (october.dt(a.get("Date")) or cut) < cut:
+            before[cid] += part
+    paid_before, paid_total = collections.Counter(), collections.Counter()
     for p in wb["Payments"]:
         cid = r.ident(p.get("ContractID"))
         if cid in ours:
-            paid[cid] += num(p.get("Summa")) + num(p.get("Discount"))
+            x = num(p.get("Summa")) + num(p.get("Discount"))
+            paid_total[cid] += x
+            if (october.dt(p.get("Date")) or cut) < cut:
+                paid_before[cid] += x
     debt, over, n_debt, n_over = Decimal(0), Decimal(0), 0, 0
+    excel_balance = {}
     for cid, c in ours.items():
-        bal = Decimal(charged[cid] - paid[cid]).quantize(ONE, rounding=ROUND_HALF_UP)
+        bal = Decimal(before[cid] - paid_before[cid]).quantize(ONE, rounding=ROUND_HALF_UP)
         Contract.all_objects.filter(pk=c.pk).update(opening_balance=bal)
+        excel_balance[cid] = Decimal(total[cid] - paid_total[cid])
         if bal > 0:
             debt, n_debt = debt + bal, n_debt + 1
         elif bal < 0:
             over, n_over = over + bal, n_over + 1
     if missing:
         rep.warn(f"Narx yoki oydagi dars soni topilmagan davomat qatorlari (qarzga kirmadi, AppSheet'da ham bo'sh): {dict(missing)}")
-    rep.checks["Boshlang'ich qarz: qarzdorlar"] = f"{n_debt} ta, jami {debt:,.0f} so'm".replace(",", " ")
-    rep.checks["Boshlang'ich qarz: oldindan to'laganlar"] = f"{n_over} ta, jami {over:,.0f} so'm".replace(",", " ")
+    rep.checks[f"Boshlang'ich qarz ({cut:%d.%m.%Y} holati): qarzdorlar"] = f"{n_debt} ta, jami {debt:,.0f} so'm".replace(",", " ")
+    rep.checks[f"Boshlang'ich qarz ({cut:%d.%m.%Y} holati): oldindan to'laganlar"] = f"{n_over} ta, jami {over:,.0f} so'm".replace(",", " ")
+    nowpos = sum(v for v in excel_balance.values() if v > 0)
+    rep.checks["AppSheet bugungi qarzdorlik (shu shartnomalar bo'yicha, kutilayotgan)"] = f"{sum(1 for v in excel_balance.values() if v > 0)} ta, jami {nowpos:,.0f} so'm".replace(",", " ")
+    return excel_balance
 
 
 # ------------------------------------------------------------------ lidlar
@@ -279,15 +297,32 @@ def prices_and_frequencies(wb, bid, branch, rep, h):
 
 
 def kpi_rates(wb, bid, branch, rep, h):
+    """Oktyabr–noyabr stavkalari + oktyabrda dars olingan (xodim, rol, kurs) uchun oktyabrgacha amalda bo'lgan oxirgi stavka (yangi tizimda
+    «oy uchun stavka = shu oyda amalda bo'lgan oxirgi yozuv»; AppSheet'da har oy nusxalanardi). Boshqa eski stavkalar ko'chmaydi."""
+    first = KPI_MONTHS[0]
+    used = set()
+    for a in wb["Attendance"]:
+        d = october.dt(a.get("Date"))
+        if r.ident(a.get("BranchID")) == bid and d and d >= october.CUT:
+            used.add((r.ident(a.get("TeacherID")), "Ustoz", r.ident(a.get("CourseID"))))
+            if r.ident(a.get("SupporterID")):
+                used.add((r.ident(a.get("SupporterID")), "Yordamchi", r.ident(a.get("CourseID"))))
+    latest = {}
     for k in wb["TeacherKPI"]:
+        key = (r.ident(k.get("TeacherSupporter")), "Yordamchi" if r.text(k.get("Status")) == "Yordamchi" else "Ustoz", r.ident(k.get("CourseID")))
+        if r.ident(k.get("BranchID")) == bid and key in used and ym(k) < first and (key not in latest or ym(latest[key]) < ym(k)):
+            latest[key] = k
+    rows = [k for k in wb["TeacherKPI"] if r.ident(k.get("BranchID")) == bid and ym(k) in KPI_MONTHS]
+    have = {(r.ident(k.get("TeacherSupporter")), "Yordamchi" if r.text(k.get("Status")) == "Yordamchi" else "Ustoz", r.ident(k.get("CourseID"))) for k in rows}
+    rows += [k for key, k in latest.items() if key not in have]
+    rep.checks["KPI stavkalari: oktyabrda kerak bo'lgan (xodim, rol, kurs) / stavkasi topilgan"] = f"{len(used)} / {len(used & (have | set(latest)))}"
+    for k in rows:
         y, m = ym(k)
-        if r.ident(k.get("BranchID")) != bid or (y, m) not in KPI_MONTHS:
-            continue
         kid = r.ident(k.get("KPIID"))
         try:
             with transaction.atomic():
                 role = KPIRate.RoleType.SUPPORTER if r.text(k.get("Status")) == "Yordamchi" else KPIRate.RoleType.TEACHER
-                user = h.user(r.ident(k.get("TeacherSupporter")), "supporter" if role == KPIRate.RoleType.SUPPORTER else "teacher")
+                user = h.user_need(r.ident(k.get("TeacherSupporter")), "supporter" if role == KPIRate.RoleType.SUPPORTER else "teacher")
                 course = h.course(r.ident(k.get("CourseID")))
                 kind = KPIRate.Kind.PERCENT if r.text(k.get("Type")) == "Foiz" else KPIRate.Kind.FIXED
                 key = {"branch": branch, "user": user, "role_type": role, "course": course, "effective_from": month_start(y, m)}
@@ -307,50 +342,55 @@ def kpi_rates(wb, bid, branch, rep, h):
 
 # ------------------------------------------------------------------ g'azna qoldiqlari
 
-def _norm(name):
-    return re.sub(r"[^a-z]", "", r.text(name).lower().replace("g'azna", "").replace("gʻazna", "").replace("kassasi", ""))
-
-
-def accounts(wb, on, rep):
-    """Har bir faol g'azna uchun pul turlari bo'yicha bugungi qoldiq → boshlang'ich jurnal qatorlari (manba «Boshlang'ich qoldiq»)."""
+def accounts(wb, on, rep, ctx):
+    """G'azna qoldig'i **01.10.2026 holatida** (pul turlari bo'yicha, AppSheet `Accounts.Now` formulasi): boshlang'ich qoldiq + shu sanagacha harakatlar.
+    Oktyabr harakatlari alohida qatorlar bo'lib keladi (to'lov, xarajat, o'tkazma…). Jurnal qatorlari manba «Boshlang'ich qoldiq», sana — 30.09."""
+    cut = october.CUT
+    before = lambda row, key="Date": (october.dt(row.get(key)) or cut) < cut  # noqa: E731
     bal = collections.defaultdict(collections.Counter)  # account → {Cash/Card/Bank/"": summa}
     for p in wb["Payments"]:
-        bal[r.ident(p.get("Cashbox"))][r.text(p.get("Type"))] += num(p.get("Summa"))
+        if before(p):
+            bal[r.ident(p.get("Cashbox"))][r.text(p.get("Type"))] += num(p.get("Summa"))
     for t in wb["Transactions"]:
-        if r.text(t.get("ConfirmationStatus")) != "Tasdiqlandi":
+        if r.text(t.get("ConfirmationStatus")) != "Tasdiqlandi" or not before(t):
             continue
         s, ct = num(t.get("Sum")), r.text(t.get("PaymentType"))
         bal[r.ident(t.get("RecieverCashbox"))][ct] += s
         bal[r.ident(t.get("SenderCashbox"))][ct] -= s
     for x in wb["Exchange"]:
-        a = r.ident(x.get("Cashbox"))
-        bal[a][r.text(x.get("CashTypeTo"))] += num(x.get("SummaTo"))
-        bal[a][r.text(x.get("CashTypeFrom"))] -= num(x.get("Summa"))
+        if before(x):
+            a = r.ident(x.get("Cashbox"))
+            bal[a][r.text(x.get("CashTypeTo"))] += num(x.get("SummaTo"))
+            bal[a][r.text(x.get("CashTypeFrom"))] -= num(x.get("Summa"))
     for sheet, acc, ct, amt in (("Expenses", "Cashbox", "TypeID", "Summa"), ("SalaryGiving", "CashBox", "CashType", "Summa"), ("CashFlow", "Cashbox", "CashType", "Summa")):
         for x in wb[sheet]:
-            bal[r.ident(x.get(acc))][r.text(x.get(ct))] -= num(x.get(amt))
-    ours = list(Account.objects.all())
+            if before(x):
+                bal[r.ident(x.get(acc))][r.text(x.get(ct))] -= num(x.get(amt))
+    day = cut - datetime.timedelta(days=1)
     for a in wb["Accounts"]:
         aid, name, kind = r.ident(a.get("AccountID")), r.text(a.get("Name")), r.text(a.get("Cashtype"))
         if r.text(a.get("Status")) != "Faol":
             continue
-        acc = next((x for x in ours if x.legacy_id == aid), None) or next((x for x in ours if _norm(x.name) == _norm(name)), None)
+        acc = ctx.accounts.get(aid)
         if acc is None:
             rep.warn(f"G'azna «{name}» tizimda topilmadi — qoldig'i ko'chirilmadi")
             continue
         b = bal[aid]
         by_type = {code: b[t] for t, code in TYPES.items()} if kind == "All" else {TYPES.get(kind, "CASH"): b[kind]}
         if kind == "All":
-            untyped = sum(v for t, v in b.items() if t not in TYPES)  # turi bo'sh eski yozuvlar — naqdga
-            by_type["CASH"] += untyped
+            by_type["CASH"] += sum(v for t, v in b.items() if t not in TYPES)  # turi bo'sh eski yozuvlar — naqdga
         by_type["CASH" if kind == "All" else TYPES.get(kind, "CASH")] += num(a.get("InitialBalance"))
         CashMovement.objects.filter(account=acc, source_type=CashMovement.Source.OPENING).delete()
         CashMovement.objects.bulk_create(
-            CashMovement(account=acc, cash_type=ct, amount=v.quantize(ONE, rounding=ROUND_HALF_UP), date=on, source_type=CashMovement.Source.OPENING,
-                         source_id=acc.pk, is_confirmed=True, note="AppSheet'dan boshlang'ich qoldiq")
+            CashMovement(account=acc, cash_type=ct, amount=v.quantize(ONE, rounding=ROUND_HALF_UP), date=day, source_type=CashMovement.Source.OPENING,
+                         source_id=acc.pk, is_confirmed=True, note="AppSheet'dan 01.10 holatidagi qoldiq")
             for ct, v in by_type.items() if v)
-        if acc.legacy_id != aid:
-            acc.legacy_id = aid
-            acc.save(update_fields=["legacy_id"])
         parts = ", ".join(f"{ct}: {v:,.0f}".replace(",", " ") for ct, v in by_type.items())
-        rep.checks[f"G'azna «{acc.name}»"] = f"jami {sum(by_type.values()):,.0f} so'm ({parts})".replace(",", " ")
+        rep.checks[f"G'azna «{acc.name}» ({cut:%d.%m} holati)"] = f"jami {sum(by_type.values()):,.0f} so'm ({parts})".replace(",", " ")
+    from apps.finance.services import balances
+
+    for aid, acc in ctx.accounts.items():
+        if r.text(next((x.get("Status") for x in wb["Accounts"] if r.ident(x.get("AccountID")) == aid), "")) != "Faol":
+            continue
+        b = balances([acc.pk])[acc.pk]
+        rep.checks[f"G'azna «{acc.name}» HOZIR tizimda (tasdiqlanganlar)"] = f"{b['balance']:,.0f} so'm; tasdiq kutayotgan: {b['pending']:,.0f}".replace(",", " ")

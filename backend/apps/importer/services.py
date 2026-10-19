@@ -219,7 +219,7 @@ def _import(wb, on, rep):
             return _user(src, branch, rep, roles)
         u = once("user", uid, make)
         ok = TEACHER_ROLES if need == "teacher" else SUPPORTER_ROLES
-        if u.role.code not in ok:
+        if need and u.role.code not in ok:
             rep.warn(f"{u.full_name}: roli «{u.role.name}», lekin guruhda {'ustoz' if need == 'teacher' else 'yordamchi'} — rolini tekshiring")
         return u
 
@@ -285,7 +285,8 @@ def _import(wb, on, rep):
             return obj
         return once("student", sid, make)
 
-    for c, start, _end in active:
+    def import_contract(c, start, end=None):
+        """Bitta shartnoma (+ talaba, guruh, kurs). Faol shartnomalar — end=None; oktyabr uchun kerak bo'lgan tugagan shartnomalar — haqiqiy sana bilan."""
         cid = r.ident(c.get("ContractID"))
         try:
             with transaction.atomic():
@@ -296,24 +297,32 @@ def _import(wb, on, rep):
                 if crs.pk != g.course_id:
                     rep.warn(f"Shartnoma {cid}: kursi guruh kursidan farq qiladi — guruh kursi olindi")
                     crs = g.course
-                if r.text(c.get("StopReason")):
-                    rep.warn(f"Shartnoma {cid}: tugash sanasisiz to'xtatish sababi bor («{r.text(c.get('StopReason'))}») — ko'chirilmadi")
+                reason = r.text(c.get("StopReason"))
+                if reason and end is None:
+                    rep.warn(f"Shartnoma {cid}: tugash sanasisiz to'xtatish sababi bor («{reason}») — ko'chirilmadi")
                 ctype = Contract.Type.GRANT if r.text(c.get("ContractType")) == "Grant" else Contract.Type.PAID
                 values = {"branch": branch, "student": student(r.ident(c.get("StudentID"))), "course": crs, "group": g, "type": ctype,
-                          "number": r.integer(c.get("ContractNumber"), 0), "start_date": start, "end_date": None, "stop_reason": "",
+                          "number": r.integer(c.get("ContractNumber"), 0), "start_date": start, "end_date": end, "stop_reason": reason if end and reason in STOP_REASONS else "",
                           "comment": r.text(c.get("Comment_Reason")), "opening_balance": 0}
-                obj = _upsert(Contract, cid, None, values, rep, "Shartnomalar")
+                obj = _upsert(Contract, cid, None, values, rep, "Shartnomalar" if end is None else "Shartnomalar (tugagan, oktyabr uchun)")
                 _keep_created(Contract, obj, c.get("CreatedTime"))
+                return obj
         except Exception as e:  # noqa: BLE001 — bitta yozuv xatosi butun importni to'xtatmasin, hisobotga yoziladi
             cache.clear()  # savepoint bekor qilingan bo'lishi mumkin — keshdagi obyektlar qaytadan topiladi
             rep.error(f"Shartnoma {cid}: {e}")
+            return None
 
-    _close_ended(branch, on, {r.ident(c.get("ContractID")) for c, _, _ in active}, all_src, rep)
+    for c, start, _end in active:
+        import_contract(c, start)
+
+    active_ids = {r.ident(c.get("ContractID")) for c, _, _ in active}
+    _close_ended(branch, on, active_ids, all_src, rep)
 
     import types
 
-    helpers = types.SimpleNamespace(course=course, pattern=pattern, lesson_time=lesson_time, room=room, user=user, group=group,
-                                    parent=parent, student=student, reset=cache.clear)
+    helpers = types.SimpleNamespace(course=course, pattern=pattern, lesson_time=lesson_time, room=room, user=lambda uid: user(uid, None), group=group,
+                                    parent=parent, student=student, reset=cache.clear, contract=import_contract, contracts_src=all_src, active_ids=active_ids,
+                                    user_need=user)
     extra.run_all(wb, on, rep, branch, bid, helpers)
 
     in_db = Contract.objects.filter(branch=branch).filter(status_q(FAOL, on))
