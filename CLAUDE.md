@@ -5,9 +5,9 @@
 
 ---
 
-## 0. Joriy holat (2026-10-18) — yangi kelgan dasturchi shu yerdan boshlasin
+## 0. Joriy holat (2026-10-19) — yangi kelgan dasturchi shu yerdan boshlasin
 
-> **Yangi sessiya: avval pastdagi «Keyingi sessiya uchun (2026-10-18)» blokini o'qing** — u eng so'nggi holat, ochiq ishlar va ish usullari.
+> **Yangi sessiya: avval pastdagi «Keyingi sessiya uchun (2026-10-18)» blokini o'qing** — u eng so'nggi holat, ochiq ishlar va ish usullari. Eng yangi qo'shimcha — «2026-10-19 da qo'shilganlar: Qo'ng'iroqlar» (Android ilova).
 
 **Qisqasi:** prototip ma'qullandi va muzlatildi. **M1–M11 tayyor: 2026-10-18 dan haqiqiy tizim ishga tushdi, AppSheet to'xtatildi**: haqiqiy tizim (`backend/` — Django + DRF API, `frontend/` — prototip ekranlari API'ga ulangan) **Hetzner serverida ishlayapti**. Keyingi ish — buyurtmachining yangi so'rovlari. Telegram bot tokeni (`deploy/set-telegram.sh`) va Gemini kaliti (`deploy/set-ai.sh`) kiritilgan — buni faqat buyurtmachi o'zi qiladi. Buyurtmachi «boshla» deganda boshlanadi. **«50% chegirmalar», «Talaba vazifalari» va «Baholash bo'limi» (ustoz → talaba) olib tashlangan** (buyurtmachi qarori 2026-10-13).
 
@@ -58,10 +58,55 @@
 - Zaxiralar: `/srv/backups/codial-test/` (har kuni 03:15).
 - Monitoring: `deploy/healthcheck.sh`, cron */5; xato bo'lsa Telegram'ga (`ALERT_TELEGRAM_CHAT`).
 - Cron:
-  - `daily_report` — 19:00 (BM);
+  - `daily_report` — 19:00 (BM; 2026-10-19 dan qo'ng'iroqlar bo'limi bilan);
   - `morning_plan` — 08:30 (Adm+Hisobchi);
   - `notify_attendance` — */10;
   - `propose_lesson_frequencies` — har oy 1-kuni.
+
+**2026-10-19 da qo'shilganlar: Qo'ng'iroqlar** (buyurtmachi so'rovi; `main` da va serverda, telefon ulangan va ishlayapti):
+- **Maqsad:** administratorlar ishlatadigan qabul telefonidagi (**998204432**, Redmi Note 8, Android 11, MIUI 12.5.2) barcha qo'ng'iroqlar tugashi bilan ERP «Qo'ng'iroqlar» menyusiga tushadi. Raqam, ism (bazada bo'lsa), vaqt, suhbat davomiyligi va marketing ma'lumoti (lid statusi, manba, kurs, yangi raqam) ko'rsatiladi. **Suhbat yozib olinmaydi** — buyurtmachi «keyingi versiyada» dedi. Telefon — ish telefoni, barcha qo'ng'iroqlar tushadi (buyurtmachi tasdiqlagan).
+- **Backend `apps/calls`:**
+  - `models.py`:
+    - `CallDevice` — nomi, filial, SIM raqami, holat; `token_hash` (SHA-256), `pair_code` + `pair_expires_at`, `last_seen_at`, `app_version`;
+    - `CallRecord` — device, branch, `external_id` (`<CallLog._ID>-<date ms>`, (device, external_id) unique), `direction` (Kiruvchi / Chiquvchi / Javobsiz / Rad etilgan / Bloklangan), `number` (asl), `phone` (9 xona), `started_at`, `duration` (s), `contact_name` (telefon kontaktidagi nom), `sim`, `is_first`, `student` / `parent` / `lead` (FK), `comment`, `callback_at`, `callback_by`.
+  - `services.py`:
+    - `normalize` — 9 xonaga keltiradi;
+    - `new_pair_code` / `pair` / `device_by_token` — qurilmani ulash;
+    - `match` — shu filialda talabaning 1/2-telefoni, keyin vasiy (→ birinchi farzandi va uning lidi);
+    - `rematch` — ro'yxat ochilganda topilmaganlarni qayta solishtiradi, keyin ochilgan lid ham bog'lanadi;
+    - `ingest` — idempotent, ko'pi 500 ta;
+    - `_mark_callbacks` — chiquvchi yoki gaplashilgan kiruvchi qo'ng'iroq shu raqamdagi oldingi javobsizni avtomatik yopadi;
+    - `set_callback`, `stats`.
+  - `views.py` va API:
+    - telefon uchun (sessiyasiz, CSRF'siz; sarlavha `Authorization: Device <token>`): `POST /api/v1/calls/pair/` (`login` throttle), `POST /calls/ingest/`, `GET /calls/ping/`;
+    - sayt uchun: `/calls/` (filtrlar `from`, `to`, `dir` = Kiruvchi | Chiquvchi | missed | missed_open, `known`, `first`, `q`, `device`; PATCH faqat `comment`; `POST {id}/callback/`; `GET stats/`) va `/call-devices/` (yaratilganda kod; `POST {id}/pair-code/` yangi kod beradi va eski tokenni bekor qiladi).
+  - Ruxsat bo'limi `calls` (`accounts/0010`): Admin/BM `vaed` (qurilmalar ham), FM, Administrator, Adm+Hisobchi — `ve`, Marketolog — `v`.
+  - Testlar: `tests/test_calls.py`.
+- **Front-end** `frontend/assets/js/pages-calls.js` (`#/calls`; menyuda «Ota-onalar bilan aloqa» oldida, `?v=m12-23`). Uchta tab:
+  - Ro'yxat: javobsiz qatorlar qizil; «✓ Qo'ng'iroq qilindi»; ✎ izoh; noma'lum raqamdan «＋ Lid yaratish» — `A.leadForm(null, free, preset)` ga 3-parametr `preset` qo'shildi; telefon 6 soat jim bo'lsa ogohlantirish.
+  - Statistika: kartochkalar; soatlar va kunlar diagrammasi; lid manbasi va statusi bo'yicha.
+  - Qurilmalar (faqat `calls:a`): qo'shish, 8 belgili kod, yoqish va o'chirish.
+- **Android ilova `android/`** (Java, tashqi kutubxonasiz; `uz.codial.calls`, minSdk 26, target/compile 36, AGP 9.0.1, Gradle 9.1):
+  - `MainActivity` — ekran: ruxsatlar, batareya, MIUI Avtozapusk, server + kod, «Hozir yuborish»;
+  - `CallService` — foreground (`specialUse`) xizmat, `ContentObserver(CallLog)`, 2,5 s debounce, har 10 daqiqada sinxronlaydi;
+  - `CallSync` — yuborilgan oxirgi vaqtdan 3 soat oldindan boshlab qayta o'qiydi, 200 tadan yuboradi; server 401 qaytarsa ulanishni bekor qiladi;
+  - `CallReceiver` — `PHONE_STATE` = IDLE bo'lsa, 3 s kutib yuboradi;
+  - `BootReceiver`, `SyncJob` — 15 daqiqalik job;
+  - `Prefs`, `Api`.
+  - Ulanganda shu kunning 00:00 dan boshlab yuboriladi.
+- **APK yig'ish:** `android/build.ps1`. Natija `android/app/build/outputs/apk/debug/app-debug.apk` (~840 KB, debug kalit bilan imzolangan).
+  - Claude'ning Bash/PowerShell sandbox'ida Gradle **ishlamaydi**: «Unable to establish loopback connection», daemon'ga ulanib bo'lmaydi. Yig'ishni **foydalanuvchining Terminal panelida** (`run_in_terminal`) yoki Android Studio'da qiling: `powershell -ExecutionPolicy Bypass -File D:\wibecoding\codialERP1\android\build.ps1`. Birinchi build ~2–3 daqiqa.
+  - `build.ps1` faqat ASCII bo'lsin: Windows PowerShell 5.1 BOM'siz UTF-8 ni buzadi.
+  - `android/local.properties` git'ga kirmaydi. Undagi yo'l `sdk.dir=C\:/Users/Surface PC/AppData/Local/Android/Sdk` ko'rinishida — teskari chiziq bilan yozilsa, Gradle «filename syntax is incorrect» deydi.
+  - **Imzo:** APK shu kompyuterdagi debug kaliti (`~/.android/debug.keystore`) bilan imzolangan. Yangilashni shu kompyuterda yig'ing, aks holda eski ilovani o'chirib qayta o'rnatish va qayta ulash kerak. Doimiy release kalit hali yo'q.
+  - Yangi versiyada `app/build.gradle.kts` dagi `versionCode` va `versionName` ni oshiring.
+- **Ulash tartibi** (buyurtmachi bajardi, 2026-10-19): ERP → Qo'ng'iroqlar → Qurilmalar → «Qurilma qo'shish» → kod. APK telefonga Telegram orqali o'rnatiladi. Ilovada ruxsatlar, batareya va Avtozapusk sozlanadi, kod kiritiladi va «Ulash» bosiladi. Qo'llanma: `docs/user_guide/qongiroqlar.md`. Birinchi kuni 80 qo'ng'iroq tushdi, ularning ~35 foizi bazadagi talaba yoki lidga bog'landi.
+- **19:00 hisobot:** `daily_report.calls_section(day)` — jami, yo'nalishlar va suhbat vaqti, javobsizlarga qayta bog'lanish va o'rtacha vaqti, **javobsiz qolganlar ro'yxati** (vaqt, raqam, ism; 10 tagacha), yangi raqamlar, lid manbalari, telefon 6 soatdan ko'p jim bo'lsa ⚠️. Faol qurilma bo'lmasa, bo'lim chiqmaydi. Tekshirish: `daily_report --print`.
+- **Keyingi g'oyalar** (so'ralmagan, buyurtmachi aytsa):
+  - suhbatni yozib olish — Android 10+ da cheklangan; MIUI'ning o'z yozuvchisi fayllarini yuklash mumkin;
+  - javobsiz qo'ng'iroq bo'lsa administratorlarga darhol Telegram xabar;
+  - AI uchun `analytics_calls` view'i;
+  - release kalit bilan imzolash.
 
 **2026-10-18 da qo'shilganlar** (ishga tushirish kuni; hammasi `main` da va serverda):
 - **Menyu:** chap menyu ☰ bilan ikonkalarga yig'iladi (`body.side-collapsed`, holati `localStorage`); telefonda yon panel (`A.act.drawer`). «Baholash (ustozni)» menyudan olib tashlandi (`A.NAV`; API va ma'lumot qoldi).
@@ -116,7 +161,8 @@
 3. Ixtiyoriy: AI'da prognoz (buyurtmachi tilga olgan, boshlanmagan).
 
 **Ish usullari** (tokenni tejash va xatosiz ishlash uchun):
-- **Testlar:** `cd backend && .venv/Scripts/python -m pytest -q` (168 test) va `.venv/Scripts/ruff check .`. Front-end o'zgarsa — `frontend/index.html` dagi `?v=` ni oshiring (hozir `m12-10`).
+- **Testlar:** `cd backend && .venv/Scripts/python -m pytest -q` (182 test) va `.venv/Scripts/ruff check .`. Front-end o'zgarsa — `frontend/index.html` dagi `?v=` ni oshiring (hozir `m12-23`). Android ilova o'zgarsa — yuqoridagi «APK yig'ish» bandi.
+- **Serverdagi holatni tekshirish** (masalan, qo'ng'iroqlar tushyaptimi): skript ichida `docker compose --env-file .env exec -T web python manage.py shell <<'PY' … PY` (heredoc), ssh esa `dangerouslyDisableSandbox` bilan ishga tushiriladi. Telefon raqamlarini chatga chiqarmang — kerak bo'lsa yashiring.
 - **Serverga joylash — bitta SSH ulanishda**, skript bilan (server tez-tez ulanishni cheklaydi):
   1. Skriptni scratchpad'ga yozing va `ssh -i ~/.ssh/codial_hetzner root@77.42.9.23 'bash -s' < skript.sh` bilan ishga tushiring.
   2. Skript ichida: `cd /srv/codial-test && git pull && cd deploy && docker compose --env-file .env up -d --build web bot`.
@@ -273,11 +319,13 @@ backend/
     payroll/       ✅ M5  KPIRate, SalaryAssignment, SalaryPayout; compute() (oylik hisobi), demo.py
     reports/       ✅ M7  foyda, oylik statistika, voronka, birinchi to'lovchilar (modelsiz)
     tasks/         ✅    StaffTask — topshiriqlar va bot eslatmalari (2026-10-16)
+    calls/         ✅    CallDevice, CallRecord — qabul telefonidagi qo'ng'iroqlar (2026-10-19)
     importer/      ✅ M10 reader.py, services.py (faol shartnomalar importi), import_appsheet buyrug'i
     notifications/ ✅ M8  Telegram: TelegramLink, Outbox; run_bot, notify_attendance, daily_report
     ai_assistant/  ✅ M9  AIQuery (jurnal); analytics.py (view'lar), guard.py (SQL xavfsizligi), providers.py, services.py
   tests/                 pytest (conftest: make_user, api)
 frontend/          ✅    prototip ekranlari, API'ga ulangan (21.3)
+android/           ✅    «Codial qo'ng'iroqlar» Android ilovasi (Java), build.ps1 — 0-bo'lim, 2026-10-19
 deploy/            ✅    docker-compose.yml, .env.example, nginx/, backup.sh, restore.sh
 docs/              ✅    architecture.md, decisions.md, deploy_hetzner.md, user_guide/
 prototype/         🔒    GitHub Pages'dagi prototip — o'zgartirilmaydi
@@ -336,6 +384,7 @@ Qoidalar:
 | Talaba vazifalari | A | A | K | K | K | K | A | K | A |
 | Kreditorlar, Kreditor amallari, Pul ayirboshlash | A | A | — | — | — | — | — | — | — |
 | Baholash (talaba → ustoz) | A | A | A | A | A | K | K | K | K |
+| Qo'ng'iroqlar (2026-10-19; Marketolog — K) | A | A | T | T | T | — | — | — | — |
 | Baholash bo'limi (ustoz → talaba) | A | A | A | A | A | K | A | A | A |
 
 Diqqat: AppSheet'da `Exchange`, `CommentToCreditors`, `Parent_Comment`, `Discount50`, `Exel` jadvallarida cheklov ifodasi yo'q edi (hamma hammasini qila olardi). Yangi tizimda ular uchun ruxsat aniq belgilanadi. Taklif: Parent_Comment administratorlar va menejerlarga (Discount50 — bo'lim olib tashlangan); Exchange va Creditor bo'limlari faqat Admin va Bosh menejerga.
@@ -673,6 +722,7 @@ Menyu tartibi va nomlari AppSheet'dagidek saqlanadi, xodimlar qayta o'rganmasin.
 22. **Ota-onalar bilan aloqa.**
 23. **Sozlamalar:** barcha ma'lumotnomalar. Bosh menejer hammasini, Filial menejeri o'z filiali doirasida boshqaradi. Bo'limlar: kurslar, kurs narxlari, oydagi dars soni (oylik tasdiq bilan), KPI stavkalari, chegirma turlari, xarajat kategoriyalari, lid manbalari, xonalar, dars kunlari, dars vaqtlari, filiallar, g'aznalar, foydalanuvchilar (qo'shish, rol berish, filial biriktirish, ishdan chiqarish), rollar va ruxsatlar, davomat statuslari.
 24. **AI yordamchi:** faqat Bosh menejer (13-bo'lim).
+24a. **Qo'ng'iroqlar** (2026-10-19): qabul telefonidagi qo'ng'iroqlar, statistika, qurilmalar (0-bo'lim).
 25. **Audit tarixi:** Admin va Bosh menejer.
 
 UX talablari:
@@ -717,7 +767,7 @@ Hisobot so'rovlari aggregatsiya bilan bajariladi. Og'ir hisobotlar uchun kesh (1
   - **dars boshlanganda** guruh ustoziga «davomat olish vaqti» (bot jarayoni har daqiqada tekshiradi, alohida cron yo'q);
   - **botda davomat olish — Telegram Mini App** (`apps/notifications/webapp.py`, `POST /api/v1/auth/telegram/`): xabardagi «📋 Davomat olish» tugmasi va bot menyusidagi «Davomat» saytdagi davomat ekranini Telegram ichida parolsiz ochadi (bog'langan faol xodim);
   - **8:30** da Administrator+Hisobchi'ga bugungi ish rejasi: olinadigan to'lovlar (dars vaqti bo'yicha qarzdorlar), sinov darsiga keladiganlar, kelmaganlar bilan bog'lanish, qayta bog'lanish lidlari, kecha olinmagan davomat (`morning_plan`, cron);
-  - har kuni **19:00** da Bosh menejerga hisobot (buyurtmachi so'rovi 2026-10-14): to'lovlar, faol shartnomalar (kurslar bo'yicha), lidlar (statuslar va kurslar bo'yicha), bugungi xarajatlar, davomat, g'azna qoldiqlari, tizim auditi. Faqat audit huquqi borlar (Admin, BM) oladi.
+  - har kuni **19:00** da Bosh menejerga hisobot (buyurtmachi so'rovi 2026-10-14): to'lovlar, faol shartnomalar (kurslar bo'yicha), lidlar (statuslar va kurslar bo'yicha), qo'ng'iroqlar (2026-10-19: jami, javobsiz qolganlar ro'yxati, qayta javob vaqti, yangi raqamlar), bugungi xarajatlar, davomat, g'azna qoldiqlari, tizim auditi. Faqat audit huquqi borlar (Admin, BM) oladi.
 - Har bir xodim qaysi xabarlarni olishini sozlaydi. Token `.env` da saqlanadi.
 - **Keyingi bosqich (hozir qilinmaydi):** ota-onalarga SMS yoki Telegram xabarlar (qarz eslatmasi, darsga kelmagani). Arxitektura bunga tayyor bo'lsin.
 
