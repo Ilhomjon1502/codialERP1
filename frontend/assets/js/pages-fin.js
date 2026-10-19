@@ -818,7 +818,7 @@
           page++;
         }
       }
-      else salData.rows = await A.http.get('/salary-assignments/balances/');
+      else salData.rows = await A.http.get('/salary-assignments/'); // hamma oylar (hisoblangan) — daraxt: xodim → oylar
     },
     render(p, q) {
       const mgr = A.isManager();
@@ -1052,28 +1052,36 @@
   };
 
   A.act['bal-left'] = () => { A.ui.balLeft = !A.ui.balLeft; A.refresh(); };
+  // Xodim balansi — daraxt: Barchasi → xodim (har tugunda yakuniy balans). «Barchasi» — har xodimning oxirgi davri; xodim tanlansa — uning oylari
+  const BAL_LEVELS = [{ key: (r) => r.user, label: (k) => A.userName(k) }];
+  const periodNo = (r) => r.year * 100 + r.month;
+  const latestPerUser = (rs) => [...A.groupBy(rs, (r) => r.user)].map(([, l]) => A.sortBy(l, periodNo, true)[0]);
+  const balCls2 = (n) => (n > 0 ? 't-orange' : n < 0 ? 't-red' : '');
   function balanceView(all) {
-    // Ishdan ketgan xodimlar standart holda yashirin (qoldig'i bo'lsa — pastda eslatma va ko'rsatish tugmasi)
-    const left = all.filter((r) => ((A.get('users', r.user) || {}).status || 'Faol') !== 'Faol');
-    const rows = A.ui.balLeft ? all : all.filter((r) => !left.includes(r));
+    // Ishdan ketgan xodimlar standart holda yashirin (qoldig'i bo'lsa — eslatma va ko'rsatish havolasi)
+    const isLeft = (r) => ((A.get('users', r.user) || {}).status || 'Faol') !== 'Faol';
+    const left = latestPerUser(all.filter(isLeft));
+    const rows = A.ui.balLeft ? all : all.filter((r) => !isLeft(r));
     const owed = left.filter((r) => Number(r.final));
     const note = left.length
       ? `<p class="muted small">Ishdan ketgan ${left.length} ta xodim ${A.ui.balLeft ? "ko'rsatilgan" : 'yashirilgan'}${owed.length ? ` (shulardan ${owed.length} tasida qoldiq bor: ${A.num(A.sum(owed, (r) => Number(r.final)))} so'm)` : ''}. <a href="#" data-act="bal-left">${A.ui.balLeft ? 'Yashirish' : "Ko'rsatish"}</a></p>`
       : '';
-    return `${note}${A.table(
-      [
-        { h: 'Xodim', f: (r) => `<b>${esc(A.userName(r.user))}</b><br><small class="muted">${esc(A.ROLES[(A.get('users', r.user) || {}).role] || '')}</small>` },
-        { h: 'Oxirgi davr', f: (r) => `${A.MONTHS[r.month - 1]} ${r.year}` },
-        { h: 'Avvalgi oylardan', f: (r) => A.num(r.carried), cls: 'num' },
-        { h: 'Shu oy jami', f: (r) => A.num(r.total), cls: 'num' },
-        { h: 'Berilgan', f: (r) => A.num(r.given), cls: 'num' },
-        { h: 'Yakuniy balans', f: (r) => `<b class="${r.final > 0 ? 't-orange' : r.final < 0 ? 't-red' : ''}">${A.num(r.final)}</b>`, cls: 'num', sum: (rr) => A.num(A.sum(rr, (r) => Number(r.final))) },
-        { h: '', f: () => '<span class="muted">›</span>' },
-      ],
-      A.sortBy(rows, (r) => A.userName(r.user)),
-      { rowAttr: (r) => `class="row-link" data-act="bal-open" data-id="${r.id}" title="Batafsil ko'rish"`, empty: "Oylik belgilanmagan" },
-    )}
-    <p class="muted small">Qatorni bosing — xodimning oylar bo'yicha hisob-kitobi va olgan pullari ochiladi.</p>`;
+    const opts = { levels: BAL_LEVELS, value: (rs) => A.num(A.sum(latestPerUser(rs), (r) => Number(r.final))) };
+    const sel = A.treeFilter('bal', rows, opts);
+    const single = A.treeDepth('bal', opts) > 0; // bitta xodim tanlangan — oylar bo'yicha tarix
+    const cols = [
+      ...(single ? [] : [{ h: 'Xodim', f: (r) => `<b>${esc(A.userName(r.user))}</b><br><small class="muted">${esc(A.ROLES[(A.get('users', r.user) || {}).role] || '')}</small>` }]),
+      { h: single ? 'Davr' : 'Oxirgi davr', f: (r) => `${A.MONTHS[r.month - 1]} ${r.year}` },
+      { h: 'Avvalgi oylardan', f: (r) => A.num(r.carried), cls: 'num' },
+      { h: 'Shu oy jami', f: (r) => A.num(r.total), cls: 'num' },
+      { h: 'Berilgan', f: (r) => A.num(r.given), cls: 'num' },
+      { h: 'Yakuniy balans', f: (r) => `<b class="${balCls2(Number(r.final))}">${A.num(r.final)}</b>`, cls: 'num', sum: single ? undefined : (rr) => A.num(A.sum(rr, (r) => Number(r.final))) },
+      { h: '', f: () => '<span class="muted">›</span>' },
+    ];
+    const shown = single ? A.sortBy(sel, periodNo, true) : A.sortBy(latestPerUser(sel), (r) => A.userName(r.user));
+    return `${note}<div class="settings tree-layout">${A.treeNav('bal', rows, opts)}<div class="settings-body">${A.table(cols, shown, {
+      rowAttr: (r) => `class="row-link" data-act="bal-open" data-id="${r.id}" title="Batafsil ko'rish"`, empty: 'Oylik belgilanmagan' })}
+    <p class="muted small">Qatorni bosing — shu oyning hisob-kitobi va olingan pullar ochiladi.</p></div></div>`;
   }
 
   /* Xodim balansi: tanlangan oy bo'yicha batafsil hisob-kitob (serverdan /breakdown/) */
