@@ -109,6 +109,35 @@ def test_device_admin_only_top(api, make_user, branch):
     assert r.status_code == 201 and len(r.data["pair_code"]) == 8 and not r.data["paired"]
 
 
+def test_daily_report_calls_section(api, branch, device, paired):
+    from django.utils import timezone
+
+    from apps.notifications.management.commands.daily_report import build
+
+    now = int(timezone.now().timestamp() * 1000)
+    Student.objects.create(branch=branch, first_name="Ali", last_name="Valiyev", phone1="901112233")
+    ingest(api, paired, [
+        {"id": 1, "date": now - 60_000, "type": 3, "number": "+998901112233", "duration": 0},
+        {"id": 2, "date": now - 50_000, "type": 3, "number": "+998991234567", "duration": 0},
+        {"id": 3, "date": now - 40_000, "type": 2, "number": "+998991234567", "duration": 20},
+        {"id": 4, "date": now - 30_000, "type": 1, "number": "+998935554433", "duration": 125},
+    ])
+    text = build(timezone.localdate())
+    assert "Qo'ng'iroqlar: 4</b> (kiruvchi 1 · chiquvchi 1 · javobsiz 2)" in text
+    assert "Javobsiz qoldi: 1</b>" in text and "+998901112233 — Ali Valiyev" in text and "+998991234567 —" not in text
+    assert "Javobsizlarga qayta bog'lanildi: 1 ta" in text and "aloqaga chiqmayapti" not in text
+    CallDevice.objects.update(last_seen_at=timezone.now() - datetime.timedelta(hours=8))
+    assert "Qabul telefoni aloqaga chiqmayapti" in build(timezone.localdate())
+
+
+def test_daily_report_without_device(db):
+    from django.utils import timezone
+
+    from apps.notifications.management.commands.daily_report import build
+
+    assert "Qo'ng'iroqlar" not in build(timezone.localdate())
+
+
 def test_list_query_count(api, make_user, paired, django_assert_max_num_queries):
     ingest(api, paired, [call(i, f"99{i:07d}", kind=1 + i % 3) for i in range(30)])
     adm = make_user("ADMINISTRATOR")

@@ -1,11 +1,12 @@
 """Har kuni 19:00 da Bosh menejerga Telegram hisobot (buyurtmachi so'rovi 2026-10-14, CLAUDE.md 12):
-to'lovlar, faol shartnomalar (kurslar bo'yicha), lidlar (kurslar va statuslar bo'yicha), bugungi xarajatlar, davomat,
+to'lovlar, faol shartnomalar (kurslar bo'yicha), lidlar (kurslar va statuslar bo'yicha), qo'ng'iroqlar, bugungi xarajatlar, davomat,
 g'azna qoldiqlari va tizim auditi (kim nima qildi). Hammasi aggregatsiya bilan — butun jadvallar aylanib chiqilmaydi.
 Cron: 0 19 * * *
 
     python manage.py daily_report
 """
 
+import datetime
 import html
 from collections import defaultdict
 
@@ -13,6 +14,8 @@ from django.core.management.base import BaseCommand
 from django.db.models import Count, Q, Sum
 from django.utils import timezone
 
+from apps.calls import services as call_services
+from apps.calls.models import CallDevice, CallRecord
 from apps.core.models import AuditLog
 from apps.crm.models import Lead
 from apps.education.models import Attendance, Contract
@@ -42,6 +45,43 @@ def ranked(rows, label, value=lambda r: r["n"]):
     if len(rows) > TOP:
         out.append(f"  <i>… yana {len(rows) - TOP} ta</i>")
     return out
+
+
+def calls_section(day):
+    """Qabul telefonidagi qo'ng'iroqlar (2026-10-19): jami, javobsiz qolganlar (kimga qayta qo'ng'iroq qilish kerak),
+    qayta javob vaqti, yangi raqamlar va lid manbalari. Qurilma ulanmagan bo'lsa — bo'lim chiqmaydi."""
+    devices = list(CallDevice.objects.filter(status="Faol"))
+    if not devices:
+        return []
+    qs = CallRecord.objects.filter(started_at__date=day)
+    s = call_services.stats(qs)
+    D = CallRecord.Direction
+    L = [f"\n📞 <b>Qo'ng'iroqlar: {num(s['total'])}</b> (kiruvchi {s['answered']} · chiquvchi {s['outgoing']} · javobsiz {s['missed']})"
+         + (f" · suhbat {num(s['talk'] // 60)} daq" if s["talk"] else "")]
+    if s["missed"]:
+        wait = f", o'rtacha {s['callback_minutes']} daqiqada" if s["callback_minutes"] is not None else ""
+        L.append(f"  Javobsizlarga qayta bog'lanildi: {s['missed'] - s['missed_open']} ta{wait}")
+    missed = list(qs.filter(direction__in=[D.MISSED, D.REJECTED], callback_at__isnull=True)
+                  .select_related("student", "parent").order_by("started_at"))
+    if missed:
+        L.append(f"  ❗ <b>Javobsiz qoldi: {len(missed)}</b> (qayta qo'ng'iroq qilinmagan)")
+        for r in missed[:TOP]:
+            who = r.student.full_name if r.student_id else str(r.parent) if r.parent_id else r.contact_name or "noma'lum"
+            phone = f"+998{r.phone}" if r.phone else r.number or "yashirin raqam"
+            L.append(f"  • {timezone.localtime(r.started_at):%H:%M} {e(phone)} — {e(who)}")
+        if len(missed) > TOP:
+            L.append(f"  <i>… yana {len(missed) - TOP} ta</i>")
+    if s["new_numbers"]:
+        L.append(f"  Yangi raqamlar: <b>{s['new_numbers']}</b> (bazada yo'q: {s['unknown']})")
+    if s["by_source"]:
+        L.append("  <i>Lid manbasi bo'yicha</i> (raqamlar):")
+        L += ranked(s["by_source"], lambda r: r["name"], lambda r: r["numbers"])
+    now = timezone.now()
+    for d in devices:
+        if not d.last_seen_at or now - d.last_seen_at > datetime.timedelta(hours=6):
+            seen = f"{timezone.localtime(d.last_seen_at):%d.%m %H:%M}" if d.last_seen_at else "hech qachon"
+            L.append(f"  ⚠️ {e(d.name)} aloqaga chiqmayapti (oxirgi: {seen}) — telefonda ilova va internetni tekshiring")
+    return L
 
 
 def build(day):
@@ -82,8 +122,10 @@ def build(day):
         if len(rows) > TOP:
             L.append(f"  <i>… yana {len(rows) - TOP} ta kurs</i>")
 
+    L += calls_section(day)
+
     # Xarajatlar
-    exps = Expense.objects.filter(date=day)
+    exps =Expense.objects.filter(date=day)
     ex = exps.aggregate(s=Sum("total"), n=Count("id"))
     L.append(f"\n💸 <b>Xarajatlar: {services.money(ex['s'])}</b> ({ex['n']} ta)")
     L += ranked(exps.values("category__name").annotate(n=Sum("total")).order_by("-n"), lambda r: r["category__name"])
