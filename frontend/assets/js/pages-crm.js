@@ -694,50 +694,49 @@
           A.fSelect('debtors', 'state', [['wait', 'Kutilmoqda'], ['overdue', "Muddati o'tgan"]], 'Barcha holatlar'), month])}
         <div>${monthDues(mData)}</div>`;
       }
-      return `${A.head('Qarzdorlar', "Davomat bo'yicha qarzi 0 dan katta shartnomalar. Guruhlash: kurs → guruh, saralash: qarz bo'yicha", A.btn('Excel', 'debtors-csv', { cls: 'ghost', icon: 'download' }))}
+      return `${A.head('Qarzdorlar', "Davomat bo'yicha qarzi 0 dan katta shartnomalar. Chapdagi daraxt: filial → kurs → guruh", A.btn('Excel', 'debtors-csv', { cls: 'ghost', icon: 'download' }))}
         ${tabs}
         ${A.filterBar('debtors', [A.fSearch('debtors'), A.fSelect('debtors', 'course', A.optList('courses'), 'Barcha kurslar'), A.fSelect('debtors', 'status', [['Faol', 'Faol'], ['Nofaol', 'Nofaol']], 'Barcha statuslar')])}
         <div>${debtorGroups(dData)}</div>`;
     },
   });
+  /* Daraxt (Barchasi → filial → kurs → guruh, har tugunda summa) va tanlangan tugun bo'yicha jadval — ikkala tab uchun */
+  function treeView(key, rows, amount, emptyMsg, cols, statsHTML) {
+    const opts = { value: (l) => A.num(A.sum(l, amount)) };
+    const sel = A.treeFilter(key, rows, opts);
+    const stats = statsHTML(sel);
+    if (!rows.length) return A.empty(emptyMsg);
+    return `<div class="settings tree-layout">${A.treeNav(key, rows, opts)}<div class="settings-body">${stats}${sel.length ? A.table(cols, A.sortBy(sel, amount, true)) : A.empty(emptyMsg)}</div></div>`;
+  }
+  const contractCol = { h: 'Shartnoma', f: (c) => `<a class="t-red" href="#/contracts/${c.id}">${esc(c.name)}</a>` };
+  const phoneCol = { h: 'Telefon', f: (c) => [c.student_data.phone1, c.student_data.phone2].filter(Boolean).map((t) => `<a href="tel:+998${t}">${t}</a>`).join('<br>') };
+  const payCol = { h: '', f: (c) => (paymentsReady() ? `<button class="btn sm" data-act="pay-new" data-id="${c.id}">To'lov</button>` : '') };
+  const groupCol = { h: 'Guruh', f: (c) => esc(A.groupName(c.group)) };
   function monthDues(d) {
-    if (!d.results.length) return A.empty("Bu oy uchun to'lamagan o'quvchi yo'q");
-    const byG = A.groupBy(A.sortBy(d.results, (c) => A.groupName(c.group)), (c) => c.group);
     const prev = (c) => (c.prev_balance > 0 ? `<span class="t-red">${A.num(c.prev_balance)} qarz</span>` : c.prev_balance < 0 ? `<span class="t-green">${A.num(-c.prev_balance)} oldindan</span>` : '—');
-    return `<div class="stats">${A.stat("To'lashi kerak (jami)", A.money(d.total), `${d.count} ta o'quvchi`, 'danger')}
-        ${A.stat("Muddati o'tgan", A.money(d.overdue_total), `${d.overdue_count} ta o'quvchi`, d.overdue_count ? 'danger' : '')}</div>` +
-      [...byG]
-        .map(([gid, list]) => `<section class="group-block"><h3>${esc(A.groupName(gid))} <span class="muted">· ${list.length} ta · ${A.money(A.sum(list, 'to_pay'))}</span></h3>${A.table(
-          [
-            { h: "O'quvchi", f: (c) => `<a class="t-red" href="#/contracts/${c.id}">${esc(c.name)}</a>` },
-            { h: 'Telefon', f: (c) => [c.student_data.phone1, c.student_data.phone2].filter(Boolean).map((t) => `<a href="tel:+998${t}">${t}</a>`).join('<br>') },
-            { h: 'Oy narxi', f: (c) => `${A.num(c.month_price)}${c.lessons < c.lessons_total ? ` <span class="muted" title="Oyning ${c.lessons}/${c.lessons_total} darsi">(${c.lessons}/${c.lessons_total})</span>` : ''}${c.no_price ? ' ' + A.badge('narx yo\'q', 'orange') : ''}`, cls: 'num' },
-            { h: 'Oldingi balans', f: prev, cls: 'num' },
-            { h: "Shu oy to'langan", f: (c) => A.num(c.paid_month), cls: 'num' },
-            { h: "To'lashi kerak", f: (c) => `<b class="t-red">${A.num(c.to_pay)}</b>`, cls: 'num', sum: (r) => A.num(A.sum(r, 'to_pay')) },
-            { h: 'Holat', f: (c) => (c.overdue ? A.badge(`Muddati o'tgan · ${c.days_over} kun`, 'red') : A.badge(`${c.deadline.slice(8)}.${c.deadline.slice(5, 7)} gacha`, 'orange')) },
-            { h: '', f: (c) => (paymentsReady() ? `<button class="btn sm" data-act="pay-new" data-id="${c.id}">To'lov</button>` : '') },
-          ],
-          A.sortBy(list, (c) => c.to_pay, true),
-        )}</section>`)
-        .join('');
+    const cols = [
+      contractCol, phoneCol, groupCol,
+      { h: 'Oy narxi', f: (c) => `${A.num(c.month_price)}${c.lessons < c.lessons_total ? ` <span class="muted" title="Oyning ${c.lessons}/${c.lessons_total} darsi">(${c.lessons}/${c.lessons_total})</span>` : ''}${c.no_price ? ' ' + A.badge("narx yo'q", 'orange') : ''}`, cls: 'num' },
+      { h: 'Oldingi balans', f: prev, cls: 'num' },
+      { h: "Shu oy to'langan", f: (c) => A.num(c.paid_month), cls: 'num' },
+      { h: "To'lashi kerak", f: (c) => `<b class="t-red">${A.num(c.to_pay)}</b>`, cls: 'num', sum: (r) => A.num(A.sum(r, 'to_pay')) },
+      { h: 'Holat', f: (c) => (c.overdue ? A.badge(`Muddati o'tgan · ${c.days_over} kun`, 'red') : A.badge(`${c.deadline.slice(8)}.${c.deadline.slice(5, 7)} gacha`, 'orange')) },
+      payCol,
+    ];
+    return treeView('dm', d.results, (c) => c.to_pay, "Bu oy uchun to'lamagan o'quvchi yo'q", cols, (sel) => {
+      const over = sel.filter((c) => c.overdue);
+      return `<div class="stats">${A.stat("To'lashi kerak", A.money(A.sum(sel, 'to_pay')), `${sel.length} ta o'quvchi`, 'danger')}
+        ${A.stat("Muddati o'tgan", A.money(A.sum(over, 'to_pay')), `${over.length} ta o'quvchi`, over.length ? 'danger' : '')}</div>`;
+    });
   }
   function debtorGroups(d) {
-    if (!d.results.length) return A.empty("Qarzdor yo'q");
-    const byG = A.groupBy(A.sortBy(d.results, (c) => A.groupName(c.group)), (c) => c.group);
-    return `<div class="stats">${A.stat('Jami qarz', A.money(d.total), `${d.count} ta shartnoma`, 'danger')}</div>` +
-      [...byG]
-        .map(([gid, list]) => `<section class="group-block"><h3>${esc(A.groupName(gid))} <span class="muted">· ${list.length} ta · ${A.money(A.sum(list, 'balance'))}</span></h3>${A.table(
-          [
-            { h: 'Shartnoma', f: (c) => `<a class="t-red" href="#/contracts/${c.id}">${esc(c.name)}</a>` },
-            { h: 'Telefon', f: (c) => `<a href="tel:+998${c.student_data.phone1}">${c.student_data.phone1}</a>` },
-            { h: 'Status', f: (c) => A.contractStatusBadge(c.status) },
-            { h: 'Qarz', f: (c) => `<b class="t-red">${A.num(c.balance)}</b>`, cls: 'num', sum: (r) => A.num(A.sum(r, 'balance')) },
-            { h: '', f: (c) => (paymentsReady() ? `<button class="btn sm" data-act="pay-new" data-id="${c.id}">To'lov</button>` : '') },
-          ],
-          A.sortBy(list, (c) => c.balance, true),
-        )}</section>`)
-        .join('');
+    const cols = [
+      contractCol, phoneCol, groupCol,
+      { h: 'Status', f: (c) => A.contractStatusBadge(c.status) },
+      { h: 'Qarz', f: (c) => `<b class="t-red">${A.num(c.balance)}</b>`, cls: 'num', sum: (r) => A.num(A.sum(r, 'balance')) },
+      payCol,
+    ];
+    return treeView('dd', d.results, (c) => c.balance, "Qarzdor yo'q", cols, (sel) => `<div class="stats">${A.stat('Jami qarz', A.money(A.sum(sel, 'balance')), `${sel.length} ta shartnoma`, 'danger')}</div>`);
   }
   A.act['debtors-csv'] = () => {
     if ((A.route && A.route.q && A.route.q.tab) === 'debt' || /tab=debt/.test(location.hash)) {
