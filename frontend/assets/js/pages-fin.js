@@ -983,15 +983,17 @@
   };
   A.act['rate-copy'] = () => A.toast("«Amal qilish oyi» mantiqida o'tgan oy stavkalari yangi oyda ham avtomatik amal qiladi — nusxalash shart emas. Faqat o'zgargan stavkani yangi oydan kiriting.", 'warn');
 
-  // Oylik berish — «Hisoblangan KPI» kabi iyerarxik: Barchasi → yil → oy (berilgan sana) → xodim, har tugunda berilgan summa
+  // Oylik berish — «Hisoblangan KPI» kabi iyerarxik: Barchasi → yil → oy → xodim, har tugunda berilgan summa.
+  // Oy — qaysi oy uchun berilgan (davr), AppSheet'dagidek; pul berilgan sana jadvalda ko'rinadi.
+  const spPeriod = (s) => `${s.year}-${String(s.month).padStart(2, '0')}`;
   const SP_LEVELS = [
-    { key: (s) => s.date.slice(0, 4), label: (k) => k, desc: true },
-    { key: (s) => s.date.slice(0, 7), label: (k) => A.ymLabel(k).split(' ')[0], sort: (k) => k, desc: true },
+    { key: (s) => String(s.year), label: (k) => k, desc: true },
+    { key: spPeriod, label: (k) => A.ymLabel(k).split(' ')[0], sort: (k) => k, desc: true },
     { key: (s) => s.user, label: (k) => A.userName(k) },
   ];
   function payoutView(rows) {
-    const latest = A.sortBy(rows, (s) => s.date, true)[0];
-    const opts = { levels: SP_LEVELS, value: (l) => A.num(A.sum(l, (s) => Number(s.amount))), def: latest ? `${latest.date.slice(0, 4)}|${latest.date.slice(0, 7)}` : '' };
+    const latest = A.sortBy(rows, (s) => `${spPeriod(s)}|${s.date}`, true)[0];
+    const opts = { levels: SP_LEVELS, value: (l) => A.num(A.sum(l, (s) => Number(s.amount))), def: latest ? `${latest.year}|${spPeriod(latest)}` : '' };
     const sel = A.treeFilter('sp', rows, opts);
     const table = A.table(
       [
