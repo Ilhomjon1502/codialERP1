@@ -28,6 +28,13 @@
     section: 'calls',
     async load(p, q) {
       const tab = q.tab || 'list';
+      if (q.f !== undefined) { // statistika kartochkasidan: mos filtrni o'rnatib, havoladan olib tashlaymiz
+        for (const k of ['dir', 'known', 'first', 'search']) A.ui.q[`${K}:${k}`] = '';
+        const [k, v] = q.f ? q.f.split(':') : [];
+        if (k) A.ui.q[`${K}:${k}`] = v;
+        A.ui.q[`${K}:page`] = 1;
+        history.replaceState(null, '', location.hash.replace(/[?&]f=[^&]*/, '').replace(/\?&/, '?'));
+      }
       if (tab === 'stats') st = await A.http.get('/calls/stats/?' + qs());
       else if (tab === 'devices') devices = await A.http.get('/call-devices/');
       else {
@@ -115,12 +122,12 @@
     if (!st) return '';
     const s = st;
     const cards = `<div class="stats">
-      ${A.stat("Jami qo'ng'iroq", A.num(s.total), `suhbat ${durLong(s.talk)}`)}
-      ${A.stat('Kiruvchi (javob berilgan)', A.num(s.answered))}
-      ${A.stat('Chiquvchi', A.num(s.outgoing))}
-      ${A.stat('Javobsiz', A.num(s.missed), s.missed_open ? `<b>${s.missed_open}</b> tasiga hali qo'ng'iroq qilinmagan` : "hammasiga qayta qo'ng'iroq qilingan", s.missed_open ? 'danger' : '', '#/calls?tab=list')}
+      ${A.stat("Jami qo'ng'iroq", A.num(s.total), `suhbat ${durLong(s.talk)}`, '', '#/calls?tab=list&f=')}
+      ${A.stat('Kiruvchi (javob berilgan)', A.num(s.answered), '', '', '#/calls?tab=list&f=dir:Kiruvchi')}
+      ${A.stat('Chiquvchi', A.num(s.outgoing), '', '', '#/calls?tab=list&f=dir:Chiquvchi')}
+      ${A.stat('Javobsiz', A.num(s.missed), s.missed_open ? `<b>${s.missed_open}</b> tasiga hali qo'ng'iroq qilinmagan` : "hammasiga qayta qo'ng'iroq qilingan", s.missed_open ? 'danger' : '', '#/calls?tab=list&f=dir:missed')}
       ${A.stat("O'rtacha qayta javob", s.callback_minutes == null ? '—' : `${s.callback_minutes} daq`, "javobsizdan keyin qo'ng'iroq qilinguncha")}
-      ${A.stat('Yangi raqamlar', A.num(s.new_numbers), `bazada yo'q: ${s.unknown}`, 'warn')}
+      ${A.stat('Yangi raqamlar', A.num(s.new_numbers), `bazada yo'q: ${s.unknown}`, 'warn', '#/calls?tab=list&f=first:1')}
     </div>`;
     const hours = s.by_hour.filter((h) => h.hour >= 7 && h.hour <= 22);
     const hourChart = A.chart({
