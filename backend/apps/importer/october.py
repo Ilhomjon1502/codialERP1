@@ -471,11 +471,15 @@ def salaries(c):
     users = {r.ident(a.get("UserID")) for a in assigns if ym(a) >= FIRST_SALARY} | {r.ident(g.get("UserID")) for g in gives if imported(g)}
     users |= {u for u, v in carry.items() if v}
     users.discard("")
+    working = {r.ident(a.get(k)) for a in wb["Attendance"] if r.ident(a.get("BranchID")) == c.bid and (dt(a.get("Date")) or datetime.date.min) >= CUT
+               for k in ("TeacherID", "SupporterID")}  # oktyabrda dars o'tgan/yordam bergan xodim ishlayapti — AppSheet'da «Qo'shilmagan» bo'lsa ham
     created_a = 0
     for uid in sorted(users):
         user = c.user(uid)
         if user is None:
             continue
+        if user.employment_status != User.Employment.ACTIVE and uid not in working:
+            continue  # buyurtmachi qarori 2026-10-19: ishdan ketgan xodimlar bilan hisob yopilgan — oylik belgilash va qoldig'i ko'chirilmaydi (berilgan pul g'aznada qoladi)
         row = next((a for a in assigns if r.ident(a.get("UserID")) == uid and ym(a) == FIRST_SALARY), None)
         values = {"fixed": num(row.get("Fixed")) if row else ZERO, "bonus": num(row.get("Bonus")) if row else ZERO,
                   "kpi": (num(row.get("KPI")) + num(row.get("TeacherKPI")) + num(row.get("SupporterKPI"))) if row else ZERO,
