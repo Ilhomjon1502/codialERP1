@@ -181,9 +181,10 @@
       const items = [['disc', 'Chegirmalar', P.discounts], ['nc', "Naqdsiz to'lovlar", P.noncash], ['tr', "O'tkazmalar", P.transfers], ['mk', 'Qoldirilgan darslar', P.makeups], ['freq', 'Oydagi dars soni', P.freqs]];
       const rows = apData.rows || [];
       const btn = (act, id, ok, why) => (ok ? `<button class="btn sm primary" data-act="${act}" data-id="${id}">Tasdiqlash</button>` : `<span class="muted small" title="${esc(why)}">${esc(why)}</span>`);
+      const allBtn = (act, ok) => (ok.length > 1 ? `<div class="row" style="margin:8px 0"><button class="btn primary" data-act="${act}">✅ Hammasini tasdiqlash (${ok.length})</button></div>` : '');
       let body = '';
       if (tab === 'disc') {
-        body = `<p class="muted">Chegirmani Admin tasdiqlaydi, Bosh menejer — yaratilganidan keyin 30 kun ichida.</p>` + A.table(
+        body = `<p class="muted">Chegirmani Admin tasdiqlaydi, Bosh menejer — yaratilganidan keyin 30 kun ichida.</p>` + allBtn('ok-disc-all', rows.filter((x) => x.can_approve_disc)) + A.table(
           [
             { h: 'Sana', f: (x) => A.fdate(x.date) },
             { h: 'Shartnoma', f: (x) => `<a href="#/contracts/${x.contract}">${esc(x.contract_name)}</a>` },
@@ -197,7 +198,7 @@
           { empty: "Tasdiq kutayotgan chegirma yo'q" },
         );
       } else if (tab === 'nc') {
-        body = `<p class="muted">Admin istalgan vaqtda; Bosh menejer 360 kun, Filial menejeri 7 kun ichida tasdiqlaydi. Tasdiqlangach summa g'azna balansiga qo'shiladi.</p>` + A.table(
+        body = `<p class="muted">Admin istalgan vaqtda; Bosh menejer 360 kun, Filial menejeri 7 kun ichida tasdiqlaydi. Tasdiqlangach summa g'azna balansiga qo'shiladi.</p>` + allBtn('ok-nc-all', rows.filter((x) => x.can_approve_nc)) + A.table(
           [
             { h: 'Sana', f: (x) => A.fdate(x.date) },
             { h: 'Shartnoma', f: (x) => `<a href="#/contracts/${x.contract}">${esc(x.contract_name)}</a>` },
@@ -224,6 +225,28 @@
     A.toast('Chegirma tasdiqlandi');
     A.refresh();
   };
+  // Hammasini birdan tasdiqlash: faqat shu foydalanuvchida ruxsat bor qatorlar; har biri serverda alohida tekshiriladi
+  const approveAll = async (rows, path, what) => {
+    const ok = rows.filter((x) => (what === 'nc' ? x.can_approve_nc : x.can_approve_disc));
+    if (!ok.length) return;
+    const sum = A.sum(ok, what === 'nc' ? 'amount' : 'discount');
+    if (!(await A.confirm(`${ok.length} ta ${what === 'nc' ? "naqdsiz to'lov" : 'chegirma'} (jami ${A.money(sum)}) tasdiqlansinmi?`, 'Hammasini tasdiqlash'))) return;
+    let done = 0;
+    const failed = [];
+    for (const x of ok) {
+      try {
+        await A.http.post(`/payments/${x.id}/${path}/`);
+        done++;
+      } catch (e) {
+        failed.push(e.message);
+      }
+    }
+    await A.reloadMoney();
+    A.toast(`Tasdiqlandi: ${done} ta${failed.length ? `, ${failed.length} tasi tasdiqlanmadi (${failed[0]})` : ''}`, failed.length ? 'warn' : undefined);
+    A.refresh();
+  };
+  A.act['ok-nc-all'] = () => approveAll(apData.rows || [], 'approve_noncash', 'nc');
+  A.act['ok-disc-all'] = () => approveAll(apData.rows || [], 'approve_discount', 'disc');
   A.act['ok-nc'] = async (el) => {
     const p = await A.http.post(`/payments/${el.dataset.id}/approve_noncash/`);
     await A.reloadMoney();
