@@ -93,14 +93,19 @@ def notify(event, text, branch=None, default_users=(), key="", only=None, markup
                     continue
                 if force or wants(lk, event, default=u.pk in default_ids):
                     rows.append(Outbox(user=u, chat_id=lk.chat_id, event=event, key=key, text=text, markup=markup or {}))
-            # Qo'shimcha qabul qiluvchilar: shu xabar tanlangan rollarga standart keladigan turdan bo'lsa — nusxa (bitta chatga bir marta)
+            # Qo'shimcha qabul qiluvchilar (masalan umumiy @codial_admin): (1) xabar tanlangan rollarga standart keladigan turdan bo'lsa yoki
+            # (2) xabar aynan shu rollardagi xodimga mo'ljallangan bo'lsa (masalan topshiriq) — nusxa; (2) da «Kimga» yoziladi. Bitta chatga bir marta.
             sent_to = {x.chat_id for x in rows}
             for er in ExtraRecipient.objects.filter(active=True):
-                if er.chat_id in sent_to or not any(role in DEFAULT_ROLES.get(event, ()) for role in er.roles):
+                by_role = any(role in DEFAULT_ROLES.get(event, ()) for role in er.roles)
+                targets = [u for u in default_users if u and role_code(u) in er.roles]
+                if er.chat_id in sent_to or not (by_role or targets):
                     continue
                 if key and Outbox.objects.filter(chat_id=er.chat_id, key=key).exists():
                     continue
-                rows.append(Outbox(user=None, chat_id=er.chat_id, event=event, key=key, text=text, markup=markup or {}))
+                names = ", ".join(escape(str(u)) for u in targets)
+                body = text if by_role else f"👤 <b>Kimga:</b> {names}\n{text}"
+                rows.append(Outbox(user=None, chat_id=er.chat_id, event=event, key=key, text=body, markup=markup or {}))
             Outbox.objects.bulk_create(rows)
         except Exception:  # noqa: BLE001 — xabar asosiy amalni buzmasin
             log.exception("Telegram navbatiga yozilmadi")

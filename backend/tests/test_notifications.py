@@ -324,6 +324,8 @@ def test_extra_recipient_gets_copy_of_role_default_messages(api, make_user, worl
         assert api(fm).post("/api/v1/leads/", body, format="json").status_code == 201
     got = {(m.chat_id, m.event) for m in Outbox.objects.all()}
     assert (900, "new_lead") in got and (777, "new_lead") in got and not any(c == 778 for c, _ in got)  # nusxa bor; nofaol qabul qiluvchi — yo'q
-    with django_capture_on_commit_callbacks(execute=True):  # topshiriq — rol standartida emas, nusxa bormaydi
-        services.notify("task", "x", default_users=[adm], only=lambda u: u.pk == adm.pk)
-    assert not Outbox.objects.filter(chat_id=777, event="task").exists()
+    with django_capture_on_commit_callbacks(execute=True):  # topshiriq shu roldagi xodimga — nusxa «Kimga» bilan; boshqa rolga — nusxa yo'q
+        services.notify("task", "📌 Yangi topshiriq", default_users=[adm], only=lambda u: u.pk == adm.pk)
+        services.notify("task", "boshqa", default_users=[fm], only=lambda u: u.pk == fm.pk)
+    copies = list(Outbox.objects.filter(chat_id=777, event="task"))
+    assert len(copies) == 1 and copies[0].text.startswith("👤 <b>Kimga:</b> ") and str(adm) in copies[0].text and "Yangi topshiriq" in copies[0].text
