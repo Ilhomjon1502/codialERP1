@@ -659,12 +659,34 @@
                 { h: 'Ustoz', f: (a) => esc(A.userName(a.teacher)) + (g && a.teacher !== g.teacher ? ' ' + A.badge("o'rindosh", 'blue') : '') },
                 { h: 'Dars narxi (qarz)', f: (a) => (a.no_freq ? A.badge(a.calc_note || 'hisoblanmagan', 'orange') : A.num(a.debt)), cls: 'num', sum: (r) => A.num(A.sum(r, (a) => a.debt || 0)) },
                 { h: 'Izoh', f: (a) => esc(a.comment || '') },
+                { h: '', f: (a) => (A.can('attendance', 'a') ? `<button class="btn sm ghost" data-act="att-edit" data-id="${a.id}" title="Davomat statusini o'zgartirish">✎</button>` : '') },
               ],
               att,
               { empty: "Davomat yo'q" },
             )}`;
     },
   });
+  /* Davomat statusini shartnoma sahifasining o'zida o'zgartirish — server qoidalari «Davomat olish» bilan bir xil (rol, muddat, dars kuni) */
+  A.act['att-edit'] = (el) => {
+    const a = (cDetail.attendance || []).find((x) => x.id === el.dataset.id);
+    if (!a) return;
+    const allowed = A.rows('attendanceStatuses').filter((x) => (x.roles || []).includes(A.role())).map((x) => [x.code, `${x.code === '-' ? '–' : x.code} · ${x.name}`]);
+    A.form({
+      title: `Davomat — ${A.fdate(a.date)}`,
+      intro: `<p class="muted small">${esc(cDetail.name)} · hozir: ${esc(A.ATT[a.status])}. Saqlanganda qarz va KPI qayta hisoblanadi.</p>`,
+      values: { status: a.status, comment: a.comment || '' },
+      fields: [
+        { name: 'status', label: 'Status', type: 'seg', options: allowed, required: true },
+        { name: 'comment', label: 'Izoh (Sababli bo\'lsa — sababi)', type: 'textarea', required: (v) => v.status === '0' },
+      ],
+      submit: 'Saqlash',
+      onSubmit: async (v) => {
+        await A.http.post('/attendance/take/', { group: a.group, date: a.date, marks: [{ contract: cDetail.id, status: v.status, comment: v.comment || '' }] });
+        A.toast('Davomat yangilandi');
+        A.refresh();
+      },
+    });
+  };
   A.act['contract-edit'] = () => A.contractForm(cDetail);
   A.act['contract-stop'] = () => A.contractForm(cDetail, {}, true);
 
