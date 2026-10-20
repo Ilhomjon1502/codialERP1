@@ -1054,7 +1054,7 @@
       title: 'Oylik berish',
       values: { year: y0, month: String(m0), date: A.today(), type: "O'zgarmas", cash_type: 'CASH' },
       fields: [
-        { name: 'user', label: 'Xodim', type: 'select', required: true, options: () => A.S.users.filter((u) => u.role !== 'ADMIN' && u.role !== 'BOSHQA' && (u.branches || []).includes(B)).map((u) => [u.id, u.full_name]) },
+        { name: 'user', label: 'Xodim', type: 'select', required: true, options: () => A.S.users.filter((u) => u.role !== 'ADMIN' && u.role !== 'BOSHQA' && u.status === 'Faol' && (u.branches || []).includes(B)).map((u) => [u.id, u.full_name]) },
         { name: 'year', label: 'Yil', type: 'number', half: true, show: (x) => x.user },
         { name: 'month', label: 'Oy', type: 'select', half: true, show: (x) => x.user, options: A.MONTHS.map((m, i) => [String(i + 1), m]) },
         { name: 'bal', type: 'note', tone: 'info', show: (x) => x.user && x.month, text: (x) => { const s = find(x); return s ? `Jami: ${A.num(s.total)} · berilgan: ${A.num(s.given)} · <b>qoldiq: ${A.money(s.final)}</b>` : 'Bu oy uchun oylik belgilanmagan'; } },
