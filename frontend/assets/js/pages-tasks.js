@@ -122,7 +122,9 @@
       fields: [
         { name: 'title', label: 'Mavzu', required: true, placeholder: "Masalan: Qarzdorlarning ota-onalariga qo'ng'iroq" },
         { name: 'description', label: 'Izoh', type: 'textarea', placeholder: 'Nima qilish kerak, qanday natija kutiladi' },
-        { name: 'assignee', label: 'Bajaruvchi', type: 'select', required: true, options: () => data.people.map((u) => [u.id, u.id === me ? `${u.name} (o'zim)` : u.name]) },
+        { name: 'assignee', label: 'Bajaruvchi', type: 'select', required: true, show: () => !!t, options: () => data.people.map((u) => [u.id, u.id === me ? `${u.name} (o'zim)` : u.name]) },
+        { name: 'assignees', label: 'Bajaruvchilar (bir nechtasini tanlash mumkin)', type: 'chips', show: () => !t, options: () => data.people.map((u) => [u.id, u.id === me ? `${u.name} (o'zim)` : u.name]),
+          help: "Har bir bajaruvchiga alohida topshiriq ochiladi — har biri o'zi «Bajarildi» bosadi" },
         { name: 'due', label: 'Qilinish muddati (sana va soat)', type: 'datetime-local', required: true, validate: (v) => (v && new Date(v) <= new Date() ? "Muddat hozirgi vaqtdan keyin bo'lishi kerak" : '') },
         { name: 'who', label: 'Telegram orqali kimga eslatilsin', type: 'chips', options: () => [['a', 'Bajaruvchiga'], ['g', 'Menga (beruvchiga)']] },
         { name: 'remind_before', label: 'Eslatish qachon boshlansin', type: 'seg', required: true, show: (x) => (x.who || []).length, options: () => BEFORE },
@@ -131,14 +133,33 @@
       ],
       async onSubmit(x) {
         const body = {
-          title: x.title, description: x.description || '', assignee: x.assignee, due_at: new Date(x.due).toISOString(),
+          title: x.title, description: x.description || '', due_at: new Date(x.due).toISOString(),
           remind_assignee: (x.who || []).includes('a'), remind_giver: (x.who || []).includes('g'),
           remind_before: Number(x.remind_before || 60), remind_every: Number(x.remind_every || 0),
         };
-        const saved = t ? await A.http.patch(`/tasks/${t.id}/`, body) : await A.http.post('/tasks/', body);
-        if (saved.assignee_linked === false && saved.assignee !== A.S.currentUser) {
-          A.toast(`${t ? 'Saqlandi' : 'Topshiriq berildi'}. ⚠️ ${saved.assignee_name} Telegram botga ulanmagan — unga xabar bormaydi`, 'warn');
-        } else A.toast(t ? 'Saqlandi' : 'Topshiriq berildi — sizga va bajaruvchiga Telegram orqali xabar boradi');
+        if (t) {
+          const saved = await A.http.patch(`/tasks/${t.id}/`, { ...body, assignee: x.assignee });
+          if (saved.assignee_linked === false && saved.assignee !== A.S.currentUser) A.toast(`Saqlandi. ⚠️ ${saved.assignee_name} Telegram botga ulanmagan — unga xabar bormaydi`, 'warn');
+          else A.toast('Saqlandi');
+        } else {
+          const ids = x.assignees || [];
+          if (!ids.length) return 'Kamida bitta bajaruvchini tanlang';
+          const unlinked = [];
+          let done = 0;
+          try {
+            for (const id of ids) {
+              const saved = await A.http.post('/tasks/', { ...body, assignee: id });
+              done++;
+              if (saved.assignee_linked === false && saved.assignee !== A.S.currentUser) unlinked.push(saved.assignee_name);
+            }
+          } catch (e) {
+            if (done) { await reload(); throw new Error(`${done} ta topshiriq berildi, keyingisida xato: ${e.message}`); }
+            throw e;
+          }
+          const n = ids.length > 1 ? `${ids.length} ta bajaruvchiga topshiriq berildi` : 'Topshiriq berildi — sizga va bajaruvchiga Telegram orqali xabar boradi';
+          if (unlinked.length) A.toast(`${n}. ⚠️ Botga ulanmagan: ${unlinked.join(', ')} — ularga xabar bormaydi`, 'warn');
+          else A.toast(n);
+        }
         await reload();
       },
     });
