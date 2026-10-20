@@ -522,7 +522,10 @@ button[disabled] { cursor: not-allowed; }
 .sched-b b { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sched-b small { font-size: 11.5px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sched-b.plan { background: #eaf7ee; border: 1.5px dashed #8fd1a6; }
-.sched-b.plan b { padding-right: 38px; }
+.sched-b.plan .sb-h { padding-right: 38px; }
+.sched-b .sb-h { display: flex; gap: 6px; align-items: baseline; overflow: hidden; }
+.sched-b .sb-h .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.sched-b .sb-h .cnt { flex: none; font-size: 11.5px; font-weight: 700; color: var(--brand-600, #d9560f); }
 .plan-tag { position: absolute; top: 2px; right: 6px; font-style: normal; font-size: 9px; line-height: 1; letter-spacing: .03em; text-transform: uppercase; color: #2c8a52; font-weight: 600; }
 .sched-b.stack { justify-content: flex-start; padding-top: 1px; padding-bottom: 2px; }
 .sched-b.stack b { line-height: 15px; font-size: 12px; }

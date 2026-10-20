@@ -439,7 +439,7 @@
         const plan = g.status === 'Rejada';
         const title = `${g.name} · ${g.start}–${g.end} · ${g.teacher_name}${g.supporter_name ? ` (yordamchi: ${g.supporter_name})` : ''} · ${g.students}/${g.capacity || '—'} talaba${plan ? `, ${g.leads} ta lid · Rejada: ${A.fdate(g.start_date)} dan` : ''}${clash ? ' · DIQQAT: vaqti boshqa guruh bilan ustma-ust' : ''}`;
         const cls = `sched-b${g.status === 'Rejada' ? ' plan' : ''}${clash ? ' clash' : ''}${lanes > 1 ? ' stack' : ''}`;
-        const inner = `${plan ? '<em class="plan-tag">rejada</em>' : ''}<b>${esc(g.name)}</b><small>${esc(second)} · 👥 ${g.students}/${g.capacity || '—'}${plan ? ` · ${g.leads} lid` : ''}</small>`;
+        const inner = `${plan ? '<em class="plan-tag">rejada</em>' : ''}<b class="sb-h"><span class="nm">${esc(g.name)}</span><span class="cnt" title="Talabalar soni">👥 ${g.students}${plan ? ` +${g.leads} lid` : ''}</span></b><small>${esc(second)}${g.capacity ? ` · sig'im ${g.capacity}` : ''}</small>`;
         const st = `left:calc(${pos(g.s - t0)} + 3px);width:calc(${pos(g.e - g.s)} - 6px);--c:${c}${lanes > 1 ? `;top:${6 + g.lane * STRIP}px;z-index:${g.lane + 1}` : ''}`;
         return canEdit
           ? `<div class="${cls}" role="button" tabindex="0" data-act="group-manage" data-id="${g.id}" title="${esc(title)} · bosing — guruhni boshqarish" style="${st}">${inner}</div>`
