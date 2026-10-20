@@ -22,7 +22,7 @@ from apps.core.scoping import branch_ids
 from .models import StaffTask
 
 S = StaffTask.Status
-BEFORE_CHOICES = [0, 15, 60, 180, 1440, 2880]  # daqiqa
+BEFORE_CHOICES = [0, 15, 60, 180, 1440, 2880, 525600]  # daqiqa; 525600 (365 kun) — «hozirdan boshlab»
 EVERY_CHOICES = [0, 30, 60, 180, 1440]
 MAX_LOOKAHEAD = max(BEFORE_CHOICES)
 

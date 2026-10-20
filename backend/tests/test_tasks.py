@@ -137,3 +137,13 @@ def test_given_inside_reminder_window_and_prefs_off(api, people, django_capture_
         assert services.due_reminders(now + datetime.timedelta(hours=1, minutes=1)) == 1  # bir martalik — muddat vaqtida
     assert not Outbox.objects.exists()  # xodim eslatmalarni o'chirgan — takroriy eslatma yuborilmaydi
     assert StaffTask.objects.get(pk=tid).last_reminded_at
+
+
+def test_remind_from_now_repeats_until_done(api, people):
+    from apps.tasks import services
+    from apps.tasks.models import StaffTask
+
+    tid = give(api, people["admin"], people["teacher"], hours=72, remind_before=525600, remind_every=60).json()["id"]
+    t = StaffTask.objects.get(pk=tid)
+    assert services.due_reminders(t.updated_at + datetime.timedelta(minutes=30)) == 0  # soat to'lmadi
+    assert services.due_reminders(t.updated_at + datetime.timedelta(minutes=61)) == 1  # muddatdan 3 kun oldin ham eslatadi

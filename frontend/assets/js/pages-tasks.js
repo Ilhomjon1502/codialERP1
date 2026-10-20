@@ -1,7 +1,7 @@
 /* Codial ERP — Topshiriqlar (2026-10-16): xodimlar bir-biriga topshiriq beradi, bot eslatib turadi. */
 (function (A) {
   const esc = A.esc;
-  const BEFORE = [['0', 'Muddat vaqtida'], ['15', '15 daqiqa oldin'], ['60', '1 soat oldin'], ['180', '3 soat oldin'], ['1440', '1 kun oldin'], ['2880', '2 kun oldin']];
+  const BEFORE = [['525600', 'Hozirdan boshlab'], ['0', 'Muddat vaqtida'], ['15', '15 daqiqa oldin'], ['60', '1 soat oldin'], ['180', '3 soat oldin'], ['1440', '1 kun oldin'], ['2880', '2 kun oldin']];
   const EVERY = [['0', 'Bir marta'], ['30', 'Har 30 daqiqa'], ['60', 'Har soat'], ['180', 'Har 3 soat'], ['1440', 'Har kuni']];
   const label = (list, v) => (list.find(([k]) => k === String(v)) || [, ''])[1];
   const pad = (n) => String(n).padStart(2, '0');
