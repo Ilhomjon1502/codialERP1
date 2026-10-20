@@ -76,6 +76,7 @@ urlpatterns = [
     path("ai/<int:pk>/run/", ai.rerun),
     path("ai/<int:pk>/analyze/", ai.analyze),
     path("reports/profit/", rep.profit),
+    path("reports/sheet/", rep.sheet),
     path("reports/stats/", rep.stats),
     path("reports/funnel/", rep.funnel),
     path("reports/first-payers/", rep.first_payers),

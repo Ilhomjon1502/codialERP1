@@ -68,6 +68,7 @@ INSTALLED_APPS = [
     "apps.importer",
     "apps.tasks",
     "apps.calls",
+    "apps.reports",
 ]
 
 MIDDLEWARE = [
@@ -171,6 +172,11 @@ AI_HTTP_TIMEOUT_S = float(env("AI_HTTP_TIMEOUT_S", "20"))  # bitta model javobi
 AI_TOTAL_TIMEOUT_S = float(env("AI_TOTAL_TIMEOUT_S", "40"))  # zaxira modellar bilan birga (gunicorn timeout 60 s)
 AI_MODEL_FALLBACKS = env_list("AI_MODEL_FALLBACKS") if env("AI_MODEL_FALLBACKS") is not None else None  # None — provayder standarti
 AI_MODEL_STRONG = env_list("AI_MODEL_STRONG")  # bo'sh — provayder standarti (SQL xato bo'lsa qayta so'rash uchun)
+# Google Sheets hisobot (Foyda → «Hisobot olish»): kalit va fayl ID'si deploy/set-google.sh bilan
+GOOGLE_SERVICE_ACCOUNT_B64 = env("GOOGLE_SERVICE_ACCOUNT_B64", "")  # service account JSON, base64
+GOOGLE_SHEET_ID = env("GOOGLE_SHEET_ID", "")
+# Foyda taqsimoti: (hisobotdagi nom, kreditor nomida qatnashadigan so'z, foiz)
+PROFIT_SHARE_HOLDERS = [("MNSH", "mnsh", 75), ("Ilhomjon", "ilhomjon", 25)]
 AI_THINKING = env("AI_THINKING", "low")  # Gemini thinkingLevel: low | high; bo'sh — model standarti
 
 LOGGING = {

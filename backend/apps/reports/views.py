@@ -3,10 +3,10 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 
 from apps.core.permissions import NO_PERMISSION, can, role_code, today
-from apps.core.roles import MANAGER_ROLES
+from apps.core.roles import MANAGER_ROLES, TOP_ROLES
 from apps.references.services import month_start
 
-from . import services
+from . import gsheets, services, sheet_report
 
 
 def _manager(user):
@@ -57,3 +57,22 @@ def first_payers(request):
     """Tanlangan oyda birinchi marta to'lov qilganlar: ?month=YYYY-MM"""
     _manager(request.user)
     return Response(services.first_payers(request.user, month_start(request.query_params.get("month") or f"{today():%Y-%m}")))
+
+
+def _top(user):
+    if not can(user, "profit") or role_code(user) not in TOP_ROLES:
+        raise PermissionDenied("Moliyaviy hisobotni faqat Admin va Bosh menejer oladi")
+
+
+@api_view(["GET", "POST"])
+def sheet(request):
+    """Oylik moliyaviy hisobot — Google Sheets (Admin, Bosh menejer).
+    GET — ulanganmi; POST {month: "YYYY-MM"} — shu oy varag'ini yaratadi/yangilaydi va havolani qaytaradi."""
+    _top(request.user)
+    if request.method == "GET":
+        return Response({"configured": gsheets.configured()})
+    month = month_start(request.data.get("month") or f"{today():%Y-%m}")
+    try:
+        return Response(sheet_report.generate(request.user, month))
+    except gsheets.SheetsError as e:
+        return Response({"detail": str(e)}, status=502)

@@ -660,7 +660,7 @@
       const rows = prData.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, k === 'ym' ? v : Number(v)])));
       const tot = (k) => A.sum(rows, k);
       const cls = (n) => (n > 0 ? 't-green' : n < 0 ? 't-red' : '');
-      return `${A.head('Foyda (oyma-oy)', "Foyda = to'lovlar − xarajatlar (faqat «Xarajat» turi) − hisoblangan oyliklar")}
+      return `${A.head('Foyda (oyma-oy)', "Foyda = to'lovlar − xarajatlar (faqat «Xarajat» turi) − hisoblangan oyliklar", A.isTop() ? A.btn('Hisobot olish', 'profit-report', { icon: 'download' }) : '')}
         <div class="filters"><span class="muted">Oylar:</span><div class="chips">${all.map((m) => `<button class="chip ${sel.includes(m) ? 'on' : ''}" data-act="profit-month" data-id="${m}">${A.ymLabel(m)}</button>`).join('')}</div></div>
         <div class="stats">${A.stat("To'lovlar", `<span class="t-blue">${A.money(tot('payments'))}</span>`)}${A.stat('Xarajatlar', `<span class="t-pink">${A.money(tot('expenses'))}</span>`)}${A.stat('Hisoblangan oyliklar', A.money(tot('salaries')))}${A.stat("Ko'rilgan foyda", `<span class="${cls(tot('profit'))}">${A.money(tot('profit'))}</span>`)}</div>
         <section class="card">${A.table(
@@ -680,6 +680,45 @@
         <section class="card">${A.chart({ type: 'bar', data: { labels: rows.map((r) => A.ymLabel(r.ym)), datasets: [{ label: "To'lovlar", data: rows.map((r) => r.payments), backgroundColor: '#2f80ed' }, { label: 'Xarajatlar', data: rows.map((r) => r.expenses), backgroundColor: '#e86fa6' }, { label: 'Oyliklar', data: rows.map((r) => r.salaries), backgroundColor: '#9b9ba3' }, { label: 'Foyda', data: rows.map((r) => r.profit), backgroundColor: A.PALETTE[3], borderColor: A.PALETTE[3], type: 'line' }] } })}</section>`;
     },
   });
+  /** Oylik moliyaviy hisobot — Google Sheets (server: /reports/sheet/). Bitta fayl, har oy yangi varaq. */
+  A.act['profit-report'] = async () => {
+    let configured = true;
+    try {
+      configured = (await A.http.get('/reports/sheet/')).configured;
+    } catch (e) {
+      A.toast(e.message, 'err');
+      return;
+    }
+    const cur = A.ym(A.today());
+    const months = [...Array(12)].map((_, i) => {
+      const d = new Date(Number(cur.slice(0, 4)), Number(cur.slice(5, 7)) - 1 - i, 1);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    });
+    const m = A.modal({
+      title: 'Moliyaviy hisobot (Google Sheets)',
+      body: `<p class="muted">Tanlangan oy uchun hisobot Google Sheets faylida yangi varaq bo'lib yaratiladi (bor bo'lsa — raqamlari yangilanadi, qo'lda yozganlaringiz saqlanadi).</p>
+        ${configured ? '' : `<div class="alert warn">${A.icon('alert')}<div>Google Sheets hali ulanmagan: administrator serverda <code>bash deploy/set-google.sh</code> ni ishga tushirishi kerak.</div></div>`}
+        <div class="field"><label for="gs-month">Oy</label><select id="gs-month" class="f-input">${months.map((k) => `<option value="${k}">${A.ymLabel(k)}${k === cur ? ' (joriy, hozirgacha)' : ''}</option>`).join('')}</select></div>
+        <div id="gs-result"></div>`,
+      footer: `<button class="btn ghost" data-close>Yopish</button><button class="btn primary" id="gs-go" ${configured ? '' : 'disabled'}>Hisobot olish</button>`,
+    });
+    const go = m.el.querySelector('#gs-go');
+    const out = m.el.querySelector('#gs-result');
+    go.addEventListener('click', async () => {
+      go.disabled = true;
+      go.textContent = 'Tayyorlanmoqda…';
+      out.innerHTML = '';
+      try {
+        const r = await A.http.post('/reports/sheet/', { month: m.el.querySelector('#gs-month').value });
+        out.innerHTML = `<div class="alert info">${A.icon('check')}<div><b>${A.esc(r.title)}</b> varag'i ${r.created ? 'yaratildi' : 'yangilandi'}${r.partial ? " (oy tugamagan — hozirgacha bo'lgan ma'lumot)" : ''}.</div></div>
+          <p><a class="btn primary" href="${A.esc(r.url)}" target="_blank" rel="noopener">Google Sheets'da ochish ↗</a></p>`;
+      } catch (e) {
+        out.innerHTML = `<div class="alert warn">${A.icon('alert')}<div>${A.esc(e.message)}</div></div>`;
+      }
+      go.disabled = false;
+      go.textContent = 'Qayta yangilash';
+    });
+  };
   A.act['profit-month'] = (el) => {
     const { all, sel } = profitMonths();
     const next = sel.includes(el.dataset.id) ? sel.filter((m) => m !== el.dataset.id) : [...sel, el.dataset.id];
