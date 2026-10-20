@@ -676,7 +676,7 @@
     section: 'debtors',
     async load(p, q) {
       if ((q.tab || 'month') === 'month') {
-        mData = await A.http.get('/debtors/month/?' + filterQS('debtors', ['search', 'course', 'state', 'month']));
+        mData = await A.http.get('/debtors/month/?' + filterQS('debtors', ['search', 'course', 'state', 'month', 'dismissed']));
         mData.results.forEach(A.keepContract);
       } else {
         dData = await A.http.get('/debtors/?' + filterQS('debtors', ['search', 'course', 'status']));
@@ -685,13 +685,14 @@
     },
     render(p, q) {
       const tab = q.tab || 'month';
-      const tabs = A.tabs([['month', "Shu oy to'lovi"], ['debt', 'Qarz (davomat bo\'yicha)']], tab, 'debtors');
+      const tabs = A.tabs([['month', "To'lovga tavsiya"], ['debt', 'Qarz (davomat bo\'yicha)']], tab, 'debtors');
       const month = `<input class="f-input" type="month" data-filter="debtors:month" title="Oy" value="${esc(A.q('debtors:month', '') || mData.month || '')}">`;
       if (tab === 'month') {
-        return `${A.head("Shu oy to'lovi", "Shu oy uchun to'lov qilmaganlar — kurs narxi bo'yicha (davomatga bog'liq emas). «To'lashi kerak» — o'quvchidan so'raladigan summa", A.btn('Excel', 'debtors-csv', { cls: 'ghost', icon: 'download' }))}
+        return `${A.head("To'lovga tavsiya", "Eslatma uchun: shu oy kurs narxi bo'yicha to'lov qilmaganlar. Bu qarz emas (qarz — «Qarz (davomat bo'yicha)» tabida). To'lov qilganini «✓ To'lov qilgan» bilan ro'yxatdan olib tashlang", A.btn('Excel', 'debtors-csv', { cls: 'ghost', icon: 'download' }))}
         ${tabs}
         ${A.filterBar('debtors', [A.fSearch('debtors'), A.fSelect('debtors', 'course', A.optList('courses'), 'Barcha kurslar'),
-          A.fSelect('debtors', 'state', [['wait', 'Kutilmoqda'], ['overdue', "Muddati o'tgan"]], 'Barcha holatlar'), month])}
+          A.fSelect('debtors', 'state', [['wait', 'Kutilmoqda'], ['overdue', "Muddati o'tgan"]], 'Barcha holatlar'),
+          ...(A.can('payments', 'a') ? [A.fSelect('debtors', 'dismissed', [['1', "Olib tashlanganlar"]], 'Tavsiyadagilar')] : []), month])}
         <div>${monthDues(mData)}</div>`;
       }
       return `${A.head('Qarzdorlar', "Davomat bo'yicha qarzi 0 dan katta shartnomalar. Chapdagi daraxt: filial → kurs → guruh", A.btn('Excel', 'debtors-csv', { cls: 'ghost', icon: 'download' }))}
@@ -712,20 +713,31 @@
   const phoneCol = { h: 'Telefon', f: (c) => [c.student_data.phone1, c.student_data.phone2].filter(Boolean).map((t) => `<a href="tel:+998${t}">${t}</a>`).join('<br>') };
   const payCol = { h: '', f: (c) => (paymentsReady() ? `<button class="btn sm" data-act="pay-new" data-id="${c.id}">To'lov</button>` : '') };
   const groupCol = { h: 'Guruh', f: (c) => esc(A.groupName(c.group)) };
+  const dismissCol = (restore) => ({ h: '', f: (c) => (A.can('payments', 'a') ? `<button class="btn sm ghost" data-act="${restore ? 'due-restore' : 'due-dismiss'}" data-id="${c.id}">${restore ? 'Qaytarish' : "✓ To'lov qilgan"}</button>` : '') });
+  const dueMonth = () => (mData.month || '');
+  const dueCall = async (el, what, msg) => {
+    await A.http.post(`/debtors/${el.dataset.id}/${what}/`, { month: dueMonth() });
+    A.toast(msg);
+    A.refresh();
+  };
+  A.act['due-dismiss'] = (el) => dueCall(el, 'dismiss', "Tavsiya ro'yxatidan olib tashlandi");
+  A.act['due-restore'] = (el) => dueCall(el, 'restore', "Tavsiyaga qaytarildi");
   function monthDues(d) {
+    const gone = /dismissed=1/.test(location.hash) || A.q('debtors:dismissed', '') === '1';
     const prev = (c) => (c.prev_balance > 0 ? `<span class="t-red">${A.num(c.prev_balance)} qarz</span>` : c.prev_balance < 0 ? `<span class="t-green">${A.num(-c.prev_balance)} oldindan</span>` : '—');
     const cols = [
       contractCol, phoneCol, groupCol,
       { h: 'Oy narxi', f: (c) => `${A.num(c.month_price)}${c.lessons < c.lessons_total ? ` <span class="muted" title="Oyning ${c.lessons}/${c.lessons_total} darsi">(${c.lessons}/${c.lessons_total})</span>` : ''}${c.no_price ? ' ' + A.badge("narx yo'q", 'orange') : ''}`, cls: 'num' },
       { h: 'Oldingi balans', f: prev, cls: 'num' },
       { h: "Shu oy to'langan", f: (c) => A.num(c.paid_month), cls: 'num' },
-      { h: "To'lashi kerak", f: (c) => `<b class="t-red">${A.num(c.to_pay)}</b>`, cls: 'num', sum: (r) => A.num(A.sum(r, 'to_pay')) },
+      { h: "Tavsiya summasi", f: (c) => `<b class="t-red">${A.num(c.to_pay)}</b>`, cls: 'num', sum: (r) => A.num(A.sum(r, 'to_pay')) },
       { h: 'Holat', f: (c) => (c.overdue ? A.badge(`Muddati o'tgan · ${c.days_over} kun`, 'red') : A.badge(`${c.deadline.slice(8)}.${c.deadline.slice(5, 7)} gacha`, 'orange')) },
       payCol,
+      dismissCol(gone),
     ];
-    return treeView('dm', d.results, (c) => c.to_pay, "Bu oy uchun to'lamagan o'quvchi yo'q", cols, (sel) => {
+    return treeView('dm', d.results, (c) => c.to_pay, gone ? "Olib tashlangan o'quvchi yo'q" : "Tavsiya qilinadigan o'quvchi yo'q", cols, (sel) => {
       const over = sel.filter((c) => c.overdue);
-      return `<div class="stats">${A.stat("To'lashi kerak", A.money(A.sum(sel, 'to_pay')), `${sel.length} ta o'quvchi`, 'danger')}
+      return `<div class="stats">${A.stat("To'lovga tavsiya", A.money(A.sum(sel, 'to_pay')), `${sel.length} ta o'quvchi`, 'danger')}
         ${A.stat("Muddati o'tgan", A.money(A.sum(over, 'to_pay')), `${over.length} ta o'quvchi`, over.length ? 'danger' : '')}</div>`;
     });
   }

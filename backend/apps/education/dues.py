@@ -19,7 +19,7 @@ from django.db.models import Q, Sum
 from apps.core.permissions import today as today_fn
 
 from .calc import Calculator, rnd
-from .models import Attendance, Contract
+from .models import Attendance, Contract, DueDismissal
 
 
 def _lessons(weekdays, start, end):
@@ -29,10 +29,11 @@ def _lessons(weekdays, start, end):
     return sum(1 for i in range((end - start).days + 1) if (start + datetime.timedelta(days=i)).isoweekday() in weekdays)
 
 
-def month_dues(contracts_qs, month=None, on=None):
+def month_dues(contracts_qs, month=None, on=None, dismissed="hide"):
     """`contracts_qs` — ko'rinish doirasidagi shartnomalar (filial doirasi qo'llangan). Qaytaradi: {contract_id: {...}}
     faqat shu oy uchun to'lashi kerak bo'lganlar (to_pay > 0) va ularning hisobi. Ro'yxat to'lashi kerak bo'yicha kamayish tartibida emas —
-    tartiblash chaqiruvchida."""
+    tartiblash chaqiruvchida.
+    `dismissed`: "hide" — «to'lov qilgan» deb olib tashlanganlar chiqmaydi (standart; Telegram ham shunday), "only" — faqat shular."""
     from apps.finance.models import Payment
 
     on = on or today_fn()
@@ -56,6 +57,7 @@ def month_dues(contracts_qs, month=None, on=None):
     pay_before = per_contract(Payment.objects.filter(date__lt=month), a=Sum("amount"), d=Sum("discount"))
     pay_month = per_contract(Payment.objects.filter(date__gte=month, date__lte=month_end), a=Sum("amount"), d=Sum("discount"))
 
+    gone = {d.contract_id: d for d in DueDismissal.objects.filter(contract__in=ids, month=month).select_related("created_by")}
     calc = Calculator()
     zero = Decimal(0)
     out = {}
@@ -74,8 +76,9 @@ def month_dues(contracts_qs, month=None, on=None):
             - (pay_before.get(c.pk, {}).get("a") or zero) - (pay_before.get(c.pk, {}).get("d") or zero)
         paid_m = (pay_month.get(c.pk, {}).get("a") or zero) + (pay_month.get(c.pk, {}).get("d") or zero)
         to_pay = max(zero, before + month_price - paid_m)
-        if to_pay <= 0:
+        if to_pay <= 0 or (c.pk in gone) != (dismissed == "only"):
             continue
+        gd = gone.get(c.pk)
         due_day = min(c.branch.payment_due_day or 10, last)
         deadline = month.replace(day=due_day)
         out[c.pk] = {
@@ -90,6 +93,8 @@ def month_dues(contracts_qs, month=None, on=None):
             "overdue": on > deadline,
             "days_over": max(0, (on - deadline).days),
             "no_price": no_price,
+            "dismissed_by": str(gd.created_by_id) if gd else None,
+            "dismissed_at": f"{gd.created_at:%Y-%m-%d %H:%M}" if gd else None,
         }
     return out
 

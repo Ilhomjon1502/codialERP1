@@ -125,3 +125,24 @@ def test_morning_plan_uses_month_dues(setup):
     on = D(2026, 11, 11)  # chorshanba — guruhning dars kuni, muddat (10) o'tgan
     text = reminders.plan_text(setup["branch"], on)
     assert c.student.full_name in text and "1 300 000" in text and "Muddati o'tgan" in text
+
+
+def test_dismissed_hidden_and_restorable(setup, api):
+    from apps.education.models import DueDismissal
+
+    c = setup["contract"]()
+    bm = setup["make_user"]("BOSH_MENEJER")
+    assert c.pk in run()
+    cl = api(bm)
+    assert cl.post(f"/api/v1/debtors/{c.pk}/dismiss/", {"month": "2026-11"}, format="json").status_code == 200
+    assert c.pk not in run()
+    assert c.pk in dues.month_dues(Contract.objects.all(), MONTH, datetime.date(2026, 11, 5), "only")
+    assert DueDismissal.objects.count() == 1
+    assert c.pk in dues.month_dues(Contract.objects.all(), datetime.date(2026, 12, 1), datetime.date(2026, 12, 5))  # keyingi oy yana chiqadi
+    assert cl.post(f"/api/v1/debtors/{c.pk}/restore/", {"month": "2026-11"}, format="json").status_code == 200
+    assert c.pk in run()
+
+
+def test_dismiss_forbidden_for_teacher(setup, api):
+    c = setup["contract"]()
+    assert api(setup["make_user"]("USTOZ")).post(f"/api/v1/debtors/{c.pk}/dismiss/", {}, format="json").status_code == 403

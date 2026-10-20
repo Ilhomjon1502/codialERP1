@@ -3,6 +3,8 @@ from decimal import Decimal
 
 from django.db.models import Count, Prefetch, Q, Sum
 from django.http import HttpResponse
+from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import action, api_view
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -20,7 +22,7 @@ from apps.references.services import month_start
 
 from . import calc, export, services
 from . import dues as dues_mod
-from .models import Attendance, Contract, Group, MakeupRequest, ParentCall, TeacherEvaluation
+from .models import Attendance, Contract, DueDismissal, Group, MakeupRequest, ParentCall, TeacherEvaluation
 from .serializers import (
     AttendanceSerializer,
     ContractSerializer,
@@ -192,8 +194,8 @@ class DebtorViewSet(AuditedModelViewSet):
     queryset = CONTRACT_QS
     serializer_class = ContractSerializer
     branch_field = "branch"
-    http_method_names = ["get", "head", "options"]
-    action_ops = {"month": "v"}
+    http_method_names = ["get", "post", "head", "options"]
+    action_ops = {"month": "v", "dismiss": "v", "restore": "v"}
 
     @action(detail=False, methods=["get"])
     def month(self, request):
@@ -209,7 +211,7 @@ class DebtorViewSet(AuditedModelViewSet):
             base = base.filter(group=p["group"])
         if p.get("search"):
             base = base.filter(search_q(p["search"], "student__"))
-        dues = {str(k): v for k, v in dues_mod.month_dues(base, first, on).items()}
+        dues = {str(k): v for k, v in dues_mod.month_dues(base, first, on, "only" if p.get("dismissed") else "hide").items()}
         qs = services.with_balance(base.filter(pk__in=list(dues)))
         rows = []
         for r in self.get_serializer(qs, many=True).data:
@@ -226,6 +228,30 @@ class DebtorViewSet(AuditedModelViewSet):
             "month": f"{first:%Y-%m}", "count": len(rows), "total": sum(r["to_pay"] for r in rows),
             "overdue_count": len(over), "overdue_total": sum(r["to_pay"] for r in over), "results": rows,
         })
+
+    def _dismiss(self, request, pk, on):
+        """POST /debtors/{id}/dismiss/ | restore/ {month: YYYY-MM} — «To'lovga tavsiya»dan shu oy uchun olib tashlash / qaytarish."""
+        if not can(request.user, "payments", "a"):
+            raise PermissionDenied("To'lov qabul qiladiganlar (Administrator+Hisobchi, Hisobchi, Bosh menejer, Admin) olib tashlay oladi")
+        c = get_object_or_404(self.get_queryset_unfiltered(), pk=pk)
+        month = month_bounds(request.data["month"])[0] if request.data.get("month") else today().replace(day=1)
+        row = DueDismissal.objects.filter(contract=c, month=month).first()
+        if on and not row:
+            row = DueDismissal.objects.create(contract=c, month=month, created_by=request.user)
+            audit.log_create(request.user, row, f"To'lovga tavsiyadan olib tashlandi ({month:%Y-%m})")
+        elif not on and row:
+            row.is_deleted, row.deleted_at, row.deleted_by = True, timezone.now(), request.user
+            row.save(update_fields=["is_deleted", "deleted_at", "deleted_by"])
+            audit.log_delete(request.user, row, f"To'lovga tavsiyaga qaytarildi ({month:%Y-%m})")
+        return Response({"ok": True})
+
+    @action(detail=True, methods=["post"])
+    def dismiss(self, request, pk=None):
+        return self._dismiss(request, pk, True)
+
+    @action(detail=True, methods=["post"])
+    def restore(self, request, pk=None):
+        return self._dismiss(request, pk, False)
 
     def get_queryset_unfiltered(self):
         return super().get_queryset()

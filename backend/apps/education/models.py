@@ -195,3 +195,18 @@ class ParentCall(BaseModel):
 
     def __str__(self):
         return f"{self.contract.student} · {self.date:%d.%m.%Y}"
+
+
+class DueDismissal(BaseModel):
+    """«To'lovga tavsiya» ro'yxatidan shu oy uchun olib tashlash (to'lov qilgan). Qarzga ta'sir qilmaydi, faqat eslatmani o'chiradi."""
+
+    contract = models.ForeignKey(Contract, on_delete=models.PROTECT, related_name="due_dismissals")
+    month = models.DateField("Oy (1-kun)", db_index=True)
+
+    class Meta:
+        verbose_name = "To'lov tavsiyasidan olib tashlash"
+        verbose_name_plural = "To'lov tavsiyasidan olib tashlanganlar"
+        constraints = [models.UniqueConstraint(fields=["contract", "month"], condition=Q(is_deleted=False), name="uniq_due_dismissal")]
+
+    def __str__(self):
+        return f"{self.contract} · {self.month:%Y-%m}"
