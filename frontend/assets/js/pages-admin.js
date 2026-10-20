@@ -676,15 +676,7 @@
           ${sm ? A.stat('Besabab kelmaganlar', sm.absent, "shu oyda · «Darsni yetkazdim» so'rovi", sm.absent ? 'warn' : '', '#/attendance?tab=absent') : ''}
         </div>
         ${schedHTML(dash.sched)}
-        <div class="stats">
-          ${A.stat('Faol kurslar', A.rows('courses').filter(isActive).length, '', '', A.can('settings') ? '#/settings?tab=courses' : '')}
-          ${A.stat('Xodimlar', A.S.users.filter((u) => u.status === 'Faol').length, 'faol', '', A.can('settings') ? '#/settings?tab=users' : '')}
-          ${A.stat('Xonalar', A.rows('rooms').filter(isActive).length)}
-          ${A.stat("G'aznalar", A.rows('accounts').filter(isActive).length)}
-        </div>
-        ${A.can('accounts') ? `<section class="card"><h2>G'azna qoldiqlari</h2>${A.rows('accounts').filter((a) => a.status === 'Faol' && a.balance !== null)
-          .map((a) => `<a class="acc-row" href="#/accounts/${a.id}"><span>${A.icon('safe')} ${esc(a.name)} <small class="muted">${A.CASH[a.cash_type]}</small></span><b>${A.money(a.balance)}</b>${Number(a.pending) ? `<small class="muted">tasdiqlanmagan: ${A.num(a.pending)}</small>` : ''}</a>`)
-          .join('') || A.empty("G'azna yo'q")}</section>` : ''}`;
+`;
     },
   });
 
