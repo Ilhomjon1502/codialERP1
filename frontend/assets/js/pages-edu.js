@@ -132,6 +132,17 @@
     });
   };
   A.act['group-new'] = () => A.groupForm(null);
+  A.act['group-del'] = async (el) => {
+    const g = A.get('groups', el.dataset.id);
+    if (!(await A.confirm(`${esc(A.groupName(g))} guruhi o'chirilsinmi?<br><small class="muted">Guruhda talabalar yo'q. Lid yoki davomat yozuvi bo'lsa, o'chirilmaydi.</small>`, "O'chirish", true))) return;
+    try {
+      await A.remove('groups', g.id);
+      A.toast("Guruh o'chirildi");
+      A.go('groups');
+    } catch (e) {
+      A.toast(e.message || "O'chirib bo'lmadi", 'warn');
+    }
+  };
   A.act['group-edit'] = (el) => A.groupForm(A.get('groups', el.dataset.id));
 
   /* ---- Guruh sahifasi: oylik davomat jurnali (/groups/{id}/journal/) ---- */
@@ -161,7 +172,8 @@
       return `<a class="back" href="#/groups">← Guruhlar</a>
         ${A.head(A.groupName(g), `${A.badge(g.status, g.status === 'Faol' ? 'green' : 'blue')} · ${esc(A.patternName(g.pattern))} · ${A.timeName(g.time)} · ${esc(A.roomName(g.room))}`,
           `${A.can('attendance', 'a') && A.hasLesson(g, today) ? `<a class="btn primary" href="#/attendance?tab=take&group=${g.id}">${A.icon('check')}Davomat olish</a>` : ''}
-           ${A.can('groups', 'e') ? A.btn('Tahrirlash', 'group-edit', { id, cls: 'ghost' }) : ''}`)}
+           ${A.can('groups', 'e') ? A.btn('Tahrirlash', 'group-edit', { id, cls: 'ghost' }) : ''}
+           ${A.can('groups', 'd') && !j.contracts.length ? A.btn("O'chirish", 'group-del', { id, cls: 'ghost' }) : ''}`)}
         <div class="stats">
           ${A.stat("To'lish", `<span class="t-${f.cls}">${f.pctText}</span>`, `${f.label} · ${f.n}/${f.cap}`)}
           ${A.stat("Bo'sh o'rinlar", f.free)}

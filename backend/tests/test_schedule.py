@@ -52,3 +52,15 @@ def test_schedule_counts_students_and_leads_for_planned_group(fin, make_user, ap
     row = next(x for x in api(make_user("BOSH_MENEJER")).get("/api/v1/schedule/").json()["groups"] if x["id"] == str(g.pk))
     assert row["status"] == "Rejada" and row["leads"] == 1
     assert row["students"] == Contract.objects.filter(group=g).count()
+
+
+def test_group_delete_only_when_empty(fin, make_user, api):  # noqa: F811
+    from apps.education.models import Group
+
+    g = fin["contract"].group
+    bm = api(make_user("BOSH_MENEJER"))
+    assert bm.delete(f"/api/v1/groups/{g.pk}/").status_code == 409  # shartnomasi bor
+    empty = Group.objects.create(branch=g.branch, course=g.course, day_pattern=g.day_pattern, time=g.time, teacher=g.teacher, room=g.room,
+                                 start_date=TODAY + datetime.timedelta(days=5), number=9)
+    assert bm.delete(f"/api/v1/groups/{empty.pk}/").status_code == 204
+    assert not Group.objects.filter(pk=empty.pk).exists()

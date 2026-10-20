@@ -76,7 +76,7 @@ class GroupViewSet(BranchDefaultMixin, AuditedModelViewSet):
     serializer_class = GroupSerializer
     branch_field = "branch"
     action_ops = {"journal": "v"}
-    http_method_names = ["get", "post", "patch", "head", "options"]
+    http_method_names = ["get", "post", "patch", "delete", "head", "options"]
 
     def get_queryset(self):
         qs = services.with_fill(services.teacher_scope(super().get_queryset(), self.request.user, group_field=None))
