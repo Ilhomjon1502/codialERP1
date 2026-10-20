@@ -713,7 +713,7 @@
   const phoneCol = { h: 'Telefon', f: (c) => [c.student_data.phone1, c.student_data.phone2].filter(Boolean).map((t) => `<a href="tel:+998${t}">${t}</a>`).join('<br>') };
   const payCol = { h: '', f: (c) => (paymentsReady() ? `<button class="btn sm" data-act="pay-new" data-id="${c.id}">To'lov</button>` : '') };
   const groupCol = { h: 'Guruh', f: (c) => esc(A.groupName(c.group)) };
-  const dismissCol = (restore) => ({ h: '', f: (c) => (A.can('payments', 'a') ? `<button class="btn sm ghost" data-act="${restore ? 'due-restore' : 'due-dismiss'}" data-id="${c.id}">${restore ? 'Qaytarish' : "✓ To'lov qilgan"}</button>` : '') });
+  const dismissCol = (restore) => ({ h: '', f: (c) => (A.can('payments', 'a') ? `<button class="btn sm ${restore ? 'ghost' : 'success'}" data-act="${restore ? 'due-restore' : 'due-dismiss'}" data-id="${c.id}">${restore ? 'Qaytarish' : "✓ To'lov qilgan"}</button>` : '') });
   const dueMonth = () => (mData.month || '');
   const dueCall = async (el, what, msg) => {
     await A.http.post(`/debtors/${el.dataset.id}/${what}/`, { month: dueMonth() });

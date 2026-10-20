@@ -131,6 +131,7 @@ code { background: var(--gray-50); padding: 1px 5px; border-radius: 4px; font-si
 .btn.primary:hover { background: var(--brand-600); }
 .btn.ghost { background: transparent; }
 .btn.danger { background: var(--red); border-color: var(--red); color: #fff; }
+.btn.success { background: var(--green); border-color: var(--green); color: #fff; }
 .btn.sm { padding: 4px 10px; min-height: 30px; font-size: 12.5px; }
 .btn.block { width: 100%; }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
