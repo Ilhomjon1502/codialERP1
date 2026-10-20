@@ -30,26 +30,49 @@
   });
 
   /* ---- Guruh formasi. Tekshiruvlar serverda ham bor (services.validate_group) ---- */
-  /* ---- Qo'lda dars vaqti kiritish (hamma joyda): Sozlamalardagi vaqt bo'lmasa yangisi yaratiladi va Sozlamalarga ham qo'shiladi ---- */
-  A.NEW_TIME = '__new';
+  /* ---- Dars vaqti: 30 daqiqa oralig'ida qo'lda tanlanadi (08:00, 08:30…). Mos vaqt yozuvi bo'lmasa yangisi o'zi yaratiladi ---- */
+  A.TIME_SLOTS = [];
+  for (let m = 6 * 60; m <= 23 * 60 + 30; m += 30) A.TIME_SLOTS.push(`${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`);
   A.ensureTime = async (start, end, B) => {
     const ex = A.rows('lessonTimes').find((t) => t.branch === B && t.start === start && t.end === end);
-    if (ex) return ex.id;
+    if (ex) {
+      if ((ex.status || 'Faol') !== 'Faol') A.putLocal('lessonTimes', await A.http.patch(`/lesson-times/${ex.id}/`, { status: 'Faol' }));
+      return ex.id;
+    }
     const t = await A.http.post('/lesson-times/', { branch: B, start, end });
     A.putLocal('lessonTimes', t);
     return t.id;
   };
+  /** Mavjud vaqt yozuvidan forma qiymatlari */
+  A.timeValues = (id) => {
+    const t = id && A.get('lessonTimes', id);
+    return t ? { new_start: t.start, new_end: t.end } : {};
+  };
+  /** Boshlanish va tugash — yarim soatlik tanlov (eski «g'alati» vaqt bo'lsa, u ham ro'yxatda qoladi). opts: { show, optional } */
+  A.timeFields = (opts = {}) => {
+    const mins = (t) => { const [h, m] = String(t).split(':').map(Number); return h * 60 + m; };
+    const slots = (cur) => [...new Set([...(cur ? [cur] : []), ...A.TIME_SLOTS])].sort().map((v) => [v, v]);
+    const plus2h = (t) => { const m = Math.min(mins(t) + 120, 23 * 60 + 30); return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; };
+    return [
+      {
+        name: 'new_start', label: opts.optional ? "Ma'qul vaqt: boshlanish" : 'Dars boshlanishi', type: 'select', required: !opts.optional, half: true, show: opts.show,
+        placeholder: opts.optional ? 'Tanlanmagan' : undefined, options: (x) => slots(x.new_start),
+        onChange: (x) => { if (x.new_start && (!x.new_end || mins(x.new_end) <= mins(x.new_start))) x.new_end = plus2h(x.new_start); },
+        validate: (d, x) => (opts.optional && !x.new_end ? 'Tugash vaqtini ham tanlang' : ''),
+      },
+      {
+        name: 'new_end', label: opts.optional ? "Ma'qul vaqt: tugash" : 'Dars tugashi', type: 'select', required: !opts.optional, half: true, show: opts.show,
+        placeholder: opts.optional ? 'Tanlanmagan' : undefined, options: (x) => slots(x.new_end),
+        validate: (d, x) => (opts.optional && x.new_start && !d ? 'Tugash vaqtini tanlang' : d && x.new_start && mins(d) <= mins(x.new_start) ? "Tugash vaqti boshlanishdan keyin bo'lsin" : ''),
+      },
+    ];
+  };
   A.groupForm = (g, preset) => {
     const isNew = !g;
     const B = g ? g.branch : A.branchIds()[0];
-    const NEW = '__new';
     const staff = (roles, x) => A.S.users.filter((u) => roles.includes(u.role) && (u.status === 'Faol' || u.id === x) && (u.branches || []).includes(B));
     const hm = (t) => { const [h, m] = String(t).split(':').map(Number); return h * 60 + m; };
-    const timeOf = (x) => {
-      if (x.time === NEW) return x.new_start && x.new_end && hm(x.new_end) > hm(x.new_start) ? { s: hm(x.new_start), e: hm(x.new_end) } : null;
-      const t = x.time && A.get('lessonTimes', x.time);
-      return t ? { s: hm(t.start), e: hm(t.end) } : null;
-    };
+    const timeOf = (x) => (x.new_start && x.new_end && hm(x.new_end) > hm(x.new_start) ? { s: hm(x.new_start), e: hm(x.new_end) } : null);
     const timeReady = (x) => !!timeOf(x);
     // Shu kun va vaqtda xona yoki ustoz band bo'lgan guruhlar (ogohlantirish, saqlashga to'sqinlik qilmaydi)
     const clashes = (x, by) => {
@@ -68,17 +91,11 @@
     };
     A.form({
       title: isNew ? 'Yangi guruh' : A.groupName(g),
-      values: g ? { ...g } : { start: A.today(), ...(preset || {}) },
+      values: (() => { const base = g ? { ...g } : { start: A.today(), ...(preset || {}) }; return { ...base, ...A.timeValues(base.time) }; })(),
       fields: [
         { name: 'course', label: 'Kurs', type: 'select', required: true, readonly: () => !isNew && A.role() !== 'ADMIN', options: (x) => A.optList('courses', 'name', (c) => (c.status === 'Faol' && c.branches.includes(B)) || c.id === x.course), help: isNew ? '' : "Kursni faqat Admin o'zgartiradi (guruhda shartnoma bo'lmasa)" },
         { name: 'pattern', label: 'Dars kunlari', type: 'seg', required: true, show: (x) => x.course, options: (x) => A.optList('dayPatterns', 'name', (p) => (p.status || 'Faol') === 'Faol' || p.id === x.pattern) },
-        {
-          name: 'time', label: 'Dars vaqti', type: 'seg', required: true, show: (x) => x.pattern,
-          options: (x) => [...A.optList('lessonTimes', (t) => `${t.start}-${t.end}`, (t) => t.branch === B && ((t.status || 'Faol') === 'Faol' || t.id === x.time)), [NEW, '＋ Boshqa vaqt']],
-          help: "Sozlamalardagi vaqtlardan tanlang yoki «Boshqa vaqt» orqali o'zingiz kiriting (u Sozlamalarga ham qo'shiladi)",
-        },
-        { name: 'new_start', label: 'Boshlanish vaqti', type: 'time', required: true, half: true, show: (x) => x.time === NEW, validate: (d, x) => (x.new_end && hm(x.new_end) <= hm(d) ? "Tugash vaqti boshlanishdan keyin bo'lsin" : '') },
-        { name: 'new_end', label: 'Tugash vaqti', type: 'time', required: true, half: true, show: (x) => x.time === NEW },
+        ...A.timeFields({ show: (x) => x.pattern }),
         { name: 'teacher', label: 'Ustoz', type: 'select', required: true, show: timeReady, options: (x) => staff(['USTOZ', 'USTOZ_YORDAMCHI'], x.teacher).map((u) => [u.id, u.full_name]) },
         { name: 'supporter', label: 'Yordamchi ustoz (ixtiyoriy)', type: 'select', show: (x) => x.teacher, options: (x) => staff(['YORDAMCHI', 'USTOZ_YORDAMCHI'], x.supporter).filter((u) => u.id !== x.teacher).map((u) => [u.id, u.full_name]), placeholder: "Yo'q" },
         {
@@ -104,16 +121,7 @@
         { name: 'comment', label: "Qo'shimcha izoh", type: 'textarea', show: (x) => x.room },
       ],
       async onSubmit(x) {
-        let timeId = x.time;
-        if (timeId === NEW) {
-          const ex = A.rows('lessonTimes').find((t) => t.branch === B && t.start === x.new_start && t.end === x.new_end);
-          if (ex) timeId = ex.id;
-          else {
-            const t = await A.http.post('/lesson-times/', { branch: B, start: x.new_start, end: x.new_end });
-            A.putLocal('lessonTimes', t);
-            timeId = t.id;
-          }
-        }
+        const timeId = await A.ensureTime(x.new_start, x.new_end, B);
         const rec = { course: x.course, pattern: x.pattern, time: timeId, teacher: x.teacher, supporter: x.supporter || null, room: x.room, start: x.start, end: x.end || null, comment: x.comment || '' };
         const saved = isNew ? await A.http.post('/groups/', rec) : await A.http.patch(`/groups/${g.id}/`, rec);
         A.putLocal('groups', saved);

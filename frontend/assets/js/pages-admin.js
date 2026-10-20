@@ -107,18 +107,6 @@
     },
     rows: () => A.rows('dayPatterns').map((p) => ({ ...p, weekdays: p.weekdays.map(String) })),
   };
-  CRUD.times = {
-    coll: 'lessonTimes', title: 'Dars vaqtlari', deletable: true,
-    note: "Nofaol dars vaqti yangi guruh va lid formalarida chiqmaydi. Guruh yoki lidda ishlatilganini o'chirib bo'lmaydi — faqat nofaol qilinadi.",
-    label: (r) => `${r.start} - ${r.end}`,
-    cols: [{ h: 'Vaqt', f: (r) => `<b>${r.start} - ${r.end}</b>` }, { h: 'Status', f: statusBadge }],
-    fields: [
-      { name: 'start', label: 'Boshlanish vaqti', type: 'time', required: true, onChange: (x) => { if (x.start) { const [h, m] = x.start.split(':').map(Number); x.end = `${String((h + 2) % 24).padStart(2, '0')}:${String(m).padStart(2, '0')}`; } } },
-      { name: 'end', label: 'Tugash vaqti', type: 'time', required: true, show: (x) => x.start, help: 'Standart: boshlanish + 2 soat' },
-      { ...STATUS_FIELD, show: (x) => x.start },
-    ],
-    extra: () => ({ branch: B() }),
-  };
   CRUD.branches = {
     coll: 'branches', title: 'Filiallar', topOnly: true,
     note: "Faol filial bitta bo'lsa, u hamma joyda avtomatik tanlanadi va filial maydoni ko'rinmaydi. Filiallarni faqat Admin va Bosh menejer o'zgartiradi.",
@@ -262,7 +250,7 @@
   const TABS = [
     ['courses', 'Kurslar'], ['prices', 'Kurs narxlari'], ['freq', 'Oydagi dars soni'], ['rates', 'KPI stavkalari'],
     ['discounts', 'Chegirma turlari'], ['expcats', 'Xarajat kategoriyalari'], ['sources', 'Lid manbalari'], ['rooms', 'Xonalar'],
-    ['patterns', 'Dars kunlari'], ['times', 'Dars vaqtlari'], ['branches', 'Filiallar'], ['accounts', "G'aznalar"],
+    ['patterns', 'Dars kunlari'], ['branches', 'Filiallar'], ['accounts', "G'aznalar"],
     ['users', 'Foydalanuvchilar'], ['roles', 'Rollar va ruxsatlar'], ['attstatus', 'Davomat statuslari'],
   ];
   A.page('settings', {
@@ -495,15 +483,8 @@
     const preset = {};
     const pat = A.rows('dayPatterns').find((p) => (p.status || 'Faol') === 'Faol' && (p.weekdays || []).includes(day));
     if (pat) preset.pattern = pat.id;
-    const times = A.rows('lessonTimes').filter((t) => (t.status || 'Faol') === 'Faol');
-    const tm = times.find((t) => mins(t.start) <= at && at < mins(t.end))
-      || times.filter((t) => mins(t.start) >= at).sort((a, b) => mins(a.start) - mins(b.start))[0];
-    if (tm && mins(tm.start) <= at && at < mins(tm.end)) preset.time = tm.id;
-    else {
-      // mos vaqt yo'q — bosilgan joydan boshlab yangi vaqt (2 soat) taklif qilinadi
-      const s0 = Math.floor(at / SLOT) * SLOT;
-      Object.assign(preset, { time: '__new', new_start: hhmm(s0), new_end: hhmm(Math.min(s0 + 120, 23 * 60 + 59)) });
-    }
+    const s0 = Math.floor(at / 30) * 30; // bosilgan joydan boshlab, yarim soatga yaxlitlab, 2 soatlik dars
+    Object.assign(preset, { new_start: hhmm(s0), new_end: hhmm(Math.min(s0 + 120, 23 * 60 + 30)) });
     if (el.dataset.by === 'room') preset.room = el.dataset.key;
     else preset.teacher = el.dataset.key;
     A.groupForm(null, preset);
@@ -595,7 +576,7 @@
     const others = ((dash.sched && dash.sched.groups) || []).filter((o) => o.id !== g.id).map((o) => ({ ...o, s: mins(o.start), e: mins(o.end) }));
     const probe = (x) => {
       const p = A.get('dayPatterns', x.pattern);
-      const t = x.time === A.NEW_TIME ? (x.new_start && x.new_end && x.new_end > x.new_start ? { start: x.new_start, end: x.new_end } : null) : A.get('lessonTimes', x.time);
+      const t = x.new_start && x.new_end && x.new_end > x.new_start ? { start: x.new_start, end: x.new_end } : null;
       return p && t ? { weekdays: p.weekdays || [], s: mins(t.start), e: mins(t.end) } : null;
     };
     const clashes = (x) => {
@@ -606,12 +587,10 @@
     };
     A.form({
       title: `${A.groupName(g)} — jadval`,
-      values: { pattern: g.pattern, time: g.time, room: g.room, teacher: g.teacher, supporter: g.supporter || '' },
+      values: { pattern: g.pattern, ...A.timeValues(g.time), room: g.room, teacher: g.teacher, supporter: g.supporter || '' },
       fields: [
         { name: 'pattern', label: 'Dars kunlari', type: 'seg', required: true, options: (x) => A.optList('dayPatterns', 'name', (p) => (p.status || 'Faol') === 'Faol' || p.id === x.pattern) },
-        { name: 'time', label: 'Dars vaqti', type: 'seg', required: true, options: (x) => [...A.optList('lessonTimes', (t) => `${t.start}-${t.end}`, (t) => t.branch === B && ((t.status || 'Faol') === 'Faol' || t.id === x.time)), [A.NEW_TIME, "＋ Boshqa vaqt"]], help: "Sozlamalardagi vaqtlardan tanlang yoki «Boshqa vaqt» orqali o'zingiz kiriting" },
-        { name: 'new_start', label: 'Boshlanish vaqti', type: 'time', required: true, half: true, show: (x) => x.time === A.NEW_TIME, validate: (d, x) => (x.new_end && x.new_end <= d ? "Tugash vaqti boshlanishdan keyin bo'lsin" : '') },
-        { name: 'new_end', label: 'Tugash vaqti', type: 'time', required: true, half: true, show: (x) => x.time === A.NEW_TIME },
+        ...A.timeFields(),
         {
           name: 'room', label: 'Xona', type: 'select', required: true,
           options: (x) => A.rows('rooms').filter((r) => r.branch === B && (r.status === 'Faol' || r.id === x.room)).map((r) => {
@@ -625,7 +604,7 @@
         { name: 'warn', label: 'Tekshiruv', type: 'computed', compute: (x) => { const c = clashes(x); return c.length ? `⚠️ Ustma-ust: ${c.join('; ')}` : "✓ Xona va ustoz bu vaqtda bo'sh"; } },
       ],
       async onSubmit(x) {
-        const time = x.time === A.NEW_TIME ? await A.ensureTime(x.new_start, x.new_end, B) : x.time;
+        const time = await A.ensureTime(x.new_start, x.new_end, B);
         const saved = await A.http.patch(`/groups/${g.id}/`, { pattern: x.pattern, time, room: x.room, teacher: x.teacher, supporter: x.supporter || null });
         A.putLocal('groups', saved);
         A.toast(`Saqlandi: ${saved.name}`);

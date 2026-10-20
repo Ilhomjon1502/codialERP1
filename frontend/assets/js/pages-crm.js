@@ -268,6 +268,7 @@
     const isNew = !lead;
     const B = lead ? lead.branch : A.branchIds()[0];
     const v = lead ? { ...lead } : { status: '2', times: [], tags: [], mode: 'new', ...preset };
+    Object.assign(v, A.timeValues((v.times || [])[0]));
     if (v.demo_date == null) delete v.demo_date; // standart — bugun (guruh tanlanganda ko'rinadi)
     const phone = (t) => (!/^\d{9}$/.test(t) ? "9 sondan iborat bo'lsin. Masalan, 998883322" : '');
     const fields = [
@@ -290,9 +291,7 @@
       { name: 'source', label: 'Manba', type: 'select', options: (x) => A.optList('leadSources', 'name', (s) => (s.status || 'Faol') === 'Faol' || s.id === x.source), required: true, half: true },
       { name: 'course', label: 'Kurs', type: 'select', options: (x) => A.optList('courses', 'name', (c) => (c.status === 'Faol' && c.branches.includes(B)) || c.id === x.course), required: true, half: true },
       { name: 'pattern', label: 'Hafta kunlari', type: 'seg', options: (x) => A.optList('dayPatterns', 'name', (p) => (p.status || 'Faol') === 'Faol' || p.id === x.pattern) },
-      { name: 'times', label: "Ma'qul dars vaqti", type: 'chips', options: (x) => A.optList('lessonTimes', (t) => `${t.start}-${t.end}`, (t) => t.branch === B && ((t.status || 'Faol') === 'Faol' || (x.times || []).includes(t.id))) },
-      { name: 'new_start', label: "Yoki boshqa vaqt: boshlanish", type: 'time', half: true, help: "Ro'yxatda kerakli vaqt bo'lmasa — o'zingiz kiriting (Sozlamalarga ham qo'shiladi)", validate: (d, x) => (!x.new_end ? 'Tugash vaqtini ham kiriting' : x.new_end <= d ? "Tugash vaqti boshlanishdan keyin bo'lsin" : '') },
-      { name: 'new_end', label: 'Tugash', type: 'time', half: true, validate: (d, x) => (!x.new_start ? 'Boshlanish vaqtini ham kiriting' : '') },
+      ...A.timeFields({ optional: true }),
       { name: 'status', label: 'Status', type: 'select', options: Object.entries(LS).map(([k, l]) => [k, `${k}. ${l}`]), required: true },
       {
         name: 'group', label: 'Guruh', type: 'select', show: (x) => ['3', '4', '5'].includes(x.status) || (x.group && !['1', '2'].includes(x.status)),
@@ -309,10 +308,10 @@
       values: v,
       async onSubmit(x) {
         const withGroup = ['3', '4', '5'].includes(x.status) && x.group;
-        const times = [...(x.times || [])];
+        let times = [];
         if (x.new_start && x.new_end) {
-          const tid = await A.ensureTime(x.new_start, x.new_end, B);
-          if (!times.includes(tid)) times.push(tid);
+          const first = (v.times || [])[0] && A.get('lessonTimes', v.times[0]);
+          times = first && first.start === x.new_start && first.end === x.new_end ? [...v.times] : [await A.ensureTime(x.new_start, x.new_end, B)];
         }
         const rec = {
           source: x.source, course: x.course, pattern: x.pattern || null, times, status: x.status, age_group: x.age_group, social: x.social, laptop: x.laptop, tags: x.tags,

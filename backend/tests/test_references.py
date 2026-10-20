@@ -143,3 +143,10 @@ def test_lead_source_and_expense_category_unique(api, admin):
     assert c.post("/api/v1/lead-sources/", {"name": "instagram"}, format="json").json()["name"] == ["Avval qo'shilgan nom!"]
     assert c.post("/api/v1/expense-categories/", {"name": "Ijara"}, format="json").status_code == 201
     assert c.post("/api/v1/expense-categories/", {"name": "IJARA"}, format="json").json()["name"] == ["Avval qo'shilgan nom!"]
+
+
+def test_new_lesson_time_must_be_half_hour_step(api, make_user, branch):
+    c = api(make_user("ADMIN"))
+    r = c.post("/api/v1/lesson-times/", {"branch": str(branch.pk), "start": "08:15", "end": "10:00"}, format="json")
+    assert r.status_code == 400 and "yarim soat" in r.json()["start"][0]
+    assert c.post("/api/v1/lesson-times/", {"branch": str(branch.pk), "start": "08:30", "end": "10:30"}, format="json").status_code == 201

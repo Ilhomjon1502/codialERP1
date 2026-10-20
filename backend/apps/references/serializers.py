@@ -96,6 +96,8 @@ class LessonTimeSerializer(BranchScopedSerializerMixin, serializers.ModelSeriali
         branch = attrs.get("branch", getattr(self.instance, "branch", None))
         if start and end and end <= start:
             raise serializers.ValidationError({"end": "Tugash vaqti boshlanishdan keyin bo'lsin"})
+        if self.instance is None and any(t and t.minute not in (0, 30) for t in (start, end)):
+            raise serializers.ValidationError({"start": "Dars vaqti faqat yarim soat qadamida bo'ladi (masalan 08:00 yoki 08:30)"})
         if LessonTime.objects.filter(branch=branch, start_time=start, end_time=end).exclude(pk=getattr(self.instance, "pk", None)).exists():
             raise serializers.ValidationError({"start": "Avval qo'shilgan vaqt!"})
         return attrs
