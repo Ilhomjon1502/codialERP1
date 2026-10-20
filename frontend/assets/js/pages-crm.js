@@ -33,7 +33,6 @@
       const groups = A.vis('groups').filter((g) => A.groupStatus(g) === 'Faol');
       const taklif = A.rows('lessonFreqs').filter((f) => f.status === 'Taklif' && `${f.year}-${String(f.month).padStart(2, '0')}` === ym);
       const lessonsToday = A.vis('groups').filter((g) => A.hasLesson(g, today));
-      const notTaken = lessonsToday.filter((g) => !A.attendanceTaken(g.id, today));
       const pc = A.pendingCount();
       const monthPays = A.sum(pays.filter((p) => A.ym(p.date) === ym), 'amount');
       const newLeads = A.vis('leads').filter((l) => A.ym(A.iso(new Date(l.created_at))) === ym).length;
@@ -42,11 +41,6 @@
       if (taklif.length) {
         warn += `<div class="alert warn">${A.icon('alert')}<div><b>${A.ymLabel(ym)} uchun oydagi dars soni tasdiqlanmagan:</b> ${taklif.map((f) => A.patternName(f.pattern)).join(', ')}.
           Bu guruhlar uchun talaba qarzi va KPI hisoblanmayapti. ${A.canApproveFreq() ? `<a href="#/settings?tab=freq">Tekshirish va tasdiqlash →</a>` : ''}</div></div>`;
-      }
-      if (notTaken.length && A.can('attendance')) {
-        warn += `<div class="alert info">${A.icon('check')}<div><b>Bugun davomati olinmagan guruhlar (${notTaken.length}):</b> ${notTaken
-          .map((g) => `<a href="#/attendance?tab=take&group=${g.id}">${esc(A.groupName(g))}</a> <span class="muted">(${A.timeName(g.time)}, ${esc(A.userName(g.teacher))})</span>`)
-          .join(' · ')}</div></div>`;
       }
 
       const accounts = A.can('accounts') ? A.rows('accounts').filter((a) => a.status === 'Faol') : [];

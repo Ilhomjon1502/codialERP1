@@ -672,7 +672,6 @@
       const today = A.today();
       const activeGroups = A.rows('groups').filter((g) => g.status === 'Faol');
       const mine = A.isTeacherRole() ? activeGroups.filter((g) => g.teacher === me.id || g.supporter === me.id) : activeGroups;
-      const notTaken = mine.filter((g) => A.hasLesson(g, today) && !A.attendanceTaken(g.id, today));
       const sm = dash.summary;
       const ym = A.ym(A.today());
       const [y, m] = ym.split('-').map(Number);
@@ -680,8 +679,6 @@
       return `${A.head(`Assalomu alaykum, ${esc(me.full_name.split(' ')[0])}!`, `${A.WD_FULL[A.isoWeekday(A.today())]}, ${A.fdate(A.today())} · ${esc(A.ROLES[me.role])}`)}
         ${unapproved.length && A.can('settings') ? `<div class="alert warn">${A.icon('alert')}<div><b>${A.ymLabel(ym)} uchun oydagi dars soni tasdiqlanmagan:</b> ${unapproved.map((p) => esc(p.name)).join(', ')}. <a href="#/settings?tab=freq">Tekshirish va tasdiqlash →</a></div></div>` : ''}
         ${(() => { const ts = A.S.taskSummary; return ts && ts.in_open ? `<div class="alert ${ts.in_overdue ? 'danger' : 'info'}">${A.icon('task')}<div><b>Sizda ${ts.in_open} ta ochiq topshiriq${ts.in_overdue ? `, ${ts.in_overdue} tasining muddati o'tgan` : ''}.</b> <a href="#/tasks">Topshiriqlarni ochish →</a></div></div>` : ''; })()}
-        ${notTaken.length && A.can('attendance') ? `<div class="alert info">${A.icon('check')}<div><b>Bugun davomati olinmagan guruhlar (${notTaken.length}):</b> ${notTaken
-          .map((g) => `<a href="#/attendance?tab=take&group=${g.id}">${esc(A.groupName(g))}</a> <span class="muted">(${A.timeName(g.time)}, ${esc(A.userName(g.teacher))})</span>`).join(' · ')}</div></div>` : ''}
         <div class="stats">
           ${dash.pays ? A.stat("Bugungi to'lovlar", A.money(Number(dash.pays.cash) + Number(dash.pays.noncash)), `Naqd: ${A.num(dash.pays.cash)} · Naqdsiz: ${A.num(dash.pays.noncash)}`, '', '#/payments') : ''}
           ${dash.pays ? A.stat('Shu oy tushum', A.money(dash.pays.month), A.ymLabel(A.ym(today)), '', '#/payments') : ''}
