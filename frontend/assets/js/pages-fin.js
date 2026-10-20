@@ -206,6 +206,8 @@
             { h: 'Turi', f: (x) => A.CASH[x.cash_type] },
             { h: 'Summa', f: (x) => `<b>${A.num(x.amount)}</b>`, cls: 'num' },
             { h: "G'azna", f: (x) => esc(A.accName(x.cashbox)) },
+            { h: 'Izoh', f: (x) => (x.comment ? `<b>${esc(x.comment)}</b>` : '<span class="muted">—</span>') },
+            { h: 'Kiritdi', f: (x) => esc(A.userName(x.created_by)) },
             { h: '', f: (x) => btn('ok-nc', x.id, x.can_approve_nc, "Ruxsat yo'q yoki muddat o'tgan") },
           ],
           rows,
