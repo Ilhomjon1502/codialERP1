@@ -436,9 +436,10 @@
         const clash = items.some((o) => o !== g && o.s < g.e && g.s < o.e);
         const c = color(g);
         const second = by === 'room' ? g.teacher_name : data.rooms.find((r) => r.id === g.room)?.name || '';
-        const title = `${g.name} · ${g.start}–${g.end} · ${g.teacher_name}${g.supporter_name ? ` (yordamchi: ${g.supporter_name})` : ''} · ${g.students}/${g.capacity || '—'} talaba${g.status === 'Rejada' ? ` · Rejada: ${A.fdate(g.start_date)} dan` : ''}${clash ? ' · DIQQAT: vaqti boshqa guruh bilan ustma-ust' : ''}`;
+        const plan = g.status === 'Rejada';
+        const title = `${g.name} · ${g.start}–${g.end} · ${g.teacher_name}${g.supporter_name ? ` (yordamchi: ${g.supporter_name})` : ''} · ${g.students}/${g.capacity || '—'} talaba${plan ? `, ${g.leads} ta lid · Rejada: ${A.fdate(g.start_date)} dan` : ''}${clash ? ' · DIQQAT: vaqti boshqa guruh bilan ustma-ust' : ''}`;
         const cls = `sched-b${g.status === 'Rejada' ? ' plan' : ''}${clash ? ' clash' : ''}${lanes > 1 ? ' stack' : ''}`;
-        const inner = `<b>${esc(g.name)}</b><small>${esc(second)} · ${g.students}/${g.capacity || '—'}</small>`;
+        const inner = `${plan ? '<em class="plan-tag">rejada</em>' : ''}<b>${esc(g.name)}</b><small>${esc(second)} · 👥 ${g.students}/${g.capacity || '—'}${plan ? ` · ${g.leads} lid` : ''}</small>`;
         const st = `left:calc(${pos(g.s - t0)} + 3px);width:calc(${pos(g.e - g.s)} - 6px);--c:${c}${lanes > 1 ? `;top:${6 + g.lane * STRIP}px;z-index:${g.lane + 1}` : ''}`;
         return canEdit
           ? `<div class="${cls}" role="button" tabindex="0" data-act="group-manage" data-id="${g.id}" title="${esc(title)} · bosing — guruhni boshqarish" style="${st}">${inner}</div>`
@@ -460,13 +461,13 @@
         const attrs = canEdit ? `data-act="group-manage" data-id="${g.id}" role="button"` : `href="#/groups/${g.id}"`;
         return `<li><div class="t">${g.start}<small>${g.end}</small></div>
           <a class="g${clash ? ' clash' : ''}${g.status === 'Rejada' ? ' plan' : ''}" ${attrs} style="--c:${color(g)}"><b>${esc(g.name)}</b>
-          <small>${esc(room)} · ${esc(g.teacher_name)} · ${g.students}/${g.capacity || '—'}${g.status === 'Rejada' ? ' · rejada' : ''}${clash ? ' · ⚠️ ustma-ust' : ''}</small></a></li>`;
+          <small>${esc(room)} · ${esc(g.teacher_name)} · 👥 ${g.students}/${g.capacity || '—'}${g.status === 'Rejada' ? ` · ${g.leads} lid · rejada` : ''}${clash ? ' · ⚠️ ustma-ust' : ''}</small></a></li>`;
       }).join('')}</ul>`;
     };
     return `<section class="card sched"><div class="row between wrap"><h2>Dars jadvali</h2>
         <div class="seg">${[['room', 'Xonalar'], ['teacher', 'Ustozlar']].map(([k, l]) => `<button class="${by === k ? 'on' : ''}" data-act="sched-by" data-id="${k}">${l}</button>`).join('')}</div></div>
       <div class="sched-days">${tabs}</div>
-      <p class="muted small">${todays.length} dars · ${roomsUsed}/${data.rooms.length} xona band · ${pct}% band<span class="sched-help"> · ${hhmm(t0)}–${hhmm(t1)}. Jadval guruhlardan avtomatik tuziladi; ${canEdit ? "guruhni bosing — uni shu yerda to'liq boshqarasiz (jadval, o'quvchilar, yopish)." : 'guruhni bosing — batafsil.'} Shtrixli — rejadagi guruh, qizil — vaqti ustma-ust.</span></p>
+      <p class="muted small">${todays.length} dars · ${roomsUsed}/${data.rooms.length} xona band · ${pct}% band<span class="sched-help"> · ${hhmm(t0)}–${hhmm(t1)}. Jadval guruhlardan avtomatik tuziladi; ${canEdit ? "guruhni bosing — uni shu yerda to'liq boshqarasiz (jadval, o'quvchilar, yopish)." : 'guruhni bosing — batafsil.'} Och yashil — rejadagi guruh (talabalar va lidlar soni bilan), qizil — vaqti ustma-ust.</span></p>
       <div class="sched-wrap"><div class="sched-grid" style="min-width:${slots.length * SLOT_MIN + 150}px">
         <div class="sched-row head"><div class="sched-l">${by === 'room' ? 'Xona' : 'Ustoz'} / vaqt</div><div class="sched-track">${slots.map((t) => `<span>${hhmm(t)}</span>`).join('')}</div></div>
         ${shown.map(rowHTML).join('') || `<div class="muted pad">${A.WD_FULL[day]} kuni dars yo'q</div>`}

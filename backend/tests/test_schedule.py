@@ -37,3 +37,18 @@ def test_schedule_lists_active_and_planned_groups(api, make_user, fin, other_bra
 
 def test_schedule_requires_login(client):
     assert client.get("/api/v1/schedule/").status_code in (401, 403)
+
+
+def test_schedule_counts_students_and_leads_for_planned_group(fin, make_user, api):  # noqa: F811
+    from apps.crm.models import Lead, Student
+    from apps.education.models import Contract
+    from apps.references.models import LeadSource
+
+    g = fin["contract"].group
+    g.start_date = TODAY + datetime.timedelta(days=20)
+    g.save()
+    st = Student.objects.create(branch=fin["branch"], first_name="Lola", last_name="Karimova", phone1="901112233")
+    Lead.objects.create(branch=fin["branch"], student=st, source=LeadSource.objects.create(name="Instagram"), course=g.course, group=g, status="3")
+    row = next(x for x in api(make_user("BOSH_MENEJER")).get("/api/v1/schedule/").json()["groups"] if x["id"] == str(g.pk))
+    assert row["status"] == "Rejada" and row["leads"] == 1
+    assert row["students"] == Contract.objects.filter(group=g).count()

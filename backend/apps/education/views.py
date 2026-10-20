@@ -1,7 +1,8 @@
 import datetime
 from decimal import Decimal
 
-from django.db.models import Count, Prefetch, Q, Sum
+from django.db.models import Count, OuterRef, Prefetch, Q, Subquery, Sum
+from django.db.models.functions import Coalesce
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -16,6 +17,7 @@ from apps.core.pagination import Pagination
 from apps.core.permissions import NO_PERMISSION, can, check_edit_window, today
 from apps.core.scoping import scope_branch
 from apps.core.viewsets import AuditedModelViewSet
+from apps.crm.models import Lead
 from apps.crm.views import default_branch, search_q
 from apps.references.models import LessonFrequency, Room
 from apps.references.services import month_start
@@ -563,6 +565,10 @@ def schedule(request):
     on = today()
     qs = scope_branch(Group.objects.filter(Q(end_date__isnull=True) | Q(end_date__gte=on)), request.user)
     qs = services.with_fill(qs.select_related("course", "day_pattern", "time", "teacher", "supporter", "room")).order_by("time__start_time", "course__name", "number")
+    # Guruhdagi talabalar: tugamagan shartnomalar (rejadagilar ham); lidlar: shu guruhga yozilgan, hali shartnomasiz (3 — sinovga yozildi, 4 — sinovga qatnashdi)
+    enrolled = Contract.objects.filter(group=OuterRef("pk")).filter(Q(end_date__isnull=True) | Q(end_date__gte=on)).order_by().values("group").annotate(n=Count("id")).values("n")
+    lead_n = Lead.objects.filter(group=OuterRef("pk"), status__in=["3", "4"]).order_by().values("group").annotate(n=Count("id")).values("n")
+    qs = qs.annotate(enrolled=Coalesce(Subquery(enrolled), 0), lead_count=Coalesce(Subquery(lead_n), 0))
     groups, rooms = [], {}
     for g in qs:
         if g.room_id:
@@ -572,7 +578,7 @@ def schedule(request):
             "start": f"{g.time.start_time:%H:%M}", "end": f"{g.time.end_time:%H:%M}", "room": g.room_id,
             "teacher": g.teacher_id, "teacher_name": g.teacher.full_name, "supporter_name": g.supporter.full_name if g.supporter_id else "",
             "status": services.period_status(g.start_date, g.end_date, on), "start_date": g.start_date,
-            "students": g.active_count, "capacity": g.room.capacity if g.room_id else 0,
+            "students": g.enrolled, "leads": g.lead_count, "capacity": g.room.capacity if g.room_id else 0,
         })
     for r in scope_branch(Room.objects.filter(status="Faol"), request.user):
         rooms.setdefault(r.pk, r)
