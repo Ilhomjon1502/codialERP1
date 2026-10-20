@@ -388,7 +388,9 @@
   const SLOT = 30; // daqiqa
   const STRIP = 17; // px — ustma-ust guruhlarda orqadagisining chiqib turadigan qirrasi
   const SLOT_MIN = 40; // px — bundan tor bo'lsa jadval gorizontal aylanadi
-  const SCHED_COLORS = ['#2f80ed', '#27ae60', '#9b51e0', '#F26A1B', '#56ccf2', '#bb6bd9', '#6fcf97', '#f2c94c']; // qizilsiz — qizil faqat ustma-ust uchun
+  const SCHED_COLORS = ['#2f80ed', '#9b51e0', '#F26A1B', '#0f9ac8', '#bb6bd9', '#c98a00', '#4f46e5', '#a0713d']; // qizilsiz (ustma-ust uchun) va yashilsiz (rejadagi guruh uchun)
+  const AGE_MONTHS = 9; // guruh shuncha oyga yetganda rang eng to'q bo'ladi
+  const ageT = (g) => Math.max(0, Math.min(1, A.diffDays(g.start_date, A.today()) / 30.44 / AGE_MONTHS));
   const mins = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
   const hhmm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
   function schedHTML(data) {
@@ -437,10 +439,11 @@
         const c = color(g);
         const second = by === 'room' ? g.teacher_name : data.rooms.find((r) => r.id === g.room)?.name || '';
         const plan = g.status === 'Rejada';
+        const age = plan ? 0 : ageT(g);
         const title = `${g.name} · ${g.start}–${g.end} · ${g.teacher_name}${g.supporter_name ? ` (yordamchi: ${g.supporter_name})` : ''} · ${g.students}/${g.capacity || '—'} talaba${plan ? `, ${g.leads} ta lid · Rejada: ${A.fdate(g.start_date)} dan` : ''}${clash ? ' · DIQQAT: vaqti boshqa guruh bilan ustma-ust' : ''}`;
-        const cls = `sched-b${g.status === 'Rejada' ? ' plan' : ''}${clash ? ' clash' : ''}${lanes > 1 ? ' stack' : ''}`;
+        const cls = `sched-b${g.status === 'Rejada' ? ' plan' : ''}${age > 0.45 ? ' deep' : ''}${clash ? ' clash' : ''}${lanes > 1 ? ' stack' : ''}`;
         const inner = `${plan ? '<em class="plan-tag">rejada</em>' : ''}<b class="sb-h"><span class="nm">${esc(g.name)}</span><span class="cnt" title="Talabalar soni">👥 ${g.students}${plan ? ` +${g.leads} lid` : ''}</span></b><small>${esc(second)}${g.capacity ? ` · sig'im ${g.capacity}` : ''}</small>`;
-        const st = `left:calc(${pos(g.s - t0)} + 3px);width:calc(${pos(g.e - g.s)} - 6px);--c:${c}${lanes > 1 ? `;top:${6 + g.lane * STRIP}px;z-index:${g.lane + 1}` : ''}`;
+        const st = `left:calc(${pos(g.s - t0)} + 3px);width:calc(${pos(g.e - g.s)} - 6px);--c:${c};--m:${Math.round(14 + 66 * age)}%;--bm:${Math.round(55 + 40 * age)}%${lanes > 1 ? `;top:${6 + g.lane * STRIP}px;z-index:${g.lane + 1}` : ''}`;
         return canEdit
           ? `<div class="${cls}" role="button" tabindex="0" data-act="group-manage" data-id="${g.id}" title="${esc(title)} · bosing — guruhni boshqarish" style="${st}">${inner}</div>`
           : `<a class="${cls}" href="#/groups/${g.id}" title="${esc(title)}" style="${st}">${inner}</a>`;
@@ -467,7 +470,7 @@
     return `<section class="card sched"><div class="row between wrap"><h2>Dars jadvali</h2>
         <div class="seg">${[['room', 'Xonalar'], ['teacher', 'Ustozlar']].map(([k, l]) => `<button class="${by === k ? 'on' : ''}" data-act="sched-by" data-id="${k}">${l}</button>`).join('')}</div></div>
       <div class="sched-days">${tabs}</div>
-      <p class="muted small">${todays.length} dars · ${roomsUsed}/${data.rooms.length} xona band · ${pct}% band<span class="sched-help"> · ${hhmm(t0)}–${hhmm(t1)}. Jadval guruhlardan avtomatik tuziladi; ${canEdit ? "guruhni bosing — uni shu yerda to'liq boshqarasiz (jadval, o'quvchilar, yopish)." : 'guruhni bosing — batafsil.'} Och yashil — rejadagi guruh (talabalar va lidlar soni bilan), qizil — vaqti ustma-ust.</span></p>
+      <p class="muted small">${todays.length} dars · ${roomsUsed}/${data.rooms.length} xona band · ${pct}% band<span class="sched-help"> · ${hhmm(t0)}–${hhmm(t1)}. Jadval guruhlardan avtomatik tuziladi; ${canEdit ? "guruhni bosing — uni shu yerda to'liq boshqarasiz (jadval, o'quvchilar, yopish)." : 'guruhni bosing — batafsil.'} Och yashil — rejadagi guruh; rang kursniki, guruh qanchalik eski bo'lsa (9 oygacha) shunchalik to'q, qizil — vaqti ustma-ust.</span></p>
       <div class="sched-wrap"><div class="sched-grid" style="min-width:${slots.length * SLOT_MIN + 150}px">
         <div class="sched-row head"><div class="sched-l">${by === 'room' ? 'Xona' : 'Ustoz'} / vaqt</div><div class="sched-track">${slots.map((t) => `<span>${hhmm(t)}</span>`).join('')}</div></div>
         ${shown.map(rowHTML).join('') || `<div class="muted pad">${A.WD_FULL[day]} kuni dars yo'q</div>`}
