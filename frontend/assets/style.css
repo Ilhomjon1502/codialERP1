@@ -94,7 +94,8 @@ code { background: var(--gray-50); padding: 1px 5px; border-radius: 4px; font-si
   body.side-collapsed .logo-plate { padding: 6px; overflow: hidden; width: 38px; }
   body.side-collapsed .logo-img { height: 22px; max-width: none; }
   body.side-collapsed .branch-pill { justify-content: center; margin: 6px 10px 10px; padding: 7px 0; }
-  body.side-collapsed .nav a { justify-content: center; padding: 10px 0; }
+  body.side-collapsed .nav a { justify-content: center; padding: 11px 0; }
+  body.side-collapsed .nav a .ic { width: 22px; height: 22px; stroke-width: 1.7; }
   body.side-collapsed .nav a .dot { position: absolute; top: 2px; right: 8px; margin: 0; font-size: 10px; min-width: 16px; }
 }
 .topbar {

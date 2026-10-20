@@ -36,19 +36,36 @@
     calendar: 'M3 4h18v18H3zM16 2v4M8 2v4M3 10h18',
     plus: 'M12 5v14M5 12h14',
     logout: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9',
+    /* AppSheet menyusidagi ikonkalarning o'xshashi (xodimlar o'rganib qolgan) */
+    userplus: 'M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M8.5 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M20 8v6M23 11h-6',
+    filesign: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h5M14 2l6 6v2M14 2v6h6M7 13h5M7 17h3M12 20l.7-2.8 7.1-7.1a1.6 1.6 0 0 1 2.2 2.2l-7.1 7.1z',
+    sack: 'M8.5 3h7l-2 4h-3zM10.5 7C6 9 4 12.5 4 15.5 4 19 7 21 12 21s8-2 8-5.5C20 12.5 18 9 13.5 7M14 13.3C13.6 12.7 12.9 12.4 12 12.4c-.9 0-1.6.5-1.6 1.2s.7 1.1 1.6 1.3 1.6.6 1.6 1.3-.7 1.2-1.6 1.2c-.8 0-1.5-.3-1.9-.9M12 11v1.4M12 17v1.3',
+    dollarc: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20M15 9.5c-.5-.9-1.6-1.4-3-1.4-1.7 0-2.8.8-2.8 2 0 1.3 1.1 1.7 2.8 2s2.8.7 2.8 2c0 1.2-1.1 2-2.8 2-1.4 0-2.5-.5-3-1.4M12 6.5v1.6M12 16v1.6',
+    usercheck: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M17 11l2 2 4-4',
+    handusd: 'M12 2.5a4 4 0 1 0 0 8 4 4 0 0 0 0-8M12 4v.9M12 8.1v.9M13.1 5.6c-.2-.4-.6-.6-1.1-.6-.6 0-1.1.3-1.1.8s.5.7 1.1.9 1.1.4 1.1.9-.5.8-1.1.8c-.5 0-.9-.2-1.1-.6M2 14h3v7H2zM5 15l3-1h5.5a1.5 1.5 0 0 1 0 3H10M5 19.5l4 1.5 8-.7 4.7-3.3a1.4 1.4 0 0 0-1.7-2.2L16.5 16',
+    arrows: 'M12 2v20M2 12h20M12 2l-3 3M12 2l3 3M12 22l-3-3M12 22l3-3M2 12l3-3M2 12l3 3M22 12l-3-3M22 12l-3 3',
+    filedl: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M12 11v6M9 14.5l3 3 3-3',
+    chartdown: 'M3 3v18h18M7 7l4 4 3-3 5 6M19 14v-4M19 14h-4',
+    classgrp: 'M12 4a3 3 0 1 0 0 6 3 3 0 0 0 0-6M6.5 21v-1.5a4.5 4.5 0 0 1 4.5-4.5h2a4.5 4.5 0 0 1 4.5 4.5V21M4.5 8.5a2.3 2.3 0 1 0 0 4.6M1.5 20v-1a3.5 3.5 0 0 1 3-3.4M19.5 8.5a2.3 2.3 0 1 1 0 4.6M22.5 20v-1a3.5 3.5 0 0 0-3-3.4',
+    checkdbl: 'M2 12.5l4.5 4.5L15 7M9.5 17l1 1L22 7',
+    coins: 'M2 5.3c0 1.3 2.7 2.3 6 2.3s6-1 6-2.3S11.3 3 8 3 2 4 2 5.3zM2 5.3v4.4c0 1.3 2.7 2.3 6 2.3M14 5.3v2.7M10 14.8c0 1.3 2.7 2.3 6 2.3s6-1 6-2.3-2.7-2.3-6-2.3-6 1-6 2.3zM10 14.8v4.4c0 1.3 2.7 2.3 6 2.3s6-1 6-2.3v-4.4',
+    exch: 'M4 8h16M16 4l4 4-4 4M20 16H4M8 12l-4 4 4 4',
+    sortalt: 'M8 20V4M4 8l4-4 4 4M16 4v16M12 16l4 4 4-4',
+    sync: 'M21 12a9 9 0 0 0-15.5-6.2L3 8M3 3v5h5M3 12a9 9 0 0 0 15.5 6.2L21 16M21 21v-5h-5',
+    tty: 'M2.5 8.5C6 5.2 18 5.2 21.5 8.5l-.6 2.3-3.4.9V9.5c-3.2-1-7.8-1-11 0v2.2l-3.4-.9zM5 13.5h14V21H5zM9 16h.01M12 16h.01M15 16h.01M9 18.7h.01M12 18.7h.01M15 18.7h.01',
   };
   A.icon = (name, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 24 24" aria-hidden="true"><path d="${ICONS[name] || ICONS.grid}"/></svg>`;
 
   /* ================= Menyu (AppSheet tartibida) ================= */
   A.NAV = [
-    ['dashboard', 'Bosh sahifa', 'home'], ['staffTasks', 'Topshiriqlar', 'task', 'tasks'], ['leads', 'Lidlar', 'leads'], ['contracts', 'Shartnomalar', 'file'],
-    ['payments', "To'lovlar", 'cash'], ['debtors', 'Qarzdorlar', 'alert'], ['attendance', 'Davomatlar', 'check'],
-    ['profit', 'Foyda (oyma-oy)', 'trend'], ['expenses', 'Xarajatlar', 'receipt'],
-    ['export', 'Shartnoma yuklash', 'download'], ['groupAnalysis', 'Guruhlar tahlili', 'pie'], ['groups', 'Guruhlar', 'grid'],
-    ['approvals', 'Tasdiqlashlar', 'shield'], ['salaries', 'Oyliklar', 'wallet'],
-    ['transfers', 'Ichki pul oqimi', 'repeat'], ['creditors', 'Tashqi pul oqimi', 'bank'], ['exchange', 'Pul ayirboshlash', 'swap'],
-    ['accounts', "G'aznalar", 'safe'], 
-    ['calls', "Qo'ng'iroqlar", 'phone'], ['parentCalls', 'Ota-onalar bilan aloqa', 'phone'], ['settings', 'Sozlamalar', 'sliders'], ['ai', 'AI yordamchi', 'sparkle'],
+    ['dashboard', 'Bosh sahifa', 'home'], ['staffTasks', 'Topshiriqlar', 'task', 'tasks'], ['leads', 'Lidlar', 'userplus'], ['contracts', 'Shartnomalar', 'filesign'],
+    ['payments', "To'lovlar", 'sack'], ['debtors', 'Qarzdorlar', 'dollarc'], ['attendance', 'Davomatlar', 'usercheck'],
+    ['profit', 'Foyda (oyma-oy)', 'handusd'], ['expenses', 'Xarajatlar', 'arrows'],
+    ['export', 'Shartnoma yuklash', 'filedl'], ['groupAnalysis', 'Guruhlar tahlili', 'chartdown'], ['groups', 'Guruhlar', 'classgrp'],
+    ['approvals', 'Tasdiqlashlar', 'checkdbl'], ['salaries', 'Oyliklar', 'coins'],
+    ['transfers', 'Ichki pul oqimi', 'exch'], ['creditors', 'Tashqi pul oqimi', 'sortalt'], ['exchange', 'Pul ayirboshlash', 'sync'],
+    ['accounts', "G'aznalar", 'sack'],
+    ['calls', "Qo'ng'iroqlar", 'phone'], ['parentCalls', 'Ota-onalar bilan aloqa', 'tty'], ['settings', 'Sozlamalar', 'sliders'], ['ai', 'AI yordamchi', 'sparkle'],
     ['audit', 'Audit tarixi', 'history'],
   ];
 
