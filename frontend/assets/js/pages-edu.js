@@ -224,7 +224,14 @@
     },
     render(p, q) {
       const tab = q.tab || 'take';
+      const me = A.me();
+      const today = A.today();
+      const open = A.rows('groups').filter((g) => g.status === 'Faol' && (!A.isTeacherRole() || g.teacher === me.id || g.supporter === me.id));
+      const notTaken = open.filter((g) => A.hasLesson(g, today) && !A.attendanceTaken(g.id, today));
+      const alertHTML = notTaken.length ? `<div class="alert info">${A.icon('check')}<div><b>Bugun davomati olinmagan guruhlar (${notTaken.length}):</b> ${notTaken
+        .map((g) => `<a href="#/attendance?tab=take&group=${g.id}">${esc(A.groupName(g))}</a> <span class="muted">(${A.timeName(g.time)}, ${esc(A.userName(g.teacher))})</span>`).join(' · ')}</div></div>` : '';
       return `${A.head('Davomatlar', "Davomatni ustoz oladi. Menejerlar o'tgan sanalarni tuzatishi mumkin")}
+        ${alertHTML}
         ${A.tabs([['take', 'Davomat olish'], ['absent', 'Kelmaganlar'], ['stats', 'Statistika'], ['makeup', 'Qoldirilgan darslar', mkPending || undefined]], tab, 'attendance')}
         ${tab === 'take' ? takeView() : tab === 'absent' ? absentView(attData) : tab === 'stats' ? statsView(attData) : makeupTable(attData)}`;
     },
