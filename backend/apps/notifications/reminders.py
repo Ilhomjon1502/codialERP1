@@ -125,6 +125,39 @@ def demo_before_lessons(now=None):
     return n
 
 
+def _talk_line(lead):
+    """«Gaplashilgan: 14:05 · chiquvchi · 3 daq» — lidning oxirgi suhbati."""
+    rec = lead.calls.filter(duration__gt=0).order_by("-started_at").first()
+    if not rec:
+        return ""
+    m, s = divmod(rec.duration, 60)
+    return f"📞 Gaplashilgan: {timezone.localtime(rec.started_at):%d.%m %H:%M} · {rec.direction.lower()} · {m}:{s:02d}"
+
+
+def _note_markup(lead):
+    """Izoh yozish uchun: saytdagi lid kartochkasiga havola (https bo'lsa) va keyingi qayta bog'lanishni tez surish tugmalari."""
+    rows = []
+    url = link(f"leads?open={lead.pk}")
+    if url.startswith("https://"):
+        rows.append([{"text": "📝 Izoh yozish va keyingi vaqtni belgilash", "url": url}])
+    rows.append([{"text": "📅 Ertaga", "callback_data": f"lc:tm:{lead.pk}"}, {"text": "📅 3 kundan keyin", "callback_data": f"lc:d3:{lead.pk}"}])
+    return {"inline_keyboard": rows}
+
+
+def _note_text(lead, head):
+    st = lead.student
+    L = [head, f"{e(st.full_name)} · {phone(st.phone1)}", f"{e(lead.course)} · {lead.get_status_display()}", _talk_line(lead),
+         "Suhbat haqida <b>izoh yozing</b>; lid qayta bog'lanishda qolsa — keyingi vaqtni belgilang."]
+    if not link("x").startswith("https://"):
+        L.append(link("leads"))
+    return "\n".join(x for x in L if x)
+
+
+def lead_call_note(lead, rec):
+    """Gaplashilgan qo'ng'iroqdan keyin darhol: «izoh yozing» (eslatma allaqachon yuborilgan yoki vaqt belgilanmagan bo'lsa)."""
+    services.notify("lead_callback", _note_text(lead, "📞 <b>Suhbat bo'ldi — izoh yozing</b>"), branch=lead.branch, key=f"cnote:{lead.pk}:{rec.pk}", markup=_note_markup(lead))
+
+
 def lead_callbacks(now=None):
     """Lidning «qayta bog'lanish vaqti» kelganda (1- va 8-statuslar) — Administrator+Hisobchilarga bir marta, tugmalar bilan:
     ✅ Qo'ng'iroq qilindi · ⏰ +1 soat · 📅 Ertaga. Eskirgan (12 soatdan oshgan) eslatmalar ertalabki rejaga tushadi."""
@@ -135,6 +168,12 @@ def lead_callbacks(now=None):
     n = 0
     for ld in leads:
         st = ld.student
+        if ld.callback_talked_at:  # vaqt kelguncha allaqachon gaplashilgan — eslatma to'xtamaydi, lekin faqat izoh yozish uchun
+            services.notify("lead_callback", _note_text(ld, f"⏰ <b>Qayta bog'lanish vaqti</b> · {timezone.localtime(ld.callback_at):%H:%M} — allaqachon gaplashilgan"),
+                            branch=ld.branch, key=f"lcb:{ld.pk}:{int(ld.callback_at.timestamp())}", markup=_note_markup(ld))
+            Lead.objects.filter(pk=ld.pk).update(callback_reminded_at=now)
+            n += 1
+            continue
         last = ld.comments.order_by("-created_at").first()
         L = [f"⏰ <b>Qayta bog'lanish vaqti keldi</b> · {timezone.localtime(ld.callback_at):%H:%M}",
              f"{e(st.full_name)} · {phone(st.phone1)}" + (f" · {phone(st.phone2)}" if st.phone2 else ""),
@@ -261,6 +300,12 @@ def plan_text(branch, day):
     if today_cb:
         L.append(f"\n🔁 <b>Bugun qayta bog'lanish rejalashtirilgan</b> — {len(today_cb)} ta (vaqtida bot eslatadi)")
         L += [f"  • {timezone.localtime(ld.callback_at):%H:%M} · {e(ld.student.full_name)} — {e(ld.course)} · {phone(ld.student.phone1)}" for ld in today_cb[:PER_LIST]]
+    unnoted = list(base.filter(callback_talked_at__isnull=False).order_by("callback_talked_at")[:200])
+    if unnoted:
+        L.append(f"\n📝 <b>Gaplashilgan, izoh yozilmagan lidlar</b> — {len(unnoted)} ta")
+        L += [f"  • {timezone.localtime(ld.callback_talked_at):%d.%m %H:%M} · {e(ld.student.full_name)} — {e(ld.course)} · {phone(ld.student.phone1)}" for ld in unnoted[:PER_LIST]]
+        if len(unnoted) > PER_LIST:
+            L.append(f"  <i>… yana {len(unnoted) - PER_LIST} ta</i>")
     callback = Lead.objects.filter(branch=branch, status="1", callback_at__isnull=True).select_related("student", "course").order_by("created_at")
     n_cb = callback.count()
     if n_cb:

@@ -51,3 +51,21 @@ Administrator+Hisobchi'ga boradigan «Bugungi ish rejasi»ning boshida: kecha 18
 | Ilova yangilandi | APK'ni ustidan o'rnating — ulanish saqlanadi (bir xil kompyuterda yig'ilgan bo'lsa) |
 
 Dasturchi uchun: ilova kodi `android/`, yig'ish — `android/build.ps1` (Android Studio o'rnatilgan kompyuter), API — `/api/v1/calls/pair|ingest|ping/`.
+
+## Baza bilan integratsiya (2026-10-21)
+
+**1. Kartochkada qo'ng'iroqlar tarixi.** Lid kartochkasi va shartnoma kartochkasida «Qo'ng'iroqlar (N) · oxirgi aloqa: 3 soat oldin» bloki chiqadi: talabaning 1-, 2-telefoni va vasiyning raqamidagi oxirgi qo'ng'iroqlar (yo'nalish, davomiylik, javobsiz bo'lsa belgisi). «Barcha qo'ng'iroqlar →» bosilsa Qo'ng'iroqlar bo'limi shu raqam bo'yicha ochiladi. Blok faqat «Qo'ng'iroqlar» bo'limini ko'ra oladigan xodimlarga chiqadi.
+Qo'ng'iroqlar ro'yxatida talaba nomi bosilsa lid (yoki lidi bo'lmasa shartnoma) kartochkasi ochiladi.
+
+**2. Suhbatdan keyingi izoh.** Qayta bog'lanishdagi (1- yoki 8-status) lidning raqamiga **gaplashilgan** qo'ng'iroq (chiquvchi yoki javob berilgan kiruvchi) bo'lsa:
+- eslatma **to'xtamaydi** va qayta bog'lanish vaqti avtomatik yopilmaydi;
+- lid kartochkasida «📞 … da gaplashilgan — izoh hali yozilmagan [📝 Izoh yozish]» belgisi, Qo'ng'iroqlar ro'yxatida «📝 Izoh yozish» tugmasi chiqadi;
+- Administrator+Hisobchilarga botdan «📞 Suhbat bo'ldi — izoh yozing» xabari keladi (tugmalar: 📝 Izoh yozish — saytdagi kartochkani ochadi; 📅 Ertaga; 📅 3 kundan keyin). Agar qayta bog'lanish vaqti hali kelmagan bo'lsa, xabar o'sha vaqtda «allaqachon gaplashilgan — izoh yozing» ko'rinishida keladi;
+- «Izoh yozish» oynasida: suhbat izohi (majburiy), holat va — lid 1/8-statusda qolsa — **keyingi qayta bog'lanish sana-vaqti** (vaqti o'tgan yoki yo'q bo'lsa majburiy);
+- izoh yozilgach (yoki lidga oddiy izoh qo'shilsa) belgi o'chadi. Izoh yozilmaganlar 8:30 rejada «📝 Gaplashilgan, izoh yozilmagan lidlar» bo'limida chiqadi.
+
+**3. Kelmagan talaba bilan bog'lanish.** Talabaning raqamiga gaplashilgan qo'ng'iroq bo'lsa va uning bog'lanish kutayotgan kelmagan darsi (oxirgi 14 kun, «Bog'lanishga» holati) bo'lsa, ro'yxatda «📌 Kelmagan (N): Gaplashildi» tugmasi chiqadi. Izoh yozilsa (majburiy) o'sha darslar «Gaplashildi» bo'ladi va — belgi qo'yilsa — «Ota-onalar bilan aloqa» jurnaliga ham yoziladi.
+
+**4. Statistika.** «Qo'ng'iroq → lid → shartnoma» voronkasi (manba bo'yicha): qo'ng'iroq qilgan raqamlar, lidi borlar, o'qishni boshlaganlar, shartnoma tuzganlar, lidsiz raqamlar. AI yordamchi uchun `analytics_calls` (raqamsiz).
+
+Kod: `apps/calls/services.py` (`history`, `_note_prompt`, `absence_contact`, `_funnel`), `apps/crm/services.py` (`save_call_note`), `reminders.lead_call_note`, front-end `pages-crm.js` (`A.callNoteForm`, `A.fillCalls`), `pages-calls.js`.

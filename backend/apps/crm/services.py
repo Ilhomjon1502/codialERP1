@@ -177,6 +177,7 @@ def validate_callback(instance, status, attrs):
     if status not in CALLBACK_STATUSES:
         attrs["callback_at"] = None
         attrs["callback_reminded_at"] = None
+        attrs["callback_talked_at"] = None
         return
     changed_status = instance is None or instance.status != status
     if not changed_status and "callback_at" not in attrs:
@@ -208,6 +209,10 @@ def callback_action(user, lead, action, now=None):
     elif action == "h1":
         lead.callback_at = now + datetime.timedelta(hours=1)
         msg = f"✅ Bugun {timezone.localtime(lead.callback_at):%H:%M} ga ko'chirildi"
+    elif action == "d3":
+        base = timezone.localtime(lead.callback_at).time() if lead.callback_at else now.time().replace(second=0, microsecond=0)
+        lead.callback_at = timezone.make_aware(datetime.datetime.combine(now.date() + datetime.timedelta(days=3), base))
+        msg = f"✅ 3 kundan keyin {base:%H:%M} ga ko'chirildi"
     elif action == "tm":
         base = timezone.localtime(lead.callback_at).time() if lead.callback_at else now.time().replace(second=0, microsecond=0)
         lead.callback_at = timezone.make_aware(datetime.datetime.combine(now.date() + datetime.timedelta(days=1), base))
@@ -273,7 +278,46 @@ def add_comment(user, lead, text):
         raise ValidationError({"comment": "Izoh bo'sh"})
     c = LeadComment.objects.create(lead=lead, comment=text, created_by=user, updated_by=user)
     audit.log_create(user, c)
+    if lead.callback_talked_at:  # suhbatdan keyingi izoh yozildi — «izoh kutilmoqda» belgisi o'chadi
+        Lead.objects.filter(pk=lead.pk).update(callback_talked_at=None)
     return c
+
+
+@transaction.atomic
+def save_call_note(user, lead, comment, status=None, callback_at=None, now=None):
+    """Suhbatdan keyingi izoh (2026-10-21): izoh majburiy; lid shu holatda (1 yoki 8) qolsa — keyingi qayta bog'lanish vaqtini belgilash mumkin
+    (vaqti allaqachon o'tgan yoki yo'q bo'lsa — majburiy); holatni ham o'zgartirsa bo'ladi. «Izoh kutilmoqda» belgisi o'chadi."""
+    now = now or timezone.now()
+    text = clean(comment)
+    if not text:
+        raise ValidationError({"comment": "Izoh majburiy"})
+    if not can(user, "leads", "a"):
+        raise PermissionDenied(NO_PERMISSION)
+    new_status = status or lead.status
+    if new_status not in Lead.LeadStatus.values:
+        raise ValidationError({"status": "Noto'g'ri holat"})
+    if new_status != lead.status or callback_at is not None:
+        if not can(user, "leads", "e"):
+            raise PermissionDenied(NO_PERMISSION)
+        check_edit_window(user, "leads", lead.created_at)
+    attrs = {} if callback_at is None else {"callback_at": callback_at}
+    if new_status in CALLBACK_STATUSES and new_status == lead.status and callback_at is None and (not lead.callback_at or lead.callback_at <= now):
+        raise ValidationError({"callback_at": "Keyingi qayta bog'lanish vaqtini belgilang"})
+    validate_callback(lead, new_status, attrs)
+    before = audit.snapshot(lead)
+    old_status = lead.status
+    lead.status = new_status
+    for k, v in attrs.items():
+        setattr(lead, k, v)
+    lead.callback_talked_at = None
+    lead.updated_by = user
+    lead.save()
+    c = LeadComment.objects.create(lead=lead, comment=f"📞 {text}", created_by=user, updated_by=user)
+    audit.log_create(user, c)
+    audit.log_update(user, lead, before)
+    if old_status != new_status:
+        notif.lead_changed(lead, old_status, user)
+    return lead
 
 
 # ------------------------------------------------------------------ voronka va statistika

@@ -7,13 +7,15 @@ import re
 import secrets
 
 from django.db import transaction
-from django.db.models import Avg, Count, DurationField, ExpressionWrapper, F, Max, Q, Sum
+from django.db.models import Avg, Count, DurationField, Exists, ExpressionWrapper, F, Max, OuterRef, Q, Sum
 from django.db.models.functions import ExtractHour, TruncDate
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
 from apps.core.models import Status
 from apps.crm.models import Lead, Parent, Student
+from apps.crm.services import CALLBACK_STATUSES
+from apps.education.models import Attendance, Contract
 
 from .models import CallDevice, CallRecord
 
@@ -144,6 +146,24 @@ def _mark_callbacks(rec):
                               started_at__lt=rec.started_at, callback_at__isnull=True).update(callback_at=rec.started_at)
 
 
+def _note_prompt(rec):
+    """Gaplashilgan qo'ng'iroq (suhbat > 0) qayta bog'lanishdagi lid (1- va 8-status) raqamiga bo'lsa — izoh kutiladi (2026-10-21):
+    lidga «suhbat bo'lgan vaqt» yoziladi. Eslatma to'xtamaydi: vaqti hali kelmagan bo'lsa — o'sha vaqtda «izoh yozing» ko'rinishida boradi;
+    eslatma allaqachon yuborilgan yoki vaqt belgilanmagan bo'lsa — darhol «izoh yozing» xabari."""
+    if not rec.lead_id or rec.duration <= 0 or rec.direction not in (D.OUTGOING, D.INCOMING):
+        return
+    lead = Lead.objects.select_related("student", "course", "branch").filter(pk=rec.lead_id, status__in=CALLBACK_STATUSES).first()
+    if not lead or (lead.callback_talked_at and lead.callback_talked_at >= rec.started_at):
+        return
+    Lead.objects.filter(pk=lead.pk).update(callback_talked_at=rec.started_at)
+    lead.callback_talked_at = rec.started_at
+    pending = lead.callback_at and lead.callback_at > timezone.now() and lead.callback_reminded_at is None
+    if not pending:
+        from apps.notifications import reminders
+
+        reminders.lead_call_note(lead, rec)
+
+
 @transaction.atomic
 def ingest(device, items, app_version=""):
     """Telefondan kelgan qatorlar. Avval kelgani (qurilma + kalit) qayta yaratilmaydi. Natija: {qabul, takror, xato}."""
@@ -173,12 +193,64 @@ def ingest(device, items, app_version=""):
                                         is_first=bool(r["phone"]) and r["phone"] not in seen, **r)
         seen.add(r["phone"])
         _mark_callbacks(rec)
+        _note_prompt(rec)
         created += 1
     device.last_seen_at = timezone.now()
     if app_version:
         device.app_version = str(app_version)[:20]
     device.save(update_fields=["last_seen_at", "app_version", "updated_at"])
     return {"accepted": created, "duplicates": len(rows) - created, "errors": errors}
+
+
+def student_phones(student):
+    """Talabaning 1-, 2-telefoni va vasiyning telefoni (9 xona)."""
+    phones = {student.phone1, student.phone2}
+    if student.parent_id:
+        phones.add(student.parent.phone)
+    return {p for p in phones if p}
+
+
+def history(branch_id, phones, limit=30):
+    """Raqamlar bo'yicha qo'ng'iroqlar tarixi (yangisi birinchi) + oxirgi aloqa."""
+    qs = CallRecord.objects.filter(branch_id=branch_id, phone__in=phones).order_by("-started_at")
+    rows = [{"id": r.pk, "started_at": r.started_at.isoformat(), "direction": r.direction, "duration": r.duration, "phone": r.phone, "comment": r.comment,
+             "missed": r.is_missed, "callback_at": r.callback_at.isoformat() if r.callback_at else None} for r in qs[:limit]]
+    return {"allowed": True, "count": qs.count(), "results": rows, "last": rows[0] if rows else None}
+
+
+ABSENCE_DAYS = 14  # shuncha kun ichidagi kelmaganlar «bog'lanish kutayotgan» hisoblanadi
+
+
+def open_absences(student, today=None):
+    """Talabaning bog'lanish kutayotgan kelmagan darslari (besabab va sababli, «Bog'lanishga» holatida, oxirgi 14 kun)."""
+    today = today or timezone.localdate()
+    return Attendance.objects.filter(contract__student=student, status__in=["X", "0"], contact_status=Attendance.Contact.TO_CALL,
+                                     date__gte=today - datetime.timedelta(days=ABSENCE_DAYS)).select_related("contract", "group")
+
+
+@transaction.atomic
+def absence_contact(user, rec, comment, parent_log=True):
+    """Gaplashilgan qo'ng'iroq → talabaning kelmagan darslari «Gaplashildi» deb belgilanadi (izoh majburiy) va (ixtiyoriy) ota-onalar bilan
+    aloqa jurnaliga yoziladi (har bir shartnoma uchun bitta). Qaytaradi: {absences, parent_logs}."""
+    from apps.core.permissions import can
+    from apps.education import services as edu
+
+    text = " ".join(str(comment or "").split())
+    if not text:
+        raise ValidationError({"comment": "Izoh majburiy"})
+    if not rec.student_id or rec.duration <= 0 or rec.direction not in (D.OUTGOING, D.INCOMING):
+        raise ValidationError({"detail": "Gaplashilgan qo'ng'iroq va bazadagi talaba kerak"})
+    rows = list(open_absences(rec.student))
+    if not rows:
+        raise ValidationError({"detail": "Bog'lanish kutayotgan kelmagan dars yo'q"})
+    for a in rows:
+        edu.set_contact(user, a, Attendance.Contact.TALKED, text)
+    logs = 0
+    if parent_log and can(user, "parentCalls", "a"):
+        for c in {a.contract for a in rows}:
+            edu.save_parent_call(user, {"contract": c, "comment": f"📞 {text}"})
+            logs += 1
+    return {"absences": len(rows), "parent_logs": logs}
 
 
 def set_callback(user, rec, done=True):
@@ -200,6 +272,22 @@ def _brief(r):
     name = r.student.full_name if r.student_id else str(r.parent) if r.parent_id else r.contact_name
     return {"id": r.pk, "name": name, "phone": r.phone, "number": r.number, "direction": r.direction,
             "started_at": r.started_at.isoformat(), "duration": r.duration}
+
+
+def _funnel(qs, lead_ids):
+    """Manba → qo'ng'iroq → lid → o'qishni boshladi → shartnoma: davrda qo'ng'iroq qilgan raqamlar va ularga mos lidlar."""
+    leads = (Lead.objects.filter(pk__in=lead_ids).annotate(hc=Exists(Contract.objects.filter(student=OuterRef("student"))))
+             .values(name=F("source__name")).annotate(leads=Count("id"), started=Count("id", filter=Q(status="5")), contracts=Count("id", filter=Q(hc=True))))
+    callers = {r["name"]: r["callers"] for r in qs.filter(lead__isnull=False).values(name=F("lead__source__name")).annotate(callers=Count("phone", distinct=True))}
+    rows = [{"name": r["name"], "callers": callers.get(r["name"], 0), "leads": r["leads"], "started": r["started"], "contracts": r["contracts"]} for r in leads]
+    rows.sort(key=lambda r: -r["callers"])
+    total_callers = qs.exclude(phone="").values("phone").distinct().count()
+    with_lead = sum(r["callers"] for r in rows)
+    return {
+        "funnel": {"callers": total_callers, "leads": sum(r["leads"] for r in rows), "started": sum(r["started"] for r in rows),
+                   "contracts": sum(r["contracts"] for r in rows), "no_lead": max(total_callers - with_lead, 0)},
+        "funnel_by_source": rows,
+    }
 
 
 def stats(qs):
@@ -238,8 +326,11 @@ def stats(qs):
         n=Count("id"), numbers=Count("phone", distinct=True)).order_by("-n"))
     by_status = list(qs.filter(lead__isnull=False).values(st=F("lead__status")).annotate(n=Count("phone", distinct=True)).order_by("st"))
     labels = dict(Lead.LeadStatus.choices)
+    lead_ids = set(qs.filter(lead__isnull=False).values_list("lead_id", flat=True).distinct())
+    funnel = _funnel(qs, lead_ids)
     return {
         **total,
+        **funnel,
         "by_hour": [{"hour": h, **v} for h, v in by_hour.items()],
         "by_day": [{"date": r["d"].isoformat(), "n": r["n"], "missed": r["missed"]} for r in by_day if r["d"]],
         "by_source": by_source,

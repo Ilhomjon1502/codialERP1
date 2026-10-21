@@ -60,6 +60,14 @@ class StudentUpdateSerializer(serializers.Serializer):
     p_phone = serializers.CharField(required=False, allow_blank=True)
 
 
+class CallNoteSerializer(serializers.Serializer):
+    """Suhbatdan keyingi izoh: izoh (majburiy), ixtiyoriy yangi holat va keyingi qayta bog'lanish vaqti."""
+
+    comment = serializers.CharField(allow_blank=True)
+    status = serializers.ChoiceField(choices=Lead.LeadStatus.choices, required=False, allow_blank=True)
+    callback_at = serializers.DateTimeField(required=False, allow_null=True)
+
+
 class LeadCommentSerializer(serializers.ModelSerializer):
     class Meta:
         model = LeadComment
@@ -87,11 +95,12 @@ class LeadSerializer(serializers.ModelSerializer):
     paid_total = serializers.DecimalField(max_digits=14, decimal_places=0, read_only=True, default=None)
     first_paid = serializers.DateField(read_only=True, default=None)
     callback_at = serializers.DateTimeField(required=False, allow_null=True)
+    callback_talked_at = serializers.DateTimeField(read_only=True)
 
     class Meta:
         model = Lead
         fields = ["id", "branch", "student", "student_data", "source", "course", "pattern", "times", "status", "group", "demo_date", "demo_attended",
-                  "age_group", "social", "laptop", "tags", "callback_at", "has_contract", "comments_count", "paid_total", "first_paid", "created_at", "created_by",
+                  "age_group", "social", "laptop", "tags", "callback_at", "callback_talked_at", "has_contract", "comments_count", "paid_total", "first_paid", "created_at", "created_by",
                   "updated_at", "updated_by"]
         read_only_fields = ["branch", "student", "created_at", "created_by", "updated_at", "updated_by"]
 

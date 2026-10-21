@@ -71,7 +71,7 @@
         { h: 'Vaqt', f: (c) => `${A.badge(`${DIR[c.direction][0]} ${c.direction}`, DIR[c.direction][1])}<br><small class="muted">${A.fdt(c.started_at)}</small>` },
         { h: 'Raqam', f: (c) => `<a href="tel:${esc(c.number)}" style="white-space:nowrap">${esc(c.phone ? fphone(c.phone) : c.number || 'Yashirin raqam')}</a>${c.contact_name ? `<br><small class="muted">📇 ${esc(c.contact_name)}</small>` : ''}` },
         { h: 'Kim', f: who },
-        { h: 'Lid', f: (c) => (c.lead ? `${A.badge(`${c.lead_status}. ${LS[c.lead_status] || ''}`, c.lead_status === '5' ? 'green' : ['6', '7'].includes(c.lead_status) ? 'gray' : 'orange')}<br><small class="muted">${esc(c.lead_course)} · ${esc(c.lead_source)}</small>` : c.has_contract ? A.badge('Shartnoma bor', 'green') : '—') },
+        { h: 'Lid', f: (c) => (c.lead ? `${A.badge(`${c.lead_status}. ${LS[c.lead_status] || ''}`, c.lead_status === '5' ? 'green' : ['6', '7'].includes(c.lead_status) ? 'gray' : 'orange')}<br><small class="muted">${esc(c.lead_course)} · ${esc(c.lead_source)}</small>${c.lead_note_due && A.can('leads', 'a') ? `<br><button class="btn sm" data-act="call-lead-note" data-id="${c.lead}">📝 Izoh yozish</button>` : ''}` : c.has_contract ? A.badge('Shartnoma bor', 'green') : '—') },
         { h: 'Suhbat', cls: 'num', f: (c) => dur(c.duration) },
         { h: 'Holat', f: (c) => (c.missed ? (c.callback_at
           ? `<span class="t-green">✓ Qayta bog'lanildi</span><br><small class="muted">${A.fdt(c.callback_at)}${c.callback_by_name ? ` · ${esc(c.callback_by_name)}` : ' · avtomatik'}</small>`
@@ -86,8 +86,11 @@
 
   function who(c) {
     if (c.student) {
-      const name = c.lead && A.can('leads') ? `<a href="#" data-act="lead-open" data-id="${c.lead}">${esc(c.student_name)}</a>` : esc(c.student_name);
-      return `${name}${c.parent_name ? `<br><small class="muted">vasiy: ${esc(c.parent_name)}</small>` : ''}`;
+      const name = c.lead && A.can('leads') ? `<a href="#" data-act="lead-open" data-id="${c.lead}">${esc(c.student_name)}</a>`
+        : c.contract_id && A.can('contracts') ? `<a href="#/contracts/${c.contract_id}">${esc(c.student_name)}</a>` : esc(c.student_name);
+      const absent = c.open_absences && c.duration > 0 && !c.missed && A.can('attendance', 'e')
+        ? `<br><button class="btn sm ghost" data-act="call-absent" data-id="${c.id}">📌 Kelmagan (${c.open_absences}): Gaplashildi</button>` : '';
+      return `${name}${absent}${c.parent_name ? `<br><small class="muted">vasiy: ${esc(c.parent_name)}</small>` : ''}`;
     }
     if (c.parent) return `${esc(c.parent_name)} <small class="muted">(vasiy)</small>`;
     const btn = c.phone && A.can('leads', 'a') ? `<br><button class="btn sm ghost" data-act="call-lead" data-id="${c.id}">＋ Lid yaratish</button>` : '';
@@ -107,6 +110,27 @@
       async onSubmit(x) {
         await A.http.patch(`/calls/${c.id}/`, { comment: x.comment || '' });
         A.toast('Saqlandi');
+        A.refresh();
+      },
+    });
+  };
+  A.act['call-lead-note'] = async (el) => {
+    const l = await A.http.get(`/leads/${el.dataset.id}/`);
+    A.callNoteForm(l, () => A.refresh());
+  };
+  A.act['call-absent'] = (el) => {
+    const c = find(el.dataset.id);
+    A.form({
+      title: `Kelmagan talaba bilan gaplashildi: ${c.student_name}`,
+      values: { parent_log: A.can('parentCalls', 'a') },
+      fields: [
+        { name: 'note', type: 'note', text: () => `Talabaning bog'lanish kutayotgan ${c.open_absences} ta kelmagan darsi «Gaplashildi» deb belgilanadi.` },
+        { name: 'comment', label: 'Suhbat haqida izoh', type: 'textarea', required: true, placeholder: 'Masalan: kasal bo\'lgan, ertaga keladi' },
+        { name: 'parent_log', label: "Ota-onalar bilan aloqa jurnaliga ham yozilsin", type: 'checkbox', show: () => A.can('parentCalls', 'a') },
+      ],
+      async onSubmit(x) {
+        const r = await A.http.post(`/calls/${c.id}/absence-contact/`, { comment: x.comment, parent_log: !!x.parent_log });
+        A.toast(`Belgilandi: ${r.absences} ta dars${r.parent_logs ? ", aloqa jurnaliga yozildi" : ''}`);
         A.refresh();
       },
     });
@@ -160,7 +184,17 @@
     const src = A.table([{ h: 'Manba', f: (r) => esc(r.name) }, { h: "Qo'ng'iroqlar", cls: 'num', f: (r) => r.n }, { h: 'Raqamlar', cls: 'num', f: (r) => r.numbers }],
       s.by_source, { empty: "Bazadagi lidlardan qo'ng'iroq yo'q" });
     const sts = A.table([{ h: 'Lid statusi', f: (r) => esc(r.label) }, { h: 'Raqamlar', cls: 'num', f: (r) => r.n }], s.by_lead_status, { empty: '—' });
+    const fn = s.funnel;
+    const pctOf = (a, b) => (b ? `${Math.round((a / b) * 100)}%` : '—');
+    const funnel = fn ? `<div class="card"><h3>Qo'ng'iroq → lid → shartnoma</h3>
+      <div class="conv"><div><span class="muted small">Qo'ng'iroq qilgan raqamlar</span><b>${fn.callers}</b></div>
+      <div><span class="muted small">Lidi bor (${pctOf(fn.leads, fn.callers)})</span><b>${fn.leads}</b></div>
+      <div><span class="muted small">O'qishni boshlagan (${pctOf(fn.started, fn.leads)})</span><b>${fn.started}</b></div>
+      <div><span class="muted small">Shartnoma tuzilgan (${pctOf(fn.contracts, fn.leads)})</span><b>${fn.contracts}</b></div>
+      <div><span class="muted small">Lidsiz raqamlar</span><b>${fn.no_lead}</b></div></div>
+      ${A.table([{ h: 'Manba', f: (r) => esc(r.name) }, { h: 'Raqamlar', cls: 'num', f: (r) => r.callers }, { h: 'Lidlar', cls: 'num', f: (r) => r.leads }, { h: 'Boshlagan', cls: 'num', f: (r) => r.started }, { h: 'Shartnoma', cls: 'num', f: (r) => r.contracts }, { h: 'Konversiya', cls: 'num', f: (r) => pctOf(r.contracts, r.callers) }], s.funnel_by_source, { empty: "Bazadagi lidlardan qo'ng'iroq yo'q" })}</div>` : '';
     return `${cards}
+      ${funnel}
       <div class="grid-2"><div class="card"><h3>Soatlar bo'yicha</h3>${hourChart}</div>${dayChart ? `<div class="card"><h3>Kunlar bo'yicha</h3>${dayChart}</div>` : ''}</div>
       ${durChart ? `<div class="grid-2"><div class="card"><h3>Suhbat davomiyligi bo'yicha</h3>${durChart}</div></div>` : ''}
       <div class="grid-2"><div class="card"><h3>Lid manbasi bo'yicha</h3>${src}</div><div class="card"><h3>Qo'ng'iroq qilganlarning lid statusi</h3>${sts}</div></div>`;

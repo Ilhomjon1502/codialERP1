@@ -1,6 +1,6 @@
 import datetime
 
-from django.db.models import Exists, OuterRef, Q
+from django.db.models import Count, Exists, OuterRef, Q, Subquery
 from django.utils import timezone
 from rest_framework import serializers, status
 from rest_framework.decorators import action
@@ -12,7 +12,7 @@ from rest_framework.views import APIView
 
 from apps.core.pagination import Pagination
 from apps.core.viewsets import AuditedModelViewSet, BranchScopedSerializerMixin
-from apps.education.models import Contract
+from apps.education.models import Attendance, Contract
 
 from . import services
 from .models import CallDevice, CallRecord
@@ -122,15 +122,22 @@ class CallRecordSerializer(serializers.ModelSerializer):
     lead_source = serializers.CharField(source="lead.source.name", read_only=True, default="")
     lead_course = serializers.CharField(source="lead.course.name", read_only=True, default="")
     has_contract = serializers.BooleanField(read_only=True, default=False)
+    contract_id = serializers.UUIDField(read_only=True, default=None)
+    open_absences = serializers.IntegerField(read_only=True, default=0)
+    lead_note_due = serializers.SerializerMethodField()
     missed = serializers.BooleanField(source="is_missed", read_only=True)
     callback_by_name = serializers.CharField(source="callback_by.full_name", read_only=True, default="")
 
     class Meta:
         model = CallRecord
         fields = ["id", "started_at", "direction", "number", "phone", "duration", "contact_name", "sim", "is_first", "device", "device_name",
-                  "student", "student_name", "parent", "parent_name", "lead", "lead_status", "lead_source", "lead_course", "has_contract",
+                  "student", "student_name", "parent", "parent_name", "lead", "lead_status", "lead_source", "lead_course", "has_contract", "contract_id",
+                  "open_absences", "lead_note_due",
                   "missed", "callback_at", "callback_by_name", "comment"]
         read_only_fields = [f for f in fields if f != "comment"]
+
+    def get_lead_note_due(self, r):
+        return bool(r.lead_id and r.lead.callback_talked_at)
 
     def get_student_name(self, r):
         return r.student.full_name if r.student_id else ""
@@ -154,7 +161,7 @@ class CallRecordViewSet(AuditedModelViewSet):
     serializer_class = CallRecordSerializer
     pagination_class = Pagination
     http_method_names = ["get", "post", "patch", "head", "options"]
-    action_ops = {"callback": "e", "stats": "v"}
+    action_ops = {"callback": "e", "stats": "v", "absence_contact": "e"}
     queryset = CallRecord.objects.select_related("device", "student", "parent", "lead__source", "lead__course", "callback_by")
 
     def get_queryset(self):
@@ -164,7 +171,11 @@ class CallRecordViewSet(AuditedModelViewSet):
         if self.action != "stats":
             today = timezone.localdate()
             active = Contract.objects.filter(student=OuterRef("student")).filter(Q(end_date__isnull=True) | Q(end_date__gte=today))
-            qs = qs.annotate(has_contract=Exists(active))
+            absent = (Attendance.objects.filter(contract__student=OuterRef("student"), status__in=["X", "0"], contact_status=Attendance.Contact.TO_CALL,
+                                                date__gte=today - datetime.timedelta(days=services.ABSENCE_DAYS)).order_by().values("contract__student")
+                      .annotate(n=Count("id")).values("n"))
+            qs = qs.annotate(has_contract=Exists(active), contract_id=Subquery(active.order_by("-start_date").values("id")[:1]),
+                             open_absences=Subquery(absent))
         return qs
 
     def _filter(self, qs):
@@ -211,6 +222,12 @@ class CallRecordViewSet(AuditedModelViewSet):
         """{done: true|false} — javobsiz qo'ng'iroqqa qayta qo'ng'iroq qilindi belgisi."""
         rec = services.set_callback(request.user, self.get_object(), bool(request.data.get("done", True)))
         return Response(self.get_serializer(rec).data)
+
+    @action(detail=True, methods=["post"], url_path="absence-contact")
+    def absence_contact(self, request, pk=None):
+        """{comment, parent_log} — talabaning kelmagan darslari «Gaplashildi» (izoh majburiy), ota-onalar bilan aloqa jurnaliga ham yoziladi."""
+        res = services.absence_contact(request.user, self.get_object(), request.data.get("comment"), bool(request.data.get("parent_log", True)))
+        return Response(res)
 
     @action(detail=False)
     def stats(self, request):

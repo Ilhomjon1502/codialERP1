@@ -23,7 +23,7 @@ LABELS = {
     "analytics_lessons": "Dars jadvali", "analytics_leads": "Lidlar", "analytics_groups": "Guruhlar", "analytics_expenses": "Xarajatlar",
     "analytics_salaries": "Oylik belgilash", "analytics_salary_payouts": "Oylik berish", "analytics_accounts": "G'aznalar",
     "analytics_cash_movements": "G'azna harakatlari", "analytics_evaluations": "Ustozni baholash", "analytics_creditors": "Kreditorlar",
-    "analytics_course_prices": "Kurs narxlari", "analytics_staff": "Xodimlar",
+    "analytics_course_prices": "Kurs narxlari", "analytics_staff": "Xodimlar", "analytics_calls": "Qo'ng'iroqlar",
 }
 EMPTY_HINTS = {
     "analytics_payments": "Tizimga hali to'lov kiritilmagan.",

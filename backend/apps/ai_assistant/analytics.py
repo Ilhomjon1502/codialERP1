@@ -233,6 +233,33 @@ FROM (
   WHERE NOT l.is_deleted
 ) x"""),
 
+        ("analytics_calls", "Qabul telefonidagi qo'ng'iroqlar (raqamsiz — shaxsiy ma'lumot yo'q). Konversiya: manba bo'yicha qo'ng'iroq → lid → shartnoma. "
+         "Javobsiz qo'ng'iroqlarga qayta bog'lanish: missed = 1 va callback_done = 1.", [
+            ("call_id", "qo'ng'iroq ID", False), *[(c, d, False) for c, d in YMD], ("branch", "filial", False),
+            ("direction", "'Kiruvchi', 'Chiquvchi', 'Javobsiz', 'Rad etilgan', 'Bloklangan'", False), ("duration_sec", "suhbat davomiyligi, soniya (0 — gaplashilmagan)", False),
+            ("talked", "1 — gaplashilgan (suhbat > 0)", False), ("is_first", "1 — bu raqamdan birinchi qo'ng'iroq", False),
+            ("known", "1 — raqam bazadagi talaba yoki vasiyniki", False), ("lead_status", f"raqamga mos lidning bosqich kodi: {lead_statuses}", False),
+            ("source", "mos lidning manbasi", False), ("course", "mos lidning kursi", False), ("has_contract", "1 — talabada shartnoma bor", False),
+            ("missed", "1 — javobsiz yoki rad etilgan", False), ("callback_done", "1 — qayta bog'lanilgan / qayta qo'ng'iroq qilingan", False),
+        ], f"""
+SELECT x.call_id, x.date, {f['Y']('x.date')} AS year, {f['M']('x.date')} AS month, {f['YM']('x.date')} AS ym, x.branch, x.direction, x.duration_sec,
+  x.talked, x.is_first, x.known, x.lead_status, x.source, x.course, x.has_contract, x.missed, x.callback_done
+FROM (
+  SELECT c.id AS call_id, {f['LD']('c.started_at')} AS date, b.name AS branch, c.direction, c.duration AS duration_sec,
+    CASE WHEN c.duration > 0 THEN 1 ELSE 0 END AS talked, CASE WHEN c.is_first THEN 1 ELSE 0 END AS is_first,
+    CASE WHEN c.student_id IS NOT NULL OR c.parent_id IS NOT NULL THEN 1 ELSE 0 END AS known,
+    l.status AS lead_status, ls.name AS source, co.name AS course,
+    CASE WHEN c.student_id IS NOT NULL AND EXISTS (SELECT 1 FROM education_contract ct WHERE ct.student_id = c.student_id AND NOT ct.is_deleted) THEN 1 ELSE 0 END AS has_contract,
+    CASE WHEN c.direction IN ('Javobsiz', 'Rad etilgan') THEN 1 ELSE 0 END AS missed,
+    CASE WHEN c.callback_at IS NOT NULL THEN 1 ELSE 0 END AS callback_done
+  FROM calls_callrecord c
+  JOIN references_branch b ON b.id = c.branch_id
+  LEFT JOIN crm_lead l ON l.id = c.lead_id AND NOT l.is_deleted
+  LEFT JOIN references_leadsource ls ON ls.id = l.source_id
+  LEFT JOIN references_course co ON co.id = l.course_id
+  WHERE NOT c.is_deleted
+) x"""),
+
         ("analytics_groups", "Guruhlar va bugungi to'lishi.", [
             ("group_id", "guruh ID", False), ("group_name", "guruh nomi", False), ("branch", "filial", False), ("course", "kurs", False),
             ("teacher_name", "ustoz", False), ("supporter_name", "yordamchi", False), ("room", "xona", False), ("capacity", "xona sig'imi", False),

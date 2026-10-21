@@ -127,6 +127,11 @@
     title: 'Lidlar',
     section: 'leads',
     async load(p, q) {
+      if (q.open) { // botdagi havola: lid kartochkasini ochish
+        const openId = q.open;
+        history.replaceState(null, '', location.hash.replace(/[?&]open=[^&]*/, '').replace(/\?&/, '?').replace(/\?$/, ''));
+        setTimeout(() => A.openLead(openId), 400);
+      }
       const tab = q.tab || 'funnel';
       const qs = leadFilters();
       if (tab === 'funnel') {
@@ -292,6 +297,49 @@
       },
     });
 
+  /* ---- Suhbatdan keyingi izoh: izoh + (ixtiyoriy) holat + keyingi qayta bog'lanish vaqti ---- */
+  A.callNoteForm = (l, done) => {
+    const futureCb = l.callback_at && new Date(l.callback_at) > new Date();
+    A.form({
+      title: 'Suhbatdan keyingi izoh',
+      values: { status: l.status, callback_at: futureCb ? cbValue(l) : CB.includes(l.status) ? cbTomorrow() : '' },
+      fields: [
+        { name: 'note', type: 'note', text: () => `${l.student_data.full_name} bilan suhbat${l.callback_talked_at ? ` (${A.fdt(l.callback_talked_at)})` : ''}. Izoh majburiy; lid qayta bog'lanishda qolsa — keyingi vaqtni belgilang.` },
+        { name: 'comment', label: 'Suhbat haqida izoh', type: 'textarea', required: true, placeholder: "Masalan: narxni so'radi, ertaga javob beradi" },
+        { name: 'status', label: 'Holat', type: 'select', options: Object.entries(LS).map(([k, t]) => [k, `${k}. ${t}`]), required: true },
+        { name: 'callback_at', label: "Keyingi qayta bog'lanish sana va vaqti", type: 'datetime-local', show: (x) => CB.includes(x.status),
+          required: (x) => CB.includes(x.status) && (x.status !== l.status || !futureCb), help: futureCb ? "Bo'sh qoldirsangiz, avval belgilangan vaqt saqlanadi" : '',
+          validate: (t) => (t && new Date(t) < new Date(Date.now() - 6e5) ? "Bu vaqt o'tib ketgan" : '') },
+      ],
+      async onSubmit(x) {
+        const body = { comment: x.comment, status: x.status };
+        if (CB.includes(x.status) && x.callback_at && x.callback_at !== cbValue(l)) body.callback_at = x.callback_at;
+        await A.http.post(`/leads/${l.id}/call-note/`, body);
+        A.toast('Izoh saqlandi');
+        done && done();
+      },
+    });
+  };
+  const ago = (ts) => {
+    const m = Math.round((Date.now() - new Date(ts)) / 6e4);
+    return m < 1 ? 'hozirgina' : m < 60 ? `${m} daqiqa oldin` : m < 1440 ? `${Math.floor(m / 60)} soat oldin` : `${Math.floor(m / 1440)} kun oldin`;
+  };
+  const CALL_ICON = { Kiruvchi: '↙', Chiquvchi: '↗', Javobsiz: '✕', 'Rad etilgan': '⊘', Bloklangan: '⊘' };
+  const callDur = (s) => (s ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : '—');
+  /** Lid yoki talaba kartochkasida: shu raqamlardagi qo'ng'iroqlar tarixi va oxirgi aloqa (server: /leads/{id}/calls/, /students/{id}/calls/) */
+  A.fillCalls = async (el, url, search) => {
+    if (!el || !A.can('calls', 'v')) return;
+    let d;
+    try { d = await A.http.get(url); } catch (e) { return; }
+    if (!d.allowed) return;
+    const rows = d.results.slice(0, 6);
+    el.innerHTML = `<h4>Qo'ng'iroqlar (${d.count})${d.last ? ` <span class="muted small">· oxirgi aloqa: ${esc(ago(d.last.started_at))}</span>` : ''}</h4>
+      ${rows.length ? `<ul class="comments">${rows.map((c) => `<li><p>${CALL_ICON[c.direction] || ''} <b>${esc(c.direction)}</b> · ${esc(c.phone)} · ${callDur(c.duration)}${c.missed && !c.callback_at ? ' <span class="t-red">javob berilmagan</span>' : ''}${c.comment ? ` — ${esc(c.comment)}` : ''}</p><small class="muted">${A.fdt(c.started_at)}</small></li>`).join('')}</ul>
+        ${d.count > rows.length ? `<a href="#" data-calls-all>Barcha ${d.count} ta qo'ng'iroq →</a>` : ''}` : `<p class="muted small">Qo'ng'iroq yo'q</p>`}`;
+    const all = el.querySelector('[data-calls-all]');
+    if (all) all.onclick = (e) => { e.preventDefault(); A.ui.q['calls:search'] = search; A.ui.q['calls:page'] = 1; A.go('calls?tab=list'); };
+  };
+
   A.leadForm = (lead, freeStudents = [], preset = {}) => {
     const isNew = !lead;
     const B = lead ? lead.branch : A.branchIds()[0];
@@ -384,6 +432,7 @@
           <span>Shartnoma: ${contractStatusOf(l)}</span>
           ${(l.tags || []).map((t) => A.badge(t, 'gray')).join('')}
         </div>
+        ${l.callback_talked_at && A.can('leads', 'a') ? `<div class="alert warn">${A.icon('phone')}<div><b>${A.fdt(l.callback_talked_at)}</b> da gaplashilgan — izoh hali yozilmagan. <button class="btn sm" data-callnote>📝 Izoh yozish</button></div></div>` : ''}
         ${needsBirth ? `<div class="alert warn">${A.icon('alert')}<div>O'qishni boshladi, lekin talabaning to'liq ma'lumotlari (tug'ilgan sana, vasiy) kiritilmagan. Avval talaba ma'lumotlarini to'ldiring.</div></div>` : ''}
         <dl class="dl">
           <dt>Telefon</dt><dd><a href="tel:+998${st.phone1}">+998 ${st.phone1}</a>${st.phone2 ? ` · <a href="tel:+998${st.phone2}">+998 ${st.phone2}</a>` : ''}</dd>
@@ -399,6 +448,7 @@
         ${A.can('leads', 'e') ? `<h4>Statusni o'zgartirish</h4><div class="seg wrap">${Object.entries(LS)
           .map(([k, t]) => `<button class="${l.status === k ? 'on' : ''}" data-status="${k}" ${edit.ok ? '' : 'disabled'}>${k}. ${esc(t)}</button>`)
           .join('')}</div>${edit.ok ? '' : `<p class="muted small">${esc(edit.why)}</p>`}` : ''}
+        <div id="lead-calls"></div>
         <h4>Izohlar (${l.comments.length})</h4>
         ${A.can('leads', 'a') ? `<div class="row gap"><input class="f-input grow" id="lc-text" placeholder="Izoh yozing…"><button class="btn" id="lc-add">Qo'shish</button></div>` : ''}
         <ul class="comments">${l.comments.map((c) => `<li><p>${esc(c.comment)}</p><small class="muted">${esc(A.userName(c.created_by))} · ${A.fdt(c.created_at)}</small></li>`).join('') || '<li class="muted">Izoh yo\'q</li>'}</ul>`,
@@ -414,6 +464,9 @@
         if (CB.includes(b.dataset.status) && b.dataset.status !== l.status) { m.close(); A.callbackForm(l, b.dataset.status, () => { A.refresh(); A.openLead(id); }); return; }
         A.http.patch(`/leads/${id}/`, { status: b.dataset.status }).then(reopen, fail);
       }));
+    const cnBtn = m.el.querySelector('[data-callnote]');
+    if (cnBtn) cnBtn.onclick = () => { m.close(); A.callNoteForm(l, () => { A.refresh(); A.openLead(id); }); };
+    A.fillCalls(m.el.querySelector('#lead-calls'), `/leads/${id}/calls/`, st.phone1);
     const cbBtn = m.el.querySelector('[data-cb]');
     if (cbBtn) cbBtn.onclick = () => { m.close(); A.callbackForm(l, '', () => { A.refresh(); A.openLead(id); }); };
     const add = m.el.querySelector('#lc-add');
@@ -628,6 +681,10 @@
       cDetail = await A.http.get(`/contracts/${id}/`);
       A.keepContract(cDetail);
     },
+    mount() {
+      const el = document.getElementById('stu-calls');
+      if (el) A.fillCalls(el, `/students/${cDetail.student}/calls/`, cDetail.student_data.phone1);
+    },
     render({ id }, q) {
       const c = cDetail;
       const st = c.student_data;
@@ -671,6 +728,7 @@
             <p class="muted small">Bir dars narxi = kurs narxi ÷ oydagi dars soni. Talaba kelmasa ham dars uchun qarz yoziladi ("Nofaol" va Grant bundan mustasno).</p>
           </section>
         </div>
+        ${A.can('calls', 'v') ? '<section class="card" id="stu-calls"></section>' : ''}
         ${A.tabs([['att', 'Davomat', att.length], ...(A.can('payments') ? [['pay', "To'lovlar", pays.length]] : [])], tab, 'contracts/' + id)}
         ${tab === 'pay'
           ? A.table(

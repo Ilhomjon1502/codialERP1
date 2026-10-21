@@ -101,6 +101,7 @@ class Lead(BaseModel):
     tags = models.JSONField("Teglar", default=list, blank=True)
     callback_at = models.DateTimeField("Qayta bog'lanish vaqti", null=True, blank=True, db_index=True)  # 1- va 8-statuslarda; shu vaqtda botdan eslatma
     callback_reminded_at = models.DateTimeField("Eslatma yuborilgan vaqt", null=True, blank=True)
+    callback_talked_at = models.DateTimeField("Suhbat bo'lgan vaqt (izoh kutilmoqda)", null=True, blank=True)  # qayta bog'lanishdagi lid bilan gaplashilgan, izoh hali yozilmagan
 
     class Meta:
         verbose_name = "Lid"

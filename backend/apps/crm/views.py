@@ -4,6 +4,7 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 
+from apps.calls import services as call_services
 from apps.core.pagination import Pagination
 from apps.core.permissions import NO_PERMISSION, can, check_edit_window
 from apps.core.scoping import branch_ids, in_scope
@@ -12,7 +13,7 @@ from apps.references.models import Branch
 
 from . import services
 from .models import Lead, Parent, Student
-from .serializers import LeadCommentSerializer, LeadCreateSerializer, LeadSerializer, ParentSerializer, StudentSerializer, StudentUpdateSerializer
+from .serializers import CallNoteSerializer, LeadCommentSerializer, LeadCreateSerializer, LeadSerializer, ParentSerializer, StudentSerializer, StudentUpdateSerializer
 
 LEAD_QS = Lead.objects.select_related("student").prefetch_related("preferred_times").annotate(
     comments_count=Count("comments", filter=Q(comments__is_deleted=False)), has_contract_flag=services.contract_exists(),
@@ -50,7 +51,7 @@ class LeadViewSet(AuditedModelViewSet):
     branch_field = "branch"
     pagination_class = Pagination
     check_usage_on_delete = False
-    action_ops = {"board": "v", "stats": "v", "comments": "a", "contract": "v"}
+    action_ops = {"board": "v", "stats": "v", "comments": "a", "contract": "v", "call_note": "a", "calls": "v"}
 
     def get_serializer_class(self):
         return LeadCreateSerializer if self.action == "create" else LeadSerializer
@@ -136,6 +137,24 @@ class LeadViewSet(AuditedModelViewSet):
         c = services.add_comment(request.user, self.get_object(), request.data.get("comment"))
         return Response(LeadCommentSerializer(c).data, status=status.HTTP_201_CREATED)
 
+    @action(detail=True, methods=["post"], url_path="call-note")
+    def call_note(self, request, pk=None):
+        """Suhbatdan keyingi izoh + (ixtiyoriy) holat va keyingi qayta bog'lanish vaqti."""
+        lead = self.get_object()
+        ser = CallNoteSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        d = ser.validated_data
+        services.save_call_note(request.user, lead, d["comment"], d.get("status") or None, d.get("callback_at"))
+        return Response(LeadSerializer(LEAD_QS.get(pk=lead.pk), context=self.get_serializer_context()).data)
+
+    @action(detail=True)
+    def calls(self, request, pk=None):
+        """Shu lidning (talaba, 1- va 2-telefon, vasiy) qo'ng'iroqlar tarixi. «Qo'ng'iroqlar» bo'limini ko'rish huquqi kerak."""
+        lead = self.get_object()
+        if not can(request.user, "calls", "v"):
+            return Response({"allowed": False, "count": 0, "results": [], "last": None})
+        return Response(call_services.history(lead.branch_id, call_services.student_phones(lead.student)))
+
 
 class StudentViewSet(AuditedModelViewSet):
     """Talabalar (yaratish — lid orqali). ?free=1 — lidi ham, shartnomasi ham yo'q talabalar (lid formasi uchun)."""
@@ -155,6 +174,14 @@ class StudentViewSet(AuditedModelViewSet):
         if p.get("free"):
             qs = qs.exclude(leads__is_deleted=False).exclude(contracts__is_deleted=False)
         return qs
+
+    @action(detail=True)
+    def calls(self, request, pk=None):
+        """Talabaning (1- va 2-telefon, vasiy) qo'ng'iroqlar tarixi."""
+        student = self.get_object()
+        if not can(request.user, "calls", "v"):
+            return Response({"allowed": False, "count": 0, "results": [], "last": None})
+        return Response(call_services.history(student.branch_id, call_services.student_phones(student)))
 
     def partial_update(self, request, *args, **kwargs):
         student = self.get_object()
