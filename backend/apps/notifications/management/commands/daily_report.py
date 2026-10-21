@@ -8,7 +8,7 @@ Cron: 0 19 * * *
 
 import datetime
 import html
-from collections import defaultdict
+from collections import Counter, defaultdict
 
 from django.core.management.base import BaseCommand
 from django.db.models import Count, Q, Sum
@@ -45,6 +45,31 @@ def ranked(rows, label, value=lambda r: r["n"]):
     if len(rows) > TOP:
         out.append(f"  <i>… yana {len(rows) - TOP} ta</i>")
     return out
+
+
+def day_updates(day, model):
+    """Shu kuni `model` bo'yicha O'ZGARTIRILDI audit yozuvlari: {yozuv_id: [(maydon, eski, yangi), ...]} (vaqt tartibida)."""
+    out = defaultdict(list)
+    qs = AuditLog.objects.filter(at__date=day, model=model, action=AuditLog.Action.UPDATE).order_by("at").values_list("object_id", "changes")
+    for oid, changes in qs:
+        for field, old, new in changes or []:
+            out[oid].append((field, old, new))
+    return out
+
+
+def stopped_contracts(day):
+    """Bugun to'xtatilgan shartnomalar: tugash sanasi bugun kiritilganlar (sanasi qaysi kun bo'lishidan qat'i nazar)."""
+    return sum(1 for ch in day_updates(day, "Shartnoma").values() if any(f == "end_date" and not old and new for f, old, new in ch))
+
+
+def lead_moves(day):
+    """Bugun holati o'zgargan lidlar: {yangi holat: soni} (kun ichidagi birinchi eski va oxirgi yangi holat bo'yicha)."""
+    moved = Counter()
+    for ch in day_updates(day, "Lid").values():
+        st = [(old, new) for f, old, new in ch if f == "status"]
+        if st and st[0][0] != st[-1][1]:
+            moved[st[-1][1]] += 1
+    return moved
 
 
 def calls_section(day):
@@ -103,8 +128,8 @@ def build(day):
 
     # Faol shartnomalar — kurslar bo'yicha
     active = Contract.objects.filter(status_q(FAOL, day))
-    new = Contract.objects.filter(created_at__date=day).count()
-    stopped = Contract.objects.filter(end_date=day).count()
+    new = Contract.objects.filter(Q(created_at__date=day) | Q(start_date=day)).count()  # bugun qo'shilgan yoki bugun boshlangan
+    stopped = stopped_contracts(day)
     L.append(f"\n📝 <b>Faol shartnomalar: {num(active.count())}</b> (bugun +{new} yangi, −{stopped} to'xtatildi)")
     L += ranked(active.values("course__name").annotate(n=Count("id")).order_by("-n", "course__name"), lambda r: r["course__name"])
 
@@ -114,6 +139,11 @@ def build(day):
     open_leads = leads.filter(status__in=OPEN_LEADS)
     L.append(f"\n🎯 <b>Lidlar</b>: bugun +{today_new} yangi · ochiq {num(open_leads.count())} · jami {num(leads.count())}")
     by_status = dict(leads.values_list("status").annotate(n=Count("id")).values_list("status", "n"))
+    moved = lead_moves(day)
+    if moved:
+        names = dict(Lead.LeadStatus.choices)
+        parts = " · ".join(f"{st}. {e(names.get(st, st))} — {n}" for st, n in sorted(moved.items()))
+        L.append(f"  <i>Bugun holati o'zgardi: {sum(moved.values())} ta</i> ({parts})")
     L.append("  <i>Holat bo'yicha:</i>")
     L += [f"  {v}. {e(label)} — <b>{num(by_status[v])}</b>" for v, label in Lead.LeadStatus.choices if by_status.get(v)]
     matrix = defaultdict(dict)

@@ -13,7 +13,7 @@ from .models import AGE_GROUPS, LAPTOP_CHOICES, LEAD_TAGS, SOCIAL_STATUSES, Lead
 class ParentSerializer(BranchScopedSerializerMixin, serializers.ModelSerializer):
     class Meta:
         model = Parent
-        fields = ["id", "branch", "first_name", "last_name", "phone"]
+        fields = ["id", "branch", "relation", "first_name", "last_name", "phone"]
 
     def validate_first_name(self, v):
         if len(services.clean(v)) < 3:
@@ -56,6 +56,7 @@ class StudentUpdateSerializer(serializers.Serializer):
     parent = serializers.PrimaryKeyRelatedField(queryset=Parent.objects.all(), required=False, allow_null=True)
     new_parent = serializers.BooleanField(required=False, default=False)
     p_first = serializers.CharField(required=False, allow_blank=True)
+    p_relation = serializers.ChoiceField(choices=Parent.Relation.choices, required=False, allow_blank=True)
     p_phone = serializers.CharField(required=False, allow_blank=True)
 
 

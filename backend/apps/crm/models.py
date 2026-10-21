@@ -14,7 +14,23 @@ LEAD_TAGS = ["VIP", "Chegirma so'radi", "Ota-onasi qo'ng'iroq qiladi", "Kechki v
 
 
 class Parent(BaseModel):
+    class Relation(models.TextChoices):
+        FATHER = "Ota", "Ota"
+        MOTHER = "Ona", "Ona"
+        BROTHER_OLDER = "Aka", "Aka"
+        BROTHER_YOUNGER = "Uka", "Uka"
+        SISTER_OLDER = "Opa", "Opa"
+        SISTER_YOUNGER = "Singil", "Singil"
+        UNCLE_FATHER = "Amaki", "Amaki"
+        UNCLE_MOTHER = "Tog'a", "Tog'a"
+        AUNT_MOTHER = "Xola", "Xola"
+        AUNT_FATHER = "Amma", "Amma"
+        GRANDMOTHER = "Buvi", "Buvi"
+        GRANDFATHER = "Bobo", "Bobo"
+        OTHER = "Boshqa", "Boshqa"
+
     branch = models.ForeignKey("references.Branch", on_delete=models.PROTECT, related_name="parents")
+    relation = models.CharField("Kim bo'ladi", max_length=10, choices=Relation.choices, blank=True)
     first_name = models.CharField("Ismi", max_length=50)
     last_name = models.CharField("Familiyasi", max_length=50, blank=True)
     phone = models.CharField("Telefon", max_length=9)

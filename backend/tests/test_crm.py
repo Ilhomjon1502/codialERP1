@@ -131,11 +131,30 @@ def test_student_fill_form_with_new_parent(api, make_user, refs):
     assert bad.json()["father_name"] == ["Nuqta qo'yib bo'lmaydi!"]
     no_birth = c.patch(f"/api/v1/students/{sid}/", {"father_name": "Anvar o'g'li"}, format="json")
     assert no_birth.json()["birth_date"] == ["Majburiy maydon"]
-    r = c.patch(f"/api/v1/students/{sid}/", {"father_name": "Anvar o'g'li", "birth_date": "2010-05-01", "new_parent": True, "p_first": "Anvar", "p_phone": "977776655"}, format="json")
+    body = {"father_name": "Anvar o'g'li", "birth_date": "2010-05-01", "new_parent": True, "p_first": "Anvar", "p_relation": "Ota", "p_phone": "977776655"}
+    r = c.patch(f"/api/v1/students/{sid}/", body, format="json")
     assert r.status_code == 200, r.content
     p = Parent.objects.get()
-    assert r.json()["parent"] == str(p.pk) and p.last_name == "Yangiboyev"
+    assert r.json()["parent"] == str(p.pk) and p.last_name == "Yangiboyev" and p.relation == "Ota" and p.first_name == "Anvar"
     assert r.json()["full_name"] == "Abdusalom Yangiboyev Anvar o'g'li"
+
+
+def test_student_form_father_name_optional_and_parent_relation(api, make_user, refs):
+    """2026-10-21: sharif majburiy emas; vasiy — kim bo'lishi (ota, ona, aka…) tanlanadi, ismi ixtiyoriy."""
+    c = api(make_user("ADMINISTRATOR_HISOBCHI"))
+    sid = c.post("/api/v1/leads/", new_lead(refs), format="json").json()["student"]
+    url = f"/api/v1/students/{sid}/"
+    base = {"birth_date": "2010-05-01", "new_parent": True, "p_phone": "977776655"}
+    r = c.patch(url, {**base, "father_name": ""}, format="json")  # sharif ham, kimligi ham yo'q
+    assert r.status_code == 400 and "p_relation" in r.json()
+    r = c.patch(url, {**base, "father_name": "", "p_relation": "Boshqa"}, format="json")  # «Boshqa» — ismi kerak
+    assert r.status_code == 400 and "p_first" in r.json()
+    r = c.patch(url, {**base, "p_relation": "Singil"}, format="json")  # sharifsiz, vasiy ismisiz
+    assert r.status_code == 200, r.content
+    p = Parent.objects.get()
+    assert (p.relation, p.first_name, p.phone) == ("Singil", "Singil", "977776655") and r.json()["full_name"] == "Abdusalom Yangiboyev"
+    assert c.patch(url, {"father_name": "ab"}, format="json").json()["father_name"] == ["Eng ozi 3 harfdan iborat bo'lsin!"]  # kiritilsa — tekshiriladi
+    assert c.patch(url, {"p_relation": "Qo'shni", "new_parent": True, "p_phone": "977776655"}, format="json").status_code == 400  # ro'yxatdan tashqari
 
 
 def test_comment_and_soft_delete(api, make_user, refs):

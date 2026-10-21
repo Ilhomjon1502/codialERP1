@@ -761,7 +761,7 @@
           [
             { h: 'Sana', f: (r) => A.fdate(r.date) },
             { h: 'Talaba', f: (r) => `<a href="#/contracts/${r.contract}">${esc(r.student_name)}</a><br><small class="muted">${esc(A.groupName(r.group))}</small>` },
-            { h: 'Aloqa', f: (r) => `<a href="tel:+998${r.phone1}">📞 ${r.phone1}</a> · <a href="sms:+998${r.phone1}">SMS</a>${r.phone2 ? `<br><a href="tel:+998${r.phone2}">📞 ${r.phone2}</a> · <a href="sms:+998${r.phone2}">SMS</a>` : ''}${r.parent ? `<br><small>Vasiy: <a href="tel:+998${r.parent.phone}">${esc(r.parent.first_name)} ${r.parent.phone}</a></small>` : ''}` },
+            { h: 'Aloqa', f: (r) => `<a href="tel:+998${r.phone1}">📞 ${r.phone1}</a> · <a href="sms:+998${r.phone1}">SMS</a>${r.phone2 ? `<br><a href="tel:+998${r.phone2}">📞 ${r.phone2}</a> · <a href="sms:+998${r.phone2}">SMS</a>` : ''}${r.parent ? `<br><small>Vasiy${r.parent.relation ? ' (' + esc(r.parent.relation) + ')' : ''}: <a href="tel:+998${r.parent.phone}">${esc(r.parent.first_name)} ${r.parent.phone}</a></small>` : ''}` },
             { h: 'Izoh', f: (r) => `${esc(r.comment)}${r.edited ? `<br><small class="muted">✎ ${esc(A.userName(r.updated_by))} · ${A.fdt(r.updated_at)}</small>` : ''}` },
             { h: 'Kim', f: (r) => `${esc(A.userName(r.created_by))}<br><small class="muted">${A.fdt(r.created_at)}</small>` },
             {

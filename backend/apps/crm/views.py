@@ -162,7 +162,7 @@ class StudentViewSet(AuditedModelViewSet):
         ser = StudentUpdateSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         d = dict(ser.validated_data)
-        new_parent = {"first_name": d.pop("p_first", ""), "phone": d.pop("p_phone", "")} if d.pop("new_parent", False) else None
+        new_parent = {"first_name": d.pop("p_first", ""), "phone": d.pop("p_phone", ""), "relation": d.pop("p_relation", "")} if d.pop("new_parent", False) else None
         d.pop("p_first", None), d.pop("p_phone", None)
         if d.get("parent") and not in_scope(request.user, d["parent"].branch_id):
             raise ValidationError({"parent": "Bu vasiy sizning doirangizda emas"})

@@ -173,7 +173,7 @@ class ParentCallSerializer(serializers.ModelSerializer):
 
     def get_parent(self, r):
         p = r.contract.student.parent
-        return {"first_name": p.first_name, "last_name": p.last_name, "phone": p.phone} if p else None
+        return {"relation": p.relation, "first_name": p.first_name, "last_name": p.last_name, "phone": p.phone} if p else None
 
     def get_edited(self, r):
         """Yaratilgandan keyin tahrirlanganmi (izoh ostidagi «✎ kim · qachon» uchun)."""

@@ -352,7 +352,7 @@
           <span>Shartnoma: ${contractStatusOf(l)}</span>
           ${(l.tags || []).map((t) => A.badge(t, 'gray')).join('')}
         </div>
-        ${needsBirth ? `<div class="alert warn">${A.icon('alert')}<div>O'qishni boshladi, lekin talabaning to'liq ma'lumotlari (sharif, tug'ilgan sana, vasiy) kiritilmagan. Avval talaba ma'lumotlarini to'ldiring.</div></div>` : ''}
+        ${needsBirth ? `<div class="alert warn">${A.icon('alert')}<div>O'qishni boshladi, lekin talabaning to'liq ma'lumotlari (tug'ilgan sana, vasiy) kiritilmagan. Avval talaba ma'lumotlarini to'ldiring.</div></div>` : ''}
         <dl class="dl">
           <dt>Telefon</dt><dd><a href="tel:+998${st.phone1}">+998 ${st.phone1}</a>${st.phone2 ? ` · <a href="tel:+998${st.phone2}">+998 ${st.phone2}</a>` : ''}</dd>
           <dt>Kurs</dt><dd>${esc(A.courseName(l.course))}</dd>
@@ -404,6 +404,7 @@
   A.act['lead-open'] = (el) => A.openLead(el.dataset.id);
 
   /* ---- Talaba ma'lumotlarini to'ldirish ---- */
+  const PARENT_RELATIONS = ['Ota', 'Ona', 'Aka', 'Uka', 'Opa', 'Singil', 'Amaki', "Tog'a", 'Xola', 'Amma', 'Buvi', 'Bobo', 'Boshqa'];
   A.studentForm = async (st, after) => {
     const parents = (await A.http.get('/parents/')).filter((p) => p.branch === st.branch);
     A.form({
@@ -413,17 +414,18 @@
         { name: 'first_name', label: 'Ism', required: true, half: true, validate: (t) => (t.trim().length < 3 || t.trim().length > 20 ? "Eng ozi 3 harf, ko'pi 20" : '') },
         { name: 'last_name', label: 'Familiya', required: true, half: true, validate: (t) => (t.trim().length < 3 || t.trim().length > 20 ? "Eng ozi 3 harf, ko'pi 20" : '') },
         { name: 'phone1', label: '1-telefon (+998)', required: true, half: true, validate: (t) => (!/^\d{9}$/.test(t) ? "9 sondan iborat bo'lsin" : '') },
-        { name: 'father_name', label: 'Sharif', required: true, half: true, validate: (t) => (t.includes('.') ? "Nuqta qo'yib bo'lmaydi!" : t.trim().length < 3 ? 'Eng ozi 3 harf' : '') },
+        { name: 'father_name', label: 'Sharif (ixtiyoriy)', half: true, validate: (t) => (!t.trim() ? '' : t.includes('.') ? "Nuqta qo'yib bo'lmaydi!" : t.trim().length < 3 ? 'Eng ozi 3 harf' : '') },
         { name: 'phone2', label: '2-telefon (+998)', half: true, validate: (t, x) => (t === x.phone1 ? "Ikki bir xil nomer kiritib bo'lmaydi!" : !/^\d{9}$/.test(t) ? "9 ta sondan iborat bo'lsin" : '') },
         { name: 'gender', label: 'Jins', type: 'seg', options: ['Erkak', 'Ayol'], half: true },
         { name: 'birth_date', label: "Tug'ilgan sanasi", type: 'date', required: true, half: true },
-        { name: 'parent', label: 'Vasiy (ota-ona)', type: 'select', half: true, options: () => parents.map((p) => [p.id, `${p.first_name} ${p.last_name} · ${p.phone}`]), placeholder: "Tanlang yoki bo'sh qoldiring" },
+        { name: 'parent', label: 'Vasiy (ota-ona)', type: 'select', half: true, options: () => parents.map((p) => [p.id, `${p.relation ? p.relation + ': ' : ''}${p.first_name} ${p.last_name} · ${p.phone}`]), placeholder: "Tanlang yoki bo'sh qoldiring" },
         { name: 'new_parent', label: "Yangi vasiy qo'shish", type: 'checkbox', show: (x) => !x.parent },
-        { name: 'p_first', label: 'Vasiy ismi', show: (x) => x.new_parent, required: (x) => x.new_parent, half: true, validate: (t) => (t.trim().length < 3 ? 'Eng ozi 3 harf' : '') },
+        { name: 'p_relation', label: 'Vasiy kim bo\'ladi', type: 'select', show: (x) => x.new_parent, required: (x) => x.new_parent, half: true, options: () => PARENT_RELATIONS.map((r) => [r, r]), placeholder: 'Tanlang' },
+        { name: 'p_first', label: 'Vasiy ismi (ixtiyoriy)', show: (x) => x.new_parent, required: (x) => x.new_parent && x.p_relation === 'Boshqa', half: true, validate: (t, x) => (!t.trim() ? (x.p_relation === 'Boshqa' ? 'Ismini yozing' : '') : t.trim().length < 3 ? 'Eng ozi 3 harf' : '') },
         { name: 'p_phone', label: 'Vasiy telefoni', show: (x) => x.new_parent, required: (x) => x.new_parent, half: true, validate: (t) => (!/^\d{9}$/.test(t) ? "9 sondan iborat bo'lsin" : '') },
       ],
       async onSubmit(x) {
-        const body = { first_name: x.first_name, last_name: x.last_name, father_name: x.father_name, phone1: x.phone1, phone2: x.phone2 || '', gender: x.gender || '', birth_date: x.birth_date, parent: x.parent || null, new_parent: !!x.new_parent, p_first: x.p_first || '', p_phone: x.p_phone || '' };
+        const body = { first_name: x.first_name, last_name: x.last_name, father_name: x.father_name, phone1: x.phone1, phone2: x.phone2 || '', gender: x.gender || '', birth_date: x.birth_date, parent: x.parent || null, new_parent: !!x.new_parent, p_first: x.p_first || '', p_relation: x.p_relation || '', p_phone: x.p_phone || '' };
         A.putLocal('students', await A.http.patch(`/students/${st.id}/`, body));
         A.toast('Saqlandi');
         A.refresh();
@@ -614,7 +616,7 @@
           <section class="card"><h2>Ma'lumotlar</h2><dl class="dl">
             <dt>Talaba</dt><dd>${esc(st.full_name)} ${A.can('leads', 'e') ? `<a href="#" data-act="student-edit" data-id="${st.id}" class="small">tahrirlash</a>` : ''}</dd>
             <dt>Telefon</dt><dd><a href="tel:+998${st.phone1}">+998 ${st.phone1}</a>${st.phone2 ? ` · <a href="tel:+998${st.phone2}">${st.phone2}</a>` : ''}</dd>
-            <dt>Vasiy</dt><dd>${parent ? `${esc(parent.first_name)} ${esc(parent.last_name)} · <a href="tel:+998${parent.phone}">${parent.phone}</a>` : '—'}</dd>
+            <dt>Vasiy</dt><dd>${parent ? `${parent.relation ? esc(parent.relation) + ': ' : ''}${esc(parent.first_name)} ${esc(parent.last_name)} · <a href="tel:+998${parent.phone}">${parent.phone}</a>` : '—'}</dd>
             <dt>Kurs / guruh</dt><dd>${esc(A.courseName(c.course))} · <a href="#/groups/${c.group}">${esc(A.groupName(c.group))}</a></dd>
             <dt>Muddat</dt><dd>${A.fdate(c.start)} — ${c.end ? A.fdate(c.end) : '…'}</dd>
             ${c.stop_reason ? `<dt>To'xtatish sababi</dt><dd>${esc(c.stop_reason)}</dd>` : ''}

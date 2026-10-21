@@ -31,7 +31,10 @@ def validate_name(value, field):
 
 
 def validate_father_name(value):
+    """Sharif majburiy emas (2026-10-21): bo'sh bo'lishi mumkin; kiritilsa — nuqtasiz, kamida 3 harf."""
     v = clean(value)
+    if not v:
+        return ""
     if "." in v:
         raise ValidationError({"father_name": "Nuqta qo'yib bo'lmaydi!"})
     if len(v) < 3:
@@ -126,7 +129,7 @@ def create_student(user, branch, *, first_name, last_name, phone1, phone2, gende
 
 @transaction.atomic
 def update_student(user, student, data, new_parent=None):
-    """«Talaba ma'lumotlarini to'ldirish»: sharif va tug'ilgan sana majburiy, vasiy tanlanadi yoki yangisi qo'shiladi."""
+    """«Talaba ma'lumotlarini to'ldirish»: tug'ilgan sana majburiy (sharif — ixtiyoriy), vasiy tanlanadi yoki yangisi (kim bo'lishi bilan) qo'shiladi."""
     before = audit.snapshot(student)
     first_name = validate_name(data.get("first_name", student.first_name), "first_name")
     last_name = validate_name(data.get("last_name", student.last_name), "last_name")
@@ -141,11 +144,17 @@ def update_student(user, student, data, new_parent=None):
     if new_parent:
         p_first = clean(new_parent.get("first_name"))
         p_phone = clean(new_parent.get("phone"))
-        if len(p_first) < 3:
+        relation = clean(new_parent.get("relation"))
+        if not relation:
+            raise ValidationError({"p_relation": "Vasiy kimligini tanlang (ota, ona, aka…)"})
+        if p_first and len(p_first) < 3:
             raise ValidationError({"p_first": "Eng ozi 3 harf"})
+        if not p_first and relation == Parent.Relation.OTHER:
+            raise ValidationError({"p_first": "«Boshqa» bo'lsa, ismini yozing"})
         if not PHONE_RE.fullmatch(p_phone):
             raise ValidationError({"p_phone": PHONE_MSG})
-        parent = Parent.objects.create(branch=student.branch, first_name=p_first, last_name=last_name, phone=p_phone, created_by=user, updated_by=user)
+        parent = Parent.objects.create(branch=student.branch, relation=relation, first_name=p_first or relation, last_name=last_name, phone=p_phone,
+                                       created_by=user, updated_by=user)
         audit.log_create(user, parent)
     if parent and parent.branch_id != student.branch_id:
         raise ValidationError({"parent": "Vasiy boshqa filialdan"})
