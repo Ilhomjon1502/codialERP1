@@ -94,8 +94,8 @@ def edit_days(role_code, section):
         return None
     if role_code == RoleCode.FILIAL_MENEJERI:
         return 15
-    if role_code == RoleCode.ADMINISTRATOR_HISOBCHI and section == "attendance":
-        return None  # buyurtmachi qarori 2026-10-19: Administrator+Hisobchi davomatni sanadan qat'i nazar to'liq tahrirlaydi
+    if role_code == RoleCode.ADMINISTRATOR_HISOBCHI and section in ("attendance", "leads"):
+        return None  # buyurtmachi qarori: Administrator+Hisobchi davomatni (2026-10-19) va lidlarni (2026-10-21) sanadan qat'i nazar to'liq tahrirlaydi
     if role_code in (RoleCode.ADMINISTRATOR, RoleCode.ADMINISTRATOR_HISOBCHI, RoleCode.MARKETOLOG):
         return 0 if section in _TODAY_ONLY_FOR_ADMINISTRATORS else 7
     if role_code == RoleCode.HISOBCHI or role_code in TEACHER_ROLES:

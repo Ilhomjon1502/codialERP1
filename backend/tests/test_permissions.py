@@ -73,6 +73,8 @@ def test_edit_days_rules():
     assert edit_days("USTOZ", "attendance") == 0
     assert edit_days("ADMINISTRATOR_HISOBCHI", "attendance") is None  # davomat — muddatsiz
     assert edit_days("ADMINISTRATOR_HISOBCHI", "contracts") == 7
+    assert edit_days("ADMINISTRATOR_HISOBCHI", "leads") is None  # lid statusi — muddatsiz (2026-10-21)
+    assert edit_days("ADMINISTRATOR", "leads") == 7
     assert edit_days("ADMINISTRATOR", "attendance") == 7
 
 
