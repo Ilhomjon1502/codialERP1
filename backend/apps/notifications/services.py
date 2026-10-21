@@ -39,6 +39,7 @@ EVENT_PERM = {
     "task": ("staffTasks", "v"),
     "debt_lesson": ("debtors", "v"),
     "demo_soon": ("leads", "v"),
+    "lead_callback": ("leads", "e"),  # tugmalar lidni o'zgartiradi
 }
 # Xodim hali tanlamagan bo'lsa — kimga standart holda boradi
 DEFAULT_ROLES = {
@@ -55,6 +56,7 @@ DEFAULT_ROLES = {
     "task": set(),  # faqat topshiriq ishtirokchilari (default_users)
     "debt_lesson": {R.ADMINISTRATOR_HISOBCHI},
     "demo_soon": {R.ADMINISTRATOR_HISOBCHI},  # + guruh ustozi (default_users)
+    "lead_callback": {R.ADMINISTRATOR_HISOBCHI},  # buyurtmachi qarori 2026-10-21: hamma Administrator+Hisobchiga
 }
 
 
@@ -196,6 +198,32 @@ def makeup_requested(m):
     a = m.attendance
     notify("makeup", f"📚 <b>Dars yetkazildi — so'rov</b>\n{escape(str(m.teacher))}: {escape(a.contract.student.full_name)}, {a.date:%d.%m.%Y} "
                      f"(yetkazildi {m.makeup_date:%d.%m.%Y}){_comment(m.comment)}", branch=a.branch, markup=_buttons(("✅ Tasdiqlash", f"ap:m:{m.pk}")))
+
+
+def lead_callback_from_telegram(chat_id, data):
+    """Botdagi qayta bog'lanish tugmalari (callback `lc:<amal>:<lid_id>`): done / h1 / tm. Qaytaradi: qisqa javob (✅ bilan boshlansa — tugmalar olib tashlanadi)."""
+    from rest_framework.exceptions import PermissionDenied, ValidationError
+
+    from apps.crm import services as crm
+    from apps.crm.models import Lead
+
+    link = TelegramLink.objects.filter(chat_id=chat_id, user__employment_status=User.Employment.ACTIVE).select_related("user").first()
+    try:
+        _, action, pk = data.split(":", 2)
+    except ValueError:
+        return "Noma'lum amal"
+    if not link:
+        return "Siz botga ulanmagansiz"
+    lead = Lead.objects.select_related("branch", "student").filter(pk=pk).first()
+    if not lead or not in_branch(link.user, lead.branch):
+        return "Lid topilmadi (o'chirilgan bo'lishi mumkin)"
+    try:
+        return crm.callback_action(link.user, lead, action)
+    except (ValidationError, PermissionDenied) as e:
+        detail = e.detail.get("detail") if isinstance(e.detail, dict) else e.detail
+        if isinstance(detail, list):
+            detail = detail[0]
+        return str(detail)[:190]
 
 
 def approve_from_telegram(chat_id, data):

@@ -18,6 +18,7 @@ EVENTS = [
     ("morning_plan", "Ertalabki ish rejasi (8:30): to'lovlar, sinov darslari, qo'ng'iroqlar"),
     ("debt_lesson", "Dars boshlanishiga 10 daqiqa: shu guruhdagi qarzdor talabalar"),
     ("demo_soon", "Sinov darsiga 10 daqiqa qoldi: talaba va guruh"),
+    ("lead_callback", "Lid: qayta bog'lanish vaqti keldi"),
     ("task", "Topshiriqlar: yangi, eslatma, bajarildi"),
 ]
 EVENT_KEYS = [k for k, _ in EVENTS]

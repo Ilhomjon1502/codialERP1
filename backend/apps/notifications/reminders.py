@@ -26,6 +26,7 @@ WEEKDAYS = ["dushanba", "seshanba", "chorshanba", "payshanba", "juma", "shanba",
 DEBT_BEFORE = 10  # daqiqa: dars boshlanishidan oldin qarzdorlar haqida eslatma
 START_WINDOW = 15  # daqiqa: bot qayta ishga tushsa ham shu oraliqda boshlangan dars eslatiladi
 PER_GROUP = 12
+CALLBACK_WINDOW_H = 12  # soat: bot to'xtab qolgan bo'lsa ham shu oraliqda belgilangan qayta bog'lanish eslatiladi (eskisi — ertalabki rejada)
 PER_LIST = 15
 
 
@@ -120,6 +121,32 @@ def demo_before_lessons(now=None):
         mine = {g.teacher_id, g.supporter_id} if g else set()
         services.notify("demo_soon", text, branch=ld.branch, default_users=[g.teacher] if g else [], key=f"demo10:{ld.pk}:{today}",
                         only=lambda u, mine=mine: role_code(u) not in TEACHER_ROLES or u.pk in mine)
+        n += 1
+    return n
+
+
+def lead_callbacks(now=None):
+    """Lidning «qayta bog'lanish vaqti» kelganda (1- va 8-statuslar) — Administrator+Hisobchilarga bir marta, tugmalar bilan:
+    ✅ Qo'ng'iroq qilindi · ⏰ +1 soat · 📅 Ertaga. Eskirgan (12 soatdan oshgan) eslatmalar ertalabki rejaga tushadi."""
+    now = now or timezone.localtime()
+    leads = (Lead.objects.filter(status__in=["1", "8"], callback_at__isnull=False, callback_at__lte=now, callback_reminded_at__isnull=True,
+                                 callback_at__gte=now - datetime.timedelta(hours=CALLBACK_WINDOW_H))
+             .select_related("student", "course", "branch"))
+    n = 0
+    for ld in leads:
+        st = ld.student
+        last = ld.comments.order_by("-created_at").first()
+        L = [f"⏰ <b>Qayta bog'lanish vaqti keldi</b> · {timezone.localtime(ld.callback_at):%H:%M}",
+             f"{e(st.full_name)} · {phone(st.phone1)}" + (f" · {phone(st.phone2)}" if st.phone2 else ""),
+             f"{e(ld.course)} · {ld.get_status_display()}"]
+        if last:
+            L.append(f"💬 {e(last.comment[:150])}")
+        L.append(link("leads"))
+        pk = ld.pk
+        markup = {"inline_keyboard": [[{"text": "✅ Qo'ng'iroq qilindi", "callback_data": f"lc:done:{pk}"}],
+                                      [{"text": "⏰ +1 soat", "callback_data": f"lc:h1:{pk}"}, {"text": "📅 Ertaga", "callback_data": f"lc:tm:{pk}"}]]}
+        services.notify("lead_callback", "\n".join(L), branch=ld.branch, key=f"lcb:{pk}:{int(ld.callback_at.timestamp())}", markup=markup)
+        Lead.objects.filter(pk=pk).update(callback_reminded_at=now)
         n += 1
     return n
 
@@ -220,11 +247,24 @@ def plan_text(branch, day):
         if len(absent) > PER_LIST:
             L.append(f"  <i>… yana {len(absent) - PER_LIST} ta — Davomatlar → Kelmaganlar</i>")
 
-    # 4. Qayta bog'lanish kerak lidlar
-    callback = Lead.objects.filter(branch=branch, status="1").select_related("student", "course").order_by("created_at")
+    # 4. Qayta bog'lanish: muddati o'tganlar (vaqti belgilangan, bog'lanilmagan), bugunga rejalashtirilganlar va vaqti belgilanmagan 1-status lidlar
+    start_of_day = timezone.make_aware(datetime.datetime.combine(day, datetime.time.min))
+    end_of_day = start_of_day + datetime.timedelta(days=1)
+    base = Lead.objects.filter(branch=branch, status__in=["1", "8"]).select_related("student", "course")
+    overdue = list(base.filter(callback_at__lt=start_of_day).order_by("callback_at")[:200])
+    today_cb = list(base.filter(callback_at__gte=start_of_day, callback_at__lt=end_of_day).order_by("callback_at"))
+    if overdue:
+        L.append(f"\n⏰ <b>Muddati o'tgan qayta bog'lanishlar</b> — {len(overdue)} ta (vaqti o'tdi, qo'ng'iroq qilinmadi)")
+        L += [f"  • {timezone.localtime(ld.callback_at):%d.%m %H:%M} · {e(ld.student.full_name)} — {e(ld.course)} · {phone(ld.student.phone1)}" for ld in overdue[:PER_LIST]]
+        if len(overdue) > PER_LIST:
+            L.append(f"  <i>… yana {len(overdue) - PER_LIST} ta</i>")
+    if today_cb:
+        L.append(f"\n🔁 <b>Bugun qayta bog'lanish rejalashtirilgan</b> — {len(today_cb)} ta (vaqtida bot eslatadi)")
+        L += [f"  • {timezone.localtime(ld.callback_at):%H:%M} · {e(ld.student.full_name)} — {e(ld.course)} · {phone(ld.student.phone1)}" for ld in today_cb[:PER_LIST]]
+    callback = Lead.objects.filter(branch=branch, status="1", callback_at__isnull=True).select_related("student", "course").order_by("created_at")
     n_cb = callback.count()
     if n_cb:
-        L.append(f"\n🔁 <b>Qayta bog'lanish kerak lidlar</b> — {n_cb} ta (eng eskilari)")
+        L.append(f"\n🔁 <b>Qayta bog'lanish kerak lidlar</b> — {n_cb} ta (vaqti belgilanmagan, eng eskilari)")
         L += [f"  • {e(ld.student.full_name)} — {e(ld.course)} · {phone(ld.student.phone1)}" for ld in callback[:10]]
 
     # 5. Kecha davomati olinmagan guruhlar

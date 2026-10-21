@@ -61,6 +61,7 @@ class Command(BaseCommand):
                     reminders.debt_before_lessons()
                     reminders.demo_before_lessons()
                     tasks.due_reminders()
+                    reminders.lead_callbacks()
                 services.send_pending()
             except Exception:  # noqa: BLE001 — tarmoq xatosi botni to'xtatmasin
                 log.exception("Bot siklida xato")
@@ -72,6 +73,9 @@ class Command(BaseCommand):
         if data.startswith("td:") and chat:
             close_old_connections()
             text = tasks.done_from_telegram(chat, data[3:])
+        elif data.startswith("lc:") and chat:  # lidga qayta bog'lanish: Qo'ng'iroq qilindi / +1 soat / Ertaga
+            close_old_connections()
+            text = services.lead_callback_from_telegram(chat, data)
         elif data.startswith("ap:") and chat:  # tasdiqlash tugmalari: chegirma, naqdsiz to'lov, o'tkazma, qoldirilgan dars
             close_old_connections()
             text = services.approve_from_telegram(chat, data)

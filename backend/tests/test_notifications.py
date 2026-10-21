@@ -284,7 +284,7 @@ def test_marketolog_gets_lead_and_contract_changes(api, make_user, world, django
         assert api(fm).patch(f"/api/v1/leads/{lead_id}/", {"status": "3"}, format="json").status_code == 200
     assert Outbox.objects.filter(user=mk, event="lead_change").count() == 1
     with django_capture_on_commit_callbacks(execute=True):  # o'z o'zgarishi haqida xabar kelmaydi
-        assert api(mk).patch(f"/api/v1/leads/{lead_id}/", {"status": "1"}, format="json").status_code == 200
+        assert api(mk).patch(f"/api/v1/leads/{lead_id}/", {"status": "1", "callback_at": (timezone.now() + datetime.timedelta(days=1)).isoformat()}, format="json").status_code == 200
     assert Outbox.objects.filter(user=mk, event="lead_change").count() == 1
     with django_capture_on_commit_callbacks(execute=True):
         services.contract_saved(world["contracts"][0], fm, True)

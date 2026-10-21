@@ -86,11 +86,13 @@ class LeadSerializer(serializers.ModelSerializer):
     comments_count = serializers.IntegerField(read_only=True, default=0)
     paid_total = serializers.DecimalField(max_digits=14, decimal_places=0, read_only=True, default=None)
     first_paid = serializers.DateField(read_only=True, default=None)
+    callback_at = serializers.DateTimeField(required=False, allow_null=True)
 
     class Meta:
         model = Lead
         fields = ["id", "branch", "student", "student_data", "source", "course", "pattern", "times", "status", "group", "demo_date", "demo_attended",
-                  "age_group", "social", "laptop", "tags", "has_contract", "comments_count", "paid_total", "first_paid", "created_at", "created_by", "updated_at", "updated_by"]
+                  "age_group", "social", "laptop", "tags", "callback_at", "has_contract", "comments_count", "paid_total", "first_paid", "created_at", "created_by",
+                  "updated_at", "updated_by"]
         read_only_fields = ["branch", "student", "created_at", "created_by", "updated_at", "updated_by"]
 
     def get_has_contract(self, lead):
@@ -105,6 +107,7 @@ class LeadSerializer(serializers.ModelSerializer):
         services.check_lead_refs(branch, get("source"), get("course"), get("day_pattern"), times, instance=inst)
         if "group" in attrs or "course" in attrs:
             services.check_lead_group(branch, get("course"), get("group"), instance=inst)
+        services.validate_callback(inst, get("status") or Lead.LeadStatus.WAITING_GROUP, attrs)
         return attrs
 
 

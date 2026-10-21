@@ -1,15 +1,17 @@
 """CRM servislari: talaba va lid yaratish, dublikat tekshiruvi, voronka va statistika (CLAUDE.md 7.3, 20.6)."""
 
+import datetime
 import re
 
 from django.db import transaction
 from django.db.models import Count, DecimalField, Exists, Min, OuterRef, Q, Subquery, Sum, Value
 from django.db.models.functions import Coalesce, TruncMonth
 from django.utils import timezone
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from apps.core import audit
 from apps.core.models import Status
+from apps.core.permissions import NO_PERMISSION, can, check_edit_window
 from apps.notifications import services as notif
 
 from .models import Lead, LeadComment, Parent, Student
@@ -17,6 +19,8 @@ from .models import Lead, LeadComment, Parent, Student
 PHONE_RE = re.compile(r"\d{9}")
 PHONE_MSG = "9 sondan iborat bo'lsin. Namuna: 998883322"
 DUPLICATE_MSG = "Ushbu o'quvchi avval kiritilgan. Lidlar yoki shartnomalar oynasidan qidiring"
+CALLBACK_STATUSES = ("1", "8")  # qayta bog'lanish vaqti belgilanadigan holatlar (2026-10-21)
+CALLBACK_LEEWAY_MIN = 10  # vaqt kiritishda ozgina orqaga ruxsat (daqiqa)
 
 
 def clean(s):
@@ -165,6 +169,56 @@ def update_student(user, student, data, new_parent=None):
     student.save()
     audit.log_update(user, student, before)
     return student
+
+
+def validate_callback(instance, status, attrs):
+    """1- va 8-statuslarda qayta bog'lanish sanasi va vaqti majburiy (holat o'zgarganda yoki vaqt tahrirlanganda), kelajakda bo'lsin.
+    Boshqa holatlarda vaqt tozalanadi. attrs ga `callback_at` / `callback_reminded_at` qo'yadi."""
+    if status not in CALLBACK_STATUSES:
+        attrs["callback_at"] = None
+        attrs["callback_reminded_at"] = None
+        return
+    changed_status = instance is None or instance.status != status
+    if not changed_status and "callback_at" not in attrs:
+        return
+    at = attrs.get("callback_at")
+    if not at:
+        raise ValidationError({"callback_at": "Qayta bog'lanish sanasi va vaqtini kiriting"})
+    if at < timezone.now() - datetime.timedelta(minutes=CALLBACK_LEEWAY_MIN):
+        raise ValidationError({"callback_at": "Bu vaqt o'tib ketgan — kelajakdagi sana va vaqtni kiriting"})
+    attrs["callback_reminded_at"] = None
+
+
+@transaction.atomic
+def callback_action(user, lead, action, now=None):
+    """Botdagi qayta bog'lanish tugmalari: done — «Qo'ng'iroq qilindi» (vaqt tozalanadi, izoh yoziladi), h1 — 1 soatga, tm — ertaga shu vaqtda.
+    Huquq va muddat saytdagi bilan bir xil. Qaytaradi: qisqa javob."""
+    now = now or timezone.localtime()
+    if not can(user, "leads", "e"):
+        raise PermissionDenied(NO_PERMISSION)
+    check_edit_window(user, "leads", lead.created_at)
+    if lead.status not in CALLBACK_STATUSES:
+        raise ValidationError({"detail": "Lid holati o'zgargan — qayta bog'lanish kerak emas"})
+    before = audit.snapshot(lead)
+    if action == "done":
+        lead.callback_at = None
+        msg = "✅ Qo'ng'iroq qilindi deb belgilandi"
+        c = LeadComment.objects.create(lead=lead, comment=f"📞 Qo'ng'iroq qilindi (Telegram): {user}", created_by=user, updated_by=user)
+        audit.log_create(user, c)
+    elif action == "h1":
+        lead.callback_at = now + datetime.timedelta(hours=1)
+        msg = f"✅ Bugun {timezone.localtime(lead.callback_at):%H:%M} ga ko'chirildi"
+    elif action == "tm":
+        base = timezone.localtime(lead.callback_at).time() if lead.callback_at else now.time().replace(second=0, microsecond=0)
+        lead.callback_at = timezone.make_aware(datetime.datetime.combine(now.date() + datetime.timedelta(days=1), base))
+        msg = f"✅ Ertaga {base:%H:%M} ga ko'chirildi"
+    else:
+        raise ValidationError({"detail": "Noma'lum amal"})
+    lead.callback_reminded_at = None
+    lead.updated_by = user
+    lead.save()
+    audit.log_update(user, lead, before)
+    return msg
 
 
 def check_lead_refs(branch, source, course, day_pattern, times, instance=None):

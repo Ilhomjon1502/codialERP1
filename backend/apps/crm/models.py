@@ -99,6 +99,8 @@ class Lead(BaseModel):
     social_status = models.CharField("Ijtimoiy holati", max_length=32, blank=True)
     laptop = models.CharField("Noutbuk", max_length=12, blank=True)
     tags = models.JSONField("Teglar", default=list, blank=True)
+    callback_at = models.DateTimeField("Qayta bog'lanish vaqti", null=True, blank=True, db_index=True)  # 1- va 8-statuslarda; shu vaqtda botdan eslatma
+    callback_reminded_at = models.DateTimeField("Eslatma yuborilgan vaqt", null=True, blank=True)
 
     class Meta:
         verbose_name = "Lid"

@@ -188,6 +188,7 @@
               <b>${esc(st.first_name)} ${esc(st.last_name)}</b>
               <span class="muted small">${esc(A.courseName(l.course))} · ${esc(A.sourceName(l.source))}</span>
               ${l.demo_date && ['3', '4'].includes(l.status) ? `<span class="small">Sinov: ${demoTime(l) ? `${demoTime(l)} · ` : ''}${A.fdate(l.demo_date)}</span>` : ''}
+              ${CB.includes(l.status) && l.callback_at ? `<span class="small ${cbOverdue(l) ? 't-red' : ''}">⏰ ${cbShort(l)}</span>` : ''}
               ${l.status === '5' || l.has_contract ? `<span class="small">Shartnoma: ${contractStatusOf(l)}</span>` : ''}
             </button>`;
           })
@@ -209,6 +210,7 @@
         { h: 'Kurs', f: (l) => esc(A.courseName(l.course)) },
         { h: 'Manba', f: (l) => esc(A.sourceName(l.source)) },
         { h: 'Status', f: (l) => A.badge(`${l.status}. ${LS[l.status]}`, leadStatusTone[l.status]) },
+        { h: "Qayta bog'lanish", f: (l) => (CB.includes(l.status) && l.callback_at ? `<span class="${cbOverdue(l) ? 't-red' : ''}">⏰ ${cbShort(l)}</span>` : '—') },
         { h: 'Shartnoma', f: contractStatusOf },
         { h: "Qo'shilgan", f: (l) => A.fdate(A.iso(new Date(l.created_at))) },
       ],
@@ -264,12 +266,39 @@
     const id = g ? g.time : (l.times || [])[0];
     return id ? A.timeName(id) : '';
   };
+  /* Qayta bog'lanish vaqti (1- va 8-statuslar): shu vaqtda bot Administrator+Hisobchilarga eslatadi */
+  const CB = ['1', '8'];
+  const pad2 = (n) => String(n).padStart(2, '0');
+  const dtLocal = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  const cbValue = (l) => (l && l.callback_at ? l.callback_at.slice(0, 16) : '');
+  const cbTomorrow = () => { const d = new Date(Date.now() + 864e5); d.setHours(10, 0, 0, 0); return dtLocal(d); };
+  const cbOverdue = (l) => CB.includes(l.status) && l.callback_at && new Date(l.callback_at) < new Date();
+  const cbShort = (l) => `${l.callback_at.slice(8, 10)}.${l.callback_at.slice(5, 7)} ${l.callback_at.slice(11, 16)}`;
+  /** Sana-vaqt so'raydi va holat (ixtiyoriy) bilan birga saqlaydi */
+  A.callbackForm = (l, status, done) =>
+    A.form({
+      title: "Qayta bog'lanish vaqti",
+      values: { callback_at: cbValue(l) && new Date(l.callback_at) > new Date() ? cbValue(l) : cbTomorrow() },
+      fields: [
+        { name: 'note', type: 'note', text: () => `Shu vaqtda bot Administrator+Hisobchilarga «qayta bog'lanish vaqti keldi» deb xabar beradi${status ? ` (${status}. ${LS[status]})` : ''}.` },
+        { name: 'callback_at', label: 'Sana va vaqt', type: 'datetime-local', required: true, validate: (t) => (new Date(t) < new Date(Date.now() - 6e5) ? "Bu vaqt o'tib ketgan" : '') },
+      ],
+      async onSubmit(x) {
+        const body = { callback_at: x.callback_at };
+        if (status) body.status = status;
+        await A.http.patch(`/leads/${l.id}/`, body);
+        A.toast(status ? 'Status va qayta bog\'lanish vaqti saqlandi' : 'Vaqt saqlandi');
+        done && done();
+      },
+    });
+
   A.leadForm = (lead, freeStudents = [], preset = {}) => {
     const isNew = !lead;
     const B = lead ? lead.branch : A.branchIds()[0];
     const v = lead ? { ...lead } : { status: '2', times: [], tags: [], mode: 'new', ...preset };
     Object.assign(v, A.timeValues((v.times || [])[0]));
     if (v.demo_date == null) delete v.demo_date; // standart — bugun (guruh tanlanganda ko'rinadi)
+    v.callback_at = cbValue(lead); // datetime-local uchun mahalliy ko'rinish
     const phone = (t) => (!/^\d{9}$/.test(t) ? "9 sondan iborat bo'lsin. Masalan, 998883322" : '');
     const fields = [
       { name: 'mode', label: 'Murojaatchi', type: 'seg', options: [['new', 'Yangi talaba'], ['old', "Bazadagi talaba"]], show: () => isNew },
@@ -293,6 +322,8 @@
       { name: 'pattern', label: 'Hafta kunlari', type: 'seg', options: (x) => A.optList('dayPatterns', 'name', (p) => (p.status || 'Faol') === 'Faol' || p.id === x.pattern) },
       ...A.timeFields({ optional: true }),
       { name: 'status', label: 'Status', type: 'select', options: Object.entries(LS).map(([k, l]) => [k, `${k}. ${l}`]), required: true },
+      { name: 'callback_at', label: "Qayta bog'lanish sana va vaqti", type: 'datetime-local', show: (x) => CB.includes(x.status), required: (x) => CB.includes(x.status) && (isNew || x.status !== lead.status),
+        help: 'Shu vaqtda bot Administrator+Hisobchilarga eslatadi' },
       {
         name: 'group', label: 'Guruh', type: 'select', show: (x) => ['3', '4', '5'].includes(x.status) || (x.group && !['1', '2'].includes(x.status)),
         options: (x) => A.rows('groups').filter((g) => (g.branch === B && g.course === x.course && g.status !== 'Nofaol') || g.id === x.group).map((g) => [g.id, `${A.groupName(g)} · ${A.patternName(g.pattern)} ${A.timeName(g.time)} (${g.status})`]),
@@ -319,6 +350,7 @@
           demo_date: withGroup ? x.demo_date || null : null,
           demo_attended: withGroup && x.demo_date ? (x.demo_attended === 'yes' ? true : x.demo_attended === 'no' ? false : null) : null,
         };
+        if (CB.includes(x.status) && (isNew || x.status !== lead.status || x.callback_at !== cbValue(lead))) rec.callback_at = x.callback_at; // o'zgarmagan eski vaqt qayta yuborilmaydi
         let saved;
         if (isNew) {
           const who = x.mode === 'old' ? { mode: 'old', student: x.student } : { mode: 'new', first_name: x.first_name, last_name: x.last_name, phone1: x.phone1, phone2: x.phone2, gender: x.gender };
@@ -360,6 +392,7 @@
           <dt>Hafta kunlari / vaqt</dt><dd>${esc(A.patternName(l.pattern))} · ${(l.times || []).map(A.timeName).join(', ') || '—'}</dd>
           ${l.group ? `<dt>Guruh</dt><dd><a href="#/groups/${l.group}">${esc(A.groupName(l.group))}</a></dd>` : ''}
           ${l.demo_date ? `<dt>Sinov darsi</dt><dd>${A.fdate(l.demo_date)} ${l.demo_attended === true ? A.badge('Keldi', 'green') : l.demo_attended === false ? A.badge('Kelmadi', 'red') : ''}</dd>` : ''}
+          ${CB.includes(l.status) ? `<dt>Qayta bog'lanish</dt><dd><b class="${cbOverdue(l) ? 't-red' : ''}">${l.callback_at ? `⏰ ${A.fdt(l.callback_at)}${cbOverdue(l) ? ' (muddati o\'tdi)' : ''}` : 'vaqti belgilanmagan'}</b> ${edit.ok && A.can('leads', 'e') ? `<button class="btn sm ghost" data-cb>${l.callback_at ? '✎ O\'zgartirish' : '＋ Belgilash'}</button>` : ''}</dd>` : ''}
           <dt>Yosh / holat / noutbuk</dt><dd>${esc(l.age_group || '—')} · ${esc(l.social || '—')} · ${esc(l.laptop || '—')}</dd>
           <dt>Qo'shdi</dt><dd>${esc(A.userName(l.created_by))}, ${A.fdt(l.created_at)}</dd>
         </dl>
@@ -377,7 +410,12 @@
     const reopen = () => { m.close(); A.refresh(); A.openLead(id); };
     const fail = (e) => A.toast(e.message, 'warn');
     m.el.querySelectorAll('[data-status]').forEach((b) =>
-      (b.onclick = () => A.http.patch(`/leads/${id}/`, { status: b.dataset.status }).then(reopen, fail)));
+      (b.onclick = () => {
+        if (CB.includes(b.dataset.status) && b.dataset.status !== l.status) { m.close(); A.callbackForm(l, b.dataset.status, () => { A.refresh(); A.openLead(id); }); return; }
+        A.http.patch(`/leads/${id}/`, { status: b.dataset.status }).then(reopen, fail);
+      }));
+    const cbBtn = m.el.querySelector('[data-cb]');
+    if (cbBtn) cbBtn.onclick = () => { m.close(); A.callbackForm(l, '', () => { A.refresh(); A.openLead(id); }); };
     const add = m.el.querySelector('#lc-add');
     if (add)
       add.onclick = () => {
