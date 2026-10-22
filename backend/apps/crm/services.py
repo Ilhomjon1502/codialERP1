@@ -392,6 +392,7 @@ def merge_students(user, keep, drop):
         soft_delete(lead, user, check_usage=False)
     drop.contracts.update(student=keep)
     drop.calls.update(student=keep)
-    drop.sms_messages.update(student=keep)
+    if hasattr(drop, "sms_messages"):  # SMS jurnali talabaga bog'langan bo'lsa
+        drop.sms_messages.update(student=keep)
     soft_delete(drop, user)
     return keep

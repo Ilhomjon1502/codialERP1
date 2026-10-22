@@ -15,7 +15,7 @@ from apps.crm.models import Student
 def describe(s):
     leads = ", ".join(f"{lead.status} ({lead.comments.count()} izoh)" for lead in s.leads.all()) or "—"
     return (f"{s.pk} · {s.full_name} · {s.created_at:%d.%m.%Y} · lid: {leads} · shartnoma: {s.contracts.count()} · "
-            f"qo'ng'iroq: {s.calls.count()} · SMS: {s.sms_messages.count()}")
+            f"qo'ng'iroq: {s.calls.count()}")
 
 
 class Command(BaseCommand):
