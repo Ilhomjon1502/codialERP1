@@ -134,10 +134,19 @@ def lead_created(lead):
            branch=lead.branch)
 
 
+def _lead_status(code):
+    """«3» → «3. Sinov darsga yozildi» — xabarni o'qigan odam raqamni yodlab yurmasin."""
+    from apps.crm.models import Lead
+
+    label = dict(Lead.LeadStatus.choices).get(code)
+    return f"{code}. {label}" if label else str(code or "—")
+
+
 def lead_changed(lead, old_status, user):
     st = lead.student
     notify("lead_change", f"🔄 <b>Lid o'zgardi</b>\n{escape(st.full_name)} · {escape(str(lead.course))}\n"
-                          f"{escape(old_status)} → <b>{escape(lead.status)}</b>\n✍️ {escape(str(user))}", branch=lead.branch, exclude=user)
+                          f"{escape(_lead_status(old_status))}\n➡️ <b>{escape(_lead_status(lead.status))}</b>\n✍️ {escape(str(user))}",
+           branch=lead.branch, exclude=user)
 
 
 def contract_saved(c, user, created, note=""):

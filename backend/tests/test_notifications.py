@@ -283,6 +283,7 @@ def test_marketolog_gets_lead_and_contract_changes(api, make_user, world, django
     with django_capture_on_commit_callbacks(execute=True):
         assert api(fm).patch(f"/api/v1/leads/{lead_id}/", {"status": "3"}, format="json").status_code == 200
     assert Outbox.objects.filter(user=mk, event="lead_change").count() == 1
+    assert "➡️ <b>3. Sinov darsga yozildi</b>" in Outbox.objects.get(user=mk, event="lead_change").text  # raqam emas, matn
     with django_capture_on_commit_callbacks(execute=True):  # o'z o'zgarishi haqida xabar kelmaydi
         assert api(mk).patch(f"/api/v1/leads/{lead_id}/", {"status": "1", "callback_at": (timezone.now() + datetime.timedelta(days=1)).isoformat()}, format="json").status_code == 200
     assert Outbox.objects.filter(user=mk, event="lead_change").count() == 1
