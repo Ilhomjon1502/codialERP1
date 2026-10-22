@@ -21,6 +21,7 @@ from .models import CallDevice, SmsMessage
 from .services import normalize
 
 S = SmsMessage.State
+DELIVERED, UNDELIVERED = "Yetkazildi", "Yetkazilmadi"
 MONTHS = ["yanvar", "fevral", "mart", "aprel", "may", "iyun", "iyul", "avgust", "sentyabr", "oktyabr", "noyabr", "dekabr"]
 PLACEHOLDERS = {
     "talaba": "Talabaning ism-familiyasi",
@@ -197,7 +198,9 @@ def outbox(device):
 
 
 def report(device, results):
-    """[{id, ok, error}] — telefondagi yuborish natijasi. Kechikib kelgan natija («Telefondan javob kelmadi»dan keyin) ham qabul qilinadi."""
+    """[{id, ok, error, stage, info}] — telefondagi natija. stage = «sent» (standart: operatorga topshirildi) yoki «delivered»
+    (operator qabul qiluvchiga yetganini yoki yetmaganini xabar qildi). info — SIM/operator/xato kodi (ERP'da sababni ko'rish uchun).
+    Kechikib kelgan natija («Telefondan javob kelmadi»dan keyin) ham qabul qilinadi."""
     if not isinstance(results, list):
         raise ValidationError({"results": ["Ro'yxat kutilgan"]})
     now, n = timezone.now(), 0
@@ -205,9 +208,20 @@ def report(device, results):
         if not isinstance(r, dict) or not r.get("id"):
             continue
         ok = bool(r.get("ok"))
-        n += SmsMessage.objects.filter(pk=r["id"], device=device, status__in=[S.SENDING, S.FAILED]).update(
-            status=S.SENT if ok else S.FAILED, error="" if ok else str(r.get("error") or "Yuborilmadi")[:200],
-            sent_at=now if ok else None, updated_at=now)
+        info = str(r.get("info") or "")[:200]
+        if r.get("stage") == "delivered":
+            upd = {"delivery": DELIVERED if ok else UNDELIVERED, "delivered_at": now if ok else None, "updated_at": now}
+            if info:
+                upd["detail"] = info
+            if not ok and r.get("error"):
+                upd["error"] = str(r["error"])[:200]
+            n += SmsMessage.objects.filter(pk=r["id"], device=device).update(**upd)
+            continue
+        upd = {"status": S.SENT if ok else S.FAILED, "error": "" if ok else str(r.get("error") or "Yuborilmadi")[:200],
+               "sent_at": now if ok else None, "updated_at": now}
+        if info:
+            upd["detail"] = info
+        n += SmsMessage.objects.filter(pk=r["id"], device=device, status__in=[S.SENDING, S.FAILED]).update(**upd)
     return {"updated": n}
 
 
@@ -248,7 +262,7 @@ def history(branch_id, student, phones, limit=30):
           .filter(Q(contract__student=student) | Q(student=student) | Q(phone__in=phones))
           .exclude(status=S.CANCELLED).select_related("created_by").order_by("-created_at"))
     rows = [{"id": str(m.pk), "direction": m.direction, "created_at": m.created_at.isoformat(), "sent_at": m.sent_at.isoformat() if m.sent_at else None,
-             "status": m.status, "phone": m.phone, "recipient": m.recipient, "text": m.text, "error": m.error, "kind": m.kind,
+             "status": m.status, "delivery": m.delivery, "phone": m.phone, "recipient": m.recipient, "text": m.text, "error": m.error, "kind": m.kind,
              "by": m.created_by.full_name if m.created_by_id and m.direction == SmsMessage.Direction.OUT else ""} for m in qs[:limit]]
     return {"count": qs.count(), "incoming": qs.filter(direction=SmsMessage.Direction.IN).count(), "results": rows}
 
@@ -388,6 +402,8 @@ def stats(qs):
         "total": sum(n for s, n in by.items() if s != S.CANCELLED),
         "sent": by.get(S.SENT, 0),
         "failed": by.get(S.FAILED, 0),
+        "delivered": sent.filter(delivery=DELIVERED).count(),
+        "undelivered": sent.filter(delivery=UNDELIVERED).count(),
         "queued": by.get(S.QUEUED, 0) + by.get(S.SENDING, 0),
         "parts": sent.aggregate(p=Sum("parts"))["p"] or 0,
         "students": len(first),

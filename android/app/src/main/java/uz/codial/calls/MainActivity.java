@@ -114,7 +114,10 @@ public class MainActivity extends Activity {
         if (prefs.lastSyncAt() > 0) s.append("Oxirgi yuborish: ").append(fmt(prefs.lastSyncAt())).append(" · jami ").append(prefs.sentTotal()).append(" ta\n");
         if (!prefs.lastError().isEmpty()) s.append("❗ ").append(prefs.lastError()).append('\n');
         s.append(SmsSender.allowed(this) ? "✅ SMS yuborishga ruxsat bor" : "⚠️ SMS yuborishga ruxsat yo'q — to'lov eslatmalari ketmaydi").append('\n');
-        if (prefs.smsLastAt() > 0) s.append("SMS: jami ").append(prefs.smsSentTotal()).append(" ta yuborildi · oxirgi ").append(fmt(prefs.smsLastAt())).append('\n');
+        if (prefs.smsLastAt() > 0) {
+            s.append("SMS: yuborildi ").append(prefs.smsSentTotal()).append(" · yetkazildi ").append(prefs.smsDeliveredTotal())
+                    .append(" · oxirgi ").append(fmt(prefs.smsLastAt())).append('\n');
+        }
         s.append(SmsInbox.allowed(this) ? "✅ Kelgan SMS'larni o'qishga ruxsat bor" : "⚠️ SMS o'qishga ruxsat yo'q — mijozlardan kelgan SMS ERP'ga tushmaydi").append('\n');
         if (prefs.smsInTotal() > 0) s.append("Kelgan SMS: jami ").append(prefs.smsInTotal()).append(" ta ERP'ga yuborildi\n");
         if (!prefs.smsLastError().isEmpty()) s.append("❗ SMS: ").append(prefs.smsLastError());

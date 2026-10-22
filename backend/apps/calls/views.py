@@ -304,7 +304,8 @@ class SmsMessageSerializer(serializers.ModelSerializer):
     class Meta:
         model = SmsMessage
         fields = ["id", "created_at", "direction", "kind", "month", "contract", "student", "student_name", "parent_name", "lead", "phone",
-                  "recipient", "text", "parts", "status", "error", "taken_at", "sent_at", "device_name", "created_by_name"]
+                  "recipient", "text", "parts", "status", "error", "delivery", "delivered_at", "detail", "taken_at", "sent_at", "device_name",
+                  "created_by_name"]
         read_only_fields = fields
 
     def get_student_name(self, m):
@@ -337,6 +338,10 @@ class SmsMessageViewSet(AuditedModelViewSet):
         local = timezone.get_current_timezone()
         if p.get("status"):
             qs = qs.filter(status=p["status"])
+        if p.get("delivery") in (sms.DELIVERED, sms.UNDELIVERED):
+            qs = qs.filter(delivery=p["delivery"])
+        elif p.get("delivery") == "unknown":
+            qs = qs.filter(direction=SmsMessage.Direction.OUT, status=SmsMessage.State.SENT, delivery="")
         if p.get("dir") in SmsMessage.Direction.values:
             qs = qs.filter(direction=p["dir"])
         if p.get("known") == "0":

@@ -58,6 +58,7 @@
           : tab === 'smsstats' ? A.filterBar(SK, [date2('from', 'Dan'), date2('to', 'Gacha')])
           : tab === 'sms' ? A.filterBar(SK, [A.fSearch(SK, 'Talaba yoki raqam…'), date2('from', 'Dan'), date2('to', 'Gacha'),
             A.fSelect(SK, 'dir', [['Kiruvchi', '↙ Kelgan SMS'], ['Chiquvchi', '↗ Yuborilgan SMS']], 'Kelgan va yuborilgan'),
+            A.fSelect(SK, 'delivery', [['Yetkazildi', '✓✓ Yetkazildi'], ['Yetkazilmadi', '✕ Yetkazilmadi'], ['unknown', "Yetkazilishi noma'lum"]], 'Barcha yetkazilishlar'),
             A.fSelect(SK, 'known', [['0', "Noma'lum raqamlardan"]], 'Hamma raqamlar'),
             A.fSelect(SK, 'status', SMS_STATES.map((s) => [s, s]), 'Barcha holatlar')]) : '';
       const body = tab === 'stats' ? statsView() : tab === 'devices' ? devicesView() : tab === 'sms' ? smsView() : tab === 'smsstats' ? smsStatsView() : listView();
@@ -292,7 +293,7 @@
 
   async function loadSms() {
     const q = new URLSearchParams({ page: A.q(`${SK}:page`, 1) });
-    for (const k of ['from', 'to', 'status', 'dir', 'known', 'search']) {
+    for (const k of ['from', 'to', 'status', 'dir', 'known', 'delivery', 'search']) {
       const v = A.q(`${SK}:${k}`, '');
       if (v) q.set(k === 'search' ? 'q' : k, v);
     }
@@ -316,7 +317,7 @@
         : `${A.badge('↗ Yuborilgan', 'gray')}<br><small class="muted">${A.fdt(m.created_at)} · ${esc(m.created_by_name)}</small>`) },
       { h: 'Kim', f: smsWho },
       { h: 'Matn', f: (m) => `<span class="small">${esc(m.text)}</span>${m.parts > 1 ? ` <span class="muted small">(${m.parts} SMS)</span>` : ''}` },
-      { h: 'Holat', f: (m) => (m.direction === 'Kiruvchi' ? '' : `${A.badge(m.status, SMS_TONE[m.status])}${m.sent_at ? `<br><small class="muted">${A.fdt(m.sent_at)}</small>` : ''}${m.error ? `<br><small class="t-red">${esc(m.error)}</small>` : ''}`) },
+      { h: 'Holat', f: (m) => (m.direction === 'Kiruvchi' ? '' : `${A.badge(m.status, SMS_TONE[m.status])}${deliveryBadge(m)}${m.sent_at ? `<br><small class="muted">${A.fdt(m.sent_at)}</small>` : ''}${m.error ? `<br><small class="t-red">${esc(m.error)}</small>` : ''}${m.detail ? `<br><small class="muted" title="Telefon ma'lumoti">${esc(m.detail)}</small>` : ''}`) },
       { h: '', f: (m) => `${canA && ['Xato', 'Bekor qilindi'].includes(m.status) ? `<button class="btn sm" data-act="sms-retry" data-id="${m.id}">Qayta yuborish</button>` : ''}${canE && m.status === 'Navbatda' ? `<button class="btn sm ghost" data-act="sms-cancel" data-id="${m.id}">Bekor qilish</button>` : ''}` },
     ], smsList.results, { empty: "SMS yo'q. Yuborish: Qarzdorlar → «To'lovga tavsiya» → «SMS yuborish»" });
     const tplTable = A.table([
@@ -331,6 +332,9 @@
       ${cards}<div class="row gap" style="margin:8px 0">${qBtn}</div>${table}${A.pager(SK, smsList)}`;
   }
 
+  // Yetkazilish (operator xabari): yetdi / yetmadi; bo'sh — operator xabar bermagan (yuborildi, lekin yetganligi noma'lum)
+  const deliveryBadge = (m) => (m.status !== 'Yuborildi' ? '' : m.delivery === 'Yetkazildi' ? ` ${A.badge('✓✓ Yetkazildi', 'green')}`
+    : m.delivery === 'Yetkazilmadi' ? ` ${A.badge('✕ Yetkazilmadi', 'red')}` : ` <span class="muted small" title="Operator yetkazilganlik haqida xabar bermagan">yetkazilishi noma'lum</span>`);
   // Jurnalda «Kim»: talaba (shartnoma yoki lid havolasi), vasiy; noma'lum raqamdan kelgan SMS — «＋ Lid yaratish»
   function smsWho(m) {
     const ph = `<small class="muted">${m.recipient ? `${esc(m.recipient)} · ` : ''}${fphone(m.phone)}</small>`;
@@ -365,6 +369,8 @@
     const pct = (a, b) => (b ? `${Math.round((a / b) * 100)}%` : '—');
     const cards = `<div class="stats">
       ${A.stat('Yuborildi', A.num(s.sent), `jami ${A.num(s.total)} ta SMS`, '', '#/calls?tab=sms')}
+      ${A.stat('Yetkazildi', A.num(s.delivered), `${pct(s.delivered, s.sent)} · operator tasdiqlagan`)}
+      ${A.stat('Yetkazilmadi', A.num(s.undelivered), `yetkazilishi noma'lum: ${A.num(Math.max(0, s.sent - s.delivered - s.undelivered))}`, s.undelivered ? 'danger' : '')}
       ${A.stat("SMS bo'laklari", A.num(s.parts), "tarif shunga qarab hisoblanadi")}
       ${A.stat('Talabalar', A.num(s.students), 'SMS olgan talabalar (shartnomalar)')}
       ${A.stat("SMS'dan keyin to'lov qildi", A.num(s.paid_after), `${pct(s.paid_after, s.students)} · ${A.money(s.paid_after_sum)}`)}

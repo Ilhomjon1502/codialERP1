@@ -100,6 +100,20 @@ final class Prefs {
         }
     }
 
+    int smsDeliveredTotal() { return sp.getInt("sms_delivered", 0); }
+
+    void smsDelivered() {
+        synchronized (LOCK) {
+            sp.edit().putInt("sms_delivered", smsDeliveredTotal() + 1).commit();
+        }
+    }
+
+    /** «Ruxsat berilmagan» va tarmoq xatolari vaqtinchalik — holat tuzalgach ekrandan o'chadi (yuborish xatolari qoladi). */
+    void smsClearTransientError() {
+        String e = smsLastError();
+        if (e.startsWith("SMS yuborishga ruxsat") || e.startsWith("Internet")) smsError("");
+    }
+
     void smsError(String why) {
         sp.edit().putString("sms_error", why == null ? "" : why).apply();
     }

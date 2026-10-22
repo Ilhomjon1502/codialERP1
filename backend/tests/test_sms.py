@@ -175,3 +175,25 @@ def test_reply_after_reminder_counted(setup, api):
     later = int((timezone.now() + datetime.timedelta(minutes=5)).timestamp() * 1000)
     inbox(api, setup["token"], [{"id": 9, "date": later, "address": "911112233", "body": "Xo'p"}])
     assert api(setup["user"]).get("/api/v1/sms/summary/").data["replied"] == 1
+
+
+def test_delivery_reports_and_sim_info(setup, api):
+    send(api, setup["user"], [setup["contract"].pk])
+    auth = {"HTTP_AUTHORIZATION": f"Device {setup['token']}"}
+    out = api().get("/api/v1/calls/sms/outbox/", **auth).data["messages"]
+    a, b, c = out[0]["id"], out[1]["id"], out[2]["id"]
+    rep = lambda results: api().post("/api/v1/calls/sms/report/", {"results": results}, format="json", **auth)  # noqa: E731
+    assert rep([{"id": a, "ok": True, "stage": "sent", "info": "SIM 1 · Beeline"}, {"id": b, "ok": True}, {"id": c, "ok": True}]).data["updated"] == 3
+    m = SmsMessage.objects.get(pk=a)
+    assert m.status == S.SENT and m.detail == "SIM 1 · Beeline" and m.delivery == ""
+    # operator: birinchisi yetdi, ikkinchisi yetmadi, uchinchisidan xabar yo'q
+    rep([{"id": a, "ok": True, "stage": "delivered", "info": "SIM 1 · Beeline · holat 0x0"},
+         {"id": b, "ok": False, "stage": "delivered", "error": "Qabul qiluvchiga yetmadi (holat 0x45)"}])
+    assert SmsMessage.objects.get(pk=a).delivery == "Yetkazildi" and SmsMessage.objects.get(pk=a).delivered_at
+    mb = SmsMessage.objects.get(pk=b)
+    assert mb.delivery == "Yetkazilmadi" and mb.status == S.SENT and "0x45" in mb.error
+    st = api(setup["user"]).get("/api/v1/sms/summary/").data
+    assert st["sent"] == 3 and st["delivered"] == 1 and st["undelivered"] == 1
+    unknown = api(setup["user"]).get("/api/v1/sms/?delivery=unknown").data
+    assert unknown["count"] == 1 and unknown["results"][0]["id"] == c
+    assert api(setup["user"]).get("/api/v1/sms/?delivery=Yetkazilmadi").data["count"] == 1

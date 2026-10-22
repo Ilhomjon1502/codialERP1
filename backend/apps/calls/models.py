@@ -125,6 +125,10 @@ class SmsMessage(BaseModel):
     parts = models.PositiveSmallIntegerField("SMS soni", default=1)
     status = models.CharField("Holat", max_length=14, choices=State.choices, default=State.QUEUED, db_index=True)
     error = models.CharField("Xato", max_length=200, blank=True)
+    # Qabul qiluvchiga yetib borishi (operator xabari; hamma operator yubormaydi — bo'sh = noma'lum): «Yetkazildi» | «Yetkazilmadi»
+    delivery = models.CharField("Yetkazilishi", max_length=14, blank=True, db_index=True)
+    delivered_at = models.DateTimeField("Yetkazilgan vaqti", null=True, blank=True)
+    detail = models.CharField("Telefon ma'lumoti", max_length=200, blank=True)  # SIM, operator va operator xato kodi
     taken_at = models.DateTimeField("Telefon oldi", null=True, blank=True)
     sent_at = models.DateTimeField("Yuborildi", null=True, blank=True)
 

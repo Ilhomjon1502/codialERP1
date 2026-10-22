@@ -57,6 +57,15 @@ Lid va shartnoma kartochkasida qo'ng'iroqlar yonida **SMS** bloki bor. U yozishm
 - **eslatmaga javob yozdi** — to'lov eslatmasi olgandan keyin SMS yozgan talabalar;
 - kunlar bo'yicha diagramma, kimga (talaba / 2-telefon / vasiy) va kim yubordi.
 
+## Yetkazildimi? (ilova 1.3)
+
+«Yuborildi» SMS telefondan chiqib operator markaziga qabul qilinganini bildiradi. Qabul qiluvchiga yetganini operator alohida xabar qiladi:
+- **✓✓ Yetkazildi** — qabul qiluvchi telefoniga yetdi;
+- **✕ Yetkazilmadi** — operator yetkaza olmadi, sababi (operator holat kodi) ko'rsatiladi;
+- **yetkazilishi noma'lum** — operator xabar bermadi (hamma operator yubormaydi); SMS yetgan bo'lishi ham mumkin.
+
+Har SMS tagida qaysi SIM va operator orqali ketgani yoziladi. Filtr: «Barcha yetkazilishlar». Statistikada «Yetkazildi» va «Yetkazilmadi» kartochkalari bor.
+
 ## Jurnal
 
 **Qo'ng'iroqlar va SMS → SMS**:

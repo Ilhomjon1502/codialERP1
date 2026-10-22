@@ -8,6 +8,8 @@ import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.PowerManager;
 import android.telephony.SmsManager;
+import android.telephony.SubscriptionInfo;
+import android.telephony.SubscriptionManager;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -26,6 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 final class SmsSender {
     static final String ACTION_SENT = "uz.codial.calls.SMS_SENT";
+    static final String ACTION_DELIVERED = "uz.codial.calls.SMS_DELIVERED";
     private static final ExecutorService EXEC = Executors.newSingleThreadExecutor();
     private static final AtomicBoolean BUSY = new AtomicBoolean(false);
     private static final long PAUSE_MS = 4000;
@@ -59,11 +62,13 @@ final class SmsSender {
             p.smsError("SMS yuborishga ruxsat berilmagan");
             return -1;
         }
+        p.smsClearTransientError();  // ruxsat bor — «ruxsat berilmagan» degan eski yozuv o'chadi
         int total = 0;
         PowerManager.WakeLock lock = null;
         try {
             for (int round = 0; round < MAX_ROUNDS; round++) {
                 JSONArray msgs = Api.request(p.server(), "sms/outbox/", p.token(), null).optJSONArray("messages");
+                p.smsClearTransientError();
                 if (msgs == null || msgs.length() == 0) break;
                 if (lock == null) {  // yuborish (pauzalar bilan) davomida ekran o'chiq bo'lsa ham protsessor uxlamasin
                     lock = ctx.getSystemService(PowerManager.class).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "codial:sms");
@@ -94,35 +99,65 @@ final class SmsSender {
     }
 
     private static void send(Context ctx, String id, String phone, String text) {
+        String info = "";
         try {
+            // Tizimdagi «SMS uchun SIM» aniq ko'rsatiladi; qaysi SIM va operator ekani ERP'da ko'rinadi
+            int subId = SubscriptionManager.getDefaultSmsSubscriptionId();
             SmsManager sm = Build.VERSION.SDK_INT >= 31 ? ctx.getSystemService(SmsManager.class) : SmsManager.getDefault();
+            if (subId != SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
+                sm = Build.VERSION.SDK_INT >= 31 ? sm.createForSubscriptionId(subId) : SmsManager.getSmsManagerForSubscriptionId(subId);
+            }
+            info = simInfo(ctx, subId);
             ArrayList<String> parts = sm.divideMessage(text);
             ArrayList<PendingIntent> sent = new ArrayList<>();
-            for (int i = 0; i < parts.size(); i++) sent.add(sentIntent(ctx, id, i, parts.size()));
-            if (parts.size() == 1) sm.sendTextMessage(phone, null, text, sent.get(0), null);
-            else sm.sendMultipartTextMessage(phone, null, parts, sent, null);
+            ArrayList<PendingIntent> delivered = new ArrayList<>();
+            for (int i = 0; i < parts.size(); i++) {
+                sent.add(resultIntent(ctx, SmsSentReceiver.class, ACTION_SENT, id, i, parts.size(), info));
+                delivered.add(resultIntent(ctx, SmsDeliveredReceiver.class, ACTION_DELIVERED, id, i, parts.size(), info));
+            }
+            if (parts.size() == 1) sm.sendTextMessage(phone, null, text, sent.get(0), delivered.get(0));
+            else sm.sendMultipartTextMessage(phone, null, parts, sent, delivered);
         } catch (RuntimeException e) {  // SecurityException, IllegalArgumentException — darhol xato
-            report(ctx, id, false, "Telefon yubora olmadi: " + e.getMessage());
+            report(ctx, id, false, "Telefon yubora olmadi: " + e.getMessage(), "sent", info);
         }
     }
 
-    private static PendingIntent sentIntent(Context ctx, String id, int part, int total) {
-        Intent i = new Intent(ctx, SmsSentReceiver.class).setAction(ACTION_SENT)
-                .putExtra("id", id).putExtra("part", part).putExtra("total", total);
-        int code = (id + "#" + part).hashCode();
-        return PendingIntent.getBroadcast(ctx, code, i, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_ONE_SHOT);
+    /** Operator natijasi qaytadigan intent. MUTABLE: tizim `errorCode` (yuborish xatosi) va `pdu` (yetkazilish holati) ni shu intentga qo'shadi. */
+    private static PendingIntent resultIntent(Context ctx, Class<?> receiver, String action, String id, int part, int total, String info) {
+        Intent i = new Intent(ctx, receiver).setAction(action)
+                .putExtra("id", id).putExtra("part", part).putExtra("total", total).putExtra("info", info);
+        int flags = PendingIntent.FLAG_ONE_SHOT | (Build.VERSION.SDK_INT >= 31 ? PendingIntent.FLAG_MUTABLE : 0);
+        return PendingIntent.getBroadcast(ctx, (action + id + "#" + part).hashCode(), i, flags);
     }
 
-    /** Natijani serverga yuboradi; internet bo'lmasa saqlab qo'yadi (keyingi `run` da qayta). */
-    static void report(Context ctx, String id, boolean ok, String error) {
+    private static String simInfo(Context ctx, int subId) {
+        try {
+            SubscriptionManager sub = ctx.getSystemService(SubscriptionManager.class);
+            SubscriptionInfo si = sub.getActiveSubscriptionInfo(subId);
+            int count = sub.getActiveSubscriptionInfoCount();
+            if (si == null) return "SIM aniqlanmadi";
+            return "SIM " + (si.getSimSlotIndex() + 1) + " · " + si.getCarrierName() + (count > 1 ? " (" + count + " SIM)" : "");
+        } catch (RuntimeException e) {
+            return "";
+        }
+    }
+
+    /** Natijani serverga yuboradi; internet bo'lmasa saqlab qo'yadi (keyingi `run` da qayta). stage: "sent" yoki "delivered". */
+    static void report(Context ctx, String id, boolean ok, String error, String stage, String info) {
         Prefs p = new Prefs(ctx);
         try {
-            p.addPendingReport(new JSONObject().put("id", id).put("ok", ok).put("error", error == null ? "" : error));
+            p.addPendingReport(new JSONObject().put("id", id).put("ok", ok).put("error", error == null ? "" : error)
+                    .put("stage", stage).put("info", info == null ? "" : info));
         } catch (JSONException ignored) {
             return;
         }
-        if (ok) p.smsSent();
-        else p.smsError(error);
+        if ("delivered".equals(stage)) {
+            if (ok) p.smsDelivered();
+        } else if (ok) {
+            p.smsSent();
+        } else {
+            p.smsError(error);
+        }
         flushReports(ctx);
     }
 

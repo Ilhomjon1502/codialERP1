@@ -66,6 +66,10 @@
             android:exported="false" />
 
         <receiver
+            android:name=".SmsDeliveredReceiver"
+            android:exported="false" />
+
+        <receiver
             android:name=".SmsReceivedReceiver"
             android:exported="true"
             android:permission="android.permission.BROADCAST_SMS">

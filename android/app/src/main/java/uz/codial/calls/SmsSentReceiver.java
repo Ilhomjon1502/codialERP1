@@ -6,7 +6,10 @@ import android.content.Context;
 import android.content.Intent;
 import android.telephony.SmsManager;
 
-/** SMS yuborish natijasi (operatorga ketdimi). Ko'p bo'lakli SMS'da — oxirgi bo'lak yoki birinchi xato bo'yicha. */
+/**
+ * SMS yuborish natijasi: operatorning SMS markaziga qabul qilindimi. Ko'p bo'lakli SMS'da — oxirgi bo'lak yoki birinchi xato bo'yicha.
+ * Xatoda tizim bergan `errorCode` ham ERP'ga yuboriladi (sababni topish uchun).
+ */
 public class SmsSentReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context ctx, Intent intent) {
@@ -15,11 +18,12 @@ public class SmsSentReceiver extends BroadcastReceiver {
         boolean ok = getResultCode() == Activity.RESULT_OK;
         boolean last = intent.getIntExtra("part", 0) >= intent.getIntExtra("total", 1) - 1;
         if (ok && !last) return;
-        String error = ok ? "" : reason(getResultCode());
+        String info = intent.getStringExtra("info");
+        String error = ok ? "" : reason(getResultCode()) + (intent.hasExtra("errorCode") ? " [kod " + intent.getIntExtra("errorCode", -1) + "]" : "");
         PendingResult async = goAsync();
         new Thread(() -> {
             try {
-                SmsSender.report(ctx.getApplicationContext(), id, ok, error);
+                SmsSender.report(ctx.getApplicationContext(), id, ok, error, "sent", info);
             } finally {
                 async.finish();
             }
