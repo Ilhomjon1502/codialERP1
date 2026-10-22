@@ -25,6 +25,7 @@ final class CallSync {
     private static final ExecutorService EXEC = Executors.newSingleThreadExecutor();
     private static final long OVERLAP_MS = 3 * 3600_000L;
     private static final long OVERLAP_SHORT_MS = 10 * 60_000L;
+    static final long FULL_SCAN_MS = 24 * 3600_000L;  // sutkada bir marta oxirgi 24 soat qayta yuboriladi (kafolat; server takrorni olmaydi)
     private static final int BATCH = 200;
 
     private CallSync() {}
@@ -47,13 +48,16 @@ final class CallSync {
             long lastId = p.lastId();
             // Yangi qatorlar _ID bo'yicha (kech yozilgan qator ham katta _ID oladi); sana bo'yicha qisqa oyna — zaxira.
             // 1.0 dan yangilanganda (_ID hali yo'q) — eskicha 3 soatlik oyna bir marta.
-            long dateFrom = Math.max(0, p.lastDate() - (lastId > 0 ? OVERLAP_SHORT_MS : OVERLAP_MS));
+            long now = System.currentTimeMillis();
+            boolean full = lastId > 0 && now - p.callsFullAt() > FULL_SCAN_MS;
+            long dateFrom = full ? now - FULL_SCAN_MS : Math.max(0, p.lastDate() - (lastId > 0 ? OVERLAP_SHORT_MS : OVERLAP_MS));
             boolean first = true;
             while (true) {
                 JSONArray calls = new JSONArray();
                 long[] max = read(ctx, lastId > 0 ? lastId : Long.MAX_VALUE, first ? dateFrom : Long.MAX_VALUE, calls);
                 if (calls.length() == 0) {
                     p.synced(p.lastDate(), lastId, 0);
+                    if (full) p.callsFullScanned(now);
                     break;
                 }
                 JSONObject body = new JSONObject().put("calls", calls).put("app_version", version(ctx));
@@ -62,6 +66,7 @@ final class CallSync {
                 total += accepted;
                 lastId = Math.max(lastId, max[0]);
                 p.synced(max[1], lastId, accepted);
+                if (full && first) p.callsFullScanned(now);
                 if (calls.length() < BATCH) break;
                 first = false;  // keyingi to'plam — faqat _ID bo'yicha
             }

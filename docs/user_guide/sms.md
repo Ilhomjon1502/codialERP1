@@ -35,9 +35,16 @@ Namuna: `Assalomu alaykum! {talaba}ning {oy} oyi uchun to'lovi {summa} so'm. To'
 - **Lotin harflarida yozing.** Bitta SMS 160 belgigacha. Kirill harfi yoki maxsus belgi bo'lsa, bitta SMS 70 belgigacha qisqaradi va narx 2–3 barobar oshadi. Belgilar soni va SMS soni oynada ko'rinadi.
 - `ʻ` va `’` kabi apostroflar o'zi oddiy `'` ga almashtiriladi.
 
+## Mijozlardan kelgan SMS (ilova 1.2)
+
+- Qabul telefoniga **oddiy raqamdan** kelgan SMS bir necha soniyada ERP'ga tushadi. Bank kodlari, Click/Payme, operator va boshqa nomli yoki qisqa raqamli SMS'lar **telefondan chiqmaydi**.
+- Raqam talaba, vasiy yoki lidga bog'lanadi. Bazada yo'q raqamdan kelgani ham saqlanadi: jurnalda «Noma'lum» va **«＋ Lid yaratish»** tugmasi chiqadi.
+- Telefon o'chiq yoki internetsiz paytda kelgan SMS'lar keyin yuboriladi. Sutkada bir marta oxirgi 24 soat qayta tekshiriladi.
+- Telefonda «Ruxsatlarni berish» → **SMS o'qish** ruxsati kerak. Ilovada «✅ Kelgan SMS'larni o'qishga ruxsat bor» chiqishi kerak.
+
 ## Talaba kartochkasida
 
-Lid va shartnoma kartochkasida qo'ng'iroqlar yonida **SMS** bloki bor: talabaga va uning raqamlariga yuborilgan SMS'lar (holati, matni, kim yubordi).
+Lid va shartnoma kartochkasida qo'ng'iroqlar yonida **SMS** bloki bor. U yozishma ko'rinishida: ↗ biz yuborganlar (holati va kim yubordi), ↙ talaba yoki vasiydan kelganlar.
 
 ## Statistika
 
@@ -46,11 +53,14 @@ Lid va shartnoma kartochkasida qo'ng'iroqlar yonida **SMS** bloki bor: talabaga 
 - nechta talabaga ketgani;
 - **SMS'dan keyin to'lov qilganlar** — birinchi SMS kunidan keyin to'lov tushgan talabalar soni, foizi va summasi;
 - navbatda turgan va xato bo'lganlar;
+- **kelgan SMS**: jami, nechta raqamdan, noma'lum raqamlardan;
+- **eslatmaga javob yozdi** — to'lov eslatmasi olgandan keyin SMS yozgan talabalar;
 - kunlar bo'yicha diagramma, kimga (talaba / 2-telefon / vasiy) va kim yubordi.
 
 ## Jurnal
 
 **Qo'ng'iroqlar va SMS → SMS**:
+- filtrlar: «Kelgan / Yuborilgan», «Noma'lum raqamlardan», holat, davr, qidiruv (ism, raqam yoki matn);
 - har bir SMS: kimga, matn, holat (Navbatda / Yuborilmoqda / Yuborildi / Xato / Bekor qilindi), xato sababi;
 - **«Qayta yuborish»** — xato yoki bekor qilingan SMS uchun;
 - **«Bekor qilish»** / **«Navbatni bekor qilish»** — telefon hali olmagan SMS'lar uchun (masalan, matn xato bo'lsa);

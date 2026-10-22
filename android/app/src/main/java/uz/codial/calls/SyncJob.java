@@ -26,6 +26,7 @@ public class SyncJob extends JobService {
         new Thread(() -> {
             CallSync.run(this);
             SmsSender.run(this);
+            SmsInbox.run(this);
             CallService.start(this);
             jobFinished(params, false);
         }).start();

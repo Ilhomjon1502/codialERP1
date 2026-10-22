@@ -57,6 +57,8 @@
         : tab === 'stats' ? A.filterBar(K, period)
           : tab === 'smsstats' ? A.filterBar(SK, [date2('from', 'Dan'), date2('to', 'Gacha')])
           : tab === 'sms' ? A.filterBar(SK, [A.fSearch(SK, 'Talaba yoki raqam…'), date2('from', 'Dan'), date2('to', 'Gacha'),
+            A.fSelect(SK, 'dir', [['Kiruvchi', '↙ Kelgan SMS'], ['Chiquvchi', '↗ Yuborilgan SMS']], 'Kelgan va yuborilgan'),
+            A.fSelect(SK, 'known', [['0', "Noma'lum raqamlardan"]], 'Hamma raqamlar'),
             A.fSelect(SK, 'status', SMS_STATES.map((s) => [s, s]), 'Barcha holatlar')]) : '';
       const body = tab === 'stats' ? statsView() : tab === 'devices' ? devicesView() : tab === 'sms' ? smsView() : tab === 'smsstats' ? smsStatsView() : listView();
       return `${A.head("Qo'ng'iroqlar va SMS", "Qabul telefonidagi qo'ng'iroqlar — tugashi bilan shu yerga tushadi. Raqam bazada bo'lsa ism va lid ma'lumoti chiqadi. SMS shu telefon orqali yuboriladi")}
@@ -253,8 +255,8 @@
   /* ---------- SMS (2026-10-22): qabul telefoni orqali to'lov eslatmasi ----------
      Administrator «To'lovga tavsiya»dan tanlab yuboradi → navbat → telefondagi ilova o'z SIM'idan yuboradi. Server: /sms/, /sms-templates/ */
   const SK = 'smsj';
-  const SMS_STATES = ['Navbatda', 'Yuborilmoqda', 'Yuborildi', 'Xato', 'Bekor qilindi'];
-  const SMS_TONE = { Navbatda: 'orange', Yuborilmoqda: 'blue', Yuborildi: 'green', Xato: 'red', 'Bekor qilindi': 'gray' };
+  const SMS_STATES = ['Navbatda', 'Yuborilmoqda', 'Yuborildi', 'Xato', 'Bekor qilindi', 'Qabul qilindi'];
+  const SMS_TONE = { Navbatda: 'orange', Yuborilmoqda: 'blue', Yuborildi: 'green', Xato: 'red', 'Bekor qilindi': 'gray', 'Qabul qilindi': 'blue' };
   const MONTHS = ['yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun', 'iyul', 'avgust', 'sentyabr', 'oktyabr', 'noyabr', 'dekabr'];
   const PH = [['talaba', 'ism-familiya'], ['ism', 'ismi'], ['kurs', 'kurs'], ['guruh', 'guruh'], ['oy', 'oy nomi'], ['summa', 'summa'], ['muddat', 'muddat']];
   const DEFAULT_TEXT = "Assalomu alaykum! {talaba}ning {oy} oyi uchun to'lovi {summa} so'm. To'lov muddati: {muddat}. Codial o'quv markazi";
@@ -290,7 +292,7 @@
 
   async function loadSms() {
     const q = new URLSearchParams({ page: A.q(`${SK}:page`, 1) });
-    for (const k of ['from', 'to', 'status', 'search']) {
+    for (const k of ['from', 'to', 'status', 'dir', 'known', 'search']) {
       const v = A.q(`${SK}:${k}`, '');
       if (v) q.set(k === 'search' ? 'q' : k, v);
     }
@@ -309,10 +311,12 @@
     const canA = A.can('sms', 'a');
     const canE = A.can('sms', 'e');
     const table = A.table([
-      { h: 'Vaqt', f: (m) => `${A.fdt(m.created_at)}<br><small class="muted">${esc(m.created_by_name)}</small>` },
-      { h: 'Kimga', f: (m) => `${m.contract ? `<a href="#/contracts/${m.contract}">${esc(m.student_name)}</a>` : ''}<br><small class="muted">${esc(m.recipient)} · ${fphone(m.phone)}</small>` },
+      { h: 'Vaqt', f: (m) => (m.direction === 'Kiruvchi'
+        ? `${A.badge('↙ Kelgan', 'blue')}<br><small class="muted">${A.fdt(m.sent_at || m.created_at)}</small>`
+        : `${A.badge('↗ Yuborilgan', 'gray')}<br><small class="muted">${A.fdt(m.created_at)} · ${esc(m.created_by_name)}</small>`) },
+      { h: 'Kim', f: smsWho },
       { h: 'Matn', f: (m) => `<span class="small">${esc(m.text)}</span>${m.parts > 1 ? ` <span class="muted small">(${m.parts} SMS)</span>` : ''}` },
-      { h: 'Holat', f: (m) => `${A.badge(m.status, SMS_TONE[m.status])}${m.sent_at ? `<br><small class="muted">${A.fdt(m.sent_at)}</small>` : ''}${m.error ? `<br><small class="t-red">${esc(m.error)}</small>` : ''}` },
+      { h: 'Holat', f: (m) => (m.direction === 'Kiruvchi' ? '' : `${A.badge(m.status, SMS_TONE[m.status])}${m.sent_at ? `<br><small class="muted">${A.fdt(m.sent_at)}</small>` : ''}${m.error ? `<br><small class="t-red">${esc(m.error)}</small>` : ''}`) },
       { h: '', f: (m) => `${canA && ['Xato', 'Bekor qilindi'].includes(m.status) ? `<button class="btn sm" data-act="sms-retry" data-id="${m.id}">Qayta yuborish</button>` : ''}${canE && m.status === 'Navbatda' ? `<button class="btn sm ghost" data-act="sms-cancel" data-id="${m.id}">Bekor qilish</button>` : ''}` },
     ], smsList.results, { empty: "SMS yo'q. Yuborish: Qarzdorlar → «To'lovga tavsiya» → «SMS yuborish»" });
     const tplTable = A.table([
@@ -326,6 +330,24 @@
         <p class="muted small">Qolipni administratorlar o'zi yozadi. ${phHelp()}</p>${tplTable}</div>
       ${cards}<div class="row gap" style="margin:8px 0">${qBtn}</div>${table}${A.pager(SK, smsList)}`;
   }
+
+  // Jurnalda «Kim»: talaba (shartnoma yoki lid havolasi), vasiy; noma'lum raqamdan kelgan SMS — «＋ Lid yaratish»
+  function smsWho(m) {
+    const ph = `<small class="muted">${m.recipient ? `${esc(m.recipient)} · ` : ''}${fphone(m.phone)}</small>`;
+    if (m.student_name) {
+      const link = m.contract ? `<a href="#/contracts/${m.contract}">${esc(m.student_name)}</a>`
+        : m.lead && A.can('leads') ? `<a href="#" data-act="lead-open" data-id="${m.lead}">${esc(m.student_name)}</a>` : esc(m.student_name);
+      return `${link}<br>${ph}`;
+    }
+    if (m.parent_name) return `${esc(m.parent_name)} <small class="muted">(vasiy)</small><br>${ph}`;
+    const btn = m.direction === 'Kiruvchi' && A.can('leads', 'a') ? `<br><button class="btn sm ghost" data-act="sms-lead" data-id="${m.id}">＋ Lid yaratish</button>` : '';
+    return `<span class="muted">Noma'lum</span><br>${ph}${btn}`;
+  }
+  A.act['sms-lead'] = async (el) => {
+    const m = smsList.results.find((x) => String(x.id) === el.dataset.id);
+    const free = await A.http.get('/students/?free=1&page_size=200');
+    A.leadForm(null, free.results, { phone1: m.phone, comment: `SMS ${A.fdt(m.sent_at || m.created_at)}: ${m.text}`.slice(0, 500) });
+  };
 
   /* SMS statistikasi (davr bo'yicha): holatlar, bo'laklar (tarif), kunlar, kimga, kim yubordi, SMS'dan keyin to'lov qilganlar */
   let smsSt = null;
@@ -348,12 +370,16 @@
       ${A.stat("SMS'dan keyin to'lov qildi", A.num(s.paid_after), `${pct(s.paid_after, s.students)} · ${A.money(s.paid_after_sum)}`)}
       ${A.stat('Navbatda', A.num(s.queued), 'telefon hali yubormagan', s.queued ? 'warn' : '')}
       ${A.stat('Xato', A.num(s.failed), 'qayta yuborish — SMS tabida', s.failed ? 'danger' : '')}
+      ${A.stat('Kelgan SMS', A.num(s.incoming), `${A.num(s.incoming_numbers)} ta raqamdan`, '', '#/calls?tab=sms')}
+      ${A.stat("Noma'lum raqamlardan", A.num(s.incoming_unknown), "bazada yo'q — yangi mijoz bo'lishi mumkin", s.incoming_unknown ? 'warn' : '')}
+      ${A.stat('Eslatmaga javob yozdi', A.num(s.replied), `${pct(s.replied, s.students)} · SMS olgan talabalardan`)}
     </div>`;
     const dayChart = s.by_day.length ? A.chart({
       type: 'bar',
       data: { labels: s.by_day.map((d) => A.fdate(d.date).slice(0, 5)), datasets: [
         { label: 'Yuborildi', data: s.by_day.map((d) => d.sent), backgroundColor: '#27ae60', stack: 's' },
-        { label: 'Xato', data: s.by_day.map((d) => d.failed), backgroundColor: '#eb5757', stack: 's' }] },
+        { label: 'Xato', data: s.by_day.map((d) => d.failed), backgroundColor: '#eb5757', stack: 's' },
+        { label: 'Kelgan', data: s.by_day.map((d) => d.incoming), backgroundColor: '#2f80ed', stack: 'in' }] },
       options: { scales: { x: { stacked: true }, y: { stacked: true, ticks: { precision: 0 } } } },
     }, 220) : A.empty("Bu davrda SMS yo'q");
     const tbl = (rows, h) => A.table([{ h, f: (r) => esc(r.label) }, { h: 'SMS', cls: 'num', f: (r) => A.num(r.n) }], rows, { empty: '—' });

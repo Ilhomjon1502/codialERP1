@@ -29,7 +29,8 @@ final class Prefs {
 
     void savePairing(String server, String token, String device, long fromDate) {
         sp.edit().putString("server", server).putString("token", token).putString("device", device)
-                .putLong("last_date", fromDate).putLong("last_id", 0).putString("last_error", "").putInt("sent_total", 0).apply();
+                .putLong("last_date", fromDate).putLong("last_id", 0).putLong("sms_in_last_id", 0).putLong("sms_in_from", fromDate)
+                .putString("last_error", "").putInt("sent_total", 0).apply();
     }
 
     void unpair(String why) {
@@ -44,6 +45,42 @@ final class Prefs {
 
     void error(String why) {
         sp.edit().putString("last_error", why).apply();
+    }
+
+    long callsFullAt() { return sp.getLong("calls_full_at", 0); }
+
+    void callsFullScanned(long at) {
+        sp.edit().putLong("calls_full_at", at).apply();
+    }
+
+    // ---------- Kelgan SMS (1.2) ----------
+    long smsInLastId() { return sp.getLong("sms_in_last_id", 0); }
+    long smsInFullAt() { return sp.getLong("sms_in_full_at", 0); }
+    int smsInTotal() { return sp.getInt("sms_in_total", 0); }
+
+    /** Birinchi o'qish qaysi vaqtdan: ulanish kunining boshi (1.2 ga yangilanganda — yangilangan kun boshi). */
+    long smsInFrom() {
+        long v = sp.getLong("sms_in_from", 0);
+        if (v == 0) {
+            java.util.Calendar c = java.util.Calendar.getInstance();
+            c.set(java.util.Calendar.HOUR_OF_DAY, 0);
+            c.set(java.util.Calendar.MINUTE, 0);
+            c.set(java.util.Calendar.SECOND, 0);
+            c.set(java.util.Calendar.MILLISECOND, 0);
+            v = c.getTimeInMillis();
+            sp.edit().putLong("sms_in_from", v).apply();
+        }
+        return v;
+    }
+
+    void smsInSynced(long lastId, boolean fullDone) {
+        SharedPreferences.Editor e = sp.edit().putLong("sms_in_last_id", Math.max(lastId, smsInLastId()));
+        if (fullDone) e.putLong("sms_in_full_at", System.currentTimeMillis());
+        e.apply();
+    }
+
+    void smsInAccepted(int n) {
+        if (n > 0) sp.edit().putInt("sms_in_total", smsInTotal() + n).apply();
     }
 
     // ---------- SMS (2026-10-22) ----------

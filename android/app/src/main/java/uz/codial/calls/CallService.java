@@ -38,6 +38,7 @@ public class CallService extends Service {
         @Override
         public void run() {
             CallSync.request(CallService.this);
+            SmsInbox.request(CallService.this);
             handler.postDelayed(this, PERIOD_MS);
         }
     };
@@ -48,7 +49,9 @@ public class CallService extends Service {
             handler.postDelayed(this, smsPollDelay());
         }
     };
+    private final Runnable smsIn = () -> SmsInbox.request(this);
     private ContentObserver observer;
+    private ContentObserver smsObserver;
 
     static void start(Context ctx) {
         if (!new Prefs(ctx).paired()) return;
@@ -75,6 +78,18 @@ public class CallService extends Service {
         } catch (SecurityException e) {
             new Prefs(this).error("Qo'ng'iroqlar jurnaliga ruxsat berilmagan");
         }
+        smsObserver = new ContentObserver(handler) {
+            @Override
+            public void onChange(boolean selfChange) {
+                handler.removeCallbacks(smsIn);
+                handler.postDelayed(smsIn, DEBOUNCE_MS);
+            }
+        };
+        try {
+            getContentResolver().registerContentObserver(android.provider.Telephony.Sms.CONTENT_URI, true, smsObserver);
+        } catch (SecurityException e) {
+            new Prefs(this).smsError("SMS o'qishga ruxsat berilmagan");
+        }
         handler.postDelayed(periodic, PERIOD_MS);
         handler.postDelayed(smsPoll, 5000);
     }
@@ -89,6 +104,7 @@ public class CallService extends Service {
             return START_NOT_STICKY;
         }
         CallSync.request(this);
+        SmsInbox.request(this);
         return START_STICKY;
     }
 
@@ -109,6 +125,7 @@ public class CallService extends Service {
     public void onDestroy() {
         handler.removeCallbacksAndMessages(null);
         if (observer != null) getContentResolver().unregisterContentObserver(observer);
+        if (smsObserver != null) getContentResolver().unregisterContentObserver(smsObserver);
         super.onDestroy();
     }
 

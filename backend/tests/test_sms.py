@@ -139,3 +139,39 @@ def test_card_history_and_stats(setup, api):
     assert st["sent"] == 1 and st["failed"] == 1 and st["queued"] == 1 and st["students"] == 1
     assert st["paid_after"] == 1 and st["paid_after_sum"] == 500_000
     assert st["by_recipient"] == [{"label": "Talaba", "n": 1}] and st["by_day"][0]["sent"] == 1
+
+
+def inbox(api, token, msgs):
+    return api().post("/api/v1/calls/sms/inbox/", {"messages": msgs}, format="json", HTTP_AUTHORIZATION=f"Device {token}")
+
+
+def test_incoming_sms_matched_filtered_idempotent(setup, api):
+    t = int(timezone.now().timestamp() * 1000)
+    msgs = [{"id": 1, "date": t, "address": "+998901112233", "body": "Ertaga to'layman"},
+            {"id": 2, "date": t, "address": "+998935556677", "body": "Rahmat"},
+            {"id": 3, "date": t, "address": "UzCard", "body": "Kod: 1234"},
+            {"id": 4, "date": t, "address": "900", "body": "Balans"},
+            {"id": 5, "date": t, "address": "+998977776655", "body": "Kurs narxi qancha?"}]
+    r = inbox(api, setup["token"], msgs)
+    assert r.status_code == 200 and r.data == {"accepted": 3, "duplicates": 0, "skipped": 2, "errors": 0}
+    assert inbox(api, setup["token"], msgs).data["accepted"] == 0  # takror
+    inc = SmsMessage.objects.filter(direction="Kiruvchi")
+    st = inc.get(phone="901112233")
+    assert st.student == setup["contract"].student and st.contract == setup["contract"] and st.recipient == "Talaba"
+    assert inc.get(phone="935556677").recipient == "Vasiy"
+    assert inc.get(phone="977776655").student is None
+    # kartochka: yozishma, jurnal filtri, statistika
+    card = api(setup["user"]).get(f"/api/v1/students/{setup['contract'].student_id}/calls/").data["sms"]
+    assert card["incoming"] == 2
+    lst = api(setup["user"]).get("/api/v1/sms/?dir=Kiruvchi&known=0").data
+    assert lst["count"] == 1 and lst["results"][0]["phone"] == "977776655"
+    s = api(setup["user"]).get("/api/v1/sms/summary/").data
+    assert s["incoming"] == 3 and s["incoming_known"] == 2 and s["incoming_unknown"] == 1 and s["total"] == 0
+
+
+def test_reply_after_reminder_counted(setup, api):
+    send(api, setup["user"], [setup["contract"].pk])
+    SmsMessage.objects.filter(direction="Chiquvchi").update(status=S.SENT, sent_at=timezone.now())
+    later = int((timezone.now() + datetime.timedelta(minutes=5)).timestamp() * 1000)
+    inbox(api, setup["token"], [{"id": 9, "date": later, "address": "911112233", "body": "Xo'p"}])
+    assert api(setup["user"]).get("/api/v1/sms/summary/").data["replied"] == 1

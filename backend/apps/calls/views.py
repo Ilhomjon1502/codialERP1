@@ -257,6 +257,16 @@ class SmsReportView(DeviceAPIView):
         return Response(sms.report(device, request.data.get("results")))
 
 
+class SmsInboxView(DeviceAPIView):
+    """POST {messages: [{id, date (ms), address, body}]} — mijozlardan kelgan SMS (2026-10-22). Faqat oddiy raqamlardan saqlanadi."""
+
+    def post(self, request):
+        device = _device(request)
+        if not device:
+            return Response({"detail": "Qurilma ulanmagan", "code": "device_unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
+        return Response(sms.ingest_inbox(device, request.data.get("messages")))
+
+
 def _month(v):
     try:
         return datetime.date.fromisoformat(f"{v}-01") if v else timezone.localdate().replace(day=1)
@@ -287,21 +297,29 @@ class SmsTemplateViewSet(AuditedModelViewSet):
 
 class SmsMessageSerializer(serializers.ModelSerializer):
     student_name = serializers.SerializerMethodField()
+    parent_name = serializers.SerializerMethodField()
     device_name = serializers.CharField(source="device.name", read_only=True)
-    created_by_name = serializers.CharField(source="created_by.full_name", read_only=True, default="")
+    created_by_name = serializers.SerializerMethodField()
 
     class Meta:
         model = SmsMessage
-        fields = ["id", "created_at", "kind", "month", "contract", "student_name", "phone", "recipient", "text", "parts", "status", "error",
-                  "taken_at", "sent_at", "device_name", "created_by_name"]
+        fields = ["id", "created_at", "direction", "kind", "month", "contract", "student", "student_name", "parent_name", "lead", "phone",
+                  "recipient", "text", "parts", "status", "error", "taken_at", "sent_at", "device_name", "created_by_name"]
         read_only_fields = fields
 
     def get_student_name(self, m):
-        return m.contract.student.full_name if m.contract_id else ""
+        st = m.contract.student if m.contract_id else m.student
+        return st.full_name if st else ""
+
+    def get_parent_name(self, m):
+        return str(m.parent) if m.parent_id else ""
+
+    def get_created_by_name(self, m):
+        return m.created_by.full_name if m.created_by_id and m.direction == SmsMessage.Direction.OUT else ""
 
 
 class SmsMessageViewSet(AuditedModelViewSet):
-    """Jurnal: ?status=&from=&to=&q=&contract=&month=YYYY-MM. Yuborish: POST dues/ (preview: true — faqat hisob)."""
+    """Jurnal: ?dir=Chiquvchi|Kiruvchi&status=&known=0&from=&to=&q=&contract=&month=YYYY-MM. Yuborish: POST dues/ (preview: true — faqat hisob)."""
 
     section = "sms"
     branch_field = "branch"
@@ -309,7 +327,7 @@ class SmsMessageViewSet(AuditedModelViewSet):
     pagination_class = Pagination
     http_method_names = ["get", "post", "head", "options"]
     action_ops = {"dues": "a", "retry": "a", "cancel": "e", "cancel_all": "e", "summary": "v"}
-    queryset = SmsMessage.objects.select_related("contract__student", "device", "created_by")
+    queryset = SmsMessage.objects.select_related("contract__student", "student", "parent", "device", "created_by")
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -319,6 +337,10 @@ class SmsMessageViewSet(AuditedModelViewSet):
         local = timezone.get_current_timezone()
         if p.get("status"):
             qs = qs.filter(status=p["status"])
+        if p.get("dir") in SmsMessage.Direction.values:
+            qs = qs.filter(direction=p["dir"])
+        if p.get("known") == "0":
+            qs = qs.filter(student__isnull=True, parent__isnull=True, contract__isnull=True)
         if d := _date(p.get("from")):
             qs = qs.filter(created_at__gte=datetime.datetime.combine(d, datetime.time.min, local))
         if d := _date(p.get("to")):
@@ -329,11 +351,17 @@ class SmsMessageViewSet(AuditedModelViewSet):
             qs = qs.filter(month=_month(p["month"]))
         if q := (p.get("q") or "").strip():
             digits = "".join(c for c in q if c.isdigit())
-            cond = Q(contract__student__first_name__icontains=q) | Q(contract__student__last_name__icontains=q)
+            cond = (Q(contract__student__first_name__icontains=q) | Q(contract__student__last_name__icontains=q)
+                    | Q(student__first_name__icontains=q) | Q(student__last_name__icontains=q) | Q(text__icontains=q))
             if digits:
                 cond |= Q(phone__contains=digits[-9:])
             qs = qs.filter(cond)
         return qs
+
+    def list(self, request, *args, **kwargs):
+        page = self.paginate_queryset(self.filter_queryset(self.get_queryset()))
+        sms.rematch(page)
+        return self.get_paginated_response(self.get_serializer(page, many=True).data)
 
     def create(self, request, *args, **kwargs):
         raise MethodNotAllowed("POST")

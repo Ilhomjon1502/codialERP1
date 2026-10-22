@@ -136,7 +136,7 @@ def test_call_history_on_lead_and_student(api, make_user, world, paired):  # noq
     assert adm.get(f"/api/v1/students/{st.pk}/calls/").json()["count"] == 2
     hisobchi = api(make_user("HISOBCHI"))  # «Qo'ng'iroqlar» bo'limi huquqi yo'q — lidni ko'radi, tarixni emas
     r = hisobchi.get(f"/api/v1/leads/{lead.pk}/calls/").json()  # SMS ko'radi (2026-10-22), qo'ng'iroqlarni emas
-    assert r["calls_allowed"] is False and r["count"] == 0 and r["results"] == [] and r["sms"] == {"count": 0, "results": []}
+    assert r["calls_allowed"] is False and r["count"] == 0 and r["results"] == [] and r["sms"] == {"count": 0, "incoming": 0, "results": []}
     assert api(make_user("USTOZ")).get(f"/api/v1/students/{st.pk}/calls/").json()["allowed"] is False
 
 

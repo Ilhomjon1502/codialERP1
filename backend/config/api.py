@@ -88,5 +88,6 @@ urlpatterns = [
     path("calls/ping/", calls.PingView.as_view()),
     path("calls/sms/outbox/", calls.SmsOutboxView.as_view()),
     path("calls/sms/report/", calls.SmsReportView.as_view()),
+    path("calls/sms/inbox/", calls.SmsInboxView.as_view()),
     *router.urls,
 ]

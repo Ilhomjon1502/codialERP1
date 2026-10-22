@@ -343,10 +343,13 @@
     let sms = '';
     if (d.sms) {
       const rows = d.sms.results.slice(0, 6);
-      sms = `<div><h4>SMS (${d.sms.count})${rows.length ? ` <span class="muted small">· oxirgisi: ${esc(ago(rows[0].sent_at || rows[0].created_at))}</span>` : ''}</h4>
-        ${rows.length ? `<ul class="comments">${rows.map((m) => `<li><p>✉ ${A.badge(m.status, SMS_TONE[m.status] || 'gray')} · ${esc(m.recipient || '')} ${esc(m.phone)}</p>
+      const head = (m) => (m.direction === 'Kiruvchi'
+        ? `↙ <b>Kelgan</b> · ${esc(m.recipient || '')} ${esc(m.phone)}`
+        : `↗ ${A.badge(m.status, SMS_TONE[m.status] || 'gray')} · ${esc(m.recipient || '')} ${esc(m.phone)}`);
+      sms = `<div><h4>SMS (${d.sms.count}${d.sms.incoming ? `, kelgan ${d.sms.incoming}` : ''})${rows.length ? ` <span class="muted small">· oxirgisi: ${esc(ago(rows[0].sent_at || rows[0].created_at))}</span>` : ''}</h4>
+        ${rows.length ? `<ul class="comments">${rows.map((m) => `<li${m.direction === 'Kiruvchi' ? ' class="sms-in"' : ''}><p>${head(m)}</p>
           <p class="small">${esc(m.text)}</p>${m.error ? `<p class="small t-red">${esc(m.error)}</p>` : ''}<small class="muted">${A.fdt(m.sent_at || m.created_at)}${m.by ? ` · ${esc(m.by)}` : ''}</small></li>`).join('')}</ul>
-          ${d.sms.count > rows.length && A.can('calls') ? `<a href="#" data-sms-all>Barcha ${d.sms.count} ta SMS →</a>` : ''}` : `<p class="muted small">SMS yuborilmagan</p>`}</div>`;
+          ${d.sms.count > rows.length && A.can('calls') ? `<a href="#" data-sms-all>Barcha ${d.sms.count} ta SMS →</a>` : ''}` : `<p class="muted small">SMS yo'q</p>`}</div>`;
     }
     el.innerHTML = calls && sms ? `<div class="grid-2">${calls}${sms}</div>` : calls || sms;
     const all = el.querySelector('[data-calls-all]');

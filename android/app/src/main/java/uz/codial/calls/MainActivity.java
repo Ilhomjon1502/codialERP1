@@ -73,7 +73,8 @@ public class MainActivity extends Activity {
         root.addView(title);
         root.addView(text("Bu telefondagi qo'ng'iroqlar tugashi bilan ERP tizimidagi «Qo'ng'iroqlar» bo'limiga yuboriladi. "
                 + "Suhbat yozib olinmaydi — faqat raqam, vaqt va davomiylik. "
-                + "ERP'da administrator «SMS yuborish»ni bossa, to'lov eslatmalari shu telefonning SIM kartasidan yuboriladi.", 14));
+                + "ERP'da administrator «SMS yuborish»ni bossa, to'lov eslatmalari shu telefonning SIM kartasidan yuboriladi. "
+                + "Mijozlardan (oddiy raqamlardan) kelgan SMS'lar ERP'ga tushadi; bank va xizmat SMS'lari yuborilmaydi.", 14));
 
         status = text("", 15);
         status.setPadding(0, dp(12), 0, dp(12));
@@ -114,6 +115,8 @@ public class MainActivity extends Activity {
         if (!prefs.lastError().isEmpty()) s.append("❗ ").append(prefs.lastError()).append('\n');
         s.append(SmsSender.allowed(this) ? "✅ SMS yuborishga ruxsat bor" : "⚠️ SMS yuborishga ruxsat yo'q — to'lov eslatmalari ketmaydi").append('\n');
         if (prefs.smsLastAt() > 0) s.append("SMS: jami ").append(prefs.smsSentTotal()).append(" ta yuborildi · oxirgi ").append(fmt(prefs.smsLastAt())).append('\n');
+        s.append(SmsInbox.allowed(this) ? "✅ Kelgan SMS'larni o'qishga ruxsat bor" : "⚠️ SMS o'qishga ruxsat yo'q — mijozlardan kelgan SMS ERP'ga tushmaydi").append('\n');
+        if (prefs.smsInTotal() > 0) s.append("Kelgan SMS: jami ").append(prefs.smsInTotal()).append(" ta ERP'ga yuborildi\n");
         if (!prefs.smsLastError().isEmpty()) s.append("❗ SMS: ").append(prefs.smsLastError());
         status.setText(s.toString().trim());
     }
@@ -127,6 +130,8 @@ public class MainActivity extends Activity {
         need.add(Manifest.permission.READ_CALL_LOG);
         need.add(Manifest.permission.READ_PHONE_STATE);
         need.add(Manifest.permission.SEND_SMS);
+        need.add(Manifest.permission.READ_SMS);
+        need.add(Manifest.permission.RECEIVE_SMS);
         if (Build.VERSION.SDK_INT >= 33) need.add(Manifest.permission.POST_NOTIFICATIONS);
         requestPermissions(need.toArray(new String[0]), 1);
     }
@@ -139,6 +144,7 @@ public class MainActivity extends Activity {
             CallSync.request(this);
         }
         if (prefs.paired() && SmsSender.allowed(this)) SmsSender.request(this);
+        if (prefs.paired() && SmsInbox.allowed(this)) SmsInbox.request(this);
     }
 
     private void batteryExemption() {

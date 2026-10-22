@@ -241,40 +241,133 @@ def cancel_queued(user, qs):
 
 
 def history(branch_id, student, phones, limit=30):
-    """Talabaga (shartnomalari bo'yicha) yoki uning raqamlariga yuborilgan SMS'lar — yangisi birinchi."""
+    """Talabaning SMS yozishmasi: yuborilganlar (shartnomasi yoki raqamlari bo'yicha) va undan/vasiydan kelganlar — yangisi birinchi."""
     from django.db.models import Q
 
-    qs = (SmsMessage.objects.filter(branch_id=branch_id, is_deleted=False).filter(Q(contract__student=student) | Q(phone__in=phones))
+    qs = (SmsMessage.objects.filter(branch_id=branch_id, is_deleted=False)
+          .filter(Q(contract__student=student) | Q(student=student) | Q(phone__in=phones))
           .exclude(status=S.CANCELLED).select_related("created_by").order_by("-created_at"))
-    rows = [{"id": str(m.pk), "created_at": m.created_at.isoformat(), "sent_at": m.sent_at.isoformat() if m.sent_at else None,
+    rows = [{"id": str(m.pk), "direction": m.direction, "created_at": m.created_at.isoformat(), "sent_at": m.sent_at.isoformat() if m.sent_at else None,
              "status": m.status, "phone": m.phone, "recipient": m.recipient, "text": m.text, "error": m.error, "kind": m.kind,
-             "by": m.created_by.full_name if m.created_by_id else ""} for m in qs[:limit]]
-    return {"count": qs.count(), "results": rows}
+             "by": m.created_by.full_name if m.created_by_id and m.direction == SmsMessage.Direction.OUT else ""} for m in qs[:limit]]
+    return {"count": qs.count(), "incoming": qs.filter(direction=SmsMessage.Direction.IN).count(), "results": rows}
+
+
+# ---------- Mijozlardan kelgan SMS (2026-10-22) ----------
+
+MAX_INBOX = 500
+
+
+def _active_contracts(student_ids):
+    from django.db.models import Q
+
+    today = timezone.localdate()
+    out = {}
+    for c in (Contract.objects.filter(student_id__in=student_ids, is_deleted=False).filter(Q(end_date__isnull=True) | Q(end_date__gte=today))
+              .order_by("start_date")):
+        out[c.student_id] = c.pk
+    return out
+
+
+def _who(phone, student, parent):
+    if student and phone in (student.phone1, student.phone2):
+        return "Talaba"
+    return "Vasiy" if parent else ""
+
+
+@transaction.atomic
+def ingest_inbox(device, items):
+    """Telefondan kelgan SMS'lar: [{id, date (ms), address, body}]. Faqat oddiy raqamlar (9 xonaga keltiriladigan) saqlanadi —
+    qisqa raqam va nomli yuboruvchilar (bank, to'lov tizimlari, operator) o'tkazib yuboriladi. Takror (qurilma + kalit) yaratilmaydi."""
+    from .services import match
+
+    if not isinstance(items, list):
+        raise ValidationError({"messages": ["Ro'yxat kutilgan"]})
+    if len(items) > MAX_INBOX:
+        raise ValidationError({"messages": [f"Bir so'rovda ko'pi {MAX_INBOX} ta"]})
+    rows, skipped, errors = [], 0, 0
+    for item in items:
+        try:
+            ext = f"{int(item['id'])}-{int(item['date'])}"
+            at = datetime.datetime.fromtimestamp(int(item["date"]) / 1000, tz=datetime.UTC)
+        except (KeyError, TypeError, ValueError):
+            errors += 1
+            continue
+        phone = normalize(str(item.get("address") or ""))
+        if not phone:
+            skipped += 1
+            continue
+        rows.append({"external_id": ext, "phone": phone, "sent_at": at, "text": str(item.get("body") or "")[:2000]})
+    existing = set(SmsMessage.all_objects.filter(device=device, external_id__in=[r["external_id"] for r in rows])
+                   .values_list("external_id", flat=True))
+    fresh = [r for r in rows if r["external_id"] not in existing]
+    found = match(device.branch_id, {r["phone"] for r in fresh})
+    contracts = _active_contracts({v[0].pk for v in found.values() if v[0]})
+    created = []
+    for r in fresh:
+        if r["external_id"] in existing:  # bitta paket ichida takror
+            continue
+        existing.add(r["external_id"])
+        student, parent, lead = found.get(r["phone"], (None, None, None))
+        created.append(SmsMessage(
+            branch_id=device.branch_id, device=device, direction=SmsMessage.Direction.IN, kind=SmsMessage.Kind.INCOMING, status=S.RECEIVED,
+            student=student, parent=parent, lead=lead, contract_id=contracts.get(student.pk) if student else None,
+            recipient=_who(r["phone"], student, parent), parts=segments(r["text"]) if r["text"] else 1, **r))
+    SmsMessage.objects.bulk_create(created)
+    device.last_seen_at = timezone.now()
+    device.save(update_fields=["last_seen_at"])
+    return {"accepted": len(created), "duplicates": len(rows) - len(created), "skipped": skipped, "errors": errors}
+
+
+def rematch(messages):
+    """Bazada topilmagan kiruvchi SMS'larni qayta solishtiradi (masalan, keyin lid ochilgan bo'lsa)."""
+    from .services import match
+
+    by_branch = {}
+    for m in messages:
+        if m.direction == SmsMessage.Direction.IN and m.phone and not (m.student_id or m.parent_id):
+            by_branch.setdefault(m.branch_id, []).append(m)
+    for branch_id, rows in by_branch.items():
+        found = match(branch_id, {m.phone for m in rows})
+        changed = []
+        for m in rows:
+            if m.phone in found:
+                m.student, m.parent, m.lead = found[m.phone]
+                m.recipient = _who(m.phone, m.student, m.parent)
+                changed.append(m)
+        if changed:
+            SmsMessage.objects.bulk_update(changed, ["student", "parent", "lead", "recipient"])
+    return messages
 
 
 def stats(qs):
-    """SMS statistikasi (`qs` — filtrlangan jurnal): holatlar, bo'laklar, kunlar, kimga, talabalar va SMS'dan keyingi to'lovlar."""
+    """SMS statistikasi (`qs` — filtrlangan jurnal). Yuborilganlar: holatlar, bo'laklar, kimga, kim yubordi, SMS'dan keyingi to'lovlar.
+    Kelganlar: jami, bazadagi va noma'lum raqamlardan, to'lov eslatmasidan keyin javob yozgan talabalar. Kunlar bo'yicha ikkalasi."""
     from decimal import Decimal
 
     from django.db.models import Count, Q, Sum
-    from django.db.models.functions import TruncDate
+    from django.db.models.functions import Coalesce, TruncDate
 
     from apps.finance.models import Payment
 
-    by = {r["status"]: r["n"] for r in qs.order_by().values("status").annotate(n=Count("id"))}
-    sent = qs.filter(status=S.SENT)
     local = timezone.get_current_timezone()
-    by_day = [{"date": str(r["d"]), "sent": r["sent"], "failed": r["failed"]} for r in
-              qs.exclude(status=S.CANCELLED).order_by().annotate(d=TruncDate("created_at", tzinfo=local)).values("d")
-              .annotate(sent=Count("id", filter=Q(status=S.SENT)), failed=Count("id", filter=Q(status=S.FAILED))).order_by("d")]
+    out_qs = qs.filter(direction=SmsMessage.Direction.OUT)
+    in_qs = qs.filter(direction=SmsMessage.Direction.IN)
+    by = {r["status"]: r["n"] for r in out_qs.order_by().values("status").annotate(n=Count("id"))}
+    sent = out_qs.filter(status=S.SENT)
+    by_day = [{"date": str(r["d"]), "sent": r["sent"], "failed": r["failed"], "incoming": r["incoming"]} for r in
+              qs.exclude(status=S.CANCELLED).order_by().annotate(d=TruncDate(Coalesce("sent_at", "created_at"), tzinfo=local)).values("d")
+              .annotate(sent=Count("id", filter=Q(status=S.SENT)), failed=Count("id", filter=Q(status=S.FAILED)),
+                        incoming=Count("id", filter=Q(direction=SmsMessage.Direction.IN))).order_by("d")]
     by_recipient = [{"label": r["recipient"] or "—", "n": r["n"]} for r in
                     sent.order_by().values("recipient").annotate(n=Count("id")).order_by("-n")]
     by_user = [{"label": r["created_by__full_name"] or "—", "n": r["n"]} for r in
-               qs.exclude(status=S.CANCELLED).order_by().values("created_by__full_name").annotate(n=Count("id")).order_by("-n")]
-    # SMS olgan (yuborilgan) shartnomalar: birinchi SMS sanasidan keyin to'lov qilganlarmi
-    first = {}
-    for cid, at in sent.exclude(contract=None).order_by("created_at").values_list("contract_id", "created_at"):
+               out_qs.exclude(status=S.CANCELLED).order_by().values("created_by__full_name").annotate(n=Count("id")).order_by("-n")]
+    # SMS olgan (yuborilgan) shartnomalar: birinchi SMS sanasidan keyin to'lov qilganlar va javob yozganlar
+    first, first_at = {}, {}
+    for cid, at, sid in sent.exclude(contract=None).order_by("created_at").values_list("contract_id", "created_at", "contract__student_id"):
         first.setdefault(cid, timezone.localtime(at, local).date())
+        first_at.setdefault(sid, at)
     paid, paid_sum = set(), Decimal(0)
     if first:
         for cid, d, amount in Payment.objects.filter(contract__in=first, is_deleted=False, date__gte=min(first.values())).values_list(
@@ -282,6 +375,14 @@ def stats(qs):
             if d >= first[cid]:
                 paid.add(cid)
                 paid_sum += amount or 0
+    replied = set()
+    if first_at:
+        for sid, at in SmsMessage.objects.filter(direction=SmsMessage.Direction.IN, student_id__in=first_at, is_deleted=False).values_list(
+                "student_id", "sent_at"):
+            if at and at >= first_at[sid]:
+                replied.add(sid)
+    total_in = in_qs.count()
+    known_in = in_qs.filter(Q(student__isnull=False) | Q(parent__isnull=False)).count()
     return {
         "by_status": by,
         "total": sum(n for s, n in by.items() if s != S.CANCELLED),
@@ -292,6 +393,11 @@ def stats(qs):
         "students": len(first),
         "paid_after": len(paid),
         "paid_after_sum": int(paid_sum),
+        "incoming": total_in,
+        "incoming_known": known_in,
+        "incoming_unknown": total_in - known_in,
+        "incoming_numbers": in_qs.values("phone").distinct().count(),
+        "replied": len(replied),
         "by_day": by_day,
         "by_recipient": by_recipient,
         "by_user": by_user,

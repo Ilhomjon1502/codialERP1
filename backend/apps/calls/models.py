@@ -89,7 +89,12 @@ class SmsTemplate(BaseModel):
 
 class SmsMessage(BaseModel):
     """Qabul telefoni orqali yuboriladigan SMS. Administrator «Yuborish»ni bosadi → navbat; telefondagi ilova olib, o'z SIM'idan yuboradi
-    va natijani qaytaradi."""
+    va natijani qaytaradi. 2026-10-22 dan mijozlardan **kelgan** SMS ham (direction = Kiruvchi, status «Qabul qilindi», vaqti — sent_at,
+    telefondagi kalit — external_id; faqat oddiy raqamlardan, talaba/vasiy/lidga bog'lanadi)."""
+
+    class Direction(models.TextChoices):
+        OUT = "Chiquvchi", "Chiquvchi"
+        IN = "Kiruvchi", "Kiruvchi"
 
     class State(models.TextChoices):
         QUEUED = "Navbatda", "Navbatda"
@@ -97,11 +102,18 @@ class SmsMessage(BaseModel):
         SENT = "Yuborildi", "Yuborildi"
         FAILED = "Xato", "Xato"
         CANCELLED = "Bekor qilindi", "Bekor qilindi"
+        RECEIVED = "Qabul qilindi", "Qabul qilindi"
 
     class Kind(models.TextChoices):
         DUE = "To'lov eslatmasi", "To'lov eslatmasi"
+        INCOMING = "Mijozdan", "Mijozdan"
 
     branch = models.ForeignKey("references.Branch", on_delete=models.PROTECT, related_name="sms_messages")
+    direction = models.CharField("Yo'nalish", max_length=10, choices=Direction.choices, default=Direction.OUT, db_index=True)
+    external_id = models.CharField("Telefondagi kalit", max_length=64, blank=True)
+    student = models.ForeignKey("crm.Student", null=True, blank=True, on_delete=models.SET_NULL, related_name="sms_messages")
+    parent = models.ForeignKey("crm.Parent", null=True, blank=True, on_delete=models.SET_NULL, related_name="sms_messages")
+    lead = models.ForeignKey("crm.Lead", null=True, blank=True, on_delete=models.SET_NULL, related_name="sms_messages")
     device = models.ForeignKey(CallDevice, on_delete=models.PROTECT, related_name="sms_messages", verbose_name="Qurilma")
     contract = models.ForeignKey("education.Contract", null=True, blank=True, on_delete=models.SET_NULL, related_name="sms_messages")
     template = models.ForeignKey(SmsTemplate, null=True, blank=True, on_delete=models.SET_NULL, related_name="messages")
@@ -120,7 +132,9 @@ class SmsMessage(BaseModel):
         verbose_name = "SMS"
         verbose_name_plural = "SMS xabarlar"
         ordering = ["-created_at"]
-        indexes = [models.Index(fields=["device", "status"]), models.Index(fields=["contract", "month"]), models.Index(fields=["branch", "created_at"])]
+        indexes = [models.Index(fields=["device", "status"]), models.Index(fields=["contract", "month"]), models.Index(fields=["branch", "created_at"]),
+                   models.Index(fields=["phone", "created_at"])]
+        constraints = [models.UniqueConstraint(fields=["device", "external_id"], condition=~models.Q(external_id=""), name="uniq_sms_in_per_device")]
 
     def __str__(self):
         return f"{self.phone} {self.status}"
