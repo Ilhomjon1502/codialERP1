@@ -25,6 +25,7 @@ public class SyncJob extends JobService {
     public boolean onStartJob(JobParameters params) {
         new Thread(() -> {
             CallSync.run(this);
+            SmsSender.run(this);
             CallService.start(this);
             jobFinished(params, false);
         }).start();

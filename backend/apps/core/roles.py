@@ -37,7 +37,7 @@ SECTIONS = [
     ("exchange", "Pul ayirboshlash"), ("accounts", "G'aznalar"), ("evaluations", "Baholash"),
     ("parentCalls", "Ota-onalar bilan aloqa"), ("settings", "Sozlamalar"),
     ("ai", "AI yordamchi"), ("audit", "Audit tarixi"), ("staffTasks", "Topshiriqlar"),
-    ("calls", "Qo'ng'iroqlar"),
+    ("calls", "Qo'ng'iroqlar"), ("sms", "SMS"),
 ]
 SECTION_KEYS = [k for k, _ in SECTIONS]
 
@@ -68,6 +68,7 @@ _MATRIX = {
     "audit": {"AD": "v", "BM": "v"},
     "staffTasks": {"AD": "vaed", "BM": "vaed", "FM": "vaed", "A": "vae", "AH": "vae", "H": "vae", "U": "vae", "Y": "vae", "UY": "vae", "M": "vae"},
     "calls": {"AD": "vaed", "BM": "vaed", "FM": "ve", "A": "ve", "AH": "ve", "M": "v"},
+    "sms": {"AD": "vaed", "BM": "vaed", "FM": "vaed", "A": "vae", "AH": "vae", "H": "v"},
 }
 DEFAULT_PERMISSIONS = {
     code: {sec: next((ops for short, ops in _MATRIX.get(sec, {}).items() if _S[short] == code), "") for sec in SECTION_KEYS}

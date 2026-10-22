@@ -327,17 +327,32 @@
   const CALL_ICON = { Kiruvchi: '↙', Chiquvchi: '↗', Javobsiz: '✕', 'Rad etilgan': '⊘', Bloklangan: '⊘' };
   const callDur = (s) => (s ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : '—');
   /** Lid yoki talaba kartochkasida: shu raqamlardagi qo'ng'iroqlar tarixi va oxirgi aloqa (server: /leads/{id}/calls/, /students/{id}/calls/) */
+  const SMS_TONE = { Navbatda: 'orange', Yuborilmoqda: 'blue', Yuborildi: 'green', Xato: 'red' };
   A.fillCalls = async (el, url, search) => {
-    if (!el || !A.can('calls', 'v')) return;
+    if (!el || !(A.can('calls', 'v') || A.can('sms', 'v'))) return;
     let d;
     try { d = await A.http.get(url); } catch (e) { return; }
     if (!d.allowed) return;
-    const rows = d.results.slice(0, 6);
-    el.innerHTML = `<h4>Qo'ng'iroqlar (${d.count})${d.last ? ` <span class="muted small">· oxirgi aloqa: ${esc(ago(d.last.started_at))}</span>` : ''}</h4>
-      ${rows.length ? `<ul class="comments">${rows.map((c) => `<li><p>${CALL_ICON[c.direction] || ''} <b>${esc(c.direction)}</b> · ${esc(c.phone)} · ${callDur(c.duration)}${c.missed && !c.callback_at ? ' <span class="t-red">javob berilmagan</span>' : ''}${c.comment ? ` — ${esc(c.comment)}` : ''}</p><small class="muted">${A.fdt(c.started_at)}</small></li>`).join('')}</ul>
-        ${d.count > rows.length ? `<a href="#" data-calls-all>Barcha ${d.count} ta qo'ng'iroq →</a>` : ''}` : `<p class="muted small">Qo'ng'iroq yo'q</p>`}`;
+    let calls = '';
+    if (d.calls_allowed !== false) {
+      const rows = d.results.slice(0, 6);
+      calls = `<div><h4>Qo'ng'iroqlar (${d.count})${d.last ? ` <span class="muted small">· oxirgi aloqa: ${esc(ago(d.last.started_at))}</span>` : ''}</h4>
+        ${rows.length ? `<ul class="comments">${rows.map((c) => `<li><p>${CALL_ICON[c.direction] || ''} <b>${esc(c.direction)}</b> · ${esc(c.phone)} · ${callDur(c.duration)}${c.missed && !c.callback_at ? ' <span class="t-red">javob berilmagan</span>' : ''}${c.comment ? ` — ${esc(c.comment)}` : ''}</p><small class="muted">${A.fdt(c.started_at)}</small></li>`).join('')}</ul>
+          ${d.count > rows.length ? `<a href="#" data-calls-all>Barcha ${d.count} ta qo'ng'iroq →</a>` : ''}` : `<p class="muted small">Qo'ng'iroq yo'q</p>`}</div>`;
+    }
+    let sms = '';
+    if (d.sms) {
+      const rows = d.sms.results.slice(0, 6);
+      sms = `<div><h4>SMS (${d.sms.count})${rows.length ? ` <span class="muted small">· oxirgisi: ${esc(ago(rows[0].sent_at || rows[0].created_at))}</span>` : ''}</h4>
+        ${rows.length ? `<ul class="comments">${rows.map((m) => `<li><p>✉ ${A.badge(m.status, SMS_TONE[m.status] || 'gray')} · ${esc(m.recipient || '')} ${esc(m.phone)}</p>
+          <p class="small">${esc(m.text)}</p>${m.error ? `<p class="small t-red">${esc(m.error)}</p>` : ''}<small class="muted">${A.fdt(m.sent_at || m.created_at)}${m.by ? ` · ${esc(m.by)}` : ''}</small></li>`).join('')}</ul>
+          ${d.sms.count > rows.length && A.can('calls') ? `<a href="#" data-sms-all>Barcha ${d.sms.count} ta SMS →</a>` : ''}` : `<p class="muted small">SMS yuborilmagan</p>`}</div>`;
+    }
+    el.innerHTML = calls && sms ? `<div class="grid-2">${calls}${sms}</div>` : calls || sms;
     const all = el.querySelector('[data-calls-all]');
     if (all) all.onclick = (e) => { e.preventDefault(); A.ui.q['calls:search'] = search; A.ui.q['calls:page'] = 1; A.go('calls?tab=list'); };
+    const allSms = el.querySelector('[data-sms-all]');
+    if (allSms) allSms.onclick = (e) => { e.preventDefault(); A.ui.q['smsj:search'] = search; A.ui.q['smsj:page'] = 1; A.go('calls?tab=sms'); };
   };
 
   A.leadForm = (lead, freeStudents = [], preset = {}) => {
@@ -728,7 +743,7 @@
             <p class="muted small">Bir dars narxi = kurs narxi ÷ oydagi dars soni. Talaba kelmasa ham dars uchun qarz yoziladi ("Nofaol" va Grant bundan mustasno).</p>
           </section>
         </div>
-        ${A.can('calls', 'v') ? '<section class="card" id="stu-calls"></section>' : ''}
+        ${A.can('calls', 'v') || A.can('sms', 'v') ? '<section class="card" id="stu-calls"></section>' : ''}
         ${A.tabs([['att', 'Davomat', att.length], ...(A.can('payments') ? [['pay', "To'lovlar", pays.length]] : [])], tab, 'contracts/' + id)}
         ${tab === 'pay'
           ? A.table(
@@ -779,7 +794,7 @@
       const tabs = A.tabs([['month', "To'lovga tavsiya"], ['debt', 'Qarz (davomat bo\'yicha)']], tab, 'debtors');
       const month = `<input class="f-input" type="month" data-filter="debtors:month" title="Oy" value="${esc(A.q('debtors:month', '') || mData.month || '')}">`;
       if (tab === 'month') {
-        return `${A.head("To'lovga tavsiya", "Eslatma uchun: shu oy kurs narxi bo'yicha to'lov qilmaganlar. Bu qarz emas (qarz — «Qarz (davomat bo'yicha)» tabida). To'lov qilganini «✓ To'lov qilgan» bilan ro'yxatdan olib tashlang", A.btn('Excel', 'debtors-csv', { cls: 'ghost', icon: 'download' }))}
+        return `${A.head("To'lovga tavsiya", "Eslatma uchun: shu oy kurs narxi bo'yicha to'lov qilmaganlar. Bu qarz emas (qarz — «Qarz (davomat bo'yicha)» tabida). To'lov qilganini «✓ To'lov qilgan» bilan ro'yxatdan olib tashlang", `${A.can('sms', 'a') ? A.btn('SMS yuborish', 'due-sms-all', { icon: 'sms' }) : ''}${A.btn('Excel', 'debtors-csv', { cls: 'ghost', icon: 'download' })}`)}
         ${tabs}
         ${A.filterBar('debtors', [A.fSearch('debtors'), A.fSelect('debtors', 'course', A.optList('courses'), 'Barcha kurslar'),
           A.fSelect('debtors', 'state', [['wait', 'Kutilmoqda'], ['overdue', "Muddati o'tgan"]], 'Barcha holatlar'),
@@ -811,6 +826,21 @@
     A.toast(msg);
     A.refresh();
   };
+  /* SMS (2026-10-22): qabul telefoni orqali to'lov eslatmasi — forma va jurnal pages-calls.js da (A.smsDueForm) */
+  let dueSel = [];
+  const smsCol = { h: 'SMS', f: (c) => {
+    const s = c.sms;
+    const badge = !s ? '' : s.failed && !s.sent && !s.queued ? A.badge(`✕ xato (${s.failed})`, 'red')
+      : s.queued ? A.badge(`⏳ navbatda (${s.queued})`, 'orange') : A.badge(`✓ ${s.sent}`, 'green');
+    const tip = s ? `title="${esc(`SMS: yuborildi ${s.sent}, navbatda ${s.queued}, xato ${s.failed} · ${s.at}`)}"` : '';
+    const btn = A.can('sms', 'a') ? `<button class="btn sm ghost" data-act="due-sms" data-id="${c.id}" title="SMS yuborish">✉</button>` : '';
+    return `<span ${tip} style="white-space:nowrap">${badge} ${btn}</span>`;
+  } };
+  A.act['due-sms'] = (el) => A.smsDueForm(mData.results.filter((c) => String(c.id) === el.dataset.id), dueMonth());
+  A.act['due-sms-all'] = () => {
+    if (!dueSel.length) return A.toast("Ro'yxatda talaba yo'q", 'warn');
+    A.smsDueForm(dueSel, dueMonth());
+  };
   A.act['due-dismiss'] = (el) => dueCall(el, 'dismiss', "Tavsiya ro'yxatidan olib tashlandi");
   A.act['due-restore'] = (el) => dueCall(el, 'restore', "Tavsiyaga qaytarildi");
   function monthDues(d) {
@@ -823,10 +853,12 @@
       { h: "Shu oy to'langan", f: (c) => A.num(c.paid_month), cls: 'num' },
       { h: "Tavsiya summasi", f: (c) => `<b class="t-red">${A.num(c.to_pay)}</b>`, cls: 'num', sum: (r) => A.num(A.sum(r, 'to_pay')) },
       { h: 'Holat', f: (c) => (c.overdue ? A.badge(`Muddati o'tgan · ${c.days_over} kun`, 'red') : A.badge(`${c.deadline.slice(8)}.${c.deadline.slice(5, 7)} gacha`, 'orange')) },
+      ...(A.can('sms') && !gone ? [smsCol] : []),
       payCol,
       dismissCol(gone),
     ];
     return treeView('dm', d.results, (c) => c.to_pay, gone ? "Olib tashlangan o'quvchi yo'q" : "Tavsiya qilinadigan o'quvchi yo'q", cols, (sel) => {
+      dueSel = gone ? [] : sel;
       const over = sel.filter((c) => c.overdue);
       return `<div class="stats">${A.stat("To'lovga tavsiya", A.money(A.sum(sel, 'to_pay')), `${sel.length} ta o'quvchi`, 'danger')}
         ${A.stat("Muddati o'tgan", A.money(A.sum(over, 'to_pay')), `${over.length} ta o'quvchi`, over.length ? 'danger' : '')}</div>`;

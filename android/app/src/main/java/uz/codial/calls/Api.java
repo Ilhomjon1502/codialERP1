@@ -11,7 +11,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 
-/** ERP API: /api/v1/calls/pair/, /ingest/, /ping/ (qurilma tokeni bilan, sessiyasiz). */
+/** ERP API: /api/v1/calls/pair/, /ingest/, /ping/, /sms/outbox/, /sms/report/ (qurilma tokeni bilan, sessiyasiz). */
 final class Api {
     static final class HttpError extends IOException {
         final int code;
@@ -31,28 +31,26 @@ final class Api {
         c.setReadTimeout(30000);
         c.setRequestProperty("Accept", "application/json");
         if (token != null && !token.isEmpty()) c.setRequestProperty("Authorization", "Device " + token);
-        try {
-            if (body != null) {
-                c.setRequestMethod("POST");
-                c.setDoOutput(true);
-                c.setRequestProperty("Content-Type", "application/json; charset=utf-8");
-                try (OutputStream os = c.getOutputStream()) {
-                    os.write(body.toString().getBytes(StandardCharsets.UTF_8));
-                }
+        // disconnect() chaqirilmaydi: javob to'liq o'qilib yopilsa, ulanish (TLS) keyingi so'rov uchun qayta ishlatiladi —
+        // SMS navbati har 30 soniyada so'raladi, har safar yangi TLS ulanish batareya va internetni ko'p yeydi
+        if (body != null) {
+            c.setRequestMethod("POST");
+            c.setDoOutput(true);
+            c.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+            try (OutputStream os = c.getOutputStream()) {
+                os.write(body.toString().getBytes(StandardCharsets.UTF_8));
             }
-            int code = c.getResponseCode();
-            String text = read(code < 400 ? c.getInputStream() : c.getErrorStream());
-            JSONObject json;
-            try {
-                json = text.isEmpty() ? new JSONObject() : new JSONObject(text);
-            } catch (JSONException e) {
-                json = new JSONObject();
-            }
-            if (code >= 400) throw new HttpError(code, message(json, code));
-            return json;
-        } finally {
-            c.disconnect();
         }
+        int code = c.getResponseCode();
+        String text = read(code < 400 ? c.getInputStream() : c.getErrorStream());
+        JSONObject json;
+        try {
+            json = text.isEmpty() ? new JSONObject() : new JSONObject(text);
+        } catch (JSONException e) {
+            json = new JSONObject();
+        }
+        if (code >= 400) throw new HttpError(code, message(json, code));
+        return json;
     }
 
     private static String message(JSONObject json, int code) {

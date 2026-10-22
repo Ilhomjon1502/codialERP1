@@ -16,13 +16,15 @@ import java.util.concurrent.Executors;
 
 /**
  * Qo'ng'iroqlar jurnalidan oxirgi yuborilgandan keyingilarini o'qib serverga yuboradi.
- * Server takrorni qabul qilmaydi (qurilma + id + vaqt), shuning uchun 3 soatlik «ustma-ust» oyna bilan o'qiladi —
- * kechikib yozilgan qatorlar (masalan, suhbat paytidagi javobsiz qo'ng'iroq) ham tushib qolmaydi.
+ * Yangi qatorlar CallLog _ID bo'yicha olinadi (1.1): kechikib yozilgan qator (masalan, suhbat paytidagi javobsiz qo'ng'iroq)
+ * ham katta _ID oladi, shuning uchun har safar faqat yangilari yuboriladi; zaxira — oxirgi 10 daqiqa sana bo'yicha.
+ * Server takrorni qabul qilmaydi (qurilma + id + vaqt). 1.0 dan yangilanganda bir marta eskicha 3 soatlik oyna bilan o'qiladi.
  * Internet bo'lmasa — keyingi urinishda (qo'ng'iroq tugaganda, har 10 daqiqada, har 15 daqiqalik job'da) yuboriladi.
  */
 final class CallSync {
     private static final ExecutorService EXEC = Executors.newSingleThreadExecutor();
     private static final long OVERLAP_MS = 3 * 3600_000L;
+    private static final long OVERLAP_SHORT_MS = 10 * 60_000L;
     private static final int BATCH = 200;
 
     private CallSync() {}
@@ -42,21 +44,26 @@ final class CallSync {
         }
         int total = 0;
         try {
-            long from = Math.max(0, p.lastDate() - OVERLAP_MS);
+            long lastId = p.lastId();
+            // Yangi qatorlar _ID bo'yicha (kech yozilgan qator ham katta _ID oladi); sana bo'yicha qisqa oyna — zaxira.
+            // 1.0 dan yangilanganda (_ID hali yo'q) — eskicha 3 soatlik oyna bir marta.
+            long dateFrom = Math.max(0, p.lastDate() - (lastId > 0 ? OVERLAP_SHORT_MS : OVERLAP_MS));
+            boolean first = true;
             while (true) {
                 JSONArray calls = new JSONArray();
-                long maxDate = read(ctx, from, calls);
+                long[] max = read(ctx, lastId > 0 ? lastId : Long.MAX_VALUE, first ? dateFrom : Long.MAX_VALUE, calls);
                 if (calls.length() == 0) {
-                    p.synced(p.lastDate(), 0);
+                    p.synced(p.lastDate(), lastId, 0);
                     break;
                 }
                 JSONObject body = new JSONObject().put("calls", calls).put("app_version", version(ctx));
                 JSONObject res = Api.request(p.server(), "ingest/", p.token(), body);
                 int accepted = res.optInt("accepted");
                 total += accepted;
-                p.synced(maxDate, accepted);
+                lastId = Math.max(lastId, max[0]);
+                p.synced(max[1], lastId, accepted);
                 if (calls.length() < BATCH) break;
-                from = maxDate;  // keyingi to'plam
+                first = false;  // keyingi to'plam — faqat _ID bo'yicha
             }
             return total;
         } catch (Api.HttpError e) {
@@ -69,15 +76,19 @@ final class CallSync {
         }
     }
 
-    private static long read(Context ctx, long from, JSONArray out) throws JSONException {
+    /** `_ID > afterId` yoki `DATE > dateFrom` qatorlar (_ID tartibida). Qaytaradi: {eng katta _ID, eng katta sana}. */
+    private static long[] read(Context ctx, long afterId, long dateFrom, JSONArray out) throws JSONException {
         String[] cols = {CallLog.Calls._ID, CallLog.Calls.NUMBER, CallLog.Calls.TYPE, CallLog.Calls.DATE, CallLog.Calls.DURATION,
                 CallLog.Calls.CACHED_NAME, CallLog.Calls.PHONE_ACCOUNT_ID};
-        long max = from;
-        try (Cursor c = ctx.getContentResolver().query(CallLog.Calls.CONTENT_URI, cols, CallLog.Calls.DATE + " > ?",
-                new String[]{String.valueOf(from)}, CallLog.Calls.DATE + " ASC")) {
-            if (c == null) return max;
+        long maxId = 0;
+        long max = 0;
+        String where = CallLog.Calls._ID + " > ? OR " + CallLog.Calls.DATE + " > ?";
+        try (Cursor c = ctx.getContentResolver().query(CallLog.Calls.CONTENT_URI, cols, where,
+                new String[]{String.valueOf(afterId), String.valueOf(dateFrom)}, CallLog.Calls._ID + " ASC")) {
+            if (c == null) return new long[]{maxId, max};
             while (c.moveToNext() && out.length() < BATCH) {
                 long date = c.getLong(3);
+                maxId = Math.max(maxId, c.getLong(0));
                 out.put(new JSONObject()
                         .put("id", c.getLong(0))
                         .put("number", nz(c.getString(1)))
@@ -89,7 +100,7 @@ final class CallSync {
                 max = Math.max(max, date);
             }
         }
-        return max;
+        return new long[]{maxId, max};
     }
 
     private static String nz(String s) {

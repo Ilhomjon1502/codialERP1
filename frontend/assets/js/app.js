@@ -10,6 +10,7 @@
     cash: 'M2 6h20v12H2zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6M6 12h.01M18 12h.01',
     alert: 'M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z',
     check: 'M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11',
+    sms: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2zM8 9h8M8 13h5',
     task: 'M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2M9 14l2 2 4-4',
     user: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8',
     star: 'M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z',
@@ -65,7 +66,7 @@
     ['approvals', 'Tasdiqlashlar', 'checkdbl'], ['salaries', 'Oyliklar', 'coins'],
     ['transfers', 'Ichki pul oqimi', 'exch'], ['creditors', 'Tashqi pul oqimi', 'sortalt'], ['exchange', 'Pul ayirboshlash', 'sync'],
     ['accounts', "G'aznalar", 'sack'],
-    ['calls', "Qo'ng'iroqlar", 'phone'], ['parentCalls', 'Ota-onalar bilan aloqa', 'tty'], ['settings', 'Sozlamalar', 'sliders'], ['ai', 'AI yordamchi', 'sparkle'],
+    ['calls', "Qo'ng'iroqlar va SMS", 'phone'], ['parentCalls', 'Ota-onalar bilan aloqa', 'tty'], ['settings', 'Sozlamalar', 'sliders'], ['ai', 'AI yordamchi', 'sparkle'],
     ['audit', 'Audit tarixi', 'history'],
   ];
 

@@ -23,6 +23,14 @@ public class CallService extends Service {
     private static final String CHANNEL = "calls";
     private static final long DEBOUNCE_MS = 2500;
     private static final long PERIOD_MS = 10 * 60_000L;
+    // SMS navbati: ish vaqtida (8:00–21:00) har 30 soniyada — «Yuborish» bosilgach tez ketsin; tunda har 10 daqiqada (batareya)
+    private static final long SMS_POLL_DAY_MS = 30_000L;
+    private static final long SMS_POLL_NIGHT_MS = 10 * 60_000L;
+
+    static long smsPollDelay() {
+        int h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY);
+        return h >= 8 && h < 21 ? SMS_POLL_DAY_MS : SMS_POLL_NIGHT_MS;
+    }
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable sync = () -> CallSync.request(this);
@@ -31,6 +39,13 @@ public class CallService extends Service {
         public void run() {
             CallSync.request(CallService.this);
             handler.postDelayed(this, PERIOD_MS);
+        }
+    };
+    private final Runnable smsPoll = new Runnable() {
+        @Override
+        public void run() {
+            SmsSender.request(CallService.this);
+            handler.postDelayed(this, smsPollDelay());
         }
     };
     private ContentObserver observer;
@@ -61,6 +76,7 @@ public class CallService extends Service {
             new Prefs(this).error("Qo'ng'iroqlar jurnaliga ruxsat berilmagan");
         }
         handler.postDelayed(periodic, PERIOD_MS);
+        handler.postDelayed(smsPoll, 5000);
     }
 
     @Override
@@ -83,7 +99,7 @@ public class CallService extends Service {
         return new Notification.Builder(this, CHANNEL)
                 .setSmallIcon(android.R.drawable.sym_call_incoming)
                 .setContentTitle("Codial ERP")
-                .setContentText("Qo'ng'iroqlar ERP tizimiga yuborilmoqda")
+                .setContentText("Qo'ng'iroqlar va SMS — ERP bilan ulangan")
                 .setContentIntent(open)
                 .setOngoing(true)
                 .build();

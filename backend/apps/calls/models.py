@@ -68,3 +68,59 @@ class CallRecord(BaseModel):
     @property
     def is_missed(self):
         return self.direction in (self.Direction.MISSED, self.Direction.REJECTED)
+
+
+class SmsTemplate(BaseModel):
+    """SMS qolipi (2026-10-22): administratorlar o'zi yozadi. O'rinbosarlar — `apps/calls/sms.py` PLACEHOLDERS ({talaba}, {summa}…)."""
+
+    branch = models.ForeignKey("references.Branch", on_delete=models.PROTECT, related_name="sms_templates", verbose_name="Filial")
+    name = models.CharField("Nomi", max_length=100)
+    text = models.TextField("Matn")
+    status = models.CharField("Holat", max_length=8, choices=Status.choices, default=Status.ACTIVE)
+
+    class Meta:
+        verbose_name = "SMS qolipi"
+        verbose_name_plural = "SMS qoliplari"
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+class SmsMessage(BaseModel):
+    """Qabul telefoni orqali yuboriladigan SMS. Administrator «Yuborish»ni bosadi → navbat; telefondagi ilova olib, o'z SIM'idan yuboradi
+    va natijani qaytaradi."""
+
+    class State(models.TextChoices):
+        QUEUED = "Navbatda", "Navbatda"
+        SENDING = "Yuborilmoqda", "Yuborilmoqda"
+        SENT = "Yuborildi", "Yuborildi"
+        FAILED = "Xato", "Xato"
+        CANCELLED = "Bekor qilindi", "Bekor qilindi"
+
+    class Kind(models.TextChoices):
+        DUE = "To'lov eslatmasi", "To'lov eslatmasi"
+
+    branch = models.ForeignKey("references.Branch", on_delete=models.PROTECT, related_name="sms_messages")
+    device = models.ForeignKey(CallDevice, on_delete=models.PROTECT, related_name="sms_messages", verbose_name="Qurilma")
+    contract = models.ForeignKey("education.Contract", null=True, blank=True, on_delete=models.SET_NULL, related_name="sms_messages")
+    template = models.ForeignKey(SmsTemplate, null=True, blank=True, on_delete=models.SET_NULL, related_name="messages")
+    kind = models.CharField("Turi", max_length=20, choices=Kind.choices, default=Kind.DUE)
+    month = models.DateField("Oy", null=True, blank=True)
+    phone = models.CharField("Raqam (9 xona)", max_length=9)
+    recipient = models.CharField("Kimga", max_length=20, blank=True)  # Talaba / Talaba (2-tel) / Vasiy
+    text = models.TextField("Matn")
+    parts = models.PositiveSmallIntegerField("SMS soni", default=1)
+    status = models.CharField("Holat", max_length=14, choices=State.choices, default=State.QUEUED, db_index=True)
+    error = models.CharField("Xato", max_length=200, blank=True)
+    taken_at = models.DateTimeField("Telefon oldi", null=True, blank=True)
+    sent_at = models.DateTimeField("Yuborildi", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "SMS"
+        verbose_name_plural = "SMS xabarlar"
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["device", "status"]), models.Index(fields=["contract", "month"]), models.Index(fields=["branch", "created_at"])]
+
+    def __str__(self):
+        return f"{self.phone} {self.status}"

@@ -69,3 +69,7 @@ Qo'ng'iroqlar ro'yxatida talaba nomi bosilsa lid (yoki lidi bo'lmasa shartnoma) 
 **4. Statistika.** «Qo'ng'iroq → lid → shartnoma» voronkasi (manba bo'yicha): qo'ng'iroq qilgan raqamlar, lidi borlar, o'qishni boshlaganlar, shartnoma tuzganlar, lidsiz raqamlar. AI yordamchi uchun `analytics_calls` (raqamsiz).
 
 Kod: `apps/calls/services.py` (`history`, `_note_prompt`, `absence_contact`, `_funnel`), `apps/crm/services.py` (`save_call_note`), `reminders.lead_call_note`, front-end `pages-crm.js` (`A.callNoteForm`, `A.fillCalls`), `pages-calls.js`.
+
+## SMS
+
+Ilova 1.1 dan boshlab shu telefon to'lov eslatmalarini SMS qilib yuboradi (administrator ERP'da «Yuborish»ni bosganda). Batafsil: [sms.md](sms.md).

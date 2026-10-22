@@ -151,9 +151,18 @@ class LeadViewSet(AuditedModelViewSet):
     def calls(self, request, pk=None):
         """Shu lidning (talaba, 1- va 2-telefon, vasiy) qo'ng'iroqlar tarixi. «Qo'ng'iroqlar» bo'limini ko'rish huquqi kerak."""
         lead = self.get_object()
-        if not can(request.user, "calls", "v"):
-            return Response({"allowed": False, "count": 0, "results": [], "last": None})
-        return Response(call_services.history(lead.branch_id, call_services.student_phones(lead.student)))
+        return Response(contact_history(request.user, lead.branch_id, lead.student))
+
+
+def contact_history(user, branch_id, student):
+    """Kartochka uchun: qo'ng'iroqlar («calls» ko'rish huquqi) va yuborilgan SMS'lar («sms» ko'rish huquqi, 2026-10-22)."""
+    from apps.calls import sms as sms_services
+
+    phones = call_services.student_phones(student)
+    can_calls, can_sms = can(user, "calls", "v"), can(user, "sms", "v")
+    out = call_services.history(branch_id, phones) if can_calls else {"count": 0, "results": [], "last": None}
+    out.update(allowed=can_calls or can_sms, calls_allowed=can_calls, sms=sms_services.history(branch_id, student, phones) if can_sms else None)
+    return out
 
 
 class StudentViewSet(AuditedModelViewSet):
@@ -179,9 +188,7 @@ class StudentViewSet(AuditedModelViewSet):
     def calls(self, request, pk=None):
         """Talabaning (1- va 2-telefon, vasiy) qo'ng'iroqlar tarixi."""
         student = self.get_object()
-        if not can(request.user, "calls", "v"):
-            return Response({"allowed": False, "count": 0, "results": [], "last": None})
-        return Response(call_services.history(student.branch_id, call_services.student_phones(student)))
+        return Response(contact_history(request.user, student.branch_id, student))
 
     def partial_update(self, request, *args, **kwargs):
         student = self.get_object()

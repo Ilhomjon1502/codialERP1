@@ -224,6 +224,12 @@ class DebtorViewSet(AuditedModelViewSet):
             rows = [r for r in rows if r["overdue"]]
         elif p.get("state") == "wait":
             rows = [r for r in rows if not r["overdue"]]
+        if can(request.user, "sms", "v"):
+            from apps.calls.sms import due_status
+
+            sms = due_status([r["id"] for r in rows], first)
+            for r in rows:
+                r["sms"] = sms.get(str(r["id"]))
         rows.sort(key=lambda r: (-r["to_pay"]))
         over = [r for r in rows if r["overdue"]]
         return Response({

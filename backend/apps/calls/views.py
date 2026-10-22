@@ -14,8 +14,8 @@ from apps.core.pagination import Pagination
 from apps.core.viewsets import AuditedModelViewSet, BranchScopedSerializerMixin
 from apps.education.models import Attendance, Contract
 
-from . import services
-from .models import CallDevice, CallRecord
+from . import services, sms
+from .models import CallDevice, CallRecord, SmsMessage, SmsTemplate
 
 D = CallRecord.Direction
 
@@ -232,3 +232,142 @@ class CallRecordViewSet(AuditedModelViewSet):
     @action(detail=False)
     def stats(self, request):
         return Response(services.stats(self.get_queryset()))
+
+
+# ---------- SMS (2026-10-22): telefon navbatni oladi, natijani qaytaradi ----------
+
+
+class SmsOutboxView(DeviceAPIView):
+    """GET → {messages: [{id, phone, text}]} — telefon yuborishi kerak bo'lgan SMS'lar (olingani «Yuborilmoqda»)."""
+
+    def get(self, request):
+        device = _device(request)
+        if not device:
+            return Response({"detail": "Qurilma ulanmagan", "code": "device_unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
+        return Response({"messages": sms.outbox(device)})
+
+
+class SmsReportView(DeviceAPIView):
+    """POST {results: [{id, ok, error}]}."""
+
+    def post(self, request):
+        device = _device(request)
+        if not device:
+            return Response({"detail": "Qurilma ulanmagan", "code": "device_unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
+        return Response(sms.report(device, request.data.get("results")))
+
+
+def _month(v):
+    try:
+        return datetime.date.fromisoformat(f"{v}-01") if v else timezone.localdate().replace(day=1)
+    except ValueError as e:
+        raise serializers.ValidationError({"month": ["Oy YYYY-MM ko'rinishida bo'lsin"]}) from e
+
+
+class SmsTemplateSerializer(BranchScopedSerializerMixin, serializers.ModelSerializer):
+    class Meta:
+        model = SmsTemplate
+        fields = ["id", "branch", "name", "text", "status"]
+
+    def validate_text(self, v):
+        return sms.check_template(v)
+
+
+class SmsTemplateViewSet(AuditedModelViewSet):
+    section = "sms"
+    branch_field = "branch"
+    queryset = SmsTemplate.objects.all()
+    serializer_class = SmsTemplateSerializer
+    check_usage_on_delete = False
+
+    @action(detail=False)
+    def placeholders(self, request):
+        return Response([{"key": k, "label": v} for k, v in sms.PLACEHOLDERS.items()])
+
+
+class SmsMessageSerializer(serializers.ModelSerializer):
+    student_name = serializers.SerializerMethodField()
+    device_name = serializers.CharField(source="device.name", read_only=True)
+    created_by_name = serializers.CharField(source="created_by.full_name", read_only=True, default="")
+
+    class Meta:
+        model = SmsMessage
+        fields = ["id", "created_at", "kind", "month", "contract", "student_name", "phone", "recipient", "text", "parts", "status", "error",
+                  "taken_at", "sent_at", "device_name", "created_by_name"]
+        read_only_fields = fields
+
+    def get_student_name(self, m):
+        return m.contract.student.full_name if m.contract_id else ""
+
+
+class SmsMessageViewSet(AuditedModelViewSet):
+    """Jurnal: ?status=&from=&to=&q=&contract=&month=YYYY-MM. Yuborish: POST dues/ (preview: true — faqat hisob)."""
+
+    section = "sms"
+    branch_field = "branch"
+    serializer_class = SmsMessageSerializer
+    pagination_class = Pagination
+    http_method_names = ["get", "post", "head", "options"]
+    action_ops = {"dues": "a", "retry": "a", "cancel": "e", "cancel_all": "e", "summary": "v"}
+    queryset = SmsMessage.objects.select_related("contract__student", "device", "created_by")
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if self.action not in ("list", "summary"):
+            return qs
+        p = self.request.query_params
+        local = timezone.get_current_timezone()
+        if p.get("status"):
+            qs = qs.filter(status=p["status"])
+        if d := _date(p.get("from")):
+            qs = qs.filter(created_at__gte=datetime.datetime.combine(d, datetime.time.min, local))
+        if d := _date(p.get("to")):
+            qs = qs.filter(created_at__lt=datetime.datetime.combine(d + datetime.timedelta(days=1), datetime.time.min, local))
+        if p.get("contract"):
+            qs = qs.filter(contract_id=p["contract"])
+        if p.get("month"):
+            qs = qs.filter(month=_month(p["month"]))
+        if q := (p.get("q") or "").strip():
+            digits = "".join(c for c in q if c.isdigit())
+            cond = Q(contract__student__first_name__icontains=q) | Q(contract__student__last_name__icontains=q)
+            if digits:
+                cond |= Q(phone__contains=digits[-9:])
+            qs = qs.filter(cond)
+        return qs
+
+    def create(self, request, *args, **kwargs):
+        raise MethodNotAllowed("POST")
+
+    @action(detail=False, methods=["post"])
+    def dues(self, request):
+        """{contracts: [id], month: YYYY-MM, text, template, skip_sent: true, preview: false} — to'lov eslatmasi."""
+        d = request.data
+        ids = d.get("contracts") or []
+        if not isinstance(ids, list) or not ids:
+            raise serializers.ValidationError({"contracts": ["Talaba tanlanmagan"]})
+        month = _month(d.get("month"))
+        if d.get("preview"):
+            return Response(sms.preview_dues(request.user, ids, month, d.get("text")))
+        tpl = SmsTemplate.objects.filter(pk=d["template"], is_deleted=False).first() if d.get("template") else None
+        res = sms.queue_dues(request.user, ids, month, d.get("text"), template=tpl, skip_sent=d.get("skip_sent", True) is not False)
+        return Response(res, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["post"])
+    def retry(self, request, pk=None):
+        return Response(self.get_serializer(sms.retry(request.user, self.get_object())).data)
+
+    @action(detail=True, methods=["post"])
+    def cancel(self, request, pk=None):
+        return Response(self.get_serializer(sms.cancel(request.user, self.get_object())).data)
+
+    @action(detail=False, methods=["post"], url_path="cancel-all")
+    def cancel_all(self, request):
+        """Navbatdagi barcha SMS'ni bekor qilish (masalan, xato qolip bilan yuborilgan bo'lsa)."""
+        return Response({"cancelled": sms.cancel_queued(request.user, super().get_queryset())})
+
+    @action(detail=False)
+    def summary(self, request):
+        """Statistika (davr filtri bilan) + navbatda SMS kutayotgan telefonlar."""
+        qs = self.get_queryset()
+        devices = CallDevice.objects.filter(pk__in=qs.filter(status=SmsMessage.State.QUEUED).values("device"))
+        return Response({**sms.stats(qs), "waiting_devices": [{"name": x.name, "last_seen_at": x.last_seen_at} for x in devices]})

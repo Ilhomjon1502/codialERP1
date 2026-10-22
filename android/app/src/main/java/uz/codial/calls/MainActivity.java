@@ -35,6 +35,7 @@ import java.util.concurrent.Executors;
 
 /** Bitta ekran: ulash (server + 8 belgili kod), holat, ruxsatlar va MIUI sozlamalari. */
 public class MainActivity extends Activity {
+    private static final java.util.concurrent.ExecutorService BG = Executors.newSingleThreadExecutor();  // har bosishda yangi oqim ochilmasin
     private final Handler ui = new Handler(Looper.getMainLooper());
     private Prefs prefs;
     private LinearLayout root;
@@ -71,7 +72,8 @@ public class MainActivity extends Activity {
         title.setTypeface(Typeface.DEFAULT_BOLD);
         root.addView(title);
         root.addView(text("Bu telefondagi qo'ng'iroqlar tugashi bilan ERP tizimidagi «Qo'ng'iroqlar» bo'limiga yuboriladi. "
-                + "Suhbat yozib olinmaydi — faqat raqam, vaqt va davomiylik.", 14));
+                + "Suhbat yozib olinmaydi — faqat raqam, vaqt va davomiylik. "
+                + "ERP'da administrator «SMS yuborish»ni bossa, to'lov eslatmalari shu telefonning SIM kartasidan yuboriladi.", 14));
 
         status = text("", 15);
         status.setPadding(0, dp(12), 0, dp(12));
@@ -99,6 +101,7 @@ public class MainActivity extends Activity {
 
         root.addView(header("3. Tekshirish"));
         root.addView(button("Hozir yuborish", v -> syncNow()));
+        root.addView(text("SMS ko'p yuborilganda Android «Ilova ko'p SMS yuboryapti» deb so'rashi mumkin — «Doim ruxsat berish» ni belgilab, «Yuborish»ni bosing.", 13));
     }
 
     private void refresh() {
@@ -108,7 +111,10 @@ public class MainActivity extends Activity {
         PowerManager pm = getSystemService(PowerManager.class);
         s.append(pm.isIgnoringBatteryOptimizations(getPackageName()) ? "✅ Batareya tejash o'chirilgan" : "⚠️ Batareya tejash yoqilgan — ilova to'xtab qolishi mumkin").append('\n');
         if (prefs.lastSyncAt() > 0) s.append("Oxirgi yuborish: ").append(fmt(prefs.lastSyncAt())).append(" · jami ").append(prefs.sentTotal()).append(" ta\n");
-        if (!prefs.lastError().isEmpty()) s.append("❗ ").append(prefs.lastError());
+        if (!prefs.lastError().isEmpty()) s.append("❗ ").append(prefs.lastError()).append('\n');
+        s.append(SmsSender.allowed(this) ? "✅ SMS yuborishga ruxsat bor" : "⚠️ SMS yuborishga ruxsat yo'q — to'lov eslatmalari ketmaydi").append('\n');
+        if (prefs.smsLastAt() > 0) s.append("SMS: jami ").append(prefs.smsSentTotal()).append(" ta yuborildi · oxirgi ").append(fmt(prefs.smsLastAt())).append('\n');
+        if (!prefs.smsLastError().isEmpty()) s.append("❗ SMS: ").append(prefs.smsLastError());
         status.setText(s.toString().trim());
     }
 
@@ -120,6 +126,7 @@ public class MainActivity extends Activity {
         List<String> need = new ArrayList<>();
         need.add(Manifest.permission.READ_CALL_LOG);
         need.add(Manifest.permission.READ_PHONE_STATE);
+        need.add(Manifest.permission.SEND_SMS);
         if (Build.VERSION.SDK_INT >= 33) need.add(Manifest.permission.POST_NOTIFICATIONS);
         requestPermissions(need.toArray(new String[0]), 1);
     }
@@ -131,6 +138,7 @@ public class MainActivity extends Activity {
             CallService.start(this);
             CallSync.request(this);
         }
+        if (prefs.paired() && SmsSender.allowed(this)) SmsSender.request(this);
     }
 
     private void batteryExemption() {
@@ -167,7 +175,7 @@ public class MainActivity extends Activity {
             askPermissions();
             return;
         }
-        Executors.newSingleThreadExecutor().execute(() -> {
+        BG.execute(() -> {
             try {
                 JSONObject body = new JSONObject().put("code", c).put("app_version", CallSync.version(this));
                 JSONObject res = Api.request(srv, "pair/", null, body);
@@ -191,7 +199,7 @@ public class MainActivity extends Activity {
             toast("Avval ERP'ga ulang");
             return;
         }
-        Executors.newSingleThreadExecutor().execute(() -> {
+        BG.execute(() -> {
             int n = CallSync.run(this);
             ui.post(() -> {
                 toast(n < 0 ? "Yuborilmadi: " + prefs.lastError() : "Yuborildi: " + n + " ta yangi qo'ng'iroq");

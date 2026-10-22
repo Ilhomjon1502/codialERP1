@@ -339,6 +339,7 @@ th.num { text-align: right; }
 .field.half { width: calc(50% - 6px); }
 .field[hidden] { display: none; }
 .field input, .field select, .field textarea { width: 100%; }
+.field .check input { width: 18px; height: 18px; padding: 0; flex: none; }
 .field input[readonly], .field select:disabled, .field textarea[readonly] { background: var(--gray-50); color: var(--ink-2); }
 .lbl { font-size: 12.5px; font-weight: 600; color: var(--ink-2); }
 .req { color: var(--red); }

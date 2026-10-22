@@ -55,6 +55,8 @@ router.register("salary-payouts", pay.SalaryPayoutViewSet, basename="salary-payo
 router.register("tasks", tasks.StaffTaskViewSet, basename="task")
 router.register("calls", calls.CallRecordViewSet, basename="call")
 router.register("call-devices", calls.CallDeviceViewSet, basename="call-device")
+router.register("sms-templates", calls.SmsTemplateViewSet, basename="sms-template")
+router.register("sms", calls.SmsMessageViewSet, basename="sms")
 
 urlpatterns = [
     path("auth/csrf/", acc.CsrfView.as_view()),
@@ -84,5 +86,7 @@ urlpatterns = [
     path("calls/pair/", calls.PairView.as_view()),
     path("calls/ingest/", calls.IngestView.as_view()),
     path("calls/ping/", calls.PingView.as_view()),
+    path("calls/sms/outbox/", calls.SmsOutboxView.as_view()),
+    path("calls/sms/report/", calls.SmsReportView.as_view()),
     *router.urls,
 ]
