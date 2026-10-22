@@ -188,3 +188,26 @@ def test_board_counts_not_inflated_by_comments(api, make_user, refs):
     s = c.get("/api/v1/leads/stats/").json()
     assert s["by_status"]["5"] == 1 and s["by_source"][0]["n"] == 1
     assert c.get("/api/v1/leads/").json()["results"][0]["comments_count"] == 4
+
+
+def test_merge_duplicate_students(make_user, refs, branch):
+    """AppSheet'dan ikki marta ko'chgan talaba: izohlar bitta lidga, eski lid va talaba o'chadi, keyin ma'lumotni to'ldirish mumkin."""
+    from rest_framework.exceptions import ValidationError
+
+    from apps.crm import services
+
+    bm = make_user("BOSH_MENEJER")
+    common = {"branch": branch, "first_name": "Nodirbek", "last_name": "Fayzullayev", "phone1": "937770000", "phone2": "770000000"}
+    old, new = Student.objects.create(**common), Student.objects.create(**common, gender="Erkak")
+    lead_kw = {"branch": branch, "source": refs["source"], "course": refs["course"]}
+    old_lead, new_lead_ = Lead.objects.create(student=old, status="8", **lead_kw), Lead.objects.create(student=new, status="5", **lead_kw)
+    LeadComment.objects.create(lead=old_lead, comment="Keyinroq")
+    LeadComment.objects.create(lead=new_lead_, comment="Boshladi")
+    with pytest.raises(ValidationError):  # dublikat bor — to'ldirish formasi saqlanmaydi
+        services.update_student(bm, new, {"birth_date": datetime.date(2005, 7, 14)})
+
+    services.merge_students(bm, new, old)
+    assert not Student.objects.filter(pk=old.pk).exists() and not Lead.objects.filter(pk=old_lead.pk).exists()
+    assert set(new_lead_.comments.values_list("comment", flat=True)) == {"Keyinroq", "Boshladi"}
+    services.update_student(bm, new, {"birth_date": datetime.date(2005, 7, 14)})
+    assert Student.objects.get(pk=new.pk).birth_date == datetime.date(2005, 7, 14)

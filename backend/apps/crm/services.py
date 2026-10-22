@@ -363,3 +363,35 @@ def stats(qs):
         "by_age": by_age,
         "by_social": by_social,
     }
+
+
+@transaction.atomic
+def merge_students(user, keep, drop):
+    """AppSheet'dan ikki marta ko'chgan talaba: `drop` dagi shartnoma, qo'ng'iroq va SMS `keep` ga o'tadi, lidlar bitta bo'ladi
+    (izohlar asosiy lidga ko'chadi), bo'sh maydonlar to'ldiriladi, `drop` o'chiriladi (soft delete)."""
+    from apps.core.services import soft_delete
+
+    if keep.pk == drop.pk or keep.branch_id != drop.branch_id:
+        raise ValidationError({"detail": "Bir filialdagi ikki xil talabani birlashtirish mumkin"})
+    before = audit.snapshot(keep)
+    for f in ("father_name", "gender", "phone2", "birth_date", "parent"):
+        if not getattr(keep, f) and getattr(drop, f):
+            setattr(keep, f, getattr(drop, f))
+    keep.updated_by = user
+    keep.save()
+    audit.log_update(user, keep, before, detail=f"Birlashtirildi: {drop.pk}")
+
+    main_lead = keep.leads.first()
+    for lead in drop.leads.all():
+        if main_lead is None:  # asosiy talabada lid yo'q — lid o'zi ko'chadi
+            lead.student = keep
+            lead.save(update_fields=["student", "updated_at"])
+            main_lead = lead
+            continue
+        lead.comments.update(lead=main_lead)
+        soft_delete(lead, user, check_usage=False)
+    drop.contracts.update(student=keep)
+    drop.calls.update(student=keep)
+    drop.sms_messages.update(student=keep)
+    soft_delete(drop, user)
+    return keep
