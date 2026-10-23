@@ -268,6 +268,9 @@ def create_lead(user, branch, data, *, new_student=None, student=None, comment="
     if clean(comment):
         add_comment(user, lead, comment)
     notif.lead_created(lead)
+    from apps.calls import auto_sms
+
+    auto_sms.lead_created(lead)  # avtomatik SMS (qoida yoqilgan bo'lsa); xato lid saqlanishini buzmaydi
     return lead
 
 

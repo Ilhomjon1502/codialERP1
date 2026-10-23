@@ -40,6 +40,7 @@ EVENT_PERM = {
     "debt_lesson": ("debtors", "v"),
     "demo_soon": ("leads", "v"),
     "lead_callback": ("leads", "e"),  # tugmalar lidni o'zgartiradi
+    "sms_problem": ("sms", "v"),
 }
 # Xodim hali tanlamagan bo'lsa — kimga standart holda boradi
 DEFAULT_ROLES = {
@@ -57,6 +58,7 @@ DEFAULT_ROLES = {
     "debt_lesson": {R.ADMINISTRATOR_HISOBCHI},
     "demo_soon": {R.ADMINISTRATOR_HISOBCHI},  # + guruh ustozi (default_users)
     "lead_callback": {R.ADMINISTRATOR_HISOBCHI},  # buyurtmachi qarori 2026-10-21: hamma Administrator+Hisobchiga
+    "sms_problem": {R.BOSH_MENEJER},  # buyurtmachi qarori 2026-10-23: SMS bormasa Bosh menejerga
 }
 
 

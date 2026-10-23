@@ -31,6 +31,13 @@ PLACEHOLDERS = {
     "oy": "Oy nomi (masalan: noyabr)",
     "summa": "To'lov summasi (masalan: 450 000)",
     "muddat": "To'lov muddati (masalan: 10.11)",
+    # avtomatik SMS qoidalari uchun (auto_sms.py)
+    "muddat_kun": "To'lov muddati kuni (masalan: 10)",
+    "kun": "Oy tugashiga qolgan kunlar soni",
+    "bonus": "Oldindan to'lov bonusi (masalan: 75 000)",
+    "keyingi_oy": "Keyingi oy nomi (masalan: dekabr)",
+    "kecha": "«Kecha» yoki sana («21.10 kuni»)",
+    "sana": "Dars sanasi (masalan: 21.10)",
 }
 OUTBOX_BATCH = 20
 SENDING_TIMEOUT_MIN = 30  # telefon olgan, lekin natija qaytarmagan SMS shuncha daqiqadan keyin «Xato» (qayta yuborilmaydi — takror bo'lmasin)
@@ -74,16 +81,22 @@ def render(text, ctx):
     return _TOKEN.sub(lambda m: str(ctx.get(m.group(1), m.group(0))), text)
 
 
+def group_label(group):
+    """«Kompyuter savodxonligi 192» (tizimdagi «Kompyuter savodxonligi / #192» o'rniga SMS uchun ixcham)."""
+    return f"{group.course} {group.number}" if group else ""
+
+
 def due_context(contract, info, month):
     s = contract.student
     return {
         "talaba": f"{s.first_name} {s.last_name}".strip(),
         "ism": s.first_name,
         "kurs": contract.course.name,
-        "guruh": contract.group.name if contract.group_id else "",
+        "guruh": group_label(contract.group) if contract.group_id else "",
         "oy": MONTHS[month.month - 1],
         "summa": money(info["to_pay"]),
         "muddat": f"{info['deadline']:%d.%m}",
+        "muddat_kun": str(info["deadline"].day),
     }
 
 
@@ -121,7 +134,7 @@ def _dues(user, contract_ids, month, text, skip_sent, commit, template=None):
     base = scope_branch(Contract.objects.filter(is_deleted=False), user).filter(pk__in=contract_ids or [])
     dues = month_dues(base, month)
     contracts = list(base.filter(pk__in=dues.keys()).select_related("student__parent", "course", "group", "branch"))
-    sent = set(SmsMessage.objects.filter(contract__in=[c.pk for c in contracts], month=month, kind=SmsMessage.Kind.DUE,
+    sent = set(SmsMessage.objects.filter(contract__in=[c.pk for c in contracts], month=month, kind__in=[SmsMessage.Kind.DUE, SmsMessage.Kind.MONTH],
                                          status__in=[S.QUEUED, S.SENDING, S.SENT], is_deleted=False).values_list("contract_id", "phone"))
     devices, no_device = {}, set()
     rows, skipped_sent, no_phone, sample = [], 0, 0, None

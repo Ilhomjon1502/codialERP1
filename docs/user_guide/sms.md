@@ -17,6 +17,26 @@ Qo'shimcha qoidalar:
 - **Shu oy SMS olgan raqamga qayta yuborilmaydi**. Qayta yuborish kerak bo'lsa, oynada «Shu oy SMS olgan raqamlarga qayta yuborilmasin» belgisini olib tashlang.
 - Ro'yxatdagi «SMS» ustunida holat ko'rinadi: ✓ yuborildi, ⏳ navbatda, ✕ xato.
 
+## Avtomatik SMS
+
+**Qo'ng'iroqlar va SMS → SMS → «Avtomatik SMS»** bo'limida beshta qoida bor. Ular o'zi ketadi, administrator bosishi shart emas. **Boshida hammasi o'chiq.**
+
+| Qoida | Qachon va kimga |
+|---|---|
+| 🆕 Yangi lid | Lid yaratilganda, lidning hamma raqamiga (har yangi lidga) |
+| 📝 Shartnoma | Shartnoma tuzilganda (faol yoki rejadagi), talaba va vasiyning hamma raqamiga |
+| 📅 Oy boshi | Oyning 1-sanasi 10:00. Shu oy narxini to'lamagan, faol, Grant bo'lmagan shartnomalarga |
+| 🎁 Oldindan to'lov bonusi | Oyning 25-sanasi 10:00. Kelasi oy uchun hali to'lamaganlarga. Bonus «Avvaldan to'lov» chegirmasidan olinadi |
+| 📵 Sababsiz kelmagan | Har kuni 08:00. Oxirgi 3 kunda «Besabab» bo'lgan, «Gaplashildi» belgilanmagan talabalarga (bir talabaga 3 kunda bittadan) |
+
+Yoqish tartibi: **✎** bilan matnni tekshiring (kerak bo'lsa o'zgartiring), **«Ko'rish»** bilan kimlarga nechta SMS ketishini ko'ring, keyin **«Yoqish»**. Yoqishdan oldingi lid, shartnoma va davomatlarga SMS ketmaydi. Jadvalli qoidani vaqti o'tgandan keyin yoqsangiz, bugungi SMS'lar darrov navbatga qo'yiladi.
+
+- Matnda o'rinbosarlar: `{ism}`, `{talaba}`, `{kurs}`, `{guruh}` («Kompyuter savodxonligi 192»), qoidaga qarab `{oy}`, `{summa}`, `{muddat_kun}`, `{bonus}`, `{kun}` (oy tugashiga qolgan kun), `{keyingi_oy}`, `{kecha}` («Kecha» yoki «21.10 kuni»).
+- Bitta voqea bitta raqamga ikki marta ketmaydi. Oy boshi SMS'i «To'lovga tavsiya»dan SMS olgan raqamga ketmaydi.
+- **Matn 160 belgidan oshmasin**, aks holda har SMS ikki bo'lak bo'lib, SMS paketidan ko'p sarflanadi (matn ostida belgi soni ko'rinadi). Lotin harflarida yozing.
+- Jurnalda har SMS'ning turi ko'rinadi (Yangi lid, Shartnoma, Oy boshi, Oldindan to'lov, Kelmadi).
+- **SMS bormay qolsa Bosh menejerga botdan xabar keladi:** navbatda 15 daqiqadan ortiq turgan SMS (telefon aloqasiz yoki ilova to'xtagan), xato yoki operator «yetkazilmadi» degan SMS, telefon ulanmagan filial. Har SMS haqida bir marta.
+
 ## Qoliplar
 
 **Qo'ng'iroqlar va SMS → SMS → «Qolip qo'shish»**. Matnni administratorlarning o'zi yozadi. Matnga o'rinbosarlar qo'yiladi, ular har talaba uchun almashtiriladi:

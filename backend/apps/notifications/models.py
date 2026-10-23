@@ -20,6 +20,7 @@ EVENTS = [
     ("demo_soon", "Sinov darsiga 10 daqiqa qoldi: talaba va guruh"),
     ("lead_callback", "Lid: qayta bog'lanish vaqti keldi"),
     ("task", "Topshiriqlar: yangi, eslatma, bajarildi"),
+    ("sms_problem", "SMS yuborishda muammo: telefon aloqasiz, xato, yetkazilmadi"),
 ]
 EVENT_KEYS = [k for k, _ in EVENTS]
 

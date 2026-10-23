@@ -11,6 +11,7 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db import close_old_connections
 
+from apps.calls import auto_sms
 from apps.notifications import reminders, services, webapp
 from apps.notifications.models import TelegramLink
 from apps.tasks import services as tasks
@@ -62,6 +63,8 @@ class Command(BaseCommand):
                     reminders.demo_before_lessons()
                     tasks.due_reminders()
                     reminders.lead_callbacks()
+                    auto_sms.tick()  # avtomatik SMS jadvali (oy boshi, bonus, kelmagan) va muammo haqida Bosh menejerga
+                    auto_sms.check_problems()
                 services.send_pending()
             except Exception:  # noqa: BLE001 — tarmoq xatosi botni to'xtatmasin
                 log.exception("Bot siklida xato")

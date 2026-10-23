@@ -14,8 +14,8 @@ from apps.core.pagination import Pagination
 from apps.core.viewsets import AuditedModelViewSet, BranchScopedSerializerMixin
 from apps.education.models import Attendance, Contract
 
-from . import services, sms
-from .models import CallDevice, CallRecord, SmsMessage, SmsTemplate
+from . import auto_sms, services, sms
+from .models import CallDevice, CallRecord, SmsMessage, SmsRule, SmsTemplate
 
 D = CallRecord.Direction
 
@@ -404,3 +404,81 @@ class SmsMessageViewSet(AuditedModelViewSet):
         qs = self.get_queryset()
         devices = CallDevice.objects.filter(pk__in=qs.filter(status=SmsMessage.State.QUEUED).values("device"))
         return Response({**sms.stats(qs), "waiting_devices": [{"name": x.name, "last_seen_at": x.last_seen_at} for x in devices]})
+
+
+# ---------- Avtomatik SMS qoidalari (2026-10-23) ----------
+
+
+class SmsRuleSerializer(serializers.ModelSerializer):
+    label = serializers.CharField(source="get_key_display", read_only=True)
+    when = serializers.SerializerMethodField()
+    placeholders = serializers.SerializerMethodField()
+    default_text = serializers.SerializerMethodField()
+    scheduled = serializers.SerializerMethodField()
+    send_time = serializers.TimeField(format="%H:%M", input_formats=["%H:%M", "%H:%M:%S"], required=False, allow_null=True)
+
+    class Meta:
+        model = SmsRule
+        fields = ["id", "branch", "key", "label", "when", "placeholders", "default_text", "scheduled", "enabled", "text", "send_time", "day",
+                  "enabled_at", "last_run_on"]
+        read_only_fields = ["branch", "key", "enabled_at", "last_run_on"]
+
+    def get_when(self, r):
+        return auto_sms.DEFAULTS[r.key]["when"]
+
+    def get_placeholders(self, r):
+        return [{"key": k, "label": sms.PLACEHOLDERS[k]} for k in auto_sms.DEFAULTS[r.key]["ph"]]
+
+    def get_default_text(self, r):
+        return auto_sms.DEFAULTS[r.key]["text"]
+
+    def get_scheduled(self, r):
+        return r.key in auto_sms.PLANNERS
+
+    def validate_text(self, v):
+        return auto_sms.check_rule_text(self.instance.key, v)
+
+    def validate_day(self, v):
+        if v is not None and not 1 <= v <= 28:
+            raise serializers.ValidationError("Kun 1 dan 28 gacha bo'lsin")
+        return v
+
+    def validate(self, d):
+        if (d.get("enabled") or (self.instance and self.instance.enabled)) and self.instance.key in auto_sms.PLANNERS:
+            if not (d.get("send_time") or self.instance.send_time):
+                raise serializers.ValidationError({"send_time": "Yuborish vaqtini kiriting"})
+        return d
+
+
+class SmsRuleViewSet(AuditedModelViewSet):
+    """Avtomatik SMS qoidalari (har filialda 5 ta; ro'yxat so'ralganda yetishmaganlari o'chiq holda yaratiladi). Faqat o'qish va tahrirlash."""
+
+    section = "sms"
+    branch_field = "branch"
+    queryset = SmsRule.objects.select_related("branch")
+    serializer_class = SmsRuleSerializer
+    http_method_names = ["get", "patch", "head", "options"]
+    action_ops = {"preview": "v"}
+
+    def list(self, request, *args, **kwargs):
+        from apps.core.scoping import scope_branch
+        from apps.references.models import Branch
+
+        auto_sms.ensure_rules(scope_branch(Branch.objects.filter(is_deleted=False), request.user, "pk"))
+        return super().list(request, *args, **kwargs)
+
+    def perform_update(self, serializer):
+        was = serializer.instance.enabled
+        serializer.validated_data.setdefault("enabled", was)
+        if serializer.validated_data["enabled"] and not was:
+            serializer.validated_data["enabled_at"] = timezone.now()  # shundan oldingi voqealarga SMS ketmaydi
+        super().perform_update(serializer)
+
+    @action(detail=True)
+    def preview(self, request, pk=None):
+        """Qoida hozir ishlasa kimlarga nima ketardi (hech narsa yuborilmaydi)."""
+        rule = self.get_object()
+        out = auto_sms.preview(rule)
+        out["runs_today"] = bool(rule.key in auto_sms.PLANNERS and rule.send_time and (rule.day is None or rule.day == timezone.localdate().day)
+                                 and timezone.localtime().time() >= rule.send_time and rule.last_run_on != timezone.localdate())
+        return Response(out)

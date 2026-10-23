@@ -265,6 +265,7 @@
   let smsList = { results: [] };
   let smsSum = null;
   let tpls = [];
+  let rules = [];
 
   // Server bilan bir xil: o'zbekcha apostroflar GSM-7 da yo'q — bitta shunday belgi SMS narxini 2–3 barobar oshiradi
   const PLAIN = { 'ʻ': "'", 'ʼ': "'", '‘': "'", '’': "'", '`': "'", '«': '"', '»': '"', '“': '"', '”': '"', '—': '-', '–': '-', '…': '...' };
@@ -297,7 +298,8 @@
       const v = A.q(`${SK}:${k}`, '');
       if (v) q.set(k === 'search' ? 'q' : k, v);
     }
-    [smsList, smsSum, tpls] = await Promise.all([A.http.get('/sms/?' + q), A.http.get('/sms/summary/?' + q), A.http.get('/sms-templates/')]);
+    [smsList, smsSum, tpls, rules] = await Promise.all([A.http.get('/sms/?' + q), A.http.get('/sms/summary/?' + q), A.http.get('/sms-templates/'),
+      A.http.get('/sms-rules/')]);
   }
 
   function smsView() {
@@ -327,7 +329,8 @@
     ], tpls, { empty: "Qolip yo'q — «Qolip qo'shish» bilan yarating" });
     const qBtn = canE && by['Navbatda'] ? A.btn('Navbatni bekor qilish', 'sms-cancel-all', { cls: 'ghost' }) : '';
     return `${warn}
-      <div class="card"><div class="row gap" style="justify-content:space-between;align-items:center"><h3>SMS qoliplari</h3>${canA ? A.btn("Qolip qo'shish", 'sms-tpl', { icon: 'plus' }) : ''}</div>
+      ${rulesView()}
+      <div class="card"><div class="row gap" style="justify-content:space-between;align-items:center"><h3>SMS qoliplari (to'lov eslatmasi uchun)</h3>${canA ? A.btn("Qolip qo'shish", 'sms-tpl', { icon: 'plus' }) : ''}</div>
         <p class="muted small">Qolipni administratorlar o'zi yozadi. ${phHelp()}</p>${tplTable}</div>
       ${cards}<div class="row gap" style="margin:8px 0">${qBtn}</div>${table}${A.pager(SK, smsList)}`;
   }
@@ -395,6 +398,84 @@
       <div class="card"><h3>Kim yubordi</h3>${tbl(s.by_user, 'Xodim')}</div></div>
       <p class="muted small">«SMS'dan keyin to'lov qildi» — birinchi SMS kunidan keyin shartnomaga to'lov tushgan talabalar (SMS sababchi ekani shart emas).</p>`;
   }
+
+  /* Avtomatik SMS (2026-10-23): 5 ta qoida — o'zi ketadi. Boshida o'chiq; matn va vaqtni administratorlar o'zgartiradi, yoqishdan oldin kimlarga ketishi ko'rinadi */
+  // Belgi/SMS sonini namuna qiymatlar bilan hisoblaymiz (o'rinbosarning o'zi emas, haqiqiy matn uzunligi)
+  const SAMPLE = { ism: 'Muhsinjon', talaba: 'Muhsinjon Karimov', kurs: 'Kompyuter savodxonligi', guruh: 'Kompyuter savodxonligi 192', oy: 'noyabr', summa: '450 000',
+    muddat: '10.11', muddat_kun: '10', bonus: '75 000', kun: '5', keyingi_oy: 'dekabr', kecha: 'Kecha', sana: '21.10' };
+  const ruleCount = (t) => countHTML(fill(t || '', SAMPLE));
+  const RULE_ORDER = ['lead', 'contract', 'month_start', 'prepay_bonus', 'absence'];
+  const RULE_EMOJI = { lead: '🆕', contract: '📝', month_start: '📅', prepay_bonus: '🎁', absence: '📵' };
+  const ruleTime = (r) => (r.scheduled ? `${r.day ? `har oyning ${r.day}-sanasi` : 'har kuni'}, ${r.send_time || '—'}` : "voqea bo'lishi bilan");
+  function rulesView() {
+    if (!rules.length) return '';
+    const canE = A.can('sms', 'e');
+    const table = A.table([
+      { h: 'Qoida', f: (r) => `${RULE_EMOJI[r.key] || ''} <b>${esc(r.label)}</b><br><small class="muted">${esc(r.when)}</small>` },
+      { h: 'Matn', f: (r) => `<span class="small">${esc(r.text)}</span><br><small class="muted">${ruleCount(r.text)}</small>` },
+      { h: 'Vaqti', f: (r) => `<span class="small">${esc(ruleTime(r))}</span>` },
+      { h: 'Holat', f: (r) => (r.enabled ? A.badge('Yoqilgan', 'green') : A.badge("O'chiq", 'gray')) },
+      { h: '', f: (r) => `<button class="btn sm ghost" data-act="rule-preview" data-id="${r.id}">Ko'rish</button>
+        ${canE ? `<button class="btn sm ghost" data-act="rule-edit" data-id="${r.id}" title="Matn va vaqtni o'zgartirish">✎</button>
+        <button class="btn sm ${r.enabled ? 'ghost' : 'primary'}" data-act="rule-toggle" data-id="${r.id}">${r.enabled ? "O'chirish" : 'Yoqish'}</button>` : ''}` },
+    ], [...rules].sort((a, b) => RULE_ORDER.indexOf(a.key) - RULE_ORDER.indexOf(b.key)), { empty: '—' });
+    return `<div class="card"><h3>Avtomatik SMS</h3>
+      <p class="muted small">Bu SMS'lar o'zi ketadi (administrator bosishi shart emas). Boshida hammasi <b>o'chiq</b>: matnni tekshiring, «Ko'rish» bilan kimlarga ketishini ko'ring va yoqing.
+        Yoqilishdan oldingi voqealarga SMS ketmaydi. Telefon aloqasiz bo'lsa yoki SMS xato bo'lsa, Bosh menejerga Telegram'dan xabar boradi.</p>${table}</div>`;
+  }
+  const findRule = (id) => rules.find((r) => String(r.id) === String(id));
+  A.act['rule-preview'] = async (el) => {
+    const r = findRule(el.dataset.id);
+    const v = await A.http.get(`/sms-rules/${r.id}/preview/`).catch(fail);
+    if (!v) return;
+    const lines = [`<div class="note info" style="white-space:pre-wrap">${esc(v.sample)}</div><small class="muted">${countHTML(v.sample)}${v.real ? '' : ' · namuna ism va summa bilan'}</small>`];
+    if (v.scheduled) {
+      lines.push(v.note ? `<p class="t-red">${esc(v.note)}</p>` : `<p><b>${v.students}</b> ta talaba, <b>${v.messages}</b> ta SMS — hozir shu hisob bo'yicha ketgan bo'lardi (${esc(ruleTime(r))}).</p>`);
+      if (v.names.length) lines.push(`<p class="small muted">Masalan: ${v.names.map(esc).join(', ')}${v.students > v.names.length ? ' …' : ''}</p>`);
+    }
+    A.modal({ title: r.label, body: lines.join(''), footer: '<button class="btn primary" data-close>Yopish</button>' });
+  };
+  A.act['rule-edit'] = (el) => {
+    const r = findRule(el.dataset.id);
+    A.form({
+      title: r.label,
+      values: { text: r.text, send_time: r.send_time || '', day: r.day || '' },
+      fields: [
+        { name: 'note', type: 'note', text: () => esc(r.when) },
+        { name: 'text', label: 'Matn', type: 'textarea', required: true },
+        { name: 'count', type: 'computed', label: '', compute: (x) => `${ruleCount(x.text)}<br><span class="small">O'rinbosarlar: ${r.placeholders.map((p) => `<code>{${p.key}}</code> ${esc(p.label)}`).join(', ')}</span>` },
+        { name: 'send_time', label: 'Yuborish vaqti', type: 'time', required: true, show: () => r.scheduled },
+        { name: 'day', label: 'Oyning kuni (1–28)', type: 'number', min: 1, max: 28, show: () => r.scheduled && r.day != null },
+        { name: 'reset', type: 'note', text: () => `<a href="#" data-reset>Standart matnni qaytarish</a>` },
+      ],
+      async onSubmit(x) {
+        const body = { text: x.text };
+        if (r.scheduled) body.send_time = x.send_time;
+        if (r.scheduled && r.day != null && x.day) body.day = Number(x.day);
+        await A.http.patch(`/sms-rules/${r.id}/`, body);
+        A.toast('Saqlandi');
+        A.refresh();
+      },
+    });
+    document.querySelector('[data-reset]')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      const ta = document.querySelector('.modal textarea');
+      if (ta) { ta.value = r.default_text; ta.dispatchEvent(new Event('input', { bubbles: true })); }
+    });
+  };
+  A.act['rule-toggle'] = async (el) => {
+    const r = findRule(el.dataset.id);
+    if (r.enabled) {
+      if (!(await A.confirm(`«${esc(r.label)}» o'chirilsinmi? Yangi SMS ketmaydi (navbatdagilari ketadi).`, "O'chirish", true))) return;
+    } else {
+      const v = await A.http.get(`/sms-rules/${r.id}/preview/`).catch(fail);
+      if (!v) return;
+      if (v.note) return A.toast(v.note.replace(/<[^>]+>/g, ''), 'warn');
+      const now = v.scheduled ? `<br>Bugun: <b>${v.students}</b> ta talaba, <b>${v.messages}</b> ta SMS.${v.runs_today ? " <b>Vaqti allaqachon o'tgan — yoqsangiz, bugungi SMS'lar darrov navbatga qo'yiladi.</b>" : ''}` : '';
+      if (!(await A.confirm(`«${esc(r.label)}» yoqilsinmi?<br><small class="muted">${esc(r.when)}</small><br><br><i>${esc(v.sample)}</i>${now}`, 'Yoqish'))) return;
+    }
+    A.http.patch(`/sms-rules/${r.id}/`, { enabled: !r.enabled }).then(() => { A.toast(r.enabled ? "O'chirildi" : 'Yoqildi'); A.refresh(); }, fail);
+  };
 
   const findTpl = (id) => tpls.find((t) => String(t.id) === String(id));
   A.act['sms-tpl'] = (el) => {

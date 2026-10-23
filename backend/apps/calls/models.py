@@ -107,6 +107,12 @@ class SmsMessage(BaseModel):
     class Kind(models.TextChoices):
         DUE = "To'lov eslatmasi", "To'lov eslatmasi"
         INCOMING = "Mijozdan", "Mijozdan"
+        # Avtomatik SMS (2026-10-23, auto_sms.py)
+        LEAD = "Yangi lid", "Yangi lid"
+        CONTRACT = "Shartnoma", "Shartnoma"
+        MONTH = "Oy boshi", "Oy boshi"
+        BONUS = "Oldindan to'lov", "Oldindan to'lov"
+        ABSENCE = "Kelmadi", "Kelmadi"
 
     branch = models.ForeignKey("references.Branch", on_delete=models.PROTECT, related_name="sms_messages")
     direction = models.CharField("Yo'nalish", max_length=10, choices=Direction.choices, default=Direction.OUT, db_index=True)
@@ -129,6 +135,8 @@ class SmsMessage(BaseModel):
     delivery = models.CharField("Yetkazilishi", max_length=14, blank=True, db_index=True)
     delivered_at = models.DateTimeField("Yetkazilgan vaqti", null=True, blank=True)
     detail = models.CharField("Telefon ma'lumoti", max_length=200, blank=True)  # SIM, operator va operator xato kodi
+    key = models.CharField("Takrorlanmaslik kaliti", max_length=140, blank=True)  # avtomatik SMS: bitta voqea + raqam = bitta SMS
+    problem_alerted_at = models.DateTimeField("Muammo haqida xabar berilgan", null=True, blank=True)
     taken_at = models.DateTimeField("Telefon oldi", null=True, blank=True)
     sent_at = models.DateTimeField("Yuborildi", null=True, blank=True)
 
@@ -138,7 +146,37 @@ class SmsMessage(BaseModel):
         ordering = ["-created_at"]
         indexes = [models.Index(fields=["device", "status"]), models.Index(fields=["contract", "month"]), models.Index(fields=["branch", "created_at"]),
                    models.Index(fields=["phone", "created_at"])]
-        constraints = [models.UniqueConstraint(fields=["device", "external_id"], condition=~models.Q(external_id=""), name="uniq_sms_in_per_device")]
+        constraints = [models.UniqueConstraint(fields=["device", "external_id"], condition=~models.Q(external_id=""), name="uniq_sms_in_per_device"),
+                       models.UniqueConstraint(fields=["key"], condition=~models.Q(key=""), name="uniq_sms_auto_key")]
 
     def __str__(self):
         return f"{self.phone} {self.status}"
+
+
+class SmsRule(BaseModel):
+    """Avtomatik SMS qoidasi (2026-10-23): har filialda 5 ta; administratorlar yoqadi/o'chiradi, matn va vaqtini o'zgartiradi. Boshida o'chiq."""
+
+    class Key(models.TextChoices):
+        LEAD = "lead", "Yangi lid"
+        CONTRACT = "contract", "Shartnoma tuzilganda"
+        MONTH_START = "month_start", "Oy boshi: to'lov muddati"
+        PREPAY_BONUS = "prepay_bonus", "Oldindan to'lov bonusi"
+        ABSENCE = "absence", "Sababsiz kelmagan"
+
+    branch = models.ForeignKey("references.Branch", on_delete=models.PROTECT, related_name="sms_rules", verbose_name="Filial")
+    key = models.CharField("Qoida", max_length=16, choices=Key.choices)
+    enabled = models.BooleanField("Yoqilgan", default=False)
+    text = models.TextField("Matn")
+    send_time = models.TimeField("Yuborish vaqti", null=True, blank=True)  # jadvalli qoidalar uchun
+    day = models.PositiveSmallIntegerField("Oyning kuni", null=True, blank=True)  # oy boshi (1), bonus (25)
+    enabled_at = models.DateTimeField("Yoqilgan vaqti", null=True, blank=True)  # shundan oldingi voqealarga SMS ketmaydi
+    last_run_on = models.DateField("Oxirgi ishga tushgan kun", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Avtomatik SMS qoidasi"
+        verbose_name_plural = "Avtomatik SMS qoidalari"
+        ordering = ["branch", "key"]
+        constraints = [models.UniqueConstraint(fields=["branch", "key"], condition=models.Q(is_deleted=False), name="uniq_sms_rule")]
+
+    def __str__(self):
+        return f"{self.get_key_display()} ({self.branch})"

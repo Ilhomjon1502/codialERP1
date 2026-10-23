@@ -248,6 +248,9 @@ def save_contract(user, d, instance=None):
         c.save()
         audit.log_create(user, c)
         notif.contract_saved(c, user, True)
+        from apps.calls import auto_sms
+
+        auto_sms.contract_created(c)  # avtomatik SMS (qoida yoqilgan bo'lsa); xato shartnoma saqlanishini buzmaydi
         return c
     before = audit.snapshot(instance)
     type_changed = "type" in d and d["type"] != instance.type
