@@ -756,7 +756,7 @@
                 { h: 'Summa', f: (p) => A.num(p.amount), cls: 'num', sum: (r) => A.num(A.sum(r, (p) => Number(p.amount))) },
                 { h: 'Turi', f: (p) => (p.amount ? A.CASH[p.cash_type] : '—') + (p.nc_status ? ' ' + A.badge(p.nc_status, p.nc_status === 'Tasdiqlandi' ? 'green' : 'orange') : '') },
                 { h: 'Chegirma', f: (p) => (Number(p.discount) ? `${A.num(p.discount)} ${A.badge(p.disc_status, p.disc_status === 'Tasdiqlandi' ? 'green' : 'orange')}` : '—'), cls: 'num' },
-                { h: 'Chek', f: (p) => `<a href="#" data-act="receipt" data-id="${p.id}">Chek</a>` },
+                { h: '', f: (p) => (A.payActions ? A.payActions(p) : `<a href="#" data-act="receipt" data-id="${p.id}">Chek</a>`) },
               ],
               pays,
               { empty: "To'lov yo'q" },

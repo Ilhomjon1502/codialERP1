@@ -130,6 +130,17 @@ def test_payment_edit_delete_and_ledger_sync(api, fin):
     assert not CashMovement.objects.filter(source_id=pid).exists()
 
 
+def test_cashier_edits_pending_noncash_today_until_approved(api, fin):
+    c = api(fin["cashier"])
+    pid = pay(c, fin, cash_type="CARD", cashbox=None).json()["id"]
+    r = c.patch(f"/api/v1/payments/{pid}/", {"amount": 350000, "comment": "tuzatildi"}, format="json")
+    assert r.status_code == 200 and r.json()["amount"] == 350000 and r.json()["nc_status"] == "Tasdiqlashga"
+    detail = c.get(f"/api/v1/contracts/{fin['contract'].pk}/").json()
+    assert detail["payments"][0]["locked"] is False  # shartnoma sahifasida ham ✎ ochiq
+    assert api(fin["boss"]).post(f"/api/v1/payments/{pid}/approve_noncash/").status_code == 200
+    assert c.patch(f"/api/v1/payments/{pid}/", {"amount": 300000}, format="json").status_code == 403  # tasdiqlangach — faqat Admin / BM
+
+
 def test_accounts_balances_and_ledger_api(api, fin):
     c = api(fin["cashier"])
     pay(c, fin)

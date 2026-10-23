@@ -69,6 +69,7 @@
       ${A.can('payments', 'e') ? `<button class="btn sm ghost" data-act="pay-edit" data-id="${p.id}" ${ed.ok ? '' : `disabled title="${esc(ed.why)}"`}>✎</button>` : ''}
       ${A.can('payments', 'd') ? `<button class="btn sm ghost" data-act="pay-del" data-id="${p.id}" ${del.ok ? '' : `disabled title="${esc(del.why)}"`}>🗑</button>` : ''}</div>`;
   }
+  A.payActions = payActions; // shartnoma sahifasidagi «To'lovlar» tabi ham ishlatadi
   const fetchAll = async (path, qs) => {
     qs.set('page_size', 200);
     let page = 1, out = [];
