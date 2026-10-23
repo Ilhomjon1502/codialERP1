@@ -72,6 +72,35 @@
     const optionsOf = (f) => (call(f.options, v, []) || []).map((o) => (Array.isArray(o) ? o : [o, o]));
     const visible = (f) => !!call(f.show, v, true);
 
+    /* ---- 'combo' (qidiriladigan tanlov) ---- */
+    const labels = {};
+    const comboLabel = (f, val) => {
+      if (isEmpty(val)) return '';
+      const hit = optionsOf(f).find(([k]) => String(k) === String(val));
+      return hit ? hit[1] : labels[`${f.name}:${val}`] || '';
+    };
+    let comboSeq = 0;
+    async function comboFill(w, f, q) {
+      const list = w.querySelector('.combo-list');
+      if (!list) return;
+      const seq = ++comboSeq;
+      let opts;
+      try {
+        opts = f.search ? await f.search(q.trim()) : optionsOf(f).filter(([, l]) => l.toLowerCase().includes(q.trim().toLowerCase()));
+      } catch (err) {
+        opts = [];
+      }
+      if (seq !== comboSeq) return;
+      opts = (opts || []).map((o) => (Array.isArray(o) ? o : [o, o]));
+      for (const [k, l] of opts) labels[`${f.name}:${k}`] = l;
+      list.innerHTML = opts.length
+        ? opts.map(([k, l]) => `<button type="button" class="combo-opt ${String(v[f.name]) === String(k) ? 'on' : ''}" data-opt="${esc(k)}">${esc(l)}</button>`).join('')
+        : `<div class="combo-empty">${q.trim() ? 'Hech narsa topilmadi' : 'Variant yo\'q'}</div>`;
+      list.hidden = false;
+    }
+    let comboTimer = null;
+    const comboClose = () => form.querySelectorAll('.combo-list').forEach((l) => { l.hidden = true; });
+
     function controlHTML(f) {
       const val = v[f.name];
       const ro = call(f.readonly, v, false);
@@ -89,6 +118,11 @@
           return `${label}<select ${ro ? 'disabled' : ''}><option value="">${esc(f.placeholder || 'Tanlang…')}</option>${opts
             .map(([k, l]) => `<option value="${esc(k)}" ${String(val) === String(k) ? 'selected' : ''}>${esc(l)}</option>`)
             .join('')}</select>${help}${err}`;
+        }
+        case 'combo': {
+          // yozib qidiriladigan tanlov: f.search(q) — serverdan [[id, nom], …] (bo'lmasa f.options ichidan)
+          const cur = comboLabel(f, val);
+          return `${label}<div class="combo"><input type="text" class="combo-in" value="${esc(cur)}" ${ro ? 'readonly' : ''} placeholder="${esc(f.placeholder || 'Yozib qidiring…')}" autocomplete="off"><div class="combo-list" hidden></div></div>${help}${err}`;
         }
         case 'seg': {
           const opts = optionsOf(f);
@@ -138,13 +172,13 @@
         }
         w.hidden = !show;
         if (!show) continue;
-        const dynamic = ['note', 'computed', 'select', 'seg', 'chips', 'checkbox'].includes(f.type) || f.readonly || f.required || f.help || f.suggest;
+        const dynamic = ['note', 'computed', 'select', 'combo', 'seg', 'chips', 'checkbox'].includes(f.type) || f.readonly || f.required || f.help || f.suggest;
         const sig = JSON.stringify([
           f.suggest ? call(f.suggest, v, []) : null,
           f.type === 'select' || f.type === 'seg' || f.type === 'chips' ? optionsOf(f) : null,
           f.type === 'note' ? call(f.text, v) : null,
           f.type === 'computed' ? call(f.compute, v) : null,
-          ['select', 'seg', 'chips', 'checkbox'].includes(f.type) ? v[f.name] : null,
+          ['select', 'combo', 'seg', 'chips', 'checkbox'].includes(f.type) ? v[f.name] : null,
           call(f.readonly, v, false), call(f.required, v, false), f.help ? call(f.help, v) : null,
         ]);
         if (!w.dataset.init || (dynamic && w.dataset.sig !== sig)) {
@@ -155,7 +189,7 @@
           w.dataset.init = '1';
           w.dataset.sig = sig;
         } else {
-          const inp = w.querySelector('input:not([type=checkbox]),textarea');
+          const inp = f.type === 'combo' ? null : w.querySelector('input:not([type=checkbox]),textarea');
           if (inp && document.activeElement !== inp && inp.value !== String(v[f.name] ?? '')) inp.value = v[f.name] ?? '';
           const mh = w.querySelector('.money-hint');
           if (mh) mh.textContent = v[f.name] ? A.money(v[f.name]) : '';
@@ -187,6 +221,12 @@
       if (!w) return;
       const f = byName[w.dataset.f];
       if (['select', 'checkbox'].includes(f.type)) return;
+      if (f.type === 'combo') {
+        clearTimeout(comboTimer);
+        const q = e.target.value;
+        comboTimer = setTimeout(() => comboFill(w, f, q), 220);
+        return;
+      }
       let val = e.target.value;
       if (f.type === 'number' || f.type === 'money') val = val === '' ? '' : Number(val);
       setVal(f.name, val);
@@ -198,7 +238,44 @@
       if (f.type === 'select') setVal(f.name, e.target.value);
       if (f.type === 'checkbox') setVal(f.name, e.target.checked);
     });
+    form.addEventListener('focusin', (e) => {
+      const w = e.target.closest('[data-f]');
+      const f = w && byName[w.dataset.f];
+      if (!f || f.type !== 'combo' || !e.target.classList.contains('combo-in') || e.target.readOnly) return;
+      e.target.select();
+      comboFill(w, f, '');
+    });
+    form.addEventListener('focusout', (e) => {
+      const w = e.target.closest('[data-f]');
+      const f = w && byName[w.dataset.f];
+      if (!f || f.type !== 'combo' || !e.target.classList.contains('combo-in')) return;
+      setTimeout(() => {
+        if (w.contains(document.activeElement)) return;
+        clearTimeout(comboTimer);
+        comboSeq++;
+        comboClose();
+        // tanlanmagan matn qoldirilmasin: tanlangan qiymat nomi qaytadi
+        if (isEmpty(v[f.name]) || !e.target.isConnected) { if (e.target.isConnected) e.target.value = ''; }
+        else e.target.value = comboLabel(f, v[f.name]);
+      }, 150);
+    });
+    form.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && e.target.classList && e.target.classList.contains('combo-in')) { e.stopPropagation(); comboClose(); }
+      if (e.key === 'Enter' && e.target.classList && e.target.classList.contains('combo-in')) {
+        e.preventDefault();
+        const first = e.target.closest('.combo').querySelector('.combo-opt');
+        if (first) first.click();
+      }
+    });
+    form.addEventListener('mousedown', (e) => { if (e.target.closest('.combo-list')) e.preventDefault(); });
     form.addEventListener('click', (e) => {
+      const o = e.target.closest('button[data-opt]');
+      if (o) {
+        const w = o.closest('[data-f]');
+        comboSeq++;
+        setVal(w.dataset.f, o.dataset.opt);
+        return;
+      }
       const b = e.target.closest('button[data-val]');
       if (!b) return;
       const w = b.closest('[data-f]');
