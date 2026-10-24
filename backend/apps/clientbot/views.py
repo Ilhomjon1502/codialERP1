@@ -18,7 +18,7 @@ from apps.education.models import Contract
 from apps.references.models import Branch
 
 from . import invites as bulk
-from . import services, survey
+from . import referrals, services, survey
 from .models import BotConfig, BotInvite, BotLink, ClientOutbox, ExitSurvey, LeadSurvey, Referral, SurveyQuestion
 
 READ_ONLY = ["get", "head", "options"]
@@ -291,7 +291,10 @@ class ReferralSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Bonus berilgan tavsiyani o'zgartirib bo'lmaydi")
         if data.get("referrer_student") and "state" not in data and instance.state == Referral.State.UNMATCHED:
             data["state"] = Referral.State.PENDING  # administrator tavsiya qiluvchini bog'ladi
-        return super().update(instance, data)
+        ref = super().update(instance, data)
+        if ref.state == Referral.State.PENDING:
+            referrals.evaluate(ref)  # lid allaqachon to'lov qilgan bo'lsa — bonus darrov beriladi
+        return ref
 
 
 class ReferralViewSet(AuditedModelViewSet):

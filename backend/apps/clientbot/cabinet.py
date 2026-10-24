@@ -57,11 +57,14 @@ def payments_text(student, today=None):
     if not contracts:
         return _head("💳 To'lovlar", student) + "\nShartnoma topilmadi."
     ids = [c.pk for c in contracts]
-    pays = list(Payment.objects.filter(contract__in=ids, is_deleted=False).select_related("contract__course").order_by("-date", "-created_at")[:PAYMENTS_SHOWN])
+    pays = list(Payment.objects.filter(contract__in=ids, is_deleted=False).select_related("contract__course", "discount_type").order_by("-date", "-created_at")[:PAYMENTS_SHOWN])
     total = sum((p.amount for p in Payment.objects.filter(contract__in=ids, is_deleted=False)), Decimal(0))
     lines = [_head("💳 To'lovlar", student)]
     if pays:
         for p in pays:
+            if not p.amount and p.discount:  # faqat chegirma yozuvi (masalan tavsiya bonusi)
+                lines.append(f"{_fmt(p.date)} — 🎁 chegirma <b>{money(p.discount)}</b> so'm" + (f" ({escape(p.discount_type.name)})" if p.discount_type_id else ""))
+                continue
             extra = f" + chegirma {money(p.discount)}" if p.discount else ""
             wait = " ⏳ tasdiqlanmoqda" if Confirm.PENDING in (p.noncash_status, p.discount_status) else ""
             lines.append(f"{_fmt(p.date)} — <b>{money(p.amount)}</b> so'm ({CASH.get(p.cash_type, p.cash_type or '—')}){extra}{wait}")

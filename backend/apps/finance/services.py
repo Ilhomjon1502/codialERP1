@@ -227,7 +227,15 @@ def save_payment(user, d, instance=None):
     sync_movements(S.PAYMENT, p, payment_rows(p))
     if instance is None or (p.discount_status == Confirm.PENDING and p.discount_confirmed_by is None and "discount" in d) or "amount" in d:
         notif.payment_pending(p)
+    _referral_check(p)
     return p
+
+
+def _referral_check(p):
+    """Tavsiya bonusi (mijozlar boti): to'lov tavsiya orqali kelgan lidniki bo'lsa — shart bajarilganda tavsiya qiluvchiga bonus."""
+    from apps.clientbot import referrals
+
+    referrals.on_payment(p)
 
 
 @transaction.atomic
@@ -280,6 +288,7 @@ def approve_noncash(user, p):
     p.save()
     sync_movements(S.PAYMENT, p, payment_rows(p))
     audit.log_update(user, p, before, detail="Naqdsiz to'lov tasdiqlandi — g'azna balansiga qo'shildi")
+    _referral_check(p)
     return p
 
 

@@ -156,7 +156,8 @@ class Referral(BaseModel):
     referrer_text = models.CharField("Lid yozgan ism", max_length=200, blank=True)
     state = models.CharField(max_length=14, choices=State.choices, default=State.UNMATCHED, db_index=True)
     bonus = models.DecimalField("Bonus", max_digits=14, decimal_places=0, null=True, blank=True)
-    payment = models.ForeignKey("finance.Payment", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")  # lidning birinchi to'lovi (B5)
+    payment = models.ForeignKey("finance.Payment", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")  # lidning birinchi to'lovi
+    bonus_payment = models.ForeignKey("finance.Payment", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")  # tavsiya qiluvchiga yozilgan chegirma
     paid_at = models.DateTimeField(null=True, blank=True)
     comment = models.CharField(max_length=200, blank=True)
 

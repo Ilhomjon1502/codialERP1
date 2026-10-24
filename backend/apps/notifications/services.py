@@ -42,6 +42,7 @@ EVENT_PERM = {
     "lead_callback": ("leads", "e"),  # tugmalar lidni o'zgartiradi
     "sms_problem": ("sms", "v"),
     "survey": ("clientbot", "v"),
+    "referral": ("clientbot", "v"),
 }
 # Xodim hali tanlamagan bo'lsa — kimga standart holda boradi
 DEFAULT_ROLES = {
@@ -61,6 +62,7 @@ DEFAULT_ROLES = {
     "lead_callback": {R.ADMINISTRATOR_HISOBCHI},  # buyurtmachi qarori 2026-10-21: hamma Administrator+Hisobchiga
     "sms_problem": {R.BOSH_MENEJER},  # buyurtmachi qarori 2026-10-23: SMS bormasa Bosh menejerga
     "survey": {R.BOSH_MENEJER},  # tamomlash so'rovnomasi javobi (B4)
+    "referral": {R.BOSH_MENEJER},  # tavsiya bonusi (B5)
 }
 
 

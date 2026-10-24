@@ -155,10 +155,10 @@
 
   function refsView() {
     const canE = A.can('clientbot', 'e');
-    return `<p class="muted small">Lid «tanishimdan eshitdim» degan bo'lsa shu yerga tushadi. Lid o'qishni boshlab birinchi to'lovini qilganda tavsiya qiluvchiga bonus beriladi (sozlamalarda miqdori). «Aniqlanmagan» ismni talabaga bog'lang.</p>` + A.table([
+    return `<p class="muted small">Lid «tanishimdan eshitdim» degan bo'lsa shu yerga tushadi. Lid o'qishni boshlab to'lov qilganda (to'lovlari yig'indisi oy narxining belgilangan foizidan kam bo'lmasa) tavsiya qiluvchiga <b>bonus avtomatik beriladi</b>: uning shartnomasiga «Tavsiya bonusi» chegirmasi yoziladi va keyingi to'lovdan ayriladi, botda xabar boradi. «Aniqlanmagan» ismni talabaga bog'lang — lid allaqachon to'lov qilgan bo'lsa, bonus darrov beriladi.</p>` + A.table([
       { h: 'Lid', f: (r) => `<a href="#" data-act="lead-open" data-id="${r.lead}">${esc(r.lead_student)}</a><br><small class="muted">${A.fdt(r.created_at)}</small>` },
       { h: 'Kim tavsiya qilgan', f: (r) => (r.referrer_name ? `<b>${esc(r.referrer_name)}</b>${r.referrer_text ? `<br><small class="muted">yozilgan: ${esc(r.referrer_text)}</small>` : ''}` : `<span class="muted">yozilgan:</span> ${esc(r.referrer_text)}`) },
-      { h: 'Holat', f: (r) => `${A.badge(r.state, REF_TONE[r.state])}${r.bonus ? `<br><small class="muted">${A.money(r.bonus)}</small>` : ''}` },
+      { h: 'Holat', f: (r) => `${A.badge(r.state, REF_TONE[r.state])}${r.bonus ? `<br><small class="muted">bonus ${A.money(r.bonus)}${r.paid_at ? ' · ' + A.fdt(r.paid_at) : ''}</small>` : ''}${r.comment ? `<br><small class="t-red">${esc(r.comment)}</small>` : ''}` },
       { h: '', f: (r) => (canE && r.state !== 'Berildi' ? `<button class="btn sm ghost" data-act="ref-bind" data-id="${r.id}">${r.referrer_name ? "O'zgartirish" : 'Talabaga bog\'lash'}</button>${r.state !== 'Rad etildi' ? `<button class="btn sm ghost" data-act="ref-reject" data-id="${r.id}">Rad etish</button>` : ''}` : '') },
     ], refs.results, { empty: "Tavsiya yo'q" }) + A.pager(BK, refs);
   }
@@ -277,7 +277,7 @@
       <table class="tbl kv"><tbody>
         <tr><td>Lid va shartnoma SMS'iga bot havolasi</td><td>${c.invite_in_sms ? A.badge('Qo\'shiladi', 'green') : A.badge("O'chiq", 'gray')}</td></tr>
         <tr><td>Tavsiya bonusi</td><td><b>${A.money(c.referral_bonus)}</b></td></tr>
-        <tr><td>Bonus uchun birinchi to'lov</td><td>oy narxining kamida <b>${c.referral_min_percent}%</b></td></tr>
+        <tr><td>Bonus uchun lid to'lovlari</td><td>oy narxining kamida <b>${c.referral_min_percent}%</b> <small class="muted">(yig'indi; bonus 0 bo'lsa — o'chiq)</small></td></tr>
         <tr><td>Start eslatmasi</td><td>har <b>${c.reminder_days}</b> kunda, ko'pi bilan <b>${c.reminder_max}</b> marta <small class="muted">(Qo'ng'iroqlar va SMS → SMS → «Botga ulanish eslatmasi» qoidasi yoqilgan bo'lsa)</small></td></tr>
       </tbody></table></div>`).join('');
   }
@@ -290,7 +290,7 @@
       fields: [
         { name: 'invite_in_sms', label: "Lid va shartnoma SMS'iga bot havolasi qo'shilsin", type: 'checkbox' },
         { name: 'referral_bonus', label: "Tavsiya bonusi (so'm)", type: 'money', required: true, min: 0 },
-        { name: 'referral_min_percent', label: "Bonus uchun birinchi to'lov (oy narxining %)", type: 'number', min: 0, max: 100, required: true },
+        { name: 'referral_min_percent', label: "Bonus uchun lid to'lovlari (oy narxining %)", type: 'number', min: 0, max: 100, required: true },
         { name: 'reminder_days', label: 'Start eslatmasi oralig\'i (kun)', type: 'number', min: 1, max: 60, required: true },
         { name: 'reminder_max', label: 'Start eslatmasi ko\'pi bilan (marta)', type: 'number', min: 0, max: 10, required: true },
       ],

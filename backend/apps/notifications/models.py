@@ -22,6 +22,7 @@ EVENTS = [
     ("task", "Topshiriqlar: yangi, eslatma, bajarildi"),
     ("sms_problem", "SMS yuborishda muammo: telefon aloqasiz, xato, yetkazilmadi"),
     ("survey", "Tamomlagan/to'xtagan talaba so'rovnomasiga javob berdi"),
+    ("referral", "Tavsiya bonusi berildi yoki berilmadi"),
 ]
 EVENT_KEYS = [k for k, _ in EVENTS]
 

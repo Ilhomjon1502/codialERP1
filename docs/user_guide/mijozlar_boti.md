@@ -1,8 +1,8 @@
-# Mijozlar boti (o'quvchi va vasiylar) — 1–4-bosqichlar
+# Mijozlar boti (o'quvchi va vasiylar) — 1–5-bosqichlar
 
 O'quvchilar va ota-onalar uchun **alohida Telegram bot**. Xodimlar botidan (`@bildirishnomaERP1bot`) farqli — alohida token.
 Bu bosqichda: ulanish (SMS'dagi kod), «Codialni qayerdan topdingiz?» so'rovi, tavsiya qiluvchi (tanish) ismi, Bosh menejer uchun «Telegram bot» bo'limi.
-Keyingi bosqich: tavsiya bonusi (B5).
+Hamma bosqichlar tayyor.
 
 ## Ishga tushirish (bir marta)
 
@@ -110,3 +110,18 @@ Shartnomaga tugash sanasi kiritilgach, **ertasi kuni 10:00 dan 20:00 gacha** bot
 - **Bosh menejer savollarni o'zgartiradi:** Telegram bot → **Savollar** (qo'shish, tahrirlash, tartib, o'chirish, nofaol qilish; turi — tanlov/baho/matn; kimga — hammaga/tamomlaganlarga/to'xtatganlarga). O'zgarish faqat keyingi so'rovnomalarga ta'sir qiladi. Filial menejeri, administrator tahrirlay oladi, yangi savolni faqat Admin/Bosh menejer qo'shadi.
 - **Javoblar:** Telegram bot → **Ketish so'rovnomasi** — yuborilgan/javob bergan soni, talaba aytgan sabab va shartnomada kiritilgan sabab yonma-yon, baholar o'rtachasi, har talaba javoblari. Javob kelganda Bosh menejerga Telegram xabar boradi («Telegram» oynasida o'chirib qo'yish mumkin).
 - Hali botga ulanmagan talabaga so'rovnoma yuborilmaydi.
+
+## 5-bosqich: tavsiya bonusi
+
+Lid botda «Do'stlar (o'qiydi)» (yoki «tanish», «tavsiya») manbasini tanlab do'stining ismini yozgan bo'lsa, u **Telegram bot → Tavsiyalar** da ko'rinadi. Tavsiya qiluvchi aniqlangan bo'lsa («Kutilmoqda»), lid o'qishni boshlab to'lov qilganda bonus **avtomatik** beriladi.
+
+**Shart** (Telegram bot → Sozlamalar, filial bo'yicha):
+- lidning haqiqiy to'lovlari (naqd yoki tasdiqlangan naqdsiz) **yig'indisi** kurs oylik narxining kamida **50%** i (o'zgartiriladi). Naqdsiz to'lov tasdiqlanmaguncha hisobga olinmaydi, tasdiqlansa — shu zahoti tekshiriladi;
+- tavsiya qiluvchining **faol (Pullik) shartnomasi** bor.
+
+**Bonus:** standart **75 000 so'm** (sozlanadi; 0 — bonus o'chiq). Tavsiya qiluvchining shartnomasiga «Tavsiya bonusi» chegirmasi yoziladi (to'lov summasi 0, chegirma = bonus; tasdiqlangan holda). Natijada uning shartnoma balansi va «To'lovga tavsiya» hisobi shuncha kamayadi, ya'ni keyingi to'lovda shuncha kam to'laydi. G'azna harakati yo'q. Bu yozuv To'lovlar ro'yxatida ham, o'quvchi/vasiy botida ham («🎁 chegirma») ko'rinadi.
+- Har tavsiyaga bir marta (holat «Berildi»).
+- Tavsiya qiluvchi botga ulangan bo'lsa, unga «🎁 Tabriklaymiz!» xabari boradi (do'sti ismi va summa). Bosh menejerga ham Telegram xabar boradi.
+- Tavsiya qiluvchining faol shartnomasi bo'lmasa — holat «Rad etildi», izohda sababi, Bosh menejerga xabar (qo'lda hal qilinadi).
+- «Aniqlanmagan» tavsiyani talabaga bog'lasangiz va lid allaqachon yetarli to'lagan bo'lsa, bonus darrov beriladi. «Rad etish» bonusni to'xtatadi.
+- Bir odam nechta do'stni tavsiya qilsa ham, har biri uchun bonus beriladi (cheklov yo'q).
