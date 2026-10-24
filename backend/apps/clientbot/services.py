@@ -81,14 +81,45 @@ def is_linked(student, phone):
 
 
 def invite_suffix(student, phone, branch):
-    """SMS oxiriga qo'shiladigan bot havolasi (bo'sh — bot sozlanmagan, o'chirilgan yoki raqam allaqachon ulangan)."""
+    """SMS oxiriga qo'shiladigan bot havolasi (bo'sh — bot sozlanmagan, o'chirilgan yoki raqam allaqachon ulangan).
+    Havola ketgan vaqt taklifga yoziladi — start eslatmasi shundan `reminder_days` kun o'tgach."""
     if not configured() or not get_config(branch).invite_in_sms or is_linked(student, phone):
         return ""
-    return f" Telegram bot: {link_url(invite_for(student, phone, branch).code)}"
+    inv = invite_for(student, phone, branch)
+    BotInvite.objects.filter(pk=inv.pk).update(last_reminded_at=timezone.now())
+    return f" Telegram bot: {link_url(inv.code)}"
 
 
 def sample_suffix():
     return f" Telegram bot: {link_url('XXXXXXXX')}" if configured() else ""
+
+
+# ---------- yetkazish: bot yoki SMS ----------
+
+
+def accounts_for(student, phone):
+    """Shu talaba + raqam bo'yicha botga ulangan faol akkauntlar (botni bloklaganlarsiz). Bot sozlanmagan bo'lsa — bo'sh."""
+    if not configured():
+        return []
+    return list(BotAccount.objects.filter(links__student=student, links__phone=normalize(phone), links__is_active=True, blocked=False).distinct())
+
+
+def deliver(accounts, text, *, kind, key, student=None, contract=None, lead=None, month=None, phone="", recipient=""):
+    """SMS o'rniga botga: har akkauntga bitta xabar (`key` bo'yicha takrorlanmaydi). Qaytaradi: yaratilgan xabarlar soni."""
+    n = 0
+    for acc in accounts:
+        if ClientOutbox.objects.filter(account=acc, key=key).exists():
+            continue
+        ClientOutbox.objects.create(account=acc, kind=kind, key=key, text=escape(text), student=student, contract=contract, lead=lead, month=month,
+                                    phone=normalize(phone), recipient=recipient)
+        n += 1
+    return n
+
+
+def sent_pairs(contract_ids, month, kinds):
+    """Botga ketgan (shartnoma, raqam) juftlari — «shu oy eslatma olgan» tekshiruvi SMS bilan birga hisoblaydi."""
+    q = ClientOutbox.objects.filter(contract__in=contract_ids, month=month, kind__in=kinds, status__in=[ClientOutbox.Status.PENDING, ClientOutbox.Status.SENT])
+    return set(q.values_list("contract_id", "phone"))
 
 
 # ---------- Telegram API va navbat ----------

@@ -1,8 +1,8 @@
-# Mijozlar boti (o'quvchi va vasiylar) — 1-bosqich
+# Mijozlar boti (o'quvchi va vasiylar) — 1- va 2-bosqich
 
 O'quvchilar va ota-onalar uchun **alohida Telegram bot**. Xodimlar botidan (`@bildirishnomaERP1bot`) farqli — alohida token.
 Bu bosqichda: ulanish (SMS'dagi kod), «Codialni qayerdan topdingiz?» so'rovi, tavsiya qiluvchi (tanish) ismi, Bosh menejer uchun «Telegram bot» bo'limi.
-Keyingi bosqichlar: SMS'larni botga yo'naltirish va start eslatmalari (B2), to'lov va davomat kabineti (B3), tamomlash so'rovnomasi (B4), tavsiya bonusi (B5).
+Keyingi bosqichlar: to'lov va davomat kabineti (B3), tamomlash so'rovnomasi (B4), tavsiya bonusi (B5).
 
 ## Ishga tushirish (bir marta)
 
@@ -43,3 +43,23 @@ Keyingi bosqichlar: SMS'larni botga yo'naltirish va start eslatmalari (B2), to'l
 `apps/clientbot` — `BotConfig`, `BotInvite` (talaba + raqam → kod), `BotAccount`, `BotLink`, `LeadSurvey`, `Referral`, `ClientOutbox`.
 API: `/api/v1/bot-links/` (+`summary/`), `bot-invites/`, `bot-surveys/`, `bot-referrals/`, `bot-config/`. Jarayon: `python manage.py run_clientbot` (Docker `clientbot` xizmati).
 SMS'ga havola: `calls/auto_sms._bot_suffix` (faqat lid va shartnoma qoidalari).
+
+## 2-bosqich: SMS o'rniga bot, sinov darsi xabari, ulanish eslatmasi
+
+**Bot yoki SMS.** Talaba + raqam botga ulangan bo'lsa, xabar **SMS o'rniga botga** boradi (bepul, yetkazilishi aniq). Ulanmagan raqamga SMS ketadi, oxirida bot havolasi bo'ladi.
+Bu hamma avtomatik SMS'larga (lid, shartnoma, sinov darsi, oy boshi, oldindan to'lov, kelmagan) va «To'lovga tavsiya» → «SMS yuborish»ga tegishli.
+- Qabul telefoni aloqasiz bo'lsa ham, ulangan raqamlarga xabar boraveradi.
+- Bir voqea ikki marta ketmaydi: bot orqali ketgan xabar, ulanish uzilsa ham, SMS bo'lib qayta ketmaydi. «Shu oy eslatma olgan» tekshiruvi botga ketganini ham hisoblaydi.
+- Akkaunt botni bloklagan bo'lsa, xabar SMS bo'lib ketadi.
+- «To'lovga tavsiya»da SMS yuborishdan oldingi tasdiq oynasida: «N ta raqamga SMS va M ta raqamga Telegram bot orqali».
+
+**Yangi avtomatik qoidalar** (Qo'ng'iroqlar va SMS → SMS → «Avtomatik SMS», boshida **o'chiq**; yoqishdan oldin «Ko'rish» bilan tekshiring):
+| Qoida | Qachon | Matn (standart) |
+|---|---|---|
+| 🎓 Sinov darsga qatnashdi | lid shu holatga o'tganda, har lidga bir marta, talabaning hamma raqamiga | «Assalomu alaykum! Sinov darsimizga qatnashganingiz uchun rahmat. Savollaringiz bo'lsa, 998204432 ga murojaat qiling.» |
+| 🤖 Botga ulanish eslatmasi | har kuni 10:00: faol shartnomasi yoki ochiq lidi (1–4) bor, lekin ulanmagan raqamlarga | «Codial o'quv markazi xabarlari Telegram botda ham keladi, ulanib qo'ying.» + havola |
+
+Eslatma har `reminder_days` kunda (standart 7) bir martadan, bir taklifga jami `reminder_max` marta (standart 3) ketadi; havola bilan oxirgi SMS ketgan vaqtdan sanaladi. Ikkalasi Telegram bot → Sozlamalarda o'zgaradi.
+Telefon raqami matnda yozilgan (sinov darsi qoidasi) — kerak bo'lsa ✎ bilan o'zgartiring.
+
+**Telegram bot → Xabarlar** tabi: botga ketgan hamma xabarlar (vaqt, kim, turi, matn, holat) va «Umumiy»da soni turlar bo'yicha. API: `/api/v1/bot-messages/`.

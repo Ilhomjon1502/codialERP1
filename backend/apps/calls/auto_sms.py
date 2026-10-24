@@ -4,7 +4,13 @@
 - **contract** — shartnoma tuzilganda (faol yoki rejadagi), talaba va vasiyning hamma raqamiga (hook: `education.services.save_contract`);
 - **month_start** — oyning 1-sanasi 10:00: shu oy narxini hali to'lamagan faol, Grant bo'lmagan shartnomalarga («To'lovga tavsiya» hisobi);
 - **prepay_bonus** — oyning 25-sanasi 10:00: kelasi oy uchun hali to'lamaganlarga, «Avvaldan to'lov» chegirmasi bonusi;
-- **absence** — har kuni 08:00: oxirgi 3 kunda sababsiz («Besabab») kelmagan, «Gaplashildi» deb belgilanmagan talabalarga; bir talabaga 3 kunda bittadan.
+- **absence** — har kuni 08:00: oxirgi 3 kunda sababsiz («Besabab») kelmagan, «Gaplashildi» deb belgilanmagan talabalarga; bir talabaga 3 kunda bittadan;
+- **demo** — lid «Sinov darsga qatnashdi» holatiga o'tganda (hook: `notifications.services.lead_changed`);
+- **bot_reminder** — har kuni 10:00: faol shartnomasi yoki ochiq lidi (1–4) bor, lekin mijozlar botiga ulanmagan raqamlarga ulanish eslatmasi
+  (har `reminder_days` kunda, jami `reminder_max` marta — Telegram bot sozlamasi).
+
+**Bot yoki SMS (2026-10-24):** talaba + raqam mijozlar botiga ulangan bo'lsa, xabar SMS o'rniga **botga** ketadi (`enqueue`); ulanmagan raqamga SMS,
+lid/shartnoma/sinov darsi/eslatma SMS'lariga bot havolasi va kodi qo'shiladi (`_bot_suffix`).
 
 Qoidalar boshida **o'chiq**; administrator matnni ko'rib, «kimlarga ketadi» ro'yxatini tekshirib yoqadi. Yoqilishdan oldingi voqealarga SMS ketmaydi.
 Takrorlanmaslik: `SmsMessage.key` (voqea + raqam) — bitta voqea bitta raqamga ikki marta ketmaydi.
@@ -17,7 +23,7 @@ import logging
 from collections import namedtuple
 
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Exists, OuterRef, Q
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
@@ -55,6 +61,16 @@ DEFAULTS = {
                  "{keyingi_oy} oyi uchun to'lovni hozir qilsangiz bonus sizniki."),
         "when": "Har oyning belgilangan kuni — kelasi oy uchun hali to'lamagan faol shartnomalarga (bonus «Avvaldan to'lov» chegirmasidan)",
     },
+    R.DEMO: {
+        "kind": K.DEMO, "time": None, "day": None, "ph": ["ism", "talaba", "kurs", "guruh"],
+        "text": "Assalomu alaykum! Sinov darsimizga qatnashganingiz uchun rahmat. Savollaringiz bo'lsa, 998204432 ga murojaat qiling.",
+        "when": "Lid «Sinov darsga qatnashdi» holatiga o'tganda — talabaning hamma raqamiga (har lidga bir marta)",
+    },
+    R.BOT_REMINDER: {
+        "kind": K.BOT, "time": T(10, 0), "day": None, "ph": ["ism", "talaba"],
+        "text": "Codial o'quv markazi xabarlari Telegram botda ham keladi, ulanib qo'ying.",
+        "when": "Har kuni — faol shartnomasi yoki ochiq lidi (1–4) bor, lekin botga ulanmagan raqamlarga; oralig'i va soni «Telegram bot → Sozlamalar»da",
+    },
     R.ABSENCE: {
         "kind": K.ABSENCE, "time": T(8, 0), "day": None, "ph": ["ism", "talaba", "kurs", "guruh", "kecha", "sana"],
         "text": "{kecha} {ism} darsga kelmagan ko'rinadi, aniqlik kiritish uchun 998204432 ga telefon qiling.",
@@ -69,7 +85,7 @@ SAMPLE_CTX = {
 PROBLEM_AFTER = datetime.timedelta(minutes=15)
 ABSENCE_WINDOW_DAYS = 3
 
-Plan = namedtuple("Plan", "student contract ctx key month skip")
+Plan = namedtuple("Plan", "student contract ctx key month skip invite", defaults=(None,))
 
 
 def ensure_rules(branches):
@@ -116,27 +132,39 @@ def alert_no_device(branch):
 
 
 def enqueue(rule, student, ctx, key_base, kind, *, contract=None, lead=None, month=None, skip=()):
-    """Talabaning hamma raqamiga SMS qatorlari (Navbatda). Qaytaradi: yaratilganlar soni."""
-    device = sms.branch_device(rule.branch_id)
-    if not device:
-        alert_no_device(rule.branch)
-        return 0
+    """Talabaning hamma raqamiga xabar: botga ulangan raqamga **botga**, qolganiga SMS qatori (Navbatda). Qaytaradi: yaratilganlar soni."""
+    from apps.clientbot import services as bot
+    from apps.clientbot.models import ClientOutbox
+
     text = sms.plain(sms.render(sms.plain(rule.text), ctx))
     phones = [(p, who) for p, who in sms.recipients(student) if p not in skip]
     keys = [f"{key_base}:{p}" for p, _ in phones]
     have = set(SmsMessage.all_objects.filter(key__in=keys).values_list("key", flat=True))
+    have |= set(ClientOutbox.objects.filter(key__in=keys).values_list("key", flat=True))  # shu voqea allaqachon (SMS yoki bot orqali) ketgan
+    todo = [(p, who, k) for (p, who), k in zip(phones, keys, strict=True) if k not in have]
+    n, sms_todo = 0, []
+    for p, who, k in todo:
+        accs = bot.accounts_for(student, p)
+        if accs:
+            n += bot.deliver(accs, text, kind=kind, key=k, student=student, contract=contract, lead=lead, month=month, phone=p, recipient=who)
+        else:
+            sms_todo.append((p, who, k))
+    if not sms_todo:
+        return n
+    device = sms.branch_device(rule.branch_id)
+    if not device:
+        alert_no_device(rule.branch)
+        return n
     rows = []
-    for (p, who), k in zip(phones, keys, strict=True):
-        if k in have:
-            continue
+    for p, who, k in sms_todo:
         msg = text + _bot_suffix(rule, student, p)
         rows.append(SmsMessage(branch_id=rule.branch_id, device=device, student=student, contract=contract, lead=lead, kind=kind, month=month,
                                phone=p, recipient=who, text=msg, parts=sms.segments(msg), key=k))
     SmsMessage.objects.bulk_create(rows, ignore_conflicts=True)
-    return len(rows)
+    return n + len(rows)
 
 
-INVITE_RULES = {R.LEAD, R.CONTRACT}  # shu SMS'larga mijozlar boti havolasi (raqamga xos kod) qo'shiladi
+INVITE_RULES = {R.LEAD, R.CONTRACT, R.DEMO, R.BOT_REMINDER}  # shu SMS'larga mijozlar boti havolasi (raqamga xos kod) qo'shiladi
 
 
 def _bot_suffix(rule, student, phone):
@@ -188,6 +216,24 @@ def contract_created(contract):
     _safe(run)
 
 
+def lead_status_changed(lead, old_status):
+    """Lid «Sinov darsga qatnashdi» (4) holatiga o'tdi — rahmat xabari (har lidga bir marta)."""
+    from apps.crm.models import Lead
+
+    if lead.status != Lead.LeadStatus.DEMO_ATTENDED or old_status == lead.status:
+        return
+
+    def run():
+        rule = _enabled_rule(lead.branch_id, R.DEMO)
+        if rule:
+            st = lead.student
+            ctx = {"ism": st.first_name, "talaba": _name(st), "kurs": lead.course.name if lead.course_id else "",
+                   "guruh": sms.group_label(lead.group) if lead.group_id else ""}
+            enqueue(rule, st, ctx, f"demo:{lead.pk}", K.DEMO, lead=lead)
+
+    _safe(run)
+
+
 # ---------- jadvalli qoidalar ----------
 
 
@@ -199,8 +245,10 @@ def _month_skip(contract_ids, month):
     """Shu oy uchun «To'lovga tavsiya» yoki oy boshi SMS olgan (shartnoma, raqam) juftlari — qayta yuborilmaydi."""
     q = SmsMessage.objects.filter(contract__in=contract_ids, month=month, kind__in=[K.DUE, K.MONTH], is_deleted=False,
                                   status__in=[S.QUEUED, S.SENDING, S.SENT])
+    from apps.clientbot import services as bot
+
     out = {}
-    for cid, phone in q.values_list("contract_id", "phone"):
+    for cid, phone in set(q.values_list("contract_id", "phone")) | bot.sent_pairs(contract_ids, month, [K.DUE, K.MONTH]):
         out.setdefault(cid, set()).add(phone)
     return out
 
@@ -261,7 +309,34 @@ def plan_absence(rule, today):
     return plans
 
 
-PLANNERS = {R.MONTH_START: plan_month_start, R.PREPAY_BONUS: plan_prepay_bonus, R.ABSENCE: plan_absence}
+def plan_bot_reminder(rule, today):
+    """Botga ulanmagan raqamlar: faol shartnomali yoki ochiq lidli (1–4) talabalar; har taklifga `reminder_days` kunda bir, jami `reminder_max` marta."""
+    from apps.clientbot import services as bot
+    from apps.clientbot.models import BotInvite, BotLink
+    from apps.crm.models import Student
+
+    if not bot.configured():
+        return []
+    cfg = bot.get_config(rule.branch)
+    if not cfg.reminder_max:
+        return []
+    cutoff = timezone.now() - datetime.timedelta(days=cfg.reminder_days)
+    active = Student.objects.filter(branch_id=rule.branch_id, is_deleted=False).filter(
+        Q(contracts__is_deleted=False, contracts__end_date__isnull=True) | Q(contracts__is_deleted=False, contracts__end_date__gte=today)
+        | Q(leads__is_deleted=False, leads__status__in=["1", "2", "3", "4"]))
+    linked = BotLink.objects.filter(student=OuterRef("student"), phone=OuterRef("phone"), is_active=True)
+    invites = (BotInvite.objects.filter(branch_id=rule.branch_id, reminders__lt=cfg.reminder_max, student__in=active.values("pk"))
+               .filter(Q(last_reminded_at__isnull=True) | Q(last_reminded_at__lte=cutoff))
+               .exclude(Exists(linked)).select_related("student__parent"))
+    plans = []
+    for inv in invites:
+        st = inv.student
+        others = {p for p, _ in sms.recipients(st)} - {inv.phone}
+        plans.append(Plan(st, None, {"ism": st.first_name, "talaba": _name(st), "kurs": ""}, f"botrem:{inv.pk}:{inv.reminders + 1}", None, others, inv))
+    return plans
+
+
+PLANNERS = {R.MONTH_START: plan_month_start, R.PREPAY_BONUS: plan_prepay_bonus, R.ABSENCE: plan_absence, R.BOT_REMINDER: plan_bot_reminder}
 
 
 def run_rule(rule, today=None):
@@ -275,7 +350,13 @@ def run_rule(rule, today=None):
                      force=True, key=f"smsbonus:{today}")
         return 0
     kind = DEFAULTS[rule.key]["kind"]
-    return sum(enqueue(rule, p.student, p.ctx, p.key, kind, contract=p.contract, month=p.month, skip=p.skip) for p in plans)
+    total = 0
+    for p in plans:
+        n = enqueue(rule, p.student, p.ctx, p.key, kind, contract=p.contract, month=p.month, skip=p.skip)
+        if n and p.invite:  # eslatma ketdi — keyingisi `reminder_days` kundan keyin, jami `reminder_max` marta
+            type(p.invite).objects.filter(pk=p.invite.pk).update(reminders=p.invite.reminders + 1, last_reminded_at=timezone.now())
+        total += n
+    return total
 
 
 def tick(now=None):

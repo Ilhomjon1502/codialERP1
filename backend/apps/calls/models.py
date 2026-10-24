@@ -113,6 +113,8 @@ class SmsMessage(BaseModel):
         MONTH = "Oy boshi", "Oy boshi"
         BONUS = "Oldindan to'lov", "Oldindan to'lov"
         ABSENCE = "Kelmadi", "Kelmadi"
+        DEMO = "Sinov darsi", "Sinov darsi"
+        BOT = "Bot taklifi", "Bot taklifi"
 
     branch = models.ForeignKey("references.Branch", on_delete=models.PROTECT, related_name="sms_messages")
     direction = models.CharField("Yo'nalish", max_length=10, choices=Direction.choices, default=Direction.OUT, db_index=True)
@@ -162,6 +164,8 @@ class SmsRule(BaseModel):
         MONTH_START = "month_start", "Oy boshi: to'lov muddati"
         PREPAY_BONUS = "prepay_bonus", "Oldindan to'lov bonusi"
         ABSENCE = "absence", "Sababsiz kelmagan"
+        DEMO = "demo", "Sinov darsga qatnashdi"
+        BOT_REMINDER = "bot_reminder", "Botga ulanish eslatmasi"
 
     branch = models.ForeignKey("references.Branch", on_delete=models.PROTECT, related_name="sms_rules", verbose_name="Filial")
     key = models.CharField("Qoida", max_length=16, choices=Key.choices)

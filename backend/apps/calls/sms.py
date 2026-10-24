@@ -129,15 +129,19 @@ def queue_dues(user, contract_ids, month, text, template=None, skip_sent=True):
 
 
 def _dues(user, contract_ids, month, text, skip_sent, commit, template=None):
+    from apps.clientbot import services as bot
+
     text = check_template(text)
     month = month.replace(day=1)
     base = scope_branch(Contract.objects.filter(is_deleted=False), user).filter(pk__in=contract_ids or [])
     dues = month_dues(base, month)
     contracts = list(base.filter(pk__in=dues.keys()).select_related("student__parent", "course", "group", "branch"))
-    sent = set(SmsMessage.objects.filter(contract__in=[c.pk for c in contracts], month=month, kind__in=[SmsMessage.Kind.DUE, SmsMessage.Kind.MONTH],
+    kinds = [SmsMessage.Kind.DUE, SmsMessage.Kind.MONTH]
+    sent = set(SmsMessage.objects.filter(contract__in=[c.pk for c in contracts], month=month, kind__in=kinds,
                                          status__in=[S.QUEUED, S.SENDING, S.SENT], is_deleted=False).values_list("contract_id", "phone"))
+    sent |= bot.sent_pairs([c.pk for c in contracts], month, kinds)  # botga ketganlar ham «shu oy eslatma olgan» hisoblanadi
     devices, no_device = {}, set()
-    rows, skipped_sent, no_phone, sample = [], 0, 0, None
+    rows, bot_msgs, skipped_sent, no_phone, sample = [], [], 0, 0, None
     for c in contracts:
         if c.branch_id not in devices:
             devices[c.branch_id] = branch_device(c.branch_id)
@@ -152,6 +156,10 @@ def _dues(user, contract_ids, month, text, skip_sent, commit, template=None):
             if skip_sent and (c.pk, phone) in sent:
                 skipped_sent += 1
                 continue
+            accs = bot.accounts_for(c.student, phone)
+            if accs:  # raqam mijozlar botiga ulangan — SMS o'rniga botga
+                bot_msgs.append((accs, c, phone, who, msg))
+                continue
             if not dev:
                 no_device.add(c.branch.name)
                 continue
@@ -159,10 +167,14 @@ def _dues(user, contract_ids, month, text, skip_sent, commit, template=None):
                                    phone=phone, recipient=who, text=msg, parts=segments(msg), created_by=user, updated_by=user))
     if commit:
         SmsMessage.objects.bulk_create(rows)
+        for accs, c, phone, who, msg in bot_msgs:
+            bot.deliver(accs, msg, kind=SmsMessage.Kind.DUE, key=f"due:{c.pk}:{month:%Y-%m}:{phone}:{timezone.now():%Y%m%d%H%M%S%f}", student=c.student,
+                        contract=c, month=month, phone=phone, recipient=who)
     return {
         "contracts": len(contracts),
         "paid": len(set(map(str, contract_ids or []))) - len(contracts),  # to'lov qilgan yoki ro'yxatdan olib tashlangan
         "messages": len(rows),
+        "bot_messages": len(bot_msgs),
         "parts": sum(r.parts for r in rows),
         "skipped_sent": skipped_sent,
         "no_phone": no_phone,
@@ -180,6 +192,14 @@ def due_status(contract_ids, month):
         r = out.setdefault(str(m["contract_id"]), {"n": 0, "sent": 0, "failed": 0, "queued": 0})
         r["n"] += 1
         r["sent" if m["status"] == S.SENT else "failed" if m["status"] == S.FAILED else "queued"] += 1
+        r["at"] = f"{timezone.localtime(m['sent_at'] or m['created_at']):%Y-%m-%d %H:%M}"
+    from apps.clientbot.models import ClientOutbox
+
+    for m in (ClientOutbox.objects.filter(contract__in=contract_ids, month=month, kind=SmsMessage.Kind.DUE).order_by("created_at")
+              .values("contract_id", "status", "created_at", "sent_at")):  # botga ketganlar ham ro'yxatda ko'rinsin
+        r = out.setdefault(str(m["contract_id"]), {"n": 0, "sent": 0, "failed": 0, "queued": 0})
+        r["n"] += 1
+        r["sent" if m["status"] == "sent" else "failed" if m["status"] == "failed" else "queued"] += 1
         r["at"] = f"{timezone.localtime(m['sent_at'] or m['created_at']):%Y-%m-%d %H:%M}"
     return out
 

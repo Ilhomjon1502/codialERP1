@@ -1,7 +1,10 @@
 """Mijozlar boti: bosh menejer/administratorlar uchun ko'rish va sozlash (Qo'ng'iroqlar va SMS → Telegram bot). Hammasi `clientbot` bo'limi ruxsati bilan."""
 
+import datetime
+
 from django.conf import settings
 from django.db.models import Count, F, Q
+from django.utils import timezone
 from rest_framework import serializers
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -76,6 +79,7 @@ class BotLinkViewSet(AuditedModelViewSet):
         links = scope_branch(BotLink.objects.filter(is_active=True), u, "student__branch")
         surveys = scope_branch(LeadSurvey.objects.all(), u, "lead__branch")
         refs = scope_branch(Referral.objects.all(), u)
+        msgs = scope_branch(ClientOutbox.objects.all(), u, "student__branch")
         by_source = list(surveys.exclude(source=None).values("source__name").annotate(n=Count("pk")).order_by("-n").values_list("source__name", "n"))
         same = surveys.filter(source=F("lead__source")).count()
         linked_invites = invites.filter(links__is_active=True).distinct().count()
@@ -96,6 +100,10 @@ class BotLinkViewSet(AuditedModelViewSet):
             "referrals": {s: refs.filter(state=s).count() for s in Referral.State.values},
             "outbox_pending": ClientOutbox.objects.filter(status=ClientOutbox.Status.PENDING).count(),
             "outbox_failed": ClientOutbox.objects.filter(status=ClientOutbox.Status.FAILED).count(),
+            "messages_sent": msgs.filter(status=ClientOutbox.Status.SENT).count(),
+            "messages_sent_30d": msgs.filter(status=ClientOutbox.Status.SENT, sent_at__gte=timezone.now() - datetime.timedelta(days=30)).count(),
+            "messages_by_kind": [{"kind": k or "Bot", "count": n} for k, n in msgs.filter(status=ClientOutbox.Status.SENT).values_list("kind")
+                                 .annotate(n=Count("pk")).order_by("-n")],
         })
 
 
@@ -230,6 +238,44 @@ class ReferralViewSet(AuditedModelViewSet):
         if p.get("state") in Referral.State.values:
             qs = qs.filter(state=p["state"])
         return _search(qs, p.get("q"), "lead__student__first_name", "lead__student__last_name", "referrer_text")
+
+
+# ---------- botga ketgan xabarlar ----------
+
+
+class BotMessageSerializer(serializers.ModelSerializer):
+    student_name = serializers.SerializerMethodField()
+    username = serializers.CharField(source="account.username", read_only=True)
+    telegram_name = serializers.CharField(source="account.first_name", read_only=True)
+
+    class Meta:
+        model = ClientOutbox
+        fields = ["id", "created_at", "kind", "student", "student_name", "phone", "recipient", "text", "status", "error", "sent_at", "username",
+                  "telegram_name"]
+        read_only_fields = fields
+
+    def get_student_name(self, m):
+        return m.student.full_name if m.student_id else ""
+
+
+class BotMessageViewSet(AuditedModelViewSet):
+    """Mijozlar botiga ketgan xabarlar (SMS o'rniga yoki bot ichida). ?status=pending|sent|failed&kind=&q="""
+
+    section = "clientbot"
+    branch_field = "student__branch"
+    serializer_class = BotMessageSerializer
+    pagination_class = Pagination
+    http_method_names = READ_ONLY
+    queryset = ClientOutbox.objects.select_related("student", "account").order_by("-created_at")
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        p = self.request.query_params
+        if p.get("status") in ClientOutbox.Status.values:
+            qs = qs.filter(status=p["status"])
+        if p.get("kind"):
+            qs = qs.filter(kind=p["kind"])
+        return _search(qs, p.get("q"), "student__first_name", "student__last_name", "account__username", "text")
 
 
 # ---------- sozlamalar ----------

@@ -145,6 +145,9 @@ def _lead_status(code):
 
 
 def lead_changed(lead, old_status, user):
+    from apps.calls import auto_sms
+
+    auto_sms.lead_status_changed(lead, old_status)  # «Sinov darsga qatnashdi» SMS/bot xabari (qoida yoqilgan bo'lsa)
     st = lead.student
     notify("lead_change", f"🔄 <b>Lid o'zgardi</b>\n{escape(st.full_name)} · {escape(str(lead.course))}\n"
                           f"{escape(_lead_status(old_status))}\n➡️ <b>{escape(_lead_status(lead.status))}</b>\n✍️ {escape(str(user))}",

@@ -405,8 +405,8 @@
   const SAMPLE = { ism: 'Muhsinjon', talaba: 'Muhsinjon Karimov', kurs: 'Kompyuter savodxonligi', guruh: 'Kompyuter savodxonligi 192', oy: 'noyabr', summa: '450 000',
     muddat: '10.11', muddat_kun: '10', bonus: '75 000', kun: '5', keyingi_oy: 'dekabr', kecha: 'Kecha', sana: '21.10' };
   const ruleCount = (t) => countHTML(fill(t || '', SAMPLE));
-  const RULE_ORDER = ['lead', 'contract', 'month_start', 'prepay_bonus', 'absence'];
-  const RULE_EMOJI = { lead: '🆕', contract: '📝', month_start: '📅', prepay_bonus: '🎁', absence: '📵' };
+  const RULE_ORDER = ['lead', 'contract', 'demo', 'bot_reminder', 'month_start', 'prepay_bonus', 'absence'];
+  const RULE_EMOJI = { lead: '🆕', contract: '📝', demo: '🎓', bot_reminder: '🤖', month_start: '📅', prepay_bonus: '🎁', absence: '📵' };
   const ruleTime = (r) => (r.scheduled ? `${r.day ? `har oyning ${r.day}-sanasi` : 'har kuni'}, ${r.send_time || '—'}` : "voqea bo'lishi bilan");
   function rulesView() {
     if (!rules.length) return '';
@@ -422,7 +422,7 @@
     ], [...rules].sort((a, b) => RULE_ORDER.indexOf(a.key) - RULE_ORDER.indexOf(b.key)), { empty: '—' });
     return `<div class="card"><h3>Avtomatik SMS</h3>
       <p class="muted small">Bu SMS'lar o'zi ketadi (administrator bosishi shart emas). Boshida hammasi <b>o'chiq</b>: matnni tekshiring, «Ko'rish» bilan kimlarga ketishini ko'ring va yoqing.
-        Yoqilishdan oldingi voqealarga SMS ketmaydi. Telefon aloqasiz bo'lsa yoki SMS xato bo'lsa, Bosh menejerga Telegram'dan xabar boradi.</p>${table}</div>`;
+        Yoqilishdan oldingi voqealarga SMS ketmaydi. Raqam mijozlar botiga ulangan bo'lsa, xabar SMS o'rniga <b>botga</b> boradi; ulanmaganlarga SMS ketadi va oxiriga bot havolasi qo'shiladi. Telefon aloqasiz bo'lsa yoki SMS xato bo'lsa, Bosh menejerga Telegram'dan xabar boradi.</p>${table}</div>`;
   }
   const findRule = (id) => rules.find((r) => String(r.id) === String(id));
   A.act['rule-preview'] = async (el) => {
@@ -542,14 +542,14 @@
           pv.no_phone ? `${pv.no_phone} ta talabada telefon yo'q` : '',
           pv.no_device.length ? `<b class="t-red">${pv.no_device.map(esc).join(', ')} filialida ulangan telefon yo'q</b>` : '',
         ].filter(Boolean);
-        if (!pv.messages) {
+        if (!pv.messages && !pv.bot_messages) {
           return `Yuboriladigan SMS yo'q. ${notes.join('. ').replace(/<[^>]+>/g, '')}`;
         }
-        const ok = await A.confirm(`<b>${pv.contracts}</b> ta talaba, <b>${pv.messages}</b> ta raqam, jami <b>${pv.parts}</b> SMS (SIM tarifidan).
+        const ok = await A.confirm(`<b>${pv.contracts}</b> ta talaba: <b>${pv.messages}</b> ta raqamga SMS (jami <b>${pv.parts}</b> SMS, SIM tarifidan)${pv.bot_messages ? ` va <b>${pv.bot_messages}</b> ta raqamga Telegram bot orqali (botga ulanganlar, bepul)` : ''}.
           ${notes.length ? `<br><small class="muted">${notes.join('<br>')}</small>` : ''}<br><br>Yuborilsinmi?`, 'Yuborish');
         if (!ok) return '';
         const r = await A.http.post('/sms/dues/', body);
-        A.toast(`Navbatga qo'yildi: ${r.messages} ta SMS. Telefon bir necha daqiqada yuboradi`);
+        A.toast(`Navbatga qo'yildi: ${r.messages} ta SMS${r.bot_messages ? `, ${r.bot_messages} ta bot xabari` : ''}. Telefon bir necha daqiqada yuboradi`);
         A.refresh();
       },
     });

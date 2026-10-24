@@ -63,6 +63,7 @@ router.register("bot-links", clientbot.BotLinkViewSet, basename="bot-link")
 router.register("bot-invites", clientbot.BotInviteViewSet, basename="bot-invite")
 router.register("bot-surveys", clientbot.LeadSurveyViewSet, basename="bot-survey")
 router.register("bot-referrals", clientbot.ReferralViewSet, basename="bot-referral")
+router.register("bot-messages", clientbot.BotMessageViewSet, basename="bot-message")
 router.register("bot-config", clientbot.BotConfigViewSet, basename="bot-config")
 
 urlpatterns = [

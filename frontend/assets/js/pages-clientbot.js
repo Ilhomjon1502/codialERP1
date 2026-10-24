@@ -4,7 +4,7 @@
 (function (A) {
   const esc = A.esc;
   const BK = 'bot';
-  const SUBS = [['overview', 'Umumiy'], ['links', 'Ulanganlar'], ['invites', 'Ulanmaganlar'], ['surveys', 'Manba javoblari'], ['referrals', 'Tavsiyalar'], ['config', 'Sozlamalar']];
+  const SUBS = [['overview', 'Umumiy'], ['links', 'Ulanganlar'], ['invites', 'Ulanmaganlar'], ['surveys', 'Manba javoblari'], ['referrals', 'Tavsiyalar'], ['messages', 'Xabarlar'], ['config', 'Sozlamalar']];
   const REF_TONE = { Aniqlanmagan: 'orange', Kutilmoqda: 'blue', Berildi: 'green', 'Rad etildi': 'gray' };
   const fphone = (p) => (p ? `+998 ${p.slice(0, 2)} ${p.slice(2, 5)}-${p.slice(5, 7)}-${p.slice(7)}` : '');
   const fail = (e) => A.toast(e.message || 'Xatolik', 'error');
@@ -14,6 +14,7 @@
   let invites = { results: [] };
   let surveys = { results: [] };
   let refs = { results: [] };
+  let msgs = { results: [] };
   let config = [];
 
   const sub = (q) => (SUBS.some(([k]) => k === q.sub) ? q.sub : 'overview');
@@ -34,6 +35,7 @@
       else if (s === 'invites') invites = await A.http.get('/bot-invites/?' + qs({ linked: 0 }));
       else if (s === 'surveys') surveys = await A.http.get('/bot-surveys/?' + qs({}, ['search', 'differs']));
       else if (s === 'referrals') refs = await A.http.get('/bot-referrals/?' + qs({}, ['search', 'state']));
+      else if (s === 'messages') msgs = await A.http.get('/bot-messages/?' + qs({}, ['search', 'status']));
       else config = await A.http.get('/bot-config/');
     },
     filters(q) {
@@ -43,12 +45,13 @@
       if (s === 'invites') return A.filterBar(BK, [A.fSearch(BK, 'Talaba yoki raqam…')]);
       if (s === 'surveys') return A.filterBar(BK, [A.fSearch(BK, 'Talaba…'), A.fSelect(BK, 'differs', [['1', 'Admin manbasidan farq qiladi']], 'Hammasi')]);
       if (s === 'referrals') return A.filterBar(BK, [A.fSearch(BK, 'Lid yoki yozilgan ism…'), A.fSelect(BK, 'state', Object.keys(REF_TONE).map((k) => [k, k]), 'Barcha holatlar')]);
+      if (s === 'messages') return A.filterBar(BK, [A.fSearch(BK, 'Talaba yoki matn…'), A.fSelect(BK, 'status', [['sent', 'Yuborildi'], ['pending', 'Navbatda'], ['failed', 'Xato']], 'Barcha holatlar')]);
       return '';
     },
     view(q) {
       const s = sub(q);
       const nav = `<nav class="tabs sub">${SUBS.map(([k, l]) => `<a href="#/calls?tab=bot&sub=${k}" class="${k === s ? 'on' : ''}">${esc(l)}</a>`).join('')}</nav>`;
-      const body = { overview, links: linksView, invites: invitesView, surveys: surveysView, referrals: refsView, config: configView }[s]();
+      const body = { overview, links: linksView, invites: invitesView, surveys: surveysView, referrals: refsView, messages: messagesView, config: configView }[s]();
       return `${nav}${A.botTab.filters(q)}${body}`;
     },
   };
@@ -65,10 +68,14 @@
       ${A.stat('Ulanmagan kodlar', A.num(s.unlinked_invites), "SMS borgan, lekin bot ochilmagan", s.unlinked_invites ? 'warn' : '', '#/calls?tab=bot&sub=invites')}
       ${A.stat('Manba javoblari', A.num(s.surveys), `admin manbasidan farqi: ${A.num(s.surveys - s.surveys_same)}`, '', '#/calls?tab=bot&sub=surveys')}
       ${A.stat('Tavsiyalar', A.num(Object.values(r).reduce((a, b) => a + b, 0)), `aniqlanmagan: ${A.num(r.Aniqlanmagan)} · kutilmoqda: ${A.num(r.Kutilmoqda)}`, r.Aniqlanmagan ? 'warn' : '', '#/calls?tab=bot&sub=referrals')}
+      ${A.stat('Bot orqali yuborilgan', A.num(s.messages_sent), `oxirgi 30 kunda: ${A.num(s.messages_sent_30d)} · SMS o'rniga`, '', '#/calls?tab=bot&sub=messages')}
       ${A.stat('Xabarlar navbati', A.num(s.outbox_pending), `xato: ${A.num(s.outbox_failed)}`, s.outbox_failed ? 'danger' : '')}
     </div>`;
     const sources = A.table([{ h: 'Mijoz aytgan manba', f: (x) => esc(x.name) }, { h: 'Javoblar', cls: 'num', f: (x) => A.num(x.count) }], s.survey_sources, { empty: "Hali javob yo'q" });
+    const kinds = A.table([{ h: 'Bot orqali yuborilgan xabar turi', f: (x) => esc(x.kind) }, { h: 'Soni', cls: 'num', f: (x) => A.num(x.count) }], s.messages_by_kind, { empty: "Hali xabar yuborilmagan" });
     return `${warn}${cards}
+      <div class="card"><h3>SMS o'rniga botga ketgan xabarlar</h3>
+        <p class="muted small">Raqam botga ulangan bo'lsa, avtomatik SMS'lar va «To'lovga tavsiya» eslatmasi SMS o'rniga botga boradi (bepul, yetkazilishi aniq). Ulanmagan raqamlarga SMS ketadi va oxirida bot havolasi bo'ladi.</p>${kinds}</div>
       <div class="card"><h3>Mijoz botda aytgan reklama manbasi</h3>
         <p class="muted small">Lid botga ulanganda «Codialni qayerdan topdingiz?» deb so'raladi. Bu administrator lid kartochkasiga kiritgan manbani o'zgartirmaydi — ikkalasi alohida saqlanadi va «Manba javoblari»da solishtiriladi.</p>${sources}</div>
       <div class="note info small">Ulanish jarayoni: yangi lid yoki shartnoma SMS'iga har raqam uchun alohida kod/havola qo'shiladi (<a href="#/calls?tab=bot&sub=config">sozlamada</a> o'chirish mumkin; avtomatik SMS qoidasi yoqilgan bo'lishi kerak).
@@ -136,6 +143,17 @@
     A.http.patch(`/bot-referrals/${el.dataset.id}/`, { state: 'Rad etildi' }).then(() => { A.toast('Rad etildi'); A.refresh(); }, fail);
   };
 
+  const MSG_TONE = { sent: ['Yuborildi', 'green'], pending: ['Navbatda', 'orange'], failed: ['Xato', 'red'] };
+  function messagesView() {
+    return A.table([
+      { h: 'Vaqt', f: (m) => `${A.fdt(m.sent_at || m.created_at)}` },
+      { h: 'Kim', f: (m) => `${m.student_name ? esc(m.student_name) : '<span class="muted">—</span>'}<br><small class="muted">${m.recipient ? esc(m.recipient) + ' · ' : ''}${esc(m.telegram_name)}${m.username ? ' @' + esc(m.username) : ''}</small>` },
+      { h: 'Turi', f: (m) => esc(m.kind || 'Bot') },
+      { h: 'Matn', f: (m) => `<span class="small">${esc(String(m.text).replace(/&(amp|lt|gt|quot|#x27);/g, (x) => ({ '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#x27;': "'" }[x])))}</span>` },
+      { h: 'Holat', f: (m) => `${A.badge(...(MSG_TONE[m.status] || [m.status, 'gray']))}${m.error ? `<br><small class="t-red">${esc(m.error)}</small>` : ''}` },
+    ], msgs.results, { empty: "Hali xabar yuborilmagan" }) + A.pager(BK, msgs);
+  }
+
   function configView() {
     const canE = A.can('clientbot', 'e');
     if (!config.length) return A.empty("Filial yo'q");
@@ -144,7 +162,7 @@
         <tr><td>Lid va shartnoma SMS'iga bot havolasi</td><td>${c.invite_in_sms ? A.badge('Qo\'shiladi', 'green') : A.badge("O'chiq", 'gray')}</td></tr>
         <tr><td>Tavsiya bonusi</td><td><b>${A.money(c.referral_bonus)}</b></td></tr>
         <tr><td>Bonus uchun birinchi to'lov</td><td>oy narxining kamida <b>${c.referral_min_percent}%</b></td></tr>
-        <tr><td>Start eslatmasi</td><td>har <b>${c.reminder_days}</b> kunda, ko'pi bilan <b>${c.reminder_max}</b> marta <small class="muted">(keyingi bosqichda ishlaydi)</small></td></tr>
+        <tr><td>Start eslatmasi</td><td>har <b>${c.reminder_days}</b> kunda, ko'pi bilan <b>${c.reminder_max}</b> marta <small class="muted">(Qo'ng'iroqlar va SMS → SMS → «Botga ulanish eslatmasi» qoidasi yoqilgan bo'lsa)</small></td></tr>
       </tbody></table></div>`).join('');
   }
 

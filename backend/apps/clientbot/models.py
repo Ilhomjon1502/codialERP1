@@ -160,7 +160,14 @@ class ClientOutbox(models.Model):
         FAILED = "failed", "Xato"
 
     account = models.ForeignKey(BotAccount, on_delete=models.CASCADE, related_name="outbox")
-    kind = models.CharField(max_length=24, blank=True)
+    kind = models.CharField("Turi (SMS turlari bilan bir xil)", max_length=24, blank=True)
+    # Qaysi talaba/shartnoma/lid haqida va qaysi raqam o'rniga (SMS o'rniga botga ketgan xabarlar jurnali va takrorlanmaslik tekshiruvi uchun)
+    student = models.ForeignKey("crm.Student", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    contract = models.ForeignKey("education.Contract", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    lead = models.ForeignKey("crm.Lead", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    month = models.DateField("Oy", null=True, blank=True)
+    phone = models.CharField("Raqam (9 xona)", max_length=9, blank=True)
+    recipient = models.CharField("Kimga", max_length=20, blank=True)
     key = models.CharField("Takrorlanmaslik kaliti", max_length=140, blank=True, db_index=True)
     text = models.TextField()
     markup = models.JSONField(default=dict, blank=True)
@@ -174,6 +181,7 @@ class ClientOutbox(models.Model):
         verbose_name = "Mijoz xabari"
         verbose_name_plural = "Mijoz xabarlari"
         ordering = ["created_at"]
+        indexes = [models.Index(fields=["contract", "month"])]
 
     def __str__(self):
         return f"{self.kind} → {self.account}: {self.status}"

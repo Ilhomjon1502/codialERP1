@@ -206,7 +206,7 @@ def test_tick_runs_once_per_day_at_time_and_day(env):
 def test_disabled_rule_does_nothing_and_text_validation(env, api):
     c = api(env["user"])
     rules = c.get("/api/v1/sms-rules/").data
-    assert len(rules) == 5 and all(not r["enabled"] and r["text"] for r in rules)
+    assert len(rules) == 7 and all(not r["enabled"] and r["text"] for r in rules)
     absence = next(r for r in rules if r["key"] == "absence")
     bad = c.patch(f"/api/v1/sms-rules/{absence['id']}/", {"text": "{bonus} so'm"}, format="json")
     assert bad.status_code == 400 and "ishlatib bo'lmaydigan" in str(bad.data)
