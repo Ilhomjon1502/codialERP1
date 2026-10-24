@@ -1,8 +1,8 @@
-# Mijozlar boti (o'quvchi va vasiylar) — 1- va 2-bosqich
+# Mijozlar boti (o'quvchi va vasiylar) — 1-, 2- va 3-bosqich
 
 O'quvchilar va ota-onalar uchun **alohida Telegram bot**. Xodimlar botidan (`@bildirishnomaERP1bot`) farqli — alohida token.
 Bu bosqichda: ulanish (SMS'dagi kod), «Codialni qayerdan topdingiz?» so'rovi, tavsiya qiluvchi (tanish) ismi, Bosh menejer uchun «Telegram bot» bo'limi.
-Keyingi bosqichlar: to'lov va davomat kabineti (B3), tamomlash so'rovnomasi (B4), tavsiya bonusi (B5).
+Keyingi bosqichlar: tamomlash so'rovnomasi (B4), tavsiya bonusi (B5).
 
 ## Ishga tushirish (bir marta)
 
@@ -63,3 +63,28 @@ Eslatma har `reminder_days` kunda (standart 7) bir martadan, bir taklifga jami `
 Telefon raqami matnda yozilgan (sinov darsi qoidasi) — kerak bo'lsa ✎ bilan o'zgartiring.
 
 **Telegram bot → Xabarlar** tabi: botga ketgan hamma xabarlar (vaqt, kim, turi, matn, holat) va «Umumiy»da soni turlar bo'yicha. API: `/api/v1/bot-messages/`.
+
+## 3-bosqich: o'quvchi va vasiy kabineti
+
+Ulangan o'quvchi yoki vasiy botdagi pastki tugmalar orqali (yoki `/menu`) **faqat o'qish** rejimida ko'radi. Vasiy ham, o'quvchining o'zi ham bir xil ma'lumotni ko'radi.
+
+| Tugma | Nima ko'rinadi |
+|---|---|
+| 💳 To'lovlar | oxirgi 10 ta to'lov (sana, summa, shakli, chegirma; tasdiqlanmagan naqdsiz to'lov «⏳ tasdiqlanmoqda»), jami to'langan va har kurs bo'yicha qarz yoki oldindan to'langan summa |
+| 📋 Davomat | shu oy: keldi/sababli/sababsiz soni; oxirgi 12 ta dars holati |
+| 📅 Dars jadvali | faol va boshlanmagan shartnomalar: guruh, dars kunlari va vaqti, xona, ustoz, keyingi dars sanasi |
+| 💰 To'lov muddati | shu oy uchun to'lash kerak summa va muddat (kechiksa — necha kun), eski qarz; to'lov qilingan bo'lsa «✅»; Grant — to'lov talab qilinmaydi |
+
+- Hisob saytdagi bilan bir xil servislardan olinadi (`with_balance`, `month_dues`): bu «To'lovga tavsiya» va qarzdorlar ro'yxati bilan mos keladi. «✓ To'lov qilgan» deb olib tashlangan o'quvchiga «to'lash kerak» chiqmaydi.
+- Bir vasiy bir necha farzandga ulangan bo'lsa, tugma bosilganda bot qaysi farzand uchun ekanini so'raydi. Akkaunt faqat o'ziga ulangan talabani ko'ra oladi; `/stop` dan keyin kabinet yopiladi.
+- KPI, ustoz izohlari, ichki hisoblar va o'zgartirish imkoniyati yo'q.
+
+## Shartnoma raqami bilan ulanish (SMS kelmasa)
+
+SMS yetib bormagan yoki kod yo'qolgan bo'lsa, administrator talabaga aytadi: **botga shartnoma raqamingizni yuboring** (ERP'da shartnoma sahifasidagi «№»; «1234», «№1234» yoki «shartnoma 1234» ko'rinishida).
+Keyin bot shartnomadagi telefonlardan birining (o'quvchi, 2-telefon yoki ota-ona) **oxirgi 4 raqamini** so'raydi — to'g'ri bo'lsa ulaydi (bu raqamga qarab o'quvchi yoki vasiy aniqlanadi; 2-telefon bo'lsa bot kimligini so'raydi).
+
+Xavfsizlik: shartnoma raqami ketma-ket va sir emas, shuning uchun u o'zi yetmaydi — raqamlarni sinab birovning ma'lumotini ko'rib bo'lmasin.
+- Tekshiruvdan oldin bot talaba ismini aytmaydi.
+- Bir talaba uchun noto'g'ri telefon urinishi sutkada 5 tadan oshsa, o'sha talaba bir sutkaga bloklanadi (to'g'ri raqam ham o'tmaydi; SMS'dagi kod baribir ishlaydi).
+- Bir akkaunt soatiga 8 ta noto'g'ri urinishdan keyin to'xtatiladi; bir raqamga ko'pi bilan 3 akkaunt ulanadi.

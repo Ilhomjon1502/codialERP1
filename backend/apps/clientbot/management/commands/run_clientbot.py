@@ -26,6 +26,11 @@ class Command(BaseCommand):
                 time.sleep(300)
         me = services.api("getMe")
         self.stdout.write(self.style.SUCCESS(f"Mijozlar boti ishga tushdi: @{me.get('username')}"))
+        try:  # Telegram'dagi «/» menyusi
+            commands = [{"command": "menu", "description": "To'lov, davomat va dars jadvali"}, {"command": "stop", "description": "Bog'lanishni uzish"}]
+            services.api("setMyCommands", commands=json.dumps(commands))
+        except Exception:  # noqa: BLE001
+            log.exception("Bot buyruqlari o'rnatilmadi")
         offset = None
         while True:
             try:

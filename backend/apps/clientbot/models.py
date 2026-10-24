@@ -86,6 +86,22 @@ class BotAccount(models.Model):
         return f"{self.chat_id} {self.username}".strip()
 
 
+class LinkAttempt(models.Model):
+    """Shartnoma raqami orqali ulanishda talaba bo'yicha noto'g'ri telefon urinishlari (hisob-kitob: sutkada ko'pi bilan `MAX` ta) —
+    raqamlarni ketma-ket sinab ko'rib birovning ma'lumotiga kirib bo'lmasin."""
+
+    student = models.OneToOneField("crm.Student", on_delete=models.CASCADE, related_name="link_attempt")
+    fails = models.PositiveSmallIntegerField(default=0)
+    since = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Ulanish urinishi"
+        verbose_name_plural = "Ulanish urinishlari"
+
+    def __str__(self):
+        return f"{self.student}: {self.fails}"
+
+
 class BotLink(models.Model):
     """Akkaunt ↔ talaba. `role` — talabaning o'zi yoki vasiy."""
 

@@ -15,9 +15,11 @@ from django.utils import timezone
 
 from apps.calls.services import normalize
 from apps.crm.models import Lead, Student
+from apps.education.models import Contract
 from apps.references.models import LeadSource
 
-from .models import BotAccount, BotConfig, BotInvite, BotLink, ClientOutbox, LeadSurvey, Referral
+from . import cabinet
+from .models import BotAccount, BotConfig, BotInvite, BotLink, ClientOutbox, LeadSurvey, LinkAttempt, Referral
 
 log = logging.getLogger(__name__)
 Role = BotInvite.Role
@@ -25,6 +27,8 @@ Role = BotInvite.Role
 MAX_ACCOUNTS_PER_INVITE = 3  # bir raqam: o'quvchi, ota, ona — uchtagacha Telegram akkaunt
 MAX_FAILS = 8  # soatiga noto'g'ri kod urinishi
 CODE_RE = re.compile(r"^[A-Z0-9]{8}$")
+CONTRACT_RE = re.compile(r"^(?:№|#|shartnoma\s*)?\s*(\d{1,7})$", re.I)  # «1234», «№1234», «shartnoma 1234»
+MAX_CONTRACT_FAILS = 5  # bir talaba uchun sutkada noto'g'ri telefon urinishlari
 REFERRAL_WORDS = ("tanish", "tavsiya")  # manba nomida shu so'z bo'lsa — «kim tavsiya qildi?» deb so'raladi
 APOSTROPHES = str.maketrans({"ʻ": "'", "ʼ": "'", "‘": "'", "’": "'", "`": "'"})
 
@@ -192,7 +196,8 @@ def buttons(*pairs, per_row=1):
 
 
 HELP = ("Assalomu alaykum! Bu <b>Codial</b> o'quv markazining rasmiy boti.\n"
-        "Ulanish uchun SMS'dagi havolani bosing yoki SMS'dagi <b>8 belgili kodni</b> shu yerga yuboring.")
+        "Ulanish uchun SMS'dagi havolani bosing yoki SMS'dagi <b>8 belgili kodni</b> shu yerga yuboring.\n"
+        "SMS kelmagan bo'lsa — <b>shartnoma raqamingizni</b> yuboring (markaz administratori aytadi).")
 
 
 def account_for(chat_id, username="", first_name=""):
@@ -218,11 +223,21 @@ def handle_message(chat_id, text, username="", first_name=""):
         payload = text.split(maxsplit=1)[1].strip().upper() if " " in text else ""
         if payload:
             return link(acc, payload)
+        _clear_state(acc, "verify")
         return _status(acc)
+    if text.startswith("/menu"):
+        return _status(acc)
+    if text in cabinet.MENU_TEXTS:  # menyu tugmasi (suhbat qadamidan ustun)
+        return cabinet_request(acc, cabinet.MENU_TEXTS[text])
+    if (acc.state or {}).get("step") == "verify" and text and not text.startswith("/"):  # shartnoma raqami yuborilgan — endi telefon oxirgi 4 raqami
+        return contract_verify(acc, text)
     if (acc.state or {}).get("step") == "referrer" and text and not text.startswith("/"):
         return referrer_search(acc, text)
     if CODE_RE.match(text.upper()):
         return link(acc, text.upper())
+    m = CONTRACT_RE.match(text)
+    if m:
+        return contract_lookup(acc, int(m.group(1)))
     return _status(acc)
 
 
@@ -231,7 +246,20 @@ def _status(acc):
     if not links:
         return [Reply(HELP)]
     names = ", ".join(escape(ln.student.first_name) for ln in links)
-    return [Reply(f"Siz ulangansiz: {names}. /stop — bog'lanishni uzish.")]
+    return [Reply(f"Siz ulangansiz: {names}.\nQuyidagi tugmalar orqali to'lov, davomat va dars jadvalini ko'rishingiz mumkin. /stop — bog'lanishni uzish.",
+                  cabinet.menu_markup())]
+
+
+def _clear_state(acc, step=None):
+    if not step or (acc.state or {}).get("step") == step:
+        acc.state = {}
+        acc.save(update_fields=["state"])
+
+
+def _fail(acc):
+    acc.fails += 1
+    acc.fail_since = acc.fail_since or timezone.now()
+    acc.save(update_fields=["fails", "fail_since"])
 
 
 def _blocked(acc):
@@ -269,7 +297,8 @@ def after_link(acc, ln):
         hello = f"✅ Assalomu alaykum! Siz <b>{escape(st.first_name)}</b> ning vasiysi sifatida Codial botiga ulandingiz."
     else:
         hello = f"✅ Salom, <b>{escape(st.first_name)}</b>! Siz Codial botiga ulandingiz."
-    replies = [Reply(hello + "\nBu yerga markazdan muhim xabarlar keladi.")]
+    replies = [Reply(hello + "\nBu yerga markazdan muhim xabarlar keladi, pastdagi tugmalar orqali to'lov, davomat va dars jadvalini ko'rishingiz mumkin.",
+                     cabinet.menu_markup())]
     lead = Lead.objects.filter(student=st).select_related("branch").order_by("-created_at").first()
     if lead and not LeadSurvey.objects.filter(lead=lead).exists():
         sources = list(LeadSource.objects.filter(status="Faol", is_deleted=False).order_by("name"))
@@ -294,6 +323,8 @@ def handle_callback(chat_id, data):
             return source_chosen(acc, rest)
         if kind == "rf":
             return referrer_chosen(acc, rest)
+        if kind == "cs":
+            return cabinet_chosen(acc, rest)
     except Exception:  # noqa: BLE001 — bitta xato botni to'xtatmasin
         log.exception("Mijoz boti tugmasi: %s", data)
         return "Xatolik. Qayta urinib ko'ring", []
@@ -383,3 +414,94 @@ def referrer_chosen(acc, rest):
     acc.save(update_fields=["state"])
     label = f"{student.first_name} {student.last_name}".strip() if student else typed
     return "✅", [Reply(f"✅ {escape(label)}", done=True), Reply("Rahmat! Tavsiya qilgan do'stingiz haqida administratorlarga yetkazdik. 🙏")]
+
+
+# ---------- kabinet (B3) ----------
+
+
+def linked_students(acc):
+    """Akkauntga faol ulangan talabalar (vasiy — bir necha farzand)."""
+    seen, out = set(), []
+    for ln in acc.links.filter(is_active=True, student__is_deleted=False).select_related("student").order_by("linked_at"):
+        if ln.student_id not in seen:
+            seen.add(ln.student_id)
+            out.append(ln.student)
+    return out
+
+
+def cabinet_request(acc, action):
+    """Menyu tugmasi bosildi: bitta farzand — darrov javob, bir nechta bo'lsa — qaysi biri so'raladi."""
+    students = linked_students(acc)
+    if not students:
+        return [Reply(HELP)]
+    if len(students) == 1:
+        return [Reply(cabinet.TEXTS[action](students[0]))]
+    pairs = [(f"{st.first_name} {st.last_name}".strip(), f"cs:{action}:{st.pk}") for st in students]
+    return [Reply(f"{cabinet.ACTIONS[action]} — qaysi farzand uchun?", buttons(*pairs))]
+
+
+def cabinet_chosen(acc, rest):
+    action, _, student_id = rest.partition(":")
+    st = next((s for s in linked_students(acc) if str(s.pk) == student_id), None)  # faqat o'ziga ulangan talabani ko'ra oladi
+    if action not in cabinet.TEXTS or not st:
+        return "Topilmadi", []
+    return "✅", [Reply(cabinet.TEXTS[action](st))]
+
+
+# ---------- shartnoma raqami orqali ulanish ----------
+# Administrator talabaga «botga shartnoma raqamingizni yuboring» deydi. Raqam ketma-ket va sir emas, shuning uchun u o'zi yetmaydi:
+# bot shartnomadagi telefonlardan birining (o'quvchi yoki vasiy) oxirgi 4 raqamini so'raydi va urinishlarni cheklaydi.
+
+
+def contract_lookup(acc, number):
+    if _blocked(acc):
+        return [Reply("Juda ko'p noto'g'ri urinish. Bir soatdan keyin qayta urinib ko'ring.")]
+    ids = list(Contract.objects.filter(number=number, is_deleted=False, student__is_deleted=False).values_list("student_id", flat=True))
+    if not ids:
+        _fail(acc)
+        return [Reply("Bunday raqamli shartnoma topilmadi. Raqamni tekshiring yoki SMS'dagi kodni yuboring.")]
+    acc.state = {"step": "verify", "students": [str(i) for i in ids]}
+    acc.save(update_fields=["state"])
+    return [Reply("Xavfsizlik uchun shartnomadagi telefon raqamlardan birining (o'quvchi yoki ota-onaniki) <b>oxirgi 4 raqamini</b> yozing:")]
+
+
+def _attempt_locked(st):
+    at = LinkAttempt.objects.filter(student=st).first()
+    if not at or not at.since:
+        return False
+    if timezone.now() - at.since > datetime.timedelta(hours=24):
+        at.delete()
+        return False
+    return at.fails >= MAX_CONTRACT_FAILS
+
+
+def _attempt_fail(st):
+    at, _ = LinkAttempt.objects.get_or_create(student=st)
+    at.fails, at.since = at.fails + 1, at.since or timezone.now()
+    at.save(update_fields=["fails", "since"])
+
+
+def contract_verify(acc, text):
+    digits = "".join(c for c in text if c.isdigit())
+    if len(digits) < 4:
+        return [Reply("Oxirgi <b>4 ta raqamni</b> yozing (masalan 4567). Boshqa shartnoma uchun /start bosing.")]
+    if _blocked(acc):
+        return [Reply("Juda ko'p noto'g'ri urinish. Bir soatdan keyin qayta urinib ko'ring.")]
+    tail = digits[-4:]
+    students = Student.objects.filter(pk__in=(acc.state or {}).get("students", []), is_deleted=False).select_related("parent")
+    locked = 0
+    for st in students:
+        if _attempt_locked(st):
+            locked += 1
+            continue
+        phones = [normalize(p) for p in (st.phone1, st.phone2, st.parent.phone if st.parent_id else "")]
+        match = next((p for p in phones if p and p.endswith(tail)), None)
+        if match:
+            LinkAttempt.objects.filter(student=st).delete()
+            _clear_state(acc)
+            return link(acc, invite_for(st, match).code)
+        _attempt_fail(st)
+    _fail(acc)
+    if locked and locked == len(students):
+        return [Reply("Bu shartnoma uchun urinishlar limiti tugadi. Markaz administratoriga murojaat qiling yoki SMS'dagi kodni yuboring.")]
+    return [Reply("Raqam mos kelmadi. Shartnomadagi telefonning oxirgi 4 raqamini qayta yozing yoki /start bosing.")]

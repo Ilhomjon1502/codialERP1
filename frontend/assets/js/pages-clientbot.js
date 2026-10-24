@@ -79,7 +79,8 @@
       <div class="card"><h3>Mijoz botda aytgan reklama manbasi</h3>
         <p class="muted small">Lid botga ulanganda «Codialni qayerdan topdingiz?» deb so'raladi. Bu administrator lid kartochkasiga kiritgan manbani o'zgartirmaydi — ikkalasi alohida saqlanadi va «Manba javoblari»da solishtiriladi.</p>${sources}</div>
       <div class="note info small">Ulanish jarayoni: yangi lid yoki shartnoma SMS'iga har raqam uchun alohida kod/havola qo'shiladi (<a href="#/calls?tab=bot&sub=config">sozlamada</a> o'chirish mumkin; avtomatik SMS qoidasi yoqilgan bo'lishi kerak).
-        Bot: ${s.username ? `<b>@${esc(s.username)}</b>` : '—'}.</div>`;
+        Bot: ${s.username ? `<b>@${esc(s.username)}</b>` : '—'}.<br>
+        <b>SMS kelmasa:</b> talabaga botni topib <b>shartnoma raqamini</b> (shartnoma sahifasidagi №) yuborishni ayting — bot shartnomadagi telefonlardan birining oxirgi 4 raqamini so'raydi va ulaydi.</div>`;
   }
 
   function linksView() {
