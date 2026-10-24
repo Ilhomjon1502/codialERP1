@@ -101,9 +101,15 @@ def sample_suffix():
 # ---------- yetkazish: bot yoki SMS ----------
 
 
-def accounts_for(student, phone):
-    """Shu talaba + raqam bo'yicha botga ulangan faol akkauntlar (botni bloklaganlarsiz). Bot sozlanmagan bo'lsa — bo'sh."""
-    if not configured():
+def finance_enabled(student):
+    """To'lov va balans ma'lumotlari botda ko'rsatiladimi (filial sozlamasi; hozircha o'chiq)."""
+    return get_config(student.branch).finance_in_bot
+
+
+def accounts_for(student, phone, finance=False):
+    """Shu talaba + raqam bo'yicha botga ulangan faol akkauntlar (botni bloklaganlarsiz). Bot sozlanmagan bo'lsa — bo'sh.
+    `finance=True` — xabar to'lov/qarz ma'lumoti bo'lsa: to'lov ma'lumotlari botda o'chiq bo'lsa bo'sh qaytadi (xabar SMS bo'lib ketadi)."""
+    if not configured() or (finance and not finance_enabled(student)):
         return []
     return list(BotAccount.objects.filter(links__student=student, links__phone=normalize(phone), links__is_active=True, blocked=False).distinct())
 
@@ -248,8 +254,8 @@ def _status(acc):
     if not links:
         return [Reply(HELP)]
     names = ", ".join(escape(ln.student.first_name) for ln in links)
-    return [Reply(f"Siz ulangansiz: {names}.\nQuyidagi tugmalar orqali to'lov, davomat va dars jadvalini ko'rishingiz mumkin. /stop — bog'lanishni uzish.",
-                  cabinet.menu_markup())]
+    return [Reply(f"Siz ulangansiz: {names}.\nQuyidagi tugmalar orqali ma'lumotlarni ko'rishingiz mumkin. /stop — bog'lanishni uzish.",
+                  cabinet.menu_markup(finance_enabled(links[0].student)))]
 
 
 def _clear_state(acc, step=None):
@@ -299,8 +305,8 @@ def after_link(acc, ln):
         hello = f"✅ Assalomu alaykum! Siz <b>{escape(st.first_name)}</b> ning vasiysi sifatida Codial botiga ulandingiz."
     else:
         hello = f"✅ Salom, <b>{escape(st.first_name)}</b>! Siz Codial botiga ulandingiz."
-    replies = [Reply(hello + "\nBu yerga markazdan muhim xabarlar keladi, pastdagi tugmalar orqali to'lov, davomat va dars jadvalini ko'rishingiz mumkin.",
-                     cabinet.menu_markup())]
+    replies = [Reply(hello + "\nBu yerga markazdan muhim xabarlar keladi, pastdagi tugmalar orqali ma'lumotlarni ko'rishingiz mumkin.",
+                     cabinet.menu_markup(finance_enabled(st)))]
     lead = Lead.objects.filter(student=st).select_related("branch").order_by("-created_at").first()
     if lead and not LeadSurvey.objects.filter(lead=lead).exists():
         sources = list(LeadSource.objects.filter(status="Faol", is_deleted=False).order_by("name"))
@@ -438,6 +444,8 @@ def cabinet_request(acc, action):
     students = linked_students(acc)
     if not students:
         return [Reply(HELP)]
+    if action in cabinet.FINANCE_ACTIONS and not finance_enabled(students[0]):
+        return [_paused(action)]
     if len(students) == 1:
         return [Reply(cabinet.TEXTS[action](students[0]))]
     pairs = [(f"{st.first_name} {st.last_name}".strip(), f"cs:{action}:{st.pk}") for st in students]
@@ -449,7 +457,15 @@ def cabinet_chosen(acc, rest):
     st = next((s for s in linked_students(acc) if str(s.pk) == student_id), None)  # faqat o'ziga ulangan talabani ko'ra oladi
     if action not in cabinet.TEXTS or not st:
         return "Topilmadi", []
+    if action in cabinet.FINANCE_ACTIONS and not finance_enabled(st):
+        return "✅", [_paused(action)]
     return "✅", [Reply(cabinet.TEXTS[action](st))]
+
+
+def _paused(action):
+    """To'lov va balans ma'lumotlari botda vaqtincha o'chiq: eski (4 tugmali) klaviatura bosilsa ham yangi menyu qaytariladi."""
+    return Reply(f"{cabinet.ACTIONS[action]} bo'limi vaqtincha ishlamayapti. To'lov va qarz haqida markaz administratoriga murojaat qiling.",
+                 cabinet.menu_markup(False))
 
 
 # ---------- shartnoma raqami orqali ulanish ----------

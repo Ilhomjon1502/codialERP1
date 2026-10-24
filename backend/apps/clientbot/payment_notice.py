@@ -2,7 +2,7 @@
 
 Xabar: summa, to'lov shakli, chegirma, sana, chek raqami, naqdsiz to'lov tasdiq kutayotgani va shartnomaning joriy balansi (qarz yoki oldindan to'langan).
 Faqat yangi to'lov kiritilganda (`finance.services.save_payment`); chegirma-only yozuvlarga (masalan tavsiya bonusi) ketmaydi.
-Filial sozlamasida o'chirib qo'yish mumkin (`BotConfig.notify_payments`). Xato to'lovni saqlashga xalaqit bermaydi.
+Filial sozlamasida o'chirib qo'yish mumkin (`BotConfig.finance_in_bot`: hozircha o'chiq — to'lov va balans botda ko'rsatilmaydi). Xato to'lovni saqlashga xalaqit bermaydi.
 """
 
 import logging
@@ -42,7 +42,7 @@ def notify(p):
         if not bot.configured() or not p.amount:
             return 0
         student = p.contract.student
-        if not bot.get_config(p.contract.branch).notify_payments:
+        if not bot.get_config(p.contract.branch).finance_in_bot:
             return 0
         accounts = list(BotAccount.objects.filter(links__student=student, links__is_active=True, blocked=False).distinct())
         if not accounts:

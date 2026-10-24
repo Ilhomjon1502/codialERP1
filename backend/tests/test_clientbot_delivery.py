@@ -8,7 +8,7 @@ from django.utils import timezone
 from apps.calls import auto_sms
 from apps.calls.models import SmsMessage, SmsRule
 from apps.clientbot import services as bot
-from apps.clientbot.models import BotAccount, BotInvite, BotLink, ClientOutbox
+from apps.clientbot.models import BotAccount, BotConfig, BotInvite, BotLink, ClientOutbox
 from tests.test_clientbot import make_lead, on  # noqa: F401 — fixtures
 from tests.test_sms_auto import env, refs  # noqa: F401 — fixtures
 
@@ -144,6 +144,7 @@ def test_reminder_counts_open_lead_only(env, api, refs, on):  # noqa: F811
 
 
 def test_manual_dues_go_to_bot_for_linked_numbers(env, on, api):  # noqa: F811
+    BotConfig.objects.update_or_create(branch=env["branch"], defaults={"finance_in_bot": True})
     st = env["student"](9)
     c = env["contract"](st)
     link_phone(st, st.phone1, 90)
@@ -170,3 +171,22 @@ def test_bot_messages_api_and_summary(env, api, on):  # noqa: F811
     assert r["count"] == 1 and r["results"][0]["student_name"] == st.full_name and r["results"][0]["kind"] == "Shartnoma"
     s = c.get("/api/v1/bot-links/summary/").json()
     assert s["messages_sent"] == 1 and s["messages_sent_30d"] == 1 and s["messages_by_kind"] == [{"kind": "Shartnoma", "count": 1}]
+
+
+def test_payment_reminders_stay_on_sms_while_finance_is_off(env, on, api):  # noqa: F811
+    """To'lov va balans botda o'chiq: to'lov eslatmalari (qo'lda, oy boshi, oldindan to'lov) ulangan raqamga ham SMS bo'lib ketadi; boshqa xabarlar botga."""
+    st = env["student"](9)
+    c = env["contract"](st)
+    link_phone(st, st.phone1, 90)
+    body = {"contracts": [str(c.pk)], "month": "2026-11", "text": "{talaba}: {summa} so'm"}
+    r = api(env["user"]).post("/api/v1/sms/dues/", body, format="json").data
+    assert r["messages"] == 3 and r["bot_messages"] == 0 and not ClientOutbox.objects.exists()
+    assert SmsMessage.objects.filter(phone=st.phone1, kind="To'lov eslatmasi").exists()
+    rule = env["enable"](R.MONTH_START)
+    assert auto_sms.run_rule(rule, datetime.date(2026, 11, 1)) == 0  # shu oy eslatma olgan (SMS bilan) — takror yo'q
+    env["enable"](R.CONTRACT)
+    auto_sms.contract_created(env["contract"](env["student"](8)))
+    st8 = env["student"](7)
+    link_phone(st8, st8.phone1, 91)
+    auto_sms.contract_created(env["contract"](st8))
+    assert ClientOutbox.objects.filter(kind="Shartnoma", account__chat_id=91).count() == 1  # to'lovga aloqasiz xabar botga ketaveradi

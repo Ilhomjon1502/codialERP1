@@ -144,7 +144,7 @@ def enqueue(rule, student, ctx, key_base, kind, *, contract=None, lead=None, mon
     todo = [(p, who, k) for (p, who), k in zip(phones, keys, strict=True) if k not in have]
     n, sms_todo = 0, []
     for p, who, k in todo:
-        accs = bot.accounts_for(student, p)
+        accs = bot.accounts_for(student, p, finance=kind in FINANCE_KINDS)  # to'lov eslatmalari botga faqat to'lov ma'lumotlari yoqilgan bo'lsa
         if accs:
             n += bot.deliver(accs, text, kind=kind, key=k, student=student, contract=contract, lead=lead, month=month, phone=p, recipient=who)
         else:
@@ -164,6 +164,7 @@ def enqueue(rule, student, ctx, key_base, kind, *, contract=None, lead=None, mon
     return n + len(rows)
 
 
+FINANCE_KINDS = {K.MONTH, K.BONUS}  # summa va muddat bor xabarlar (to'lov ma'lumoti)
 INVITE_RULES = {R.LEAD, R.CONTRACT, R.DEMO, R.BOT_REMINDER}  # shu SMS'larga mijozlar boti havolasi (raqamga xos kod) qo'shiladi
 
 

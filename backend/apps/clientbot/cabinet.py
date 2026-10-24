@@ -26,9 +26,14 @@ PAYMENTS_SHOWN = 10
 ATTENDANCE_SHOWN = 12
 
 
-def menu_markup():
-    keys = list(ACTIONS.values())
-    return {"keyboard": [[{"text": keys[0]}, {"text": keys[1]}], [{"text": keys[2]}, {"text": keys[3]}]], "resize_keyboard": True, "is_persistent": True}
+FINANCE_ACTIONS = {"pay", "due"}  # to'lov va balans ma'lumotlari: filial sozlamasi `finance_in_bot` bilan yoqiladi (hozircha o'chiq)
+
+
+def menu_markup(finance=True):
+    keys = ACTIONS if finance else {k: v for k, v in ACTIONS.items() if k not in FINANCE_ACTIONS}
+    labels = list(keys.values())
+    rows = [[{"text": t} for t in labels[i:i + 2]] for i in range(0, len(labels), 2)]
+    return {"keyboard": rows, "resize_keyboard": True, "is_persistent": True}
 
 
 def _fmt(d):

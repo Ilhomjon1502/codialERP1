@@ -156,7 +156,7 @@ def _dues(user, contract_ids, month, text, skip_sent, commit, template=None):
             if skip_sent and (c.pk, phone) in sent:
                 skipped_sent += 1
                 continue
-            accs = bot.accounts_for(c.student, phone)
+            accs = bot.accounts_for(c.student, phone, finance=True)
             if accs:  # raqam mijozlar botiga ulangan — SMS o'rniga botga
                 bot_msgs.append((accs, c, phone, who, msg))
                 continue

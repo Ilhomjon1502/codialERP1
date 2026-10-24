@@ -13,6 +13,12 @@ from tests.test_clientbot_referral import ref  # noqa: F401 — fixtures
 pytestmark = pytest.mark.django_db
 
 
+@pytest.fixture(autouse=True)
+def finance_on(branch):
+    """To'lov va balans ma'lumotlari botda hozircha standart o'chiq; bu modulda yoqiq (o'chiq holat alohida testda)."""
+    BotConfig.objects.update_or_create(branch=branch, defaults={"finance_in_bot": True})
+
+
 def kinds(kind="To'lov"):
     return ClientOutbox.objects.filter(kind=kind)
 
@@ -55,7 +61,7 @@ def test_unlinked_blocked_and_disabled_get_nothing(ref, on):  # noqa: F811
     BotAccount.objects.filter(chat_id=2).update(blocked=True)
     ref["pay"](100_000)
     assert [m.account.chat_id for m in kinds()] == [1]
-    BotConfig.objects.update_or_create(branch=ref["branch"], defaults={"notify_payments": False})
+    BotConfig.objects.update_or_create(branch=ref["branch"], defaults={"finance_in_bot": False})
     ref["pay"](100_000)
     assert kinds().count() == 1  # sozlama o'chiq — yangi xabar yo'q
 
@@ -80,3 +86,10 @@ def test_referral_bonus_goes_to_referrer_and_payment_notice_only_to_payer(ref, o
     ref["pay"](600_000)  # bonus ham tushadi
     assert [m.account.chat_id for m in kinds()] == [6]  # to'lov xabari — faqat to'lagan talabaga
     assert [m.account.chat_id for m in kinds("Bonus")] == [5]  # bonus xabari — tavsiya qiluvchiga; chegirma-only yozuvga to'lov xabari yo'q
+
+
+def test_default_is_off_until_enabled(ref, on):  # noqa: F811
+    BotConfig.objects.filter(branch=ref["branch"]).delete()  # sozlama yo'q — standart: to'lov ma'lumotlari botda o'chiq
+    link_family(ref)
+    ref["pay"](100_000)
+    assert not kinds().exists()

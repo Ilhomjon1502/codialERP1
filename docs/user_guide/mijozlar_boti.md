@@ -126,7 +126,11 @@ Lid botda «Do'stlar (o'qiydi)» (yoki «tanish», «tavsiya») manbasini tanlab
 - «Aniqlanmagan» tavsiyani talabaga bog'lasangiz va lid allaqachon yetarli to'lagan bo'lsa, bonus darrov beriladi. «Rad etish» bonusni to'xtatadi.
 - Bir odam nechta do'stni tavsiya qilsa ham, har biri uchun bonus beriladi (cheklov yo'q).
 
-## To'lov kiritilganda xabar
+> **Hozircha o'chiq (2026-10-24, buyurtmachi qarori):** to'lov va balans ma'lumotlari botda ko'rsatilmaydi. Quyidagi bo'lim (to'lov xabari) va kabinetdagi «💳 To'lovlar», «💰 To'lov muddati» tugmalari Telegram bot → Sozlamalarda
+> «To'lov va balans ma'lumotlari botda» yoqilgunga qadar ishlamaydi. O'chiq paytda: to'lov xabari ketmaydi; kabinetda faqat «📋 Davomat» va «📅 Dars jadvali»; to'lov eslatmalari (oy boshi, oldindan to'lov bonusi, «To'lovga tavsiya» SMS'i)
+> botga ulangan raqamga ham **SMS** bo'lib ketadi. Qolgan funksiyalar (ulanish, so'rovnoma, tavsiya bonusi xabari, boshqa avtomatik xabarlar) ishlayveradi.
+
+## To'lov kiritilganda xabar (hozircha o'chiq)
 
 Administrator yoki hisobchi yangi to'lov kiritganda, shu talabaga botda ulangan **hamma akkauntga** (o'quvchi va vasiylar) xabar boradi:
 «💳 To'lov qabul qilindi» — talaba va kurs, summa va shakli (naqd/karta/bank), chegirma (bo'lsa), sana va chek raqami, shartnomaning joriy balansi (qarz yoki oldindan to'langan summa). Naqdsiz to'lov tasdiqlanmagan bo'lsa «⏳ tasdiqlanishi kutilmoqda» deyiladi.
@@ -134,4 +138,4 @@ Administrator yoki hisobchi yangi to'lov kiritganda, shu talabaga botda ulangan 
 - Faqat bot orqali: botga ulanmagan talabaga hech narsa ketmaydi (ularni ulash — «Talabalar» tabidagi taklif).
 - Faqat yangi to'lovga; to'lovni tahrirlash yoki o'chirishda qayta xabar yuborilmaydi (kabinetdagi 💳 To'lovlar har doim haqiqiy holatni ko'rsatadi). Faqat chegirmali yozuvlarga (masalan tavsiya bonusi) to'lov xabari ketmaydi — bonus haqida alohida xabar bor.
 - AppSheet'dan import qilingan eski to'lovlarga xabar ketmaydi.
-- Telegram bot → Sozlamalarda filial bo'yicha o'chirib qo'yish mumkin («To'lov kiritilganda xabar»).
+- Telegram bot → Sozlamalarda filial bo'yicha yoqiladi/o'chiriladi («To'lov va balans ma'lumotlari botda»).

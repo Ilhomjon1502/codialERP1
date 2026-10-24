@@ -7,7 +7,7 @@ from django.utils import timezone
 
 from apps.clientbot import cabinet
 from apps.clientbot import services as bot
-from apps.clientbot.models import BotAccount, BotLink
+from apps.clientbot.models import BotAccount, BotConfig, BotLink
 from apps.education.models import Attendance, Contract, Group
 from apps.finance.models import Payment
 from tests.test_clientbot import make_lead, on  # noqa: F401 — fixtures
@@ -17,6 +17,12 @@ from tests.test_sms_auto import env, refs  # noqa: F401 — fixtures
 pytestmark = pytest.mark.django_db
 D = datetime.date
 PAY, ATT, SCH, DUE = cabinet.ACTIONS["pay"], cabinet.ACTIONS["att"], cabinet.ACTIONS["sch"], cabinet.ACTIONS["due"]
+
+
+@pytest.fixture(autouse=True)
+def finance_on(branch):
+    """To'lov va balans ma'lumotlari botda hozircha standart o'chiq; bu modulda yoqiq (o'chiq holat alohida testda)."""
+    BotConfig.objects.update_or_create(branch=branch, defaults={"finance_in_bot": True})
 
 
 def pay(env, c, number, date, amount, **kw):  # noqa: F811
@@ -168,3 +174,26 @@ def test_unlinked_user_gets_help_and_menu_beats_referrer_step(env, api, refs, on
     assert "To'lovlar" in text(r)
     acc.refresh_from_db()
     assert acc.state.get("step") == "referrer"
+
+
+def test_finance_paused_hides_buttons_and_blocks_payment_screens(env, on):  # noqa: F811
+    BotConfig.objects.filter(branch=env["branch"]).update(finance_in_bot=False)
+    st = env["student"](1)
+    c = env["contract"](st)
+    inv = bot.invite_for(st, st.phone1)
+    r = bot.handle_message(1, f"/start {inv.code}")
+    assert [b["text"] for row in r[0].markup["keyboard"] for b in row] == [ATT, SCH]  # to'lov va muddat tugmalari yo'q
+    assert [b["text"] for row in bot.handle_message(1, "/menu")[0].markup["keyboard"] for b in row] == [ATT, SCH]
+    pay(env, c, 1, D(2026, 10, 3), 500_000, cash_type="CASH")
+    for label in (PAY, DUE):  # eski klaviaturadagi tugma bosilsa ham ma'lumot chiqmaydi, yangi menyu qaytadi
+        r = bot.handle_message(1, label)
+        assert "vaqtincha ishlamayapti" in r[0].text and "500 000" not in r[0].text
+        assert [b["text"] for row in r[0].markup["keyboard"] for b in row] == [ATT, SCH]
+    assert "Davomat" in text(bot.handle_message(1, ATT)) and "Dars jadvali" in text(bot.handle_message(1, SCH))  # qolgan bo'limlar ishlaydi
+    b = env["student"](2)
+    env["contract"](b)
+    link_phone(b, b.phone1, 1)  # ikki farzand — tugmali tanlovga ham o'tmaydi
+    assert "vaqtincha" in bot.handle_message(1, PAY)[0].text
+    assert bot.handle_callback(1, f"cs:pay:{st.pk}")[1][0].text.endswith("murojaat qiling.")
+    BotConfig.objects.filter(branch=env["branch"]).update(finance_in_bot=True)  # sozlama yoqilsa — qaytadi
+    assert "500 000" in bot.handle_callback(1, f"cs:pay:{st.pk}")[1][0].text
