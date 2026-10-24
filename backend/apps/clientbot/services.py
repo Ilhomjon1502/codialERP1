@@ -18,7 +18,7 @@ from apps.crm.models import Lead, Student
 from apps.education.models import Contract
 from apps.references.models import LeadSource
 
-from . import cabinet
+from . import cabinet, survey
 from .models import BotAccount, BotConfig, BotInvite, BotLink, ClientOutbox, LeadSurvey, LinkAttempt, Referral
 
 log = logging.getLogger(__name__)
@@ -229,6 +229,8 @@ def handle_message(chat_id, text, username="", first_name=""):
         return _status(acc)
     if text in cabinet.MENU_TEXTS:  # menyu tugmasi (suhbat qadamidan ustun)
         return cabinet_request(acc, cabinet.MENU_TEXTS[text])
+    if (acc.state or {}).get("step") == "survey" and text and not text.startswith("/"):  # so'rovnoma: matnli javob
+        return survey.text_answer(acc, text)
     if (acc.state or {}).get("step") == "verify" and text and not text.startswith("/"):  # shartnoma raqami yuborilgan — endi telefon oxirgi 4 raqami
         return contract_verify(acc, text)
     if (acc.state or {}).get("step") == "referrer" and text and not text.startswith("/"):
@@ -325,6 +327,8 @@ def handle_callback(chat_id, data):
             return referrer_chosen(acc, rest)
         if kind == "cs":
             return cabinet_chosen(acc, rest)
+        if kind == "sv":
+            return survey.callback(acc, rest)
     except Exception:  # noqa: BLE001 — bitta xato botni to'xtatmasin
         log.exception("Mijoz boti tugmasi: %s", data)
         return "Xatolik. Qayta urinib ko'ring", []

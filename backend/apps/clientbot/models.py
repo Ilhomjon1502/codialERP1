@@ -10,7 +10,7 @@ import secrets
 from django.db import models
 from django.db.models import Q
 
-from apps.core.models import BaseModel
+from apps.core.models import BaseModel, Status
 
 ALIVE = Q(is_deleted=False)
 CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"  # 0/O, 1/I/L aralashmasin — SMS'dan qo'lda yozish mumkin
@@ -201,3 +201,65 @@ class ClientOutbox(models.Model):
 
     def __str__(self):
         return f"{self.kind} → {self.account}: {self.status}"
+
+
+class SurveyQuestion(BaseModel):
+    """Tamomlash/to'xtatish so'rovnomasi savoli (B4). Bosh menejer «Telegram bot → So'rovnoma»da qo'shadi, tahrirlaydi, o'chiradi."""
+
+    class Kind(models.TextChoices):
+        CHOICE = "Tanlov", "Tanlov (variantlardan)"
+        SCALE = "Baho", "Baho (1–5)"
+        TEXT = "Matn", "Matn (o'zi yozadi)"
+
+    class Flow(models.TextChoices):
+        BOTH = "Hammasiga", "Hammasiga"
+        COMPLETED = "Tamomlaganlarga", "Kursni tamomlaganlarga"
+        STOPPED = "To'xtatganlarga", "To'xtatganlarga"
+
+    branch = models.ForeignKey("references.Branch", on_delete=models.PROTECT, related_name="survey_questions", verbose_name="Filial")
+    key = models.CharField("Ichki kalit (reason — to'xtatish sababi)", max_length=24, blank=True)
+    text = models.CharField("Savol", max_length=300)
+    kind = models.CharField("Turi", max_length=8, choices=Kind.choices, default=Kind.CHOICE)
+    options = models.JSONField("Variantlar", default=list, blank=True)
+    allow_other = models.BooleanField("«Boshqa (yozaman)» varianti", default=False)
+    flow = models.CharField("Kimga", max_length=16, choices=Flow.choices, default=Flow.BOTH)
+    order = models.PositiveSmallIntegerField("Tartib", default=100)
+    status = models.CharField(max_length=8, choices=Status.choices, default=Status.ACTIVE)
+
+    class Meta:
+        verbose_name = "So'rovnoma savoli"
+        verbose_name_plural = "So'rovnoma savollari"
+        ordering = ["order", "created_at"]
+
+    def __str__(self):
+        return self.text
+
+
+class ExitSurvey(BaseModel):
+    """Shartnomasi tugagan talabaga yuborilgan so'rovnoma (shartnomaga bitta). Javob — birinchi javob bergan akkauntdan (o'quvchi yoki vasiy)."""
+
+    class State(models.TextChoices):
+        SENT = "Yuborildi", "Yuborildi"
+        STARTED = "Jarayonda", "Jarayonda"
+        DONE = "Tugadi", "Tugadi"
+
+    branch = models.ForeignKey("references.Branch", on_delete=models.PROTECT, related_name="exit_surveys")
+    contract = models.ForeignKey("education.Contract", on_delete=models.CASCADE, related_name="exit_surveys")
+    student = models.ForeignKey("crm.Student", on_delete=models.CASCADE, related_name="exit_surveys")
+    flow = models.CharField(max_length=16, choices=SurveyQuestion.Flow.choices)  # BOTH bo'lmaydi: Tamomlaganlarga yoki To'xtatganlarga
+    stop_reason = models.CharField("Shartnomadagi sabab (administrator kiritgan)", max_length=48, blank=True)
+    state = models.CharField(max_length=10, choices=State.choices, default=State.SENT, db_index=True)
+    sent_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    account = models.ForeignKey(BotAccount, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    respondent_role = models.CharField(max_length=8, blank=True)
+    answers = models.JSONField("Javoblar [{q, key, question, kind, answer}]", default=list, blank=True)
+
+    class Meta:
+        verbose_name = "Tamomlash so'rovnomasi"
+        verbose_name_plural = "Tamomlash so'rovnomalari"
+        ordering = ["-sent_at"]
+        constraints = [models.UniqueConstraint(fields=["contract"], condition=ALIVE, name="uniq_exit_survey")]
+
+    def __str__(self):
+        return f"{self.student} · {self.state}"

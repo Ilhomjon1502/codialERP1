@@ -60,10 +60,13 @@ router.register("sms-templates", calls.SmsTemplateViewSet, basename="sms-templat
 router.register("sms-rules", calls.SmsRuleViewSet, basename="sms-rule")
 router.register("sms", calls.SmsMessageViewSet, basename="sms")
 router.register("bot-links", clientbot.BotLinkViewSet, basename="bot-link")
+router.register("bot-students", clientbot.BotStudentViewSet, basename="bot-student")
 router.register("bot-invites", clientbot.BotInviteViewSet, basename="bot-invite")
 router.register("bot-surveys", clientbot.LeadSurveyViewSet, basename="bot-survey")
 router.register("bot-referrals", clientbot.ReferralViewSet, basename="bot-referral")
 router.register("bot-messages", clientbot.BotMessageViewSet, basename="bot-message")
+router.register("bot-questions", clientbot.SurveyQuestionViewSet, basename="bot-question")
+router.register("bot-exit-surveys", clientbot.ExitSurveyViewSet, basename="bot-exit-survey")
 router.register("bot-config", clientbot.BotConfigViewSet, basename="bot-config")
 
 urlpatterns = [

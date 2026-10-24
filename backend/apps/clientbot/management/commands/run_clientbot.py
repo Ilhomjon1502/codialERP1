@@ -11,7 +11,7 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db import close_old_connections
 
-from apps.clientbot import services
+from apps.clientbot import services, survey
 
 log = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ class Command(BaseCommand):
             services.api("setMyCommands", commands=json.dumps(commands))
         except Exception:  # noqa: BLE001
             log.exception("Bot buyruqlari o'rnatilmadi")
-        offset = None
+        offset, last_tick = None, 0.0
         while True:
             try:
                 params = {"timeout": 5, "allowed_updates": '["message", "callback_query"]'}
@@ -48,6 +48,9 @@ class Command(BaseCommand):
                     except Exception:  # noqa: BLE001 — bitta xabar botni to'xtatmasin
                         log.exception("Mijozlar boti: xabar qayta ishlanmadi")
                 close_old_connections()
+                if time.monotonic() - last_tick >= 60:  # har daqiqada: tamomlash so'rovnomalari (10:00–20:00)
+                    last_tick = time.monotonic()
+                    survey.tick()
                 services.send_pending()
             except Exception:  # noqa: BLE001 — tarmoq xatosi botni to'xtatmasin
                 log.exception("Mijozlar boti siklida xato")

@@ -1,8 +1,8 @@
-# Mijozlar boti (o'quvchi va vasiylar) — 1-, 2- va 3-bosqich
+# Mijozlar boti (o'quvchi va vasiylar) — 1–4-bosqichlar
 
 O'quvchilar va ota-onalar uchun **alohida Telegram bot**. Xodimlar botidan (`@bildirishnomaERP1bot`) farqli — alohida token.
 Bu bosqichda: ulanish (SMS'dagi kod), «Codialni qayerdan topdingiz?» so'rovi, tavsiya qiluvchi (tanish) ismi, Bosh menejer uchun «Telegram bot» bo'limi.
-Keyingi bosqichlar: tamomlash so'rovnomasi (B4), tavsiya bonusi (B5).
+Keyingi bosqich: tavsiya bonusi (B5).
 
 ## Ishga tushirish (bir marta)
 
@@ -88,3 +88,25 @@ Xavfsizlik: shartnoma raqami ketma-ket va sir emas, shuning uchun u o'zi yetmayd
 - Tekshiruvdan oldin bot talaba ismini aytmaydi.
 - Bir talaba uchun noto'g'ri telefon urinishi sutkada 5 tadan oshsa, o'sha talaba bir sutkaga bloklanadi (to'g'ri raqam ham o'tmaydi; SMS'dagi kod baribir ishlaydi).
 - Bir akkaunt soatiga 8 ta noto'g'ri urinishdan keyin to'xtatiladi; bir raqamga ko'pi bilan 3 akkaunt ulanadi.
+
+## Hozirgi talabalarni botga ulash
+
+Bot ishga tushganda faol talabalar hali ulanmagan bo'ladi. Ulash yo'llari (birga ishlatiladi):
+1. **Ommaviy taklif** — Qo'ng'iroqlar va SMS → Telegram bot → **Talabalar** → «Mavjud talabalarni taklif qilish». Faol (yoki boshlanmagan) shartnomali talabalarning **ulanmagan** raqamlariga (1-, 2-telefon, vasiy) SMS ketadi, oxirida shu raqamga xos bot havolasi va kodi bo'ladi. Avval hisob ko'rsatiladi (nechta talaba, nechta raqam, jami SMS), siz tasdiqlaysiz. Ulangan raqamga va avval taklif olganga qayta ketmaydi. Matnni o'zgartirish mumkin (`{ism}`, `{talaba}`). Bu taklifning birinchi eslatmasi hisoblanadi.
+2. **Eslatmalar** — «Botga ulanish eslatmasi» qoidasi (SMS → Avtomatik SMS) yoqilsa, ulanmaganlarga har 7 kunda, jami 3 marta eslatadi.
+3. **Shartnoma raqami** — kimgadir SMS yetmagan bo'lsa, botga shartnoma raqamini yuborishni ayting (telefon oxirgi 4 raqami so'raladi).
+4. **E'lon** — ichki guruhga/ota-onalar guruhiga bot manzilini tashlab, shartnoma raqami bilan ulanishni tushuntiring.
+
+«Talabalar» tabida har talaba uchun holat ko'rinadi: ulangan (o'quvchi/vasiy), taklif yuborilgan, yuborilmagan; filtr — ulanmaganlar. «Umumiy»da «Faol talabalar ulangan» ko'rsatkichi (necha foiz).
+
+## 4-bosqich: tamomlash/to'xtatish so'rovnomasi
+
+Shartnomaga tugash sanasi kiritilgach, **ertasi kuni 10:00 dan 20:00 gacha** botga ulangan o'quvchi va vasiylarga bot so'rovnoma yuboradi (shartnoma tugaganiga 14 kundan oshmagan bo'lsa; talaba keyin ulansa ham shu oynada yuboriladi). Har shartnomaga bitta so'rovnoma; javobni birinchi javob bergan akkaunt tugatadi.
+
+- **Oqim:** shartnomadagi sabab «Kursni tamomladi» bo'lsa — *tamomlaganlarga*, boshqa sabab bo'lsa — *to'xtatganlarga* savollari. Standart savollar:
+  - to'xtatganlarga: nima uchun to'xtatdingiz (variantlar + «Boshqa (yozaman)»), ustozni baholash (1–5), qaytasizmi, fikr-taklif;
+  - tamomlaganlarga: kursni baholash, ustozni baholash, do'stlarga tavsiya qilasizmi, boshqa kursni davom ettirasizmi, fikr-taklif.
+- Har savolni o'tkazib yuborish mumkin. Tanlov savolida tugma bosiladi yoki o'zi yozadi, matnli savolda yozib yuboradi.
+- **Bosh menejer savollarni o'zgartiradi:** Telegram bot → **Savollar** (qo'shish, tahrirlash, tartib, o'chirish, nofaol qilish; turi — tanlov/baho/matn; kimga — hammaga/tamomlaganlarga/to'xtatganlarga). O'zgarish faqat keyingi so'rovnomalarga ta'sir qiladi. Filial menejeri, administrator tahrirlay oladi, yangi savolni faqat Admin/Bosh menejer qo'shadi.
+- **Javoblar:** Telegram bot → **Ketish so'rovnomasi** — yuborilgan/javob bergan soni, talaba aytgan sabab va shartnomada kiritilgan sabab yonma-yon, baholar o'rtachasi, har talaba javoblari. Javob kelganda Bosh menejerga Telegram xabar boradi («Telegram» oynasida o'chirib qo'yish mumkin).
+- Hali botga ulanmagan talabaga so'rovnoma yuborilmaydi.
