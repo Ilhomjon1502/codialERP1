@@ -227,8 +227,17 @@ def save_payment(user, d, instance=None):
     sync_movements(S.PAYMENT, p, payment_rows(p))
     if instance is None or (p.discount_status == Confirm.PENDING and p.discount_confirmed_by is None and "discount" in d) or "amount" in d:
         notif.payment_pending(p)
+    if instance is None:
+        _client_notice(p)
     _referral_check(p)
     return p
+
+
+def _client_notice(p):
+    """Yangi to'lov — botga ulangan o'quvchi va vasiylarga xabar (mijozlar boti)."""
+    from apps.clientbot import payment_notice
+
+    payment_notice.notify(p)
 
 
 def _referral_check(p):

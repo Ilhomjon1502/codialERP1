@@ -29,6 +29,7 @@ class BotConfig(BaseModel):
     referral_min_percent = models.PositiveSmallIntegerField("Bonus uchun birinchi to'lov (oy narxining %)", default=50)
     reminder_days = models.PositiveSmallIntegerField("Start eslatmasi oralig'i (kun)", default=7)
     reminder_max = models.PositiveSmallIntegerField("Start eslatmasi ko'pi bilan (marta)", default=3)
+    notify_payments = models.BooleanField("To'lov kiritilganda talaba va vasiyga botda xabar", default=True)
 
     class Meta:
         verbose_name = "Bot sozlamasi"

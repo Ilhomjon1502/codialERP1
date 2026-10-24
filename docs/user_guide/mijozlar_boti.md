@@ -125,3 +125,13 @@ Lid botda «Do'stlar (o'qiydi)» (yoki «tanish», «tavsiya») manbasini tanlab
 - Tavsiya qiluvchining faol shartnomasi bo'lmasa — holat «Rad etildi», izohda sababi, Bosh menejerga xabar (qo'lda hal qilinadi).
 - «Aniqlanmagan» tavsiyani talabaga bog'lasangiz va lid allaqachon yetarli to'lagan bo'lsa, bonus darrov beriladi. «Rad etish» bonusni to'xtatadi.
 - Bir odam nechta do'stni tavsiya qilsa ham, har biri uchun bonus beriladi (cheklov yo'q).
+
+## To'lov kiritilganda xabar
+
+Administrator yoki hisobchi yangi to'lov kiritganda, shu talabaga botda ulangan **hamma akkauntga** (o'quvchi va vasiylar) xabar boradi:
+«💳 To'lov qabul qilindi» — talaba va kurs, summa va shakli (naqd/karta/bank), chegirma (bo'lsa), sana va chek raqami, shartnomaning joriy balansi (qarz yoki oldindan to'langan summa). Naqdsiz to'lov tasdiqlanmagan bo'lsa «⏳ tasdiqlanishi kutilmoqda» deyiladi.
+
+- Faqat bot orqali: botga ulanmagan talabaga hech narsa ketmaydi (ularni ulash — «Talabalar» tabidagi taklif).
+- Faqat yangi to'lovga; to'lovni tahrirlash yoki o'chirishda qayta xabar yuborilmaydi (kabinetdagi 💳 To'lovlar har doim haqiqiy holatni ko'rsatadi). Faqat chegirmali yozuvlarga (masalan tavsiya bonusi) to'lov xabari ketmaydi — bonus haqida alohida xabar bor.
+- AppSheet'dan import qilingan eski to'lovlarga xabar ketmaydi.
+- Telegram bot → Sozlamalarda filial bo'yicha o'chirib qo'yish mumkin («To'lov kiritilganda xabar»).

@@ -276,6 +276,7 @@
     return config.map((c) => `<div class="card"><div class="row gap" style="justify-content:space-between;align-items:center"><h3>${esc(c.branch_name)}</h3>${canE ? A.btn('Tahrirlash', 'bot-cfg', { id: c.id, cls: 'ghost' }) : ''}</div>
       <table class="tbl kv"><tbody>
         <tr><td>Lid va shartnoma SMS'iga bot havolasi</td><td>${c.invite_in_sms ? A.badge('Qo\'shiladi', 'green') : A.badge("O'chiq", 'gray')}</td></tr>
+        <tr><td>To'lov kiritilganda xabar</td><td>${c.notify_payments ? A.badge('Botga xabar boradi', 'green') : A.badge("O'chiq", 'gray')} <small class="muted">(botga ulangan o'quvchi va vasiylarga)</small></td></tr>
         <tr><td>Tavsiya bonusi</td><td><b>${A.money(c.referral_bonus)}</b></td></tr>
         <tr><td>Bonus uchun lid to'lovlari</td><td>oy narxining kamida <b>${c.referral_min_percent}%</b> <small class="muted">(yig'indi; bonus 0 bo'lsa — o'chiq)</small></td></tr>
         <tr><td>Start eslatmasi</td><td>har <b>${c.reminder_days}</b> kunda, ko'pi bilan <b>${c.reminder_max}</b> marta <small class="muted">(Qo'ng'iroqlar va SMS → SMS → «Botga ulanish eslatmasi» qoidasi yoqilgan bo'lsa)</small></td></tr>
@@ -289,6 +290,7 @@
       values: { ...c, referral_bonus: Number(c.referral_bonus) },
       fields: [
         { name: 'invite_in_sms', label: "Lid va shartnoma SMS'iga bot havolasi qo'shilsin", type: 'checkbox' },
+        { name: 'notify_payments', label: "To'lov kiritilganda o'quvchi va vasiyga botda xabar yuborilsin", type: 'checkbox' },
         { name: 'referral_bonus', label: "Tavsiya bonusi (so'm)", type: 'money', required: true, min: 0 },
         { name: 'referral_min_percent', label: "Bonus uchun lid to'lovlari (oy narxining %)", type: 'number', min: 0, max: 100, required: true },
         { name: 'reminder_days', label: 'Start eslatmasi oralig\'i (kun)', type: 'number', min: 1, max: 60, required: true },
@@ -296,7 +298,7 @@
       ],
       async onSubmit(x) {
         await A.http.patch(`/bot-config/${c.id}/`, {
-          invite_in_sms: !!x.invite_in_sms, referral_bonus: Number(x.referral_bonus), referral_min_percent: Number(x.referral_min_percent),
+          invite_in_sms: !!x.invite_in_sms, notify_payments: !!x.notify_payments, referral_bonus: Number(x.referral_bonus), referral_min_percent: Number(x.referral_min_percent),
           reminder_days: Number(x.reminder_days), reminder_max: Number(x.reminder_max),
         });
         A.toast('Saqlandi');

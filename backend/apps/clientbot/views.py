@@ -445,7 +445,7 @@ class BotConfigSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = BotConfig
-        fields = ["id", "branch", "branch_name", "invite_in_sms", "referral_bonus", "referral_min_percent", "reminder_days", "reminder_max"]
+        fields = ["id", "branch", "branch_name", "invite_in_sms", "referral_bonus", "referral_min_percent", "reminder_days", "reminder_max", "notify_payments"]
         read_only_fields = ["branch"]
 
     def validate_referral_bonus(self, v):
