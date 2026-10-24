@@ -471,6 +471,7 @@
         ${A.can('leads', 'a') ? `<div class="row gap"><input class="f-input grow" id="lc-text" placeholder="Izoh yozing…"><button class="btn" id="lc-add">Qo'shish</button></div>` : ''}
         <ul class="comments">${l.comments.map((c) => `<li><p>${esc(c.comment)}</p><small class="muted">${esc(A.userName(c.created_by))} · ${A.fdt(c.created_at)}</small></li>`).join('') || '<li class="muted">Izoh yo\'q</li>'}</ul>`,
       footer: `
+        ${A.can('leads', 'd') && A.canEdit('leads', l, 'created_at', 'd').ok ? `<button class="btn danger" data-del style="margin-right:auto">🗑 O'chirish</button>` : ''}
         ${A.can('leads', 'e') && edit.ok ? `<button class="btn ghost" data-edit>Tahrirlash</button>` : ''}
         ${l.status === '5' && A.can('leads', 'e') ? `<button class="btn" data-student>Talaba ma'lumotlarini to'ldirish</button>` : ''}
         ${canContract ? `<button class="btn primary" data-contract ${needsBirth ? `disabled title="Avval talaba ma'lumotlarini to'ldiring"` : ''}>Shartnoma tuzish</button>` : ''}`,
@@ -492,6 +493,18 @@
       add.onclick = () => {
         const t = m.el.querySelector('#lc-text').value.trim();
         if (t) A.http.post(`/leads/${id}/comments/`, { comment: t }).then(reopen, fail);
+      };
+    const del = m.el.querySelector('[data-del]');
+    if (del)
+      del.onclick = async () => {
+        const warn = l.has_contract ? ' Talabaning shartnomasi bor — u o\'chmaydi, faqat lid o\'chadi.' : '';
+        if (!(await A.confirm(`${esc(st.full_name)} lidini o'chirasizmi? Lid, uning izohlari ro'yxat va voronkadan yo'qoladi (yozuv bazada saqlanadi, audit'da ko'rinadi).${warn}`, "O'chirish", true))) return;
+        try {
+          await A.http.del(`/leads/${id}/`);
+          m.close();
+          A.toast('Lid o\'chirildi');
+          A.refresh();
+        } catch (err) { fail(err); }
       };
     const e = m.el.querySelector('[data-edit]');
     if (e) e.onclick = () => { m.close(); A.leadForm(l); };
