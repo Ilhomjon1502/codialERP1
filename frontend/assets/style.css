@@ -605,3 +605,5 @@ select.att-inline.st-\- { background: #eef0f3; color: #5b6472; }
 .inl-sel.compact .spin { position: absolute; right: 3px; top: 6px; background: var(--card, #fff); }
 .journal .inl-sel.compact select { appearance: none; -webkit-appearance: none; cursor: pointer; }
 .comments li.sms-in { border-left: 3px solid var(--brand); padding-left: 8px; }
+.tabs.sub { margin-top: -4px; }
+.tabs.sub a { font-size: 13px; padding: 6px 10px; }

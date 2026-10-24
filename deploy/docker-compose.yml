@@ -47,6 +47,20 @@ services:
         condition: service_healthy
     mem_limit: 200m
 
+  # Mijozlar boti (o'quvchi va vasiylar): alohida token, long polling
+  clientbot:
+    build: ../backend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.prod
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    command: python manage.py run_clientbot
+    depends_on:
+      db:
+        condition: service_healthy
+    mem_limit: 200m
+
 volumes:
   db:
   media:

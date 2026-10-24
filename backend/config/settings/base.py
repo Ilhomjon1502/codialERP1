@@ -68,6 +68,7 @@ INSTALLED_APPS = [
     "apps.importer",
     "apps.tasks",
     "apps.calls",
+    "apps.clientbot",
     "apps.reports",
 ]
 
@@ -160,6 +161,10 @@ DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", "Codial ERP <noreply@localhost>")
 TELEGRAM_BOT_TOKEN = env("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_BOT_USERNAME = env("TELEGRAM_BOT_USERNAME", "")
 TELEGRAM_ATTENDANCE_DELAY_MIN = int(env("TELEGRAM_ATTENDANCE_DELAY_MIN", "30"))
+
+# Mijozlar boti (o'quvchi va vasiylar, 2026-10-24): alohida bot. Token — deploy/set-clientbot.sh bilan .env ga
+CLIENT_BOT_TOKEN = env("CLIENT_BOT_TOKEN", "")
+CLIENT_BOT_USERNAME = env("CLIENT_BOT_USERNAME", "")
 
 # AI yordamchi (M9, CLAUDE.md 13). Kalit faqat deploy/.env da: serverda `bash deploy/set-ai.sh`
 AI_PROVIDER = env("AI_PROVIDER", "gemini")  # gemini | anthropic | openai

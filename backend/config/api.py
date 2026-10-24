@@ -6,6 +6,7 @@ from rest_framework.routers import DefaultRouter
 from apps.accounts import views as acc
 from apps.ai_assistant import views as ai
 from apps.calls import views as calls
+from apps.clientbot import views as clientbot
 from apps.core import views as core
 from apps.crm import views as crm
 from apps.education import views as edu
@@ -58,6 +59,11 @@ router.register("call-devices", calls.CallDeviceViewSet, basename="call-device")
 router.register("sms-templates", calls.SmsTemplateViewSet, basename="sms-template")
 router.register("sms-rules", calls.SmsRuleViewSet, basename="sms-rule")
 router.register("sms", calls.SmsMessageViewSet, basename="sms")
+router.register("bot-links", clientbot.BotLinkViewSet, basename="bot-link")
+router.register("bot-invites", clientbot.BotInviteViewSet, basename="bot-invite")
+router.register("bot-surveys", clientbot.LeadSurveyViewSet, basename="bot-survey")
+router.register("bot-referrals", clientbot.ReferralViewSet, basename="bot-referral")
+router.register("bot-config", clientbot.BotConfigViewSet, basename="bot-config")
 
 urlpatterns = [
     path("auth/csrf/", acc.CsrfView.as_view()),

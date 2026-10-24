@@ -39,6 +39,7 @@
       else if (tab === 'devices') devices = await A.http.get('/call-devices/');
       else if (tab === 'sms') await loadSms();
       else if (tab === 'smsstats') await loadSmsStats();
+      else if (tab === 'bot') await A.botTab.load(q);
       else {
         list = await A.http.get('/calls/?' + qs({ page: A.q(`${K}:page`, 1) }));
         if (A.can('calls', 'a') && !devices.length) devices = await A.http.get('/call-devices/').catch(() => []);
@@ -46,7 +47,7 @@
     },
     render(p, q) {
       const tab = q.tab || 'list';
-      const tabs = [['list', "Qo'ng'iroqlar"], ['stats', 'Statistika'], ...(A.can('sms') ? [['sms', 'SMS'], ['smsstats', 'SMS statistikasi']] : []), ...(A.can('calls', 'a') ? [['devices', 'Qurilmalar']] : [])];
+      const tabs = [['list', "Qo'ng'iroqlar"], ['stats', 'Statistika'], ...(A.can('sms') ? [['sms', 'SMS'], ['smsstats', 'SMS statistikasi']] : []), ...(A.can('clientbot') ? [['bot', 'Telegram bot']] : []), ...(A.can('calls', 'a') ? [['devices', 'Qurilmalar']] : [])];
       const date = (k, ph) => `<input class="f-input" type="date" data-filter="${K}:${k}" title="${ph}" value="${esc(A.q(`${K}:${k}`, ''))}">`;
       const period = [date('from', 'Dan'), date('to', 'Gacha')];
       const filters = tab === 'list'
@@ -61,8 +62,8 @@
             A.fSelect(SK, 'delivery', [['Yetkazildi', '✓✓ Yetkazildi'], ['Yetkazilmadi', '✕ Yetkazilmadi'], ['unknown', "Yetkazilishi noma'lum"]], 'Barcha yetkazilishlar'),
             A.fSelect(SK, 'known', [['0', "Noma'lum raqamlardan"]], 'Hamma raqamlar'),
             A.fSelect(SK, 'status', SMS_STATES.map((s) => [s, s]), 'Barcha holatlar')]) : '';
-      const body = tab === 'stats' ? statsView() : tab === 'devices' ? devicesView() : tab === 'sms' ? smsView() : tab === 'smsstats' ? smsStatsView() : listView();
-      return `${A.head("Qo'ng'iroqlar va SMS", "Qabul telefonidagi qo'ng'iroqlar — tugashi bilan shu yerga tushadi. Raqam bazada bo'lsa ism va lid ma'lumoti chiqadi. SMS shu telefon orqali yuboriladi")}
+      const body = tab === 'bot' ? A.botTab.view(q) : tab === 'stats' ? statsView() : tab === 'devices' ? devicesView() : tab === 'sms' ? smsView() : tab === 'smsstats' ? smsStatsView() : listView();
+      return `${A.head("Qo'ng'iroqlar va SMS", "Qabul telefonidagi qo'ng'iroqlar — tugashi bilan shu yerga tushadi. Raqam bazada bo'lsa ism va lid ma'lumoti chiqadi. SMS shu telefon orqali yuboriladi. Telegram bot — o'quvchi va vasiylar uchun")}
         ${A.tabs(tabs, tab, 'calls')}${filters}${body}`;
     },
   });

@@ -125,11 +125,32 @@ def enqueue(rule, student, ctx, key_base, kind, *, contract=None, lead=None, mon
     phones = [(p, who) for p, who in sms.recipients(student) if p not in skip]
     keys = [f"{key_base}:{p}" for p, _ in phones]
     have = set(SmsMessage.all_objects.filter(key__in=keys).values_list("key", flat=True))
-    rows = [SmsMessage(branch_id=rule.branch_id, device=device, student=student, contract=contract, lead=lead, kind=kind, month=month,
-                       phone=p, recipient=who, text=text, parts=sms.segments(text), key=k)
-            for (p, who), k in zip(phones, keys, strict=True) if k not in have]
+    rows = []
+    for (p, who), k in zip(phones, keys, strict=True):
+        if k in have:
+            continue
+        msg = text + _bot_suffix(rule, student, p)
+        rows.append(SmsMessage(branch_id=rule.branch_id, device=device, student=student, contract=contract, lead=lead, kind=kind, month=month,
+                               phone=p, recipient=who, text=msg, parts=sms.segments(msg), key=k))
     SmsMessage.objects.bulk_create(rows, ignore_conflicts=True)
     return len(rows)
+
+
+INVITE_RULES = {R.LEAD, R.CONTRACT}  # shu SMS'larga mijozlar boti havolasi (raqamga xos kod) qo'shiladi
+
+
+def _bot_suffix(rule, student, phone):
+    """Lid va shartnoma SMS'i oxiriga « Telegram bot: t.me/…?start=KOD » (bot sozlangan va raqam hali ulanmagan bo'lsa)."""
+    if rule.key not in INVITE_RULES:
+        return ""
+    from apps.clientbot import services as bot
+
+    try:
+        suffix = sms.plain(bot.invite_suffix(student, phone, rule.branch))
+        return f" {suffix}" if suffix else ""
+    except Exception:  # noqa: BLE001 — havola bo'lmasa ham SMS ketsin
+        log.exception("Bot havolasi SMS'ga qo'shilmadi")
+        return ""
 
 
 def _name(st):
@@ -292,6 +313,12 @@ def preview(rule, today=None):
         ctx = {**SAMPLE_CTX, **plans[0].ctx}
         out["real"] = True
     out["sample"] = sms.plain(sms.render(sms.plain(rule.text), ctx))
+    if rule.key in INVITE_RULES:
+        from apps.clientbot import services as bot
+
+        if bot.configured() and bot.get_config(rule.branch).invite_in_sms:
+            out["sample"] += " " + sms.plain(bot.sample_suffix())
+            out["note"] = "Matn oxiriga mijozlar botiga ulanish havolasi (har raqamga alohida kod) avtomatik qo'shiladi; raqam allaqachon ulangan bo'lsa qo'shilmaydi."
     out["parts"] = sms.segments(out["sample"])
     out["students"] = len(plans)
     out["messages"] = sum(len([1 for p, _ in sms.recipients(pl.student) if p not in pl.skip]) for pl in plans)
