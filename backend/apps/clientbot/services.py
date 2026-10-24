@@ -290,7 +290,9 @@ def _state_lead(acc, step):
 
 
 def is_referral_source(source):
-    return any(w in source.name.lower() for w in REFERRAL_WORDS)
+    """«Tanishlardan», «tavsiya» yoki «Do'stlar (o'qiydi)» — tavsiya qiluvchi bizning talabamiz bo'lishi mumkin; «Do'stlar (o'qimaydi)» — yo'q."""
+    n = source.name.translate(APOSTROPHES).lower()
+    return any(w in n for w in REFERRAL_WORDS) or ("do'st" in n and "o'qimaydi" not in n)
 
 
 def source_chosen(acc, src_id):

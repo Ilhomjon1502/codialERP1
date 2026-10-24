@@ -254,3 +254,12 @@ def test_bot_section_in_role_matrix(db, make_user):
 
     assert can(make_user("BOSH_MENEJER"), "clientbot", "e") and can(make_user("ADMINISTRATOR"), "clientbot", "v")
     assert not can(make_user("USTOZ"), "clientbot", "v") and not can(make_user("HISOBCHI"), "clientbot", "v")
+
+
+def test_referral_source_detection_matches_real_names(db):
+    def src(n):
+        return LeadSource(name=n)
+
+    assert bot.is_referral_source(src("Do'stlar (o'qiydi)")) and bot.is_referral_source(src("Doʻstlar (oʻqiydi)"))
+    assert bot.is_referral_source(src("Tanishlardan eshitdim")) and bot.is_referral_source(src("Tavsiya"))
+    assert not bot.is_referral_source(src("Do'stlar (o'qimaydi)")) and not bot.is_referral_source(src("Instagramdan"))
