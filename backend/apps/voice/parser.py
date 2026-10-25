@@ -7,6 +7,7 @@ import json
 import re
 import time
 
+from django.db.models import Q
 from django.utils import timezone
 
 from apps.accounts.models import User
@@ -14,8 +15,10 @@ from apps.ai_assistant import providers
 from apps.core.models import Status
 from apps.core.permissions import role_code
 from apps.core.roles import RoleCode
+from apps.crm.models import Lead
+from apps.education.models import Contract, Group
 from apps.finance.models import Account, Creditor
-from apps.references.models import Branch, DiscountType, ExpenseCategory
+from apps.references.models import Branch, Course, DiscountType, ExpenseCategory, LeadSource
 
 TIMEOUT_S = 15  # bitta model uchun; javob bermasa — zaxira modelga o'tadi (2026-10-25: gemini-3.7-flash 60 s javobsiz qolgan, flash-lite ~2 s)
 
@@ -59,6 +62,18 @@ Band turlari (har biri {"type": ...}; aytilmagan maydonni yozmang yoki null qili
   set — yangi qiymatlar (faqat o'zgaradiganlari): xarajat {"category","name","quantity","price","cash_type","account","date","period","comment"},
   kreditor {"amount","direction","cash_type","account","date","comment"}, to'lov {"amount","date","cash_type","discount","discount_type","comment"},
   oylik berish {"amount","kind","period","cash_type","account","date","comment"}, o'tkazma {"amount","to_account","date","comment"}.
+- {"type":"lead_create","first_name":"...","last_name":"...","phone1":"9 raqam","phone2":"9 raqam","source":"...","course":"...","status":"1–8","callback_at":"YYYY-MM-DDTHH:MM",
+   "group":null,"demo_date":null,"age_group":null,"social":null,"laptop":null,"gender":"Erkak|Ayol|null","comment":"..."} — yangi lid (yangi talaba).
+- {"type":"lead_update","student":"ism familiya yoki telefon","set":{"status":"1–8","callback_at":"YYYY-MM-DDTHH:MM","course":null,"source":null,"group":null,
+   "demo_date":null,"demo_attended":true|false|null},"comment":"lidga izoh","delete":false}
+  Mavjud lidni o'zgartirish (holat, qayta bog'lanish vaqti, guruh, sinov darsi), izoh qo'shish yoki o'chirish (delete:true).
+- {"type":"contract_create","student":"...","course":null,"group":"kurs va guruh raqami, masalan «Frontend 3»","start_date":null,"type":"Pullik|Grant"} — shartnoma tuzish.
+- {"type":"contract_update","student":"...","set":{"stop":true,"end_date":null,"stop_reason":"...","group":null,"start_date":null,"type":null,"resume":false,"comment":null}}
+  Shartnomani to'xtatish (stop:true, sabab ro'yxatdan), boshqa guruhga o'tkazish, boshlanish sanasi, turi, qayta faollashtirish (resume:true).
+- {"type":"attendance","group":"«Frontend 3»","date":"YYYY-MM-DD","all_present":true,"marks":[{"student":"...","status":"Keldi|Sababli|Besabab","comment":"sababi"}]}
+  Davomat: marks — aytilganlar; all_present=true — qolganlari «Keldi» («hammasi keldi, faqat Ali kelmadi»). Faqat aytilganlar bo'lsa all_present=false.
+- {"type":"attendance_contact","student":"...","date":null,"contact":"Gaplashildi|Tushib bo'lmadi|Noto'g'ri raqam|Bog'lanishga","comment":"..."}
+  Kelmagan o'quvchi bilan bog'lanish natijasi.
 - {"type":"unknown","text":"..."} — tushunilmagan yoki tizimda bunday amal yo'q.
 
 Qoidalar:
@@ -83,6 +98,13 @@ def _ctx_lists(user):
     lines.append("Xarajat kategoriyalari: " + ", ".join(f"{c.name}" for c in cats))
     lines.append("Kreditorlar: " + ", ".join(Creditor.objects.order_by("name").values_list("name", flat=True)))
     lines.append("Chegirma turlari: " + ", ".join(DiscountType.objects.order_by("name").values_list("name", flat=True)))
+    lines.append("Lid manbalari: " + ", ".join(LeadSource.objects.filter(status=Status.ACTIVE).order_by("name").values_list("name", flat=True)))
+    lines.append("Kurslar: " + ", ".join(Course.objects.filter(status=Status.ACTIVE).order_by("name").values_list("name", flat=True)))
+    groups = Group.objects.filter(Q(end_date__isnull=True) | Q(end_date__gte=timezone.localdate())).select_related("course", "teacher", "time", "day_pattern")
+    lines.append("Guruhlar (kurs raqam — ustoz, kunlar, vaqt): " + "; ".join(
+        f"{g.course.name} {g.number} — {g.teacher.full_name if g.teacher_id else ''}, {g.day_pattern.name}, {g.time.start_time:%H:%M}" for g in groups.order_by("course__name", "number")))
+    lines.append("Lid holatlari: " + ", ".join(f"{s.value}. {s.label}" for s in Lead.LeadStatus))
+    lines.append("Shartnoma to'xtatish sabablari: " + ", ".join(Contract.StopReason.values))
     staff = User.objects.filter(employment_status=User.Employment.ACTIVE).exclude(role__code=RoleCode.BOSHQA).select_related("role").order_by("full_name")
     lines.append("Xodimlar: " + ", ".join(f"{u.full_name} ({u.role.name if u.role else '—'})" for u in staff))
     return "\n".join(lines)

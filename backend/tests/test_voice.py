@@ -381,8 +381,9 @@ def test_delete_ambiguous_then_pick(env, tg, llm):
 
 
 def test_delete_latest(env, tg, llm):
-    _expense(env, name="Birinchi", price=1000, ct="CASH")
+    first = _expense(env, name="Birinchi", price=1000, ct="CASH")
     _expense(env, name="Ikkinchi", price=2000, ct="CASH")
+    Expense.objects.filter(pk=first.pk).update(created_at=timezone.now() - datetime.timedelta(minutes=5))  # Windows'da vaqt bir xil chiqishi mumkin
     llm.reply = {"transcript": "x", "items": [{"type": "delete", "entity": "expense", "find": {"latest": True}}]}
     voice.handle_update(text_msg("oxirgi kiritgan xarajatimni o'chir"))
     press(f"vc:ok:{last_cmd().pk}")
@@ -470,3 +471,102 @@ def test_unknown_shows_help(env, tg, llm):
     llm.reply = {"transcript": "x", "items": [{"type": "unknown", "text": "guruhni o'chir"}]}
     voice.handle_update(text_msg("guruhni o'chir"))
     assert "Men qila oladiganlar" in card_text(tg)
+
+
+# ------------------------------------------------------------------ lidlar, shartnomalar, davomat (2026-10-25)
+
+@pytest.fixture
+def school(env):
+    from apps.references.models import LeadSource
+
+    b = env["branch"]
+    course = Course.objects.create(name="Frontend")
+    course.branches.set([b])
+    every_day = DayPattern.objects.create(name="Har kuni", weekdays=[1, 2, 3, 4, 5, 6, 7])
+    g = Group.objects.create(branch=b, course=course, day_pattern=every_day, time=LessonTime.objects.create(branch=b, start_time="14:00", end_time="16:00"),
+                             teacher=env["cashier"], room=Room.objects.create(branch=b, name="1", capacity=10), start_date=TODAY - datetime.timedelta(days=30), number=3)
+    src = LeadSource.objects.create(name="Instagram")
+    studs = [Student.objects.create(branch=b, first_name=f, last_name=ln, phone1=p, phone2=p[::-1]) for f, ln, p in
+             (("Ali", "Valiyev", "901112233"), ("Vali", "Aliyev", "902223344"), ("Sardor", "Karimov", "903334455"))]
+    contracts = [Contract.objects.create(branch=b, student=s, course=course, group=g, number=i + 1, start_date=TODAY - datetime.timedelta(days=20))
+                 for i, s in enumerate(studs[:2])]
+    return {"course": course, "group": g, "source": src, "students": studs, "contracts": contracts}
+
+
+def test_lead_create_and_update(env, tg, llm, school):
+    from apps.crm.models import Lead, LeadComment
+
+    llm.reply = {"transcript": "x", "items": [{"type": "lead_create", "first_name": "Jasur", "last_name": "Toshev", "phone1": "+998 90 777 66 55",
+                                               "phone2": "911234567", "source": "instagram", "course": "frontend", "comment": "Kechqurun qulay"}]}
+    voice.handle_update(text_msg("Yangi lid Jasur Toshev..."))
+    assert "Yangi lid" in card_text(tg) and "907776655" in card_text(tg)
+    press(f"vc:ok:{last_cmd().pk}")
+    lead = Lead.objects.get(student__first_name="Jasur")
+    assert lead.status == "2" and lead.source == school["source"] and LeadComment.objects.filter(lead=lead).count() == 1
+    at = (timezone.localtime() + datetime.timedelta(days=1)).replace(hour=10, minute=0)
+    llm.reply = {"transcript": "x", "items": [{"type": "lead_update", "student": "Jasur Toshev", "set": {"status": "1", "callback_at": at.strftime("%Y-%m-%dT%H:%M")},
+                                               "comment": "Ertaga qo'ng'iroq qilamiz"}]}
+    voice.handle_update(text_msg("Jasurni qayta bog'lanishga, ertaga 10 da"))
+    press(f"vc:ok:{last_cmd().pk}")
+    lead.refresh_from_db()
+    assert lead.status == "1" and timezone.localtime(lead.callback_at).hour == 10 and LeadComment.objects.filter(lead=lead).count() == 2
+    llm.reply = {"transcript": "x", "items": [{"type": "lead_update", "student": "Toshev", "set": {"status": "8"}}]}
+    voice.handle_update(text_msg("Toshevni keyinroqqa"))
+    assert "qayta bog'lanish sanasi" in card_text(tg)  # 8-holatda vaqt majburiy
+    llm.reply = {"transcript": "x", "items": [{"type": "lead_update", "student": "907776655", "delete": True}]}
+    voice.handle_update(text_msg("907776655 lidini o'chir"))
+    press(f"vc:ok:{last_cmd().pk}")
+    assert not Lead.objects.filter(pk=lead.pk).exists()
+
+
+def test_lead_create_needs_two_phones(env, tg, llm, school):
+    llm.reply = {"transcript": "x", "items": [{"type": "lead_create", "first_name": "Jasur", "last_name": "Toshev", "phone1": "907776655", "source": "Instagram", "course": "Frontend"}]}
+    voice.handle_update(text_msg("x"))
+    assert "2 ta telefon" in card_text(tg) and "vc:ok" not in str(tg[-1])
+
+
+def test_contract_create_from_lead_and_stop(env, tg, llm, school):
+    from apps.crm.models import Lead
+
+    sardor = school["students"][2]
+    lead = Lead.objects.create(branch=env["branch"], student=sardor, source=school["source"], course=school["course"], status="4")
+    llm.reply = {"transcript": "x", "items": [{"type": "contract_create", "student": "Sardor Karimov", "group": "Frontend 3"}]}
+    voice.handle_update(text_msg("Sardor Karimovga Frontend 3 guruhiga shartnoma tuz"))
+    assert "4. Sinov darsga qatnashdi → <b>5. O'qishni boshladi</b>" in card_text(tg)
+    press(f"vc:ok:{last_cmd().pk}")
+    c = Contract.objects.get(student=sardor)
+    lead.refresh_from_db()
+    assert c.group == school["group"] and c.created_by == env["boss"] and lead.status == "5"
+    llm.reply = {"transcript": "x", "items": [{"type": "contract_update", "student": "Sardor", "set": {"stop": True, "stop_reason": "moliyaviy"}}]}
+    voice.handle_update(text_msg("Sardorning shartnomasini to'xtat, moliyaviy qiyinchilik"))
+    press(f"vc:ok:{last_cmd().pk}")
+    c.refresh_from_db()
+    assert c.end_date == TODAY and c.stop_reason == "Moliyaviy qiyinchilik"
+
+
+def test_contract_stop_reason_asked(env, tg, llm, school):
+    llm.reply = {"transcript": "x", "items": [{"type": "contract_update", "student": "Ali Valiyev", "set": {"stop": True}}]}
+    voice.handle_update(text_msg("Ali Valiyevni to'xtat"))
+    cmd = last_cmd()
+    assert cmd.items[0]["need"]["field"] == "stop_reason"
+    press(f"vc:pk:{cmd.pk}:0:0")
+    press(f"vc:ok:{cmd.pk}")
+    assert Contract.objects.get(student__first_name="Ali").stop_reason == "Kursni tamomladi"
+
+
+def test_attendance_all_present_except_one_and_contact(env, tg, llm, school):
+    from apps.education.models import Attendance
+
+    llm.reply = {"transcript": "x", "items": [{"type": "attendance", "group": "Frontend 3", "all_present": True,
+                                               "marks": [{"student": "Vali Aliyev", "status": "Besabab"}]}]}
+    voice.handle_update(text_msg("Frontend 3 da hamma keldi, Vali Aliyev kelmadi"))
+    body = card_text(tg)
+    assert "Keldi (1): Ali Valiyev" in body and "Besabab (1): Vali Aliyev" in body
+    press(f"vc:ok:{last_cmd().pk}")
+    rows = dict(Attendance.objects.values_list("contract__student__first_name", "status"))
+    assert rows == {"Ali": "1", "Vali": "X"}
+    llm.reply = {"transcript": "x", "items": [{"type": "attendance_contact", "student": "Vali", "contact": "Gaplashildi", "comment": "Kasal ekan"}]}
+    voice.handle_update(text_msg("Vali bilan gaplashdim, kasal ekan"))
+    press(f"vc:ok:{last_cmd().pk}")
+    a = Attendance.objects.get(contract__student__first_name="Vali")
+    assert (a.contact_status, a.comment) == ("Gaplashildi", "Kasal ekan")

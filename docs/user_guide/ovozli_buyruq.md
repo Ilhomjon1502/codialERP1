@@ -30,7 +30,23 @@ Bitta xabarda bir nechta narsa aytsangiz bo'ladi, masalan: «Internetga 300 ming
 
 Mavjud yozuvni bot sana, summa, kategoriya, nom, g'azna, kreditor, xodim yoki o'quvchi bo'yicha qidiradi (oxirgi 90 kun, sana aytilsa — shu kun). Bir nechta yozuv mos kelsa, kartada tanlash tugmalari chiqadi. Kreditor amali saytdagidek o'zgartiriladi: eskisi o'chiriladi va yangisi kiritiladi. O'chirilgan yozuv bazada arxivda qoladi, g'azna qoldig'i esa qaytadi.
 
-Hali qila olmaydiganlari: lid, talaba, shartnoma, guruh, davomat va sozlamalarni o'zgartirish. Bular uchun saytdan foydalaning. Bunday buyruq bersangiz, bot qila oladigan ishlar ro'yxatini ko'rsatadi.
+### Lidlar, shartnomalar, davomat
+
+| Amal | Misol |
+|---|---|
+| Yangi lid | «Yangi lid: Jasur Toshev, 90 777 66 55 va 91 123 45 67, Instagramdan, Frontendga» (2 ta telefon majburiy — saytdagi qoida) |
+| Lid holati, qayta bog'lanish, guruh, sinov darsi | «Jasur Toshevni qayta bog'lanishga, ertaga soat 10 da» · «… Frontend 3 ga sinov darsiga yozildi, 28-oktabr» |
+| Lidga izoh | «Jasurga izoh: kechqurun qulay ekan» |
+| Lidni o'chirish | «907776655 raqamli lidni o'chir» |
+| Shartnoma tuzish | «Sardor Karimovga Frontend 3 guruhiga shartnoma tuz» — lid bo'lsa, holati «5. O'qishni boshladi» ga o'tadi |
+| Shartnomani to'xtatish | «Sardorning shartnomasini to'xtat, moliyaviy qiyinchilik» (sabab aytilmasa — tugma bilan so'raydi) |
+| Boshqa guruhga o'tkazish, qayta faollashtirish | «Alini Frontend 4 ga o'tkaz» · «Alining shartnomasini qayta faollashtir» |
+| Davomat | «Frontend 3 da bugun hamma keldi, faqat Vali Aliyev kelmadi» · «… Ali sababli, kasal» (sababli bo'lsa sabab majburiy) |
+| Kelmagan bilan bog'lanish | «Vali bilan gaplashdim, kasal ekan» |
+
+O'quvchi, lid va shartnoma ism yoki telefon raqami bo'yicha topiladi. Ism aynan mos kelsa, o'xshash ismlardan ustun turadi. Guruh «Kurs raqam» ko'rinishida aytiladi, masalan «Frontend 3».
+
+Hali qila olmaydiganlari: talaba ma'lumotlarini (sharif, tug'ilgan sana, vasiy) to'ldirish, guruh ochish, sozlamalar. Bular uchun saytdan foydalaning. Bunday buyruq bersangiz, bot qila oladigan ishlar ro'yxatini ko'rsatadi.
 
 ## Tasdiq kartasi
 

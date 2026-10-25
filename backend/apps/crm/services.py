@@ -275,6 +275,32 @@ def create_lead(user, branch, data, *, new_student=None, student=None, comment="
 
 
 @transaction.atomic
+def update_lead(user, lead, data, comment=""):
+    """Lidni o'zgartirish (Telegram ovozli buyruq; saytdagi LeadSerializer.validate + LeadViewSet.perform_update qoidalari bilan bir xil):
+    ruxsat va muddat, faol manba/kurs, guruh shu kursdan, 1/8-holatda qayta bog'lanish vaqti, holat o'zgarsa bot xabari."""
+    if not can(user, "leads", "e"):
+        raise PermissionDenied(NO_PERMISSION)
+    check_edit_window(user, "leads", lead.created_at)
+    data = dict(data)
+    get = lambda k: data.get(k, getattr(lead, k))  # noqa: E731
+    check_lead_refs(lead.branch, get("source"), get("course"), get("day_pattern"), list(lead.preferred_times.all()), instance=lead)
+    if "group" in data or "course" in data:
+        check_lead_group(lead.branch, get("course"), get("group"), instance=lead)
+    validate_callback(lead, get("status"), data)
+    before, old = audit.snapshot(lead), lead.status
+    for k, v in data.items():
+        setattr(lead, k, v)
+    lead.updated_by = user
+    lead.save()
+    audit.log_update(user, lead, before)
+    if clean(comment):
+        add_comment(user, lead, comment)
+    if lead.status != old:
+        notif.lead_changed(lead, old, user)
+    return lead
+
+
+@transaction.atomic
 def add_comment(user, lead, text):
     text = str(text or "").strip()
     if not text:

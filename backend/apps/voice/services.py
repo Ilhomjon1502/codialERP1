@@ -46,6 +46,9 @@ HELP = ("Tushunmadim. Men qila oladiganlar:\n"
         "• o'tkazma, naqdsiz to'lov va chegirmani tasdiqlash\n"
         "• oylikka bonus, jarima, belgilangan oylik\n"
         "• xodimga topshiriq berish, uni yopish, bekor qilish, muddatini o'zgartirish\n"
+        "• lid: yangi, holat, qayta bog'lanish vaqti, guruh, izoh, o'chirish\n"
+        "• shartnoma: tuzish, to'xtatish, boshqa guruhga o'tkazish, qayta faollashtirish\n"
+        "• davomat olish va kelmaganlar bilan bog'lanish natijasi\n"
         "Qaytadan, aniqroq ayting.")
 
 

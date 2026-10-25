@@ -659,10 +659,12 @@ def execute(ctx, item):
         return f"⚠️ {escape(err or (need.label if need else 'Bajarib bo`lmadi'))}"
     try:
         return HANDLERS[item["type"]][1](ctx, r.data)
+    except Bad as e:
+        return f"⚠️ {escape(str(e))}"
     except (ValidationError, PermissionDenied, APIException) as e:
         return f"⚠️ {escape(error_text(e))}"
 
 
-from . import records  # noqa: E402 — records shu moduldagi yordamchilardan foydalanadi
+from . import edu, records  # noqa: E402 — ular shu moduldagi yordamchilardan foydalanadi
 
-HANDLERS.update({"delete": (records.r_delete, records.x_delete), "edit": (records.r_edit, records.x_edit)})
+HANDLERS.update({"delete": (records.r_delete, records.x_delete), "edit": (records.r_edit, records.x_edit), **edu.HANDLERS})

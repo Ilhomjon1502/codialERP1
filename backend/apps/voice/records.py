@@ -39,6 +39,24 @@ def similar(said, text):
     return difflib.SequenceMatcher(None, a, b).ratio() >= 0.75
 
 
+def score(said, text):
+    """3 — aynan o'zi, 2 — aytilgan so'zlarning hammasi bor, 1 — o'xshash, 0 — mos emas («Ali Valiyev» ≠ «Vali Aliyev» darajasi)."""
+    a, b = match.norm(said).replace("'", ""), match.norm(text).replace("'", "")
+    if a and a == b:
+        return 3
+    ta, tb = set(a.split()), set(b.split())
+    if ta and ta <= tb:
+        return 2
+    return 1 if similar(said, text) else 0
+
+
+def best(rows, said, text_of):
+    """Eng yaxshi mos kelganlar (bir xil eng yuqori ball)."""
+    scored = [(score(said, text_of(r)), r) for r in rows]
+    top = max((s for s, _ in scored), default=0)
+    return [r for s, r in scored if s == top and s > 0]
+
+
 def cash_of(v):
     return MONEY.get(str(v or "").upper())
 
@@ -132,7 +150,10 @@ def _search(ent, entity, f, qs):
         qs = qs.filter(cash_type=ct)
     rows = list(qs.order_by("-date", "-created_at")[:SCAN])
     said = {k: f[k] for k in TEXT_KEYS if f.get(k)}
-    fits = [r for r in rows if all(similar(v, ent["texts"](r).get(k, "")) for k, v in said.items())]
+    totals = [(r, [score(v, ent["texts"](r).get(k, "")) for k, v in said.items()]) for r in rows]
+    totals = [(r, sum(s)) for r, s in totals if all(s)]
+    top = max((t for _, t in totals), default=0)
+    fits = [r for r, t in totals if t == top]
     if f.get("latest") and (fits or rows):
         return max(fits or rows, key=lambda r: r.created_at)
     if len(fits) == 1:
