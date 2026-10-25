@@ -69,6 +69,7 @@ INSTALLED_APPS = [
     "apps.tasks",
     "apps.calls",
     "apps.clientbot",
+    "apps.voice",
     "apps.reports",
 ]
 

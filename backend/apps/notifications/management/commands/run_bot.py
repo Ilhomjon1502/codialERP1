@@ -15,6 +15,7 @@ from apps.calls import auto_sms
 from apps.notifications import reminders, services, webapp
 from apps.notifications.models import TelegramLink
 from apps.tasks import services as tasks
+from apps.voice import services as voice
 
 log = logging.getLogger(__name__)
 
@@ -50,6 +51,9 @@ class Command(BaseCommand):
                     if chat and msg.get("chat", {}).get("type") in ("group", "supergroup"):  # guruhga yuborish uchun chat_id ni bilish (jurnalga)
                         log.warning("GURUH chat_id=%s nomi=%s", chat, (msg.get("chat") or {}).get("title"))
                     if chat and msg.get("chat", {}).get("type") == "private":
+                        close_old_connections()
+                        if voice.handle_update(msg):  # Bosh menejerning ovozli/yozma buyrug'i yoki savoli
+                            continue
                         reply = services.handle_message(chat, msg.get("text", ""), (msg.get("from") or {}).get("username", ""))
                         if not TelegramLink.objects.filter(chat_id=chat).exists():  # bog'lanmagan chat (masalan qo'shimcha qabul qiluvchi) — chat_id jurnalga va javobga
                             log.warning("BOT chat_id=%s username=%s", chat, (msg.get("from") or {}).get("username", ""))
@@ -73,6 +77,10 @@ class Command(BaseCommand):
     def on_callback(self, cb):
         data, chat = cb.get("data") or "", (cb.get("from") or {}).get("id")
         text = "Noma'lum amal"
+        if data.startswith("vc:") and chat:  # ovozli buyruq kartasi: tasdiqlash, tuzatish, bekor, variant tanlash (javobni o'zi beradi)
+            close_old_connections()
+            voice.on_callback(cb)
+            return
         if data.startswith("td:") and chat:
             close_old_connections()
             text = tasks.done_from_telegram(chat, data[3:])

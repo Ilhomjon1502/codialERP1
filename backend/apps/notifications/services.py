@@ -350,6 +350,16 @@ def api(method, **params):
     return res["result"]
 
 
+def download_file(file_id, max_bytes=20 * 1024 * 1024):
+    """Botga yuborilgan fayl (masalan ovozli xabar) — baytlar. Bot API 20 MB gacha beradi."""
+    path = api("getFile", file_id=file_id)["file_path"]
+    with urllib.request.urlopen(f"https://api.telegram.org/file/bot{settings.TELEGRAM_BOT_TOKEN}/{path}", timeout=60) as r:
+        data = r.read(max_bytes + 1)
+    if len(data) > max_bytes:
+        raise RuntimeError("Fayl juda katta")
+    return data
+
+
 def send_pending(limit=30, sender=None):
     """Navbatdagi xabarlarni yuboradi. sender(chat_id, text) — testlar uchun almashtiriladi. Qaytaradi: yuborilganlar soni."""
     def default_sender(chat, text, markup=None):

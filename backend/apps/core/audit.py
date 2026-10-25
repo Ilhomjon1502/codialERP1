@@ -1,7 +1,9 @@
 """Audit: har bir yaratish, o'zgartirish va o'chirish — kim, qachon, nima, eski → yangi qiymat (CLAUDE.md 6.4)."""
 
+import contextlib
 import datetime
 import decimal
+import threading
 import uuid
 
 from django.db import models
@@ -54,7 +56,24 @@ def label(obj):
     return str(obj._meta.verbose_name).capitalize()
 
 
+_ctx = threading.local()
+
+
+@contextlib.contextmanager
+def tagged(text):
+    """Blok ichidagi barcha audit yozuvlariga belgi qo'shiladi (masalan «🎙 Telegram ovozli buyruq: …»)."""
+    old = getattr(_ctx, "tag", "")
+    _ctx.tag = text
+    try:
+        yield
+    finally:
+        _ctx.tag = old
+
+
 def record(user, action, model, obj_id="", obj_repr="", changes=None, detail=""):
+    tag = getattr(_ctx, "tag", "")
+    if tag:
+        detail = f"{detail} · {tag}" if detail else tag
     return AuditLog.objects.create(
         user=user if getattr(user, "is_authenticated", False) else None,
         action=action,
