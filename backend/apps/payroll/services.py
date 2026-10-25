@@ -15,7 +15,7 @@ from django.db.models.functions import TruncMonth
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from apps.core import audit
-from apps.core.permissions import can, check_edit_window, is_top, role_code, today
+from apps.core.permissions import can, check_edit_window, is_top, role_code, sees_all, today
 from apps.core.roles import MANAGER_ROLES, RoleCode
 from apps.core.scoping import scope_branch
 from apps.core.services import soft_delete
@@ -39,7 +39,7 @@ def ym_key(year, month):
 
 def scope(qs, user):
     """Admin, Bosh menejer — hammasi; Filial menejeri va oylik beruvchilar (ruxsat «qo'shish») — o'z filiali; boshqalar — faqat o'zi."""
-    if is_top(user):
+    if sees_all(user):
         return qs
     if role_code(user) == RoleCode.FILIAL_MENEJERI or can(user, "salaries", "a"):
         return scope_branch(qs, user)

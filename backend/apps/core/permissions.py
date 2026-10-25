@@ -6,7 +6,7 @@ from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import BasePermission
 
-from .roles import TOP_ROLES, edit_days, edit_rule_text
+from .roles import TOP_ROLES, VIEW_ALL_ROLES, edit_days, edit_rule_text
 
 NO_PERMISSION = "Sizning rolingizda bu amalga ruxsat yo'q"
 METHOD_OPS = {"GET": "v", "HEAD": "v", "OPTIONS": "v", "POST": "a", "PUT": "e", "PATCH": "e", "DELETE": "d"}
@@ -35,6 +35,11 @@ def can(user, section, op="v"):
 
 def is_top(user):
     return role_code(user) in TOP_ROLES
+
+
+def sees_all(user):
+    """Hamma filial va hamma yozuvni ko'rish (Admin, Bosh menejer, asoschi). Tahrirlash va tasdiqlash huquqi buni bermaydi — u `is_top` va ruxsat matritsasida."""
+    return role_code(user) in VIEW_ALL_ROLES
 
 
 class SectionPermission(BasePermission):

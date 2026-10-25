@@ -1,11 +1,11 @@
 """Ma'lumotlarga kirish doirasi (CLAUDE.md 6.3): Admin va Bosh menejer — barcha filiallar, qolganlar — o'z filiallari."""
 
-from .permissions import is_top
+from .permissions import sees_all
 
 
 def branch_ids(user):
     """None — cheklovsiz (barcha filiallar), aks holda foydalanuvchi filiallari to'plami. So'rov davomida keshlanadi."""
-    if is_top(user):
+    if sees_all(user):
         return None
     cache = getattr(user, "_branch_ids_cache", None)
     if cache is None:

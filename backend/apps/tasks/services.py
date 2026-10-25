@@ -15,7 +15,7 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from apps.accounts.models import User
 from apps.core import audit
-from apps.core.permissions import is_top
+from apps.core.permissions import is_top, sees_all
 from apps.core.roles import RoleCode
 from apps.core.scoping import branch_ids
 
@@ -29,7 +29,7 @@ MAX_LOOKAHEAD = max(BEFORE_CHOICES)
 
 def scope(qs, user):
     """Admin, Bosh menejer — hammasi; boshqalar — o'zi bergan va o'ziga berilgan."""
-    return qs if is_top(user) else qs.filter(Q(created_by=user) | Q(assignee=user))
+    return qs if sees_all(user) else qs.filter(Q(created_by=user) | Q(assignee=user))
 
 
 def is_giver(task, user):

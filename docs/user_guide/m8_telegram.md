@@ -50,9 +50,9 @@ Kunlik hisobot — cron 19:00 (`daily_report`; ko'rib chiqish: `daily_report --p
 
 ## Asoschi: qisqa kunlik hisobot (2026-10-25)
 
-**Asoschi** roli bor xodim tizimda hech narsa ko'rmaydi (menyu bo'sh), faqat Telegram botdan har kuni 19:00 da **qisqa hisobot** oladi — boshqa hech qanday xabar bormaydi.
+**Asoschi** roli bor xodim saytda **hamma bo'limni va hamma filialni ko'radi** (faqat ko'rish: hech narsani o'zgartira olmaydi), Telegram botga esa faqat har kuni 19:00 da **qisqa hisobot** keladi — boshqa hech qanday xabar (tasdiq, yangi lid, topshiriq, SMS muammosi va h.k.) bormaydi.
 Hisobotda: to'lovlar, faol shartnomalar (kurslar bo'yicha), lidlar (bugun yangi, ochiq, jami, bugun holati o'zgarganlar), qo'ng'iroqlar (bitta qator), xarajatlar, davomat, g'azna qoldiqlari. **Tizim auditi, lid va qo'ng'iroq tafsilotlari yo'q.** Bosh menejerning to'liq hisoboti o'zgarmagan.
 
-- Rolni faqat Admin tayinlaydi (Sozlamalar → Foydalanuvchilar). Pochta ixtiyoriy — asoschi tizimga kirmasa ham bo'ladi.
+- Rolni faqat Admin tayinlaydi (Sozlamalar → Foydalanuvchilar). Saytga kirish uchun pochta va parol kerak (parol havolasi pochtaga boradi); pochtasiz asoschi faqat botdan hisobot oladi.
 - Botga ulash: xodimda Telegram bog'lash kodi bo'ladi (Admin serverdan oladi yoki xodim tizimga kirib «Telegram» oynasidan oladi) va `/start KOD` yoziladi.
 - Ko'rib chiqish: `python manage.py daily_report --print --short`.

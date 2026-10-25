@@ -6,6 +6,8 @@ from django.utils import timezone
 
 from apps.accounts.models import Role, RolePermission, User
 from apps.calls.models import CallDevice, CallRecord
+from apps.core.roles import SECTION_KEYS
+from apps.crm.models import Parent
 from apps.finance.models import Account
 from apps.notifications import services
 from apps.notifications.management.commands import daily_report
@@ -18,10 +20,11 @@ def body(branch, **kw):
     return {"full_name": "Muhammad Amin Naziraliyev", "role": "ASOSCHI", "branches": [str(branch.pk)], **kw}
 
 
-def test_role_has_only_the_report_section_and_only_admin_assigns(db):
+def test_role_views_every_section_but_edits_nothing_and_only_admin_assigns(db):
     founder = Role.objects.get(code="ASOSCHI")
     assert founder.name == "Asoschi"
-    assert {p.section: p.ops for p in RolePermission.objects.filter(role=founder) if p.ops} == {"founderReport": "v"}
+    perms = {p.section: p.ops for p in RolePermission.objects.filter(role=founder)}
+    assert set(perms) == set(SECTION_KEYS) and set(perms.values()) == {"v"}  # hamma bo'lim — faqat ko'rish
     assert Role.objects.get(code="ADMIN").can_assign.filter(code="ASOSCHI").exists()
     assert not Role.objects.get(code="BOSH_MENEJER").can_assign.filter(code="ASOSCHI").exists()
     assert not Role.objects.get(code="FILIAL_MENEJERI").can_assign.filter(code="ASOSCHI").exists()
@@ -37,10 +40,24 @@ def test_admin_creates_founder_without_email_manager_cannot(api, make_user, bran
     assert r.status_code == 400 and r.json()["role"] == ["Bu rolni tayinlash huquqingiz yo'q"]
 
 
-def test_founder_sees_nothing_on_the_site(api, make_user):
-    c = api(make_user("ASOSCHI"))
-    assert c.get("/api/v1/leads/").status_code == 403 and c.get("/api/v1/payments/").status_code == 403
-    assert c.get("/api/v1/audit-log/").status_code == 403 and c.get("/api/v1/calls/").status_code == 403
+def test_founder_sees_everything_in_every_branch_but_cannot_change_anything(api, make_user, branch, other_branch):
+    Parent.objects.create(branch=other_branch, first_name="Vali", phone="901234567")
+    founder = make_user("ASOSCHI", branches=[])  # filial biriktirilmagan, baribir hamma filialni ko'radi
+    c = api(founder)
+    for url in ("leads", "contracts", "payments", "debtors", "accounts", "audit-log", "calls", "salary-assignments", "kpi-rates", "tasks", "users", "sms",
+                "bot-links", "creditors", "transfers", "expenses", "groups"):
+        assert c.get(f"/api/v1/{url}/").status_code == 200, url
+    assert len(c.get("/api/v1/parents/").json()) == 1  # boshqa filial yozuvi ko'rinadi
+    assert api(make_user("ADMINISTRATOR")).get("/api/v1/parents/").json() == []
+    assert c.get(f"/api/v1/reports/profit/?months={timezone.localdate():%Y-%m}").status_code == 200
+    assert c.get("/api/v1/reports/stats/").status_code == 200
+    # faqat ko'radi — o'zgartira olmaydi
+    assert c.post("/api/v1/leads/", {}, format="json").status_code == 403
+    assert c.post("/api/v1/payments/", {}, format="json").status_code == 403
+    assert c.post("/api/v1/users/", body(branch, full_name="Yana Bir Kishi"), format="json").status_code == 403
+    pid = Parent.objects.get().pk
+    assert c.patch(f"/api/v1/parents/{pid}/", {"first_name": "Boshqa"}, format="json").status_code == 403
+    assert c.delete(f"/api/v1/parents/{pid}/").status_code == 403
 
 
 def test_founder_gets_only_the_short_daily_report(make_user, branch, django_capture_on_commit_callbacks):

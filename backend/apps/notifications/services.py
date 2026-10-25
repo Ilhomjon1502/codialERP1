@@ -69,6 +69,8 @@ DEFAULT_ROLES = {
 
 
 def allowed(user, event):
+    if role_code(user) == R.ASOSCHI:  # asoschi saytda hamma narsani ko'radi, botga esa faqat kunlik hisobot keladi (operatsion xabarlar yo'q)
+        return event == "founder_report"
     sec, op = EVENT_PERM[event]
     return can(user, sec, op)
 

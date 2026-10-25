@@ -9,7 +9,7 @@ from rest_framework.response import Response
 from apps.core import audit
 from apps.core.pagination import Pagination
 from apps.core.permissions import role_code, today
-from apps.core.roles import MANAGER_ROLES
+from apps.core.roles import MANAGER_ROLES, VIEW_ALL_ROLES
 from apps.core.scoping import scope_branch
 from apps.core.viewsets import AuditedModelViewSet
 from apps.crm.views import default_branch, search_q
@@ -115,7 +115,7 @@ class PaymentViewSet(AuditedModelViewSet):
     def receipt(self, request, pk=None):
         """PDF chek. Tasdiqlanmagan to'lov chekini faqat Admin, Bosh menejer va Filial menejeri ko'radi (prototipdagidek)."""
         p = self.get_object()
-        if Confirm.PENDING in (p.discount_status, p.noncash_status) and role_code(request.user) not in MANAGER_ROLES:
+        if Confirm.PENDING in (p.discount_status, p.noncash_status) and role_code(request.user) not in MANAGER_ROLES | VIEW_ALL_ROLES:
             raise PermissionDenied("To'lov hali tasdiqlanmagan (naqdsiz yoki chegirma). Chek tasdiqlangandan keyin chiqadi")
         bal = with_balance(Contract.objects.filter(pk=p.contract_id)).values_list("balance", flat=True).first()
         resp = HttpResponse(receipt.build(p, bal or 0), content_type="application/pdf")

@@ -370,7 +370,7 @@ Qoidalar:
 | `YORDAMCHI` | Yordamchi ustoz |
 | `USTOZ_YORDAMCHI` | Ustoz+Yordamchi |
 | `BOSHQA` | Boshqa (tizimga kirmaydi, faqat ro'yxatda) |
-| `ASOSCHI` | Asoschi (2026-10-25; tizimda bo'lim ko'rmaydi, botdan faqat qisqa kunlik hisobot oladi — `founderReport`) |
+| `ASOSCHI` | Asoschi (2026-10-25; saytda hamma bo'lim va filialni faqat KO'RADI — `permissions.sees_all`; botga faqat qisqa kunlik hisobot keladi — `founder_report`) |
 
 - `Role` modeli: har bir rol uchun bo'limlar bo'yicha ruxsatlar (ko'rish / qo'shish / tahrirlash / o'chirish / tasdiqlash) va tahrirlash muddati.
 - Bosh menejer va Admin Sozlamalarda rollarni boshqaradi va yangi rol qo'shadi.

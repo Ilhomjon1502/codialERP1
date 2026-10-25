@@ -14,7 +14,7 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from apps.core import audit
 from apps.core.models import Status
-from apps.core.permissions import NO_PERMISSION, can, check_edit_window, is_top, role_code, today
+from apps.core.permissions import NO_PERMISSION, can, check_edit_window, is_top, role_code, sees_all, today
 from apps.core.roles import RoleCode
 from apps.core.scoping import branch_ids
 from apps.core.services import soft_delete
@@ -54,7 +54,7 @@ def my_accounts(user):
 
 def scoped_account_ids(user):
     """Ko'rinadigan g'aznalar: Admin va Bosh menejer — hammasi (None); boshqalar — mas'ul bo'lganlari va o'z filiallari g'aznalari."""
-    if is_top(user):
+    if sees_all(user):
         return None
     ids = set(Account.objects.filter(responsible=user).values_list("id", flat=True))
     from apps.references.models import Branch

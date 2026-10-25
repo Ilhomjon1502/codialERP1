@@ -23,6 +23,7 @@ class RoleCode(models.TextChoices):
 
 
 TOP_ROLES = {RoleCode.ADMIN, RoleCode.BOSH_MENEJER}
+VIEW_ALL_ROLES = TOP_ROLES | {RoleCode.ASOSCHI}  # hamma filial va hamma ma'lumotni KO'RADI (asoschi faqat ko'radi — tahrirlash huquqlari TOP_ROLES'da)
 MANAGER_ROLES = TOP_ROLES | {RoleCode.FILIAL_MENEJERI}
 TEACHER_ROLES = {RoleCode.USTOZ, RoleCode.YORDAMCHI, RoleCode.USTOZ_YORDAMCHI}
 
@@ -46,33 +47,33 @@ SECTION_KEYS = [k for k, _ in SECTIONS]
 _S = {"AD": "ADMIN", "BM": "BOSH_MENEJER", "FM": "FILIAL_MENEJERI", "A": "ADMINISTRATOR",
       "AH": "ADMINISTRATOR_HISOBCHI", "H": "HISOBCHI", "U": "USTOZ", "Y": "YORDAMCHI", "UY": "USTOZ_YORDAMCHI", "M": "MARKETOLOG", "AS": "ASOSCHI"}
 _MATRIX = {
-    "dashboard": {"AD": "v", "BM": "v", "FM": "v", "A": "v", "AH": "v", "H": "v", "U": "v", "Y": "v", "UY": "v", "M": "v"},
-    "leads": {"AD": "vaed", "BM": "vaed", "FM": "vaed", "A": "vaed", "AH": "vaed", "H": "v", "U": "v", "Y": "v", "UY": "v", "M": "vaed"},
-    "contracts": {"AD": "vaed", "BM": "vaed", "FM": "vaed", "A": "vaed", "AH": "vaed", "H": "v", "U": "v", "UY": "v", "M": "v"},
-    "payments": {"AD": "vaedp", "BM": "vaedp", "FM": "vp", "AH": "vaed", "H": "vaed"},
-    "debtors": {"AD": "v", "BM": "v", "FM": "v", "AH": "v", "H": "v"},
-    "attendance": {"AD": "vaedp", "BM": "vaedp", "FM": "vaedp", "A": "vaedp", "AH": "vaedp", "U": "vae", "UY": "vae", "Y": "v"},
-    "profit": {"AD": "v", "BM": "v"},
-    "expenses": {"AD": "vaed", "BM": "vaed", "FM": "v", "AH": "vaed", "H": "vaed"},
-    "export": {"AD": "v", "BM": "v", "FM": "v", "A": "v", "AH": "v", "H": "v"},
-    "groupAnalysis": {"AD": "v", "BM": "v", "FM": "v", "A": "v", "AH": "v", "H": "v", "U": "v", "M": "v"},
-    "groups": {"AD": "vaed", "BM": "vaed", "FM": "vaed", "A": "vae", "AH": "vae", "H": "v", "U": "v", "Y": "v", "UY": "v", "M": "v"},
-    "approvals": {"AD": "v", "BM": "v", "FM": "v", "A": "v", "AH": "v", "H": "v", "U": "v", "UY": "v"},
-    "salaries": {"AD": "vaed", "BM": "vaed", "FM": "vaed", "AH": "va", "H": "va", "A": "v", "U": "v", "Y": "v", "UY": "v"},
-    "transfers": {"AD": "vaed", "BM": "vaed", "FM": "v", "AH": "vaed", "H": "vaed"},
-    "creditors": {"AD": "vaed", "BM": "vaed"},
-    "exchange": {"AD": "vae", "BM": "vae"},
-    "accounts": {"AD": "vaed", "BM": "vaed", "FM": "v", "AH": "v", "H": "v"},
-    "evaluations": {"AD": "vaed", "BM": "vaed", "FM": "vaed", "A": "vae", "AH": "vae"},
-    "parentCalls": {"AD": "vaed", "BM": "vaed", "FM": "vae", "A": "vae", "AH": "vae", "H": "v", "U": "vae", "UY": "vae", "Y": "v"},
-    "settings": {"AD": "vaed", "BM": "vaed", "FM": "vae", "A": "v", "AH": "v", "H": "v"},
-    "ai": {"BM": "v"},
-    "audit": {"AD": "v", "BM": "v"},
-    "staffTasks": {"AD": "vaed", "BM": "vaed", "FM": "vaed", "A": "vae", "AH": "vae", "H": "vae", "U": "vae", "Y": "vae", "UY": "vae", "M": "vae"},
-    "calls": {"AD": "vaed", "BM": "vaed", "FM": "ve", "A": "ve", "AH": "ve", "M": "v"},
-    "sms": {"AD": "vaed", "BM": "vaed", "FM": "vaed", "A": "vae", "AH": "vae", "H": "v"},
-    "clientbot": {"AD": "vaed", "BM": "vaed", "FM": "ve", "A": "ve", "AH": "ve", "M": "v"},
-    "founderReport": {"AS": "v"},  # asoschi: tizimda hech narsa ko'rmaydi, faqat botdan qisqa kunlik hisobot oladi (2026-10-25)
+    "dashboard": {"AD": "v", "BM": "v", "FM": "v", "A": "v", "AH": "v", "H": "v", "U": "v", "Y": "v", "UY": "v", "M": "v", "AS": "v"},
+    "leads": {"AD": "vaed", "BM": "vaed", "FM": "vaed", "A": "vaed", "AH": "vaed", "H": "v", "U": "v", "Y": "v", "UY": "v", "M": "vaed", "AS": "v"},
+    "contracts": {"AD": "vaed", "BM": "vaed", "FM": "vaed", "A": "vaed", "AH": "vaed", "H": "v", "U": "v", "UY": "v", "M": "v", "AS": "v"},
+    "payments": {"AD": "vaedp", "BM": "vaedp", "FM": "vp", "AH": "vaed", "H": "vaed", "AS": "v"},
+    "debtors": {"AD": "v", "BM": "v", "FM": "v", "AH": "v", "H": "v", "AS": "v"},
+    "attendance": {"AD": "vaedp", "BM": "vaedp", "FM": "vaedp", "A": "vaedp", "AH": "vaedp", "U": "vae", "UY": "vae", "Y": "v", "AS": "v"},
+    "profit": {"AD": "v", "BM": "v", "AS": "v"},
+    "expenses": {"AD": "vaed", "BM": "vaed", "FM": "v", "AH": "vaed", "H": "vaed", "AS": "v"},
+    "export": {"AD": "v", "BM": "v", "FM": "v", "A": "v", "AH": "v", "H": "v", "AS": "v"},
+    "groupAnalysis": {"AD": "v", "BM": "v", "FM": "v", "A": "v", "AH": "v", "H": "v", "U": "v", "M": "v", "AS": "v"},
+    "groups": {"AD": "vaed", "BM": "vaed", "FM": "vaed", "A": "vae", "AH": "vae", "H": "v", "U": "v", "Y": "v", "UY": "v", "M": "v", "AS": "v"},
+    "approvals": {"AD": "v", "BM": "v", "FM": "v", "A": "v", "AH": "v", "H": "v", "U": "v", "UY": "v", "AS": "v"},
+    "salaries": {"AD": "vaed", "BM": "vaed", "FM": "vaed", "AH": "va", "H": "va", "A": "v", "U": "v", "Y": "v", "UY": "v", "AS": "v"},
+    "transfers": {"AD": "vaed", "BM": "vaed", "FM": "v", "AH": "vaed", "H": "vaed", "AS": "v"},
+    "creditors": {"AD": "vaed", "BM": "vaed", "AS": "v"},
+    "exchange": {"AD": "vae", "BM": "vae", "AS": "v"},
+    "accounts": {"AD": "vaed", "BM": "vaed", "FM": "v", "AH": "v", "H": "v", "AS": "v"},
+    "evaluations": {"AD": "vaed", "BM": "vaed", "FM": "vaed", "A": "vae", "AH": "vae", "AS": "v"},
+    "parentCalls": {"AD": "vaed", "BM": "vaed", "FM": "vae", "A": "vae", "AH": "vae", "H": "v", "U": "vae", "UY": "vae", "Y": "v", "AS": "v"},
+    "settings": {"AD": "vaed", "BM": "vaed", "FM": "vae", "A": "v", "AH": "v", "H": "v", "AS": "v"},
+    "ai": {"BM": "v", "AS": "v"},
+    "audit": {"AD": "v", "BM": "v", "AS": "v"},
+    "staffTasks": {"AD": "vaed", "BM": "vaed", "FM": "vaed", "A": "vae", "AH": "vae", "H": "vae", "U": "vae", "Y": "vae", "UY": "vae", "M": "vae", "AS": "v"},
+    "calls": {"AD": "vaed", "BM": "vaed", "FM": "ve", "A": "ve", "AH": "ve", "M": "v", "AS": "v"},
+    "sms": {"AD": "vaed", "BM": "vaed", "FM": "vaed", "A": "vae", "AH": "vae", "H": "v", "AS": "v"},
+    "clientbot": {"AD": "vaed", "BM": "vaed", "FM": "ve", "A": "ve", "AH": "ve", "M": "v", "AS": "v"},
+    "founderReport": {"AS": "v"},  # asoschi: tizimda hamma narsani ko'radi (faqat ko'rish), botga esa faqat kunlik hisobot keladi (2026-10-25)
 }
 DEFAULT_PERMISSIONS = {
     code: {sec: next((ops for short, ops in _MATRIX.get(sec, {}).items() if _S[short] == code), "") for sec in SECTION_KEYS}
