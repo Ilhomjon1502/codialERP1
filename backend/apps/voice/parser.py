@@ -80,7 +80,8 @@ Qoidalar:
 - Summalar butun so'mda: «300 ming» = 300000, «1,5 million» = 1500000, «yarim million» = 500000.
 - Nisbiy sanalar («bugun», «kecha», «dushanba kuni») — «Xabar yozilgan vaqt»ga nisbatan. Sana aytilmasa null (server xabar sanasini oladi).
 - cash_type: naqd → CASH, karta/plastik/click/payme → CARD, bank/perechisleniye/hisob raqam → BANK. Aytilmasa null.
-- Nomlarni (kategoriya, g'azna, kreditor, xodim, chegirma turi) iloji bo'lsa quyidagi ro'yxatlardagi yozilishida qaytaring.
+- Nomlarni (kategoriya, g'azna, kreditor, xodim, kurs, manba, guruh, chegirma turi) aynan shu narsa aytilgan bo'lsa ro'yxatdagi yozilishida qaytaring.
+  Ro'yxatda yo'q bo'lsa — AYTILGANICHA qaytaring, boshqa (o'xshash) nomga almashtirmang: server menejerdan so'raydi.
 - «O'chir», «o'chirib tashla», «noto'g'ri kiritibman, olib tashla» — delete; hech qachon manfiy summali yangi yozuv yaratmang.
 - «… ni … qil», «o'zgartir», «tuzat», «… emas … bo'lsin» mavjud yozuv haqida bo'lsa — edit; payment_edit o'rniga ham edit (entity "payment") ishlating.
 - Avvalgi xabarda yaratilgan yoki hozir aytilgan yozuvni tuzatish/o'chirish so'ralsa — delete/edit (find'da aytilgan belgilar bilan).
