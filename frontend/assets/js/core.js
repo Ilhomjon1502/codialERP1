@@ -13,6 +13,7 @@
     USTOZ_YORDAMCHI: 'Ustoz+Yordamchi',
     MARKETOLOG: 'Marketolog',
     BOSHQA: 'Boshqa',
+    ASOSCHI: 'Asoschi',
   };
   A.SECTIONS = [
     ['dashboard', 'Bosh sahifa'], ['leads', 'Lidlar'], ['contracts', 'Shartnomalar'], ['payments', "To'lovlar"],

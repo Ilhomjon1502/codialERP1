@@ -68,6 +68,8 @@ class UserSerializer(serializers.ModelSerializer):
         email = attrs.get("email", getattr(self.instance, "email", None))
         if role and role.code == RoleCode.BOSHQA:
             attrs["email"] = None
+        elif role and role.code == RoleCode.ASOSCHI:
+            pass  # asoschi tizimga kirmasligi mumkin: faqat botdan hisobot oladi — pochta ixtiyoriy
         elif not email:
             raise serializers.ValidationError({"email": "Majburiy maydon"})
         return attrs

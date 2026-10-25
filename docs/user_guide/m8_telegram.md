@@ -48,3 +48,11 @@ Kunlik hisobot — cron 19:00 (`daily_report`; ko'rib chiqish: `daily_report --p
 - Telefondagi va kompyuterdagi Telegram ilovasida ishlaydi. Brauzerdagi Telegram Web'da ochilmaydi, chunki xavfsizlik uchun sayt boshqa sayt ichiga joylashtirilishini taqiqlaydi.
 - Texnik: Telegram imzosi (`initData`, HMAC) bot tokeni bilan tekshiriladi va 24 soat amal qiladi (`apps/notifications/webapp.py`, `POST /api/v1/auth/telegram/`). Har bir kirish auditga «Telegram Mini App» deb yoziladi.
 
+## Asoschi: qisqa kunlik hisobot (2026-10-25)
+
+**Asoschi** roli bor xodim tizimda hech narsa ko'rmaydi (menyu bo'sh), faqat Telegram botdan har kuni 19:00 da **qisqa hisobot** oladi — boshqa hech qanday xabar bormaydi.
+Hisobotda: to'lovlar, faol shartnomalar (kurslar bo'yicha), lidlar (bugun yangi, ochiq, jami, bugun holati o'zgarganlar), qo'ng'iroqlar (bitta qator), xarajatlar, davomat, g'azna qoldiqlari. **Tizim auditi, lid va qo'ng'iroq tafsilotlari yo'q.** Bosh menejerning to'liq hisoboti o'zgarmagan.
+
+- Rolni faqat Admin tayinlaydi (Sozlamalar → Foydalanuvchilar). Pochta ixtiyoriy — asoschi tizimga kirmasa ham bo'ladi.
+- Botga ulash: xodimda Telegram bog'lash kodi bo'ladi (Admin serverdan oladi yoki xodim tizimga kirib «Telegram» oynasidan oladi) va `/start KOD` yoziladi.
+- Ko'rib chiqish: `python manage.py daily_report --print --short`.

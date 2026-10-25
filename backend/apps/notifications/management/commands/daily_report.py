@@ -72,9 +72,10 @@ def lead_moves(day):
     return moved
 
 
-def calls_section(day):
+def calls_section(day, brief=False):
     """Qabul telefonidagi qo'ng'iroqlar (2026-10-19): jami, javobsiz qolganlar (kimga qayta qo'ng'iroq qilish kerak),
-    qayta javob vaqti, yangi raqamlar va lid manbalari. Qurilma ulanmagan bo'lsa — bo'lim chiqmaydi."""
+    qayta javob vaqti, yangi raqamlar va lid manbalari. Qurilma ulanmagan bo'lsa — bo'lim chiqmaydi.
+    `brief` — faqat bitta jamlama qator (asoschi uchun)."""
     devices = list(CallDevice.objects.filter(status="Faol"))
     if not devices:
         return []
@@ -84,6 +85,8 @@ def calls_section(day):
     L = [f"\n📞 <b>Qo'ng'iroqlar: {num(s['total'])}</b> (kiruvchi {s['answered']} · chiquvchi {s['outgoing']} · javobsiz {s['missed']})"
          + (f" · suhbat {num(s['talk'] // 60)} daq, o'rtacha {s['avg_talk'] // 60}:{s['avg_talk'] % 60:02d}, eng uzuni {s['longest'] // 60}:{s['longest'] % 60:02d}"
             if s["talk"] else "")]
+    if brief:
+        return L
     for title, c in (("Eng uzun", s["longest_call"]), ("Eng qisqa", s["shortest_call"])):
         if c:
             who = c["name"] or (f"+998{c['phone']}" if c["phone"] else c["number"] or "yashirin raqam")
@@ -115,7 +118,15 @@ def calls_section(day):
     return L
 
 
-def build(day):
+def fit(text):
+    if len(text) > LIMIT:
+        text = text[: LIMIT - 40].rsplit("\n", 1)[0] + "\n<i>… hisobot qisqartirildi</i>"
+    return text
+
+
+def build(day, short=False):
+    """To'liq hisobot (Bosh menejer) yoki `short=True` — asoschi uchun qisqa: lidlarning holat/kurs bo'yicha taqsimoti,
+    qo'ng'iroq tafsilotlari va tizim auditi yo'q (2026-10-25)."""
     L = []
     L.append(f"📊 <b>Kunlik hisobot</b> · {day:%d.%m.%Y}, {WEEKDAYS[day.weekday()]}")
 
@@ -144,12 +155,13 @@ def build(day):
         names = dict(Lead.LeadStatus.choices)
         parts = " · ".join(f"{st}. {e(names.get(st, st))} — {n}" for st, n in sorted(moved.items()))
         L.append(f"  <i>Bugun holati o'zgardi: {sum(moved.values())} ta</i> ({parts})")
-    L.append("  <i>Holat bo'yicha:</i>")
-    L += [f"  {v}. {e(label)} — <b>{num(by_status[v])}</b>" for v, label in Lead.LeadStatus.choices if by_status.get(v)]
+    if not short:
+        L.append("  <i>Holat bo'yicha:</i>")
+        L += [f"  {v}. {e(label)} — <b>{num(by_status[v])}</b>" for v, label in Lead.LeadStatus.choices if by_status.get(v)]
     matrix = defaultdict(dict)
     for course, st, n in open_leads.values_list("course__name", "status").annotate(n=Count("id")).values_list("course__name", "status", "n"):
         matrix[course or "Kurssiz"][st] = n
-    if matrix:
+    if matrix and not short:
         L.append("  <i>Ochiq lidlar kurs bo'yicha</i> (holat: soni):")
         rows = sorted(matrix.items(), key=lambda kv: -sum(kv[1].values()))
         for course, sts in rows[:TOP]:
@@ -158,7 +170,7 @@ def build(day):
         if len(rows) > TOP:
             L.append(f"  <i>… yana {len(rows) - TOP} ta kurs</i>")
 
-    L += calls_section(day)
+    L += calls_section(day, brief=short)
 
     # Xarajatlar
     exps =Expense.objects.filter(date=day)
@@ -179,6 +191,9 @@ def build(day):
         bal = fin.balances([a.pk for a in accs])
         L.append("\n🏦 <b>G'azna qoldiqlari</b>")
         L += [f"  • {e(a.name)} — <b>{services.money(bal[a.pk]['balance'])}</b>" for a in accs]
+
+    if short:  # asoschi hisobotida tizim auditi yo'q
+        return fit("\n".join(L))
 
     # Tizim auditi
     logs = AuditLog.objects.filter(at__date=day)
@@ -205,10 +220,7 @@ def build(day):
         if logins:
             L.append(f"  Bugun tizimga kirgan xodimlar: {logins}")
 
-    text = "\n".join(L)
-    if len(text) > LIMIT:
-        text = text[: LIMIT - 40].rsplit("\n", 1)[0] + "\n<i>… hisobot qisqartirildi</i>"
-    return text
+    return fit("\n".join(L))
 
 
 class Command(BaseCommand):
@@ -216,12 +228,13 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("--print", action="store_true", help="Yubormasdan ekranga chiqarish")
+        parser.add_argument("--short", action="store_true", help="Asoschi uchun qisqa ko'rinish (--print bilan)")
 
     def handle(self, *args, **opts):
         day = timezone.localdate()
-        text = build(day)
         if opts["print"]:
-            self.stdout.write(text)
+            self.stdout.write(build(day, short=opts["short"]))
             return
-        services.daily_report(text, key=f"daily:{day}")
-        self.stdout.write("Kunlik hisobot navbatga qo'yildi (Bosh menejer va hisobotni tanlagan, audit huquqi bor xodimlarga)")
+        services.daily_report(build(day), key=f"daily:{day}")
+        services.notify("founder_report", build(day, short=True), key=f"founder:{day}")  # asoschiga — faqat shu, qisqa ko'rinishda
+        self.stdout.write("Kunlik hisobot navbatga qo'yildi (Bosh menejer va hisobotni tanlagan xodimlarga; asoschiga qisqa ko'rinishda)")

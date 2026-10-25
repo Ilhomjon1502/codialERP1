@@ -43,6 +43,7 @@ EVENT_PERM = {
     "sms_problem": ("sms", "v"),
     "survey": ("clientbot", "v"),
     "referral": ("clientbot", "v"),
+    "founder_report": ("founderReport", "v"),
 }
 # Xodim hali tanlamagan bo'lsa — kimga standart holda boradi
 DEFAULT_ROLES = {
@@ -63,6 +64,7 @@ DEFAULT_ROLES = {
     "sms_problem": {R.BOSH_MENEJER},  # buyurtmachi qarori 2026-10-23: SMS bormasa Bosh menejerga
     "survey": {R.BOSH_MENEJER},  # tamomlash so'rovnomasi javobi (B4)
     "referral": {R.BOSH_MENEJER},  # tavsiya bonusi (B5)
+    "founder_report": {R.ASOSCHI},  # asoschiga faqat shu xabar boradi (2026-10-25)
 }
 
 

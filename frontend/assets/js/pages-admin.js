@@ -172,7 +172,7 @@
       { name: 'branches', label: 'Filial', type: 'chips', show: (x) => x.role && !['ADMIN', 'BOSH_MENEJER'].includes(x.role), options: () => A.optList('branches', 'name', (b) => A.branchIds().includes(b.id)), default: () => [B()] },
       { name: 'phone', label: 'Telefon', show: (x) => x.role, validate: (t) => (!/^\d{9}$/.test(t) ? "9 sondan iborat bo'lsin" : '') },
       { name: 'teams', label: "Bo'lim", type: 'chips', show: (x) => x.role, options: ['Qabul', 'Marketing', 'Moliya', 'HR', "Ta'lim", 'Boshqa', "Qurilish va ta'mirlash", 'IT', "Ta'minot"], default: [] },
-      { name: 'email', label: 'Pochta (login)', type: 'email', show: (x) => x.role && x.role !== 'BOSHQA', required: (x) => x.role && x.role !== 'BOSHQA' },
+      { name: 'email', label: 'Pochta (login)', type: 'email', show: (x) => x.role && x.role !== 'BOSHQA', required: (x) => x.role && x.role !== 'BOSHQA' && x.role !== 'ASOSCHI', help: (x) => (x.role === 'ASOSCHI' ? "Asoschi tizimga kirmasa ham bo'ladi — pochta ixtiyoriy; hisobotni Telegram botdan oladi" : '') },
       { name: 'status', label: 'Holat', type: 'seg', options: ['Faol', 'Ishdan ketgan'], default: 'Faol', show: (x) => x.role },
       { name: 'inv', type: 'note', tone: 'info', show: (x) => x.email && !x.id, text: "Saqlangach xodim pochtasiga parol o'rnatish havolasi yuboriladi. Xodim parolini o'zi qo'yadi." },
     ],

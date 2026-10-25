@@ -945,7 +945,7 @@
       title: s ? `Oylik: ${A.userName(s.user)} · ${A.MONTHS[s.month - 1]} ${s.year}` : 'Oylik belgilash',
       values: s ? { ...s, month: String(s.month), fixed: num(s.fixed), bonus: num(s.bonus), kpi: num(s.kpi), fine: num(s.fine) } : { year: y0, month: String(m0), fixed: 0, bonus: 0, kpi: 0, fine: 0 },
       fields: [
-        { name: 'user', label: 'Xodim', type: 'select', required: true, readonly: () => !!s, options: () => A.S.users.filter((u) => u.role !== 'ADMIN' && u.role !== 'BOSHQA' && (u.status === 'Faol' || (s && u.id === s.user)) && (u.branches || []).includes(B)).map((u) => [u.id, `${u.full_name} · ${A.ROLES[u.role]}`]) },
+        { name: 'user', label: 'Xodim', type: 'select', required: true, readonly: () => !!s, options: () => A.S.users.filter((u) => u.role !== 'ADMIN' && u.role !== 'BOSHQA' && u.role !== 'ASOSCHI' && (u.status === 'Faol' || (s && u.id === s.user)) && (u.branches || []).includes(B)).map((u) => [u.id, `${u.full_name} · ${A.ROLES[u.role]}`]) },
         { name: 'year', label: 'Yil', type: 'number', required: true, half: true, show: (x) => x.user, readonly: () => !!s },
         { name: 'month', label: 'Oy', type: 'select', required: true, half: true, show: (x) => x.user, readonly: () => !!s, options: A.MONTHS.map((m, i) => [String(i + 1), m]) },
         { name: 'fixed', label: 'Belgilangan oylik', type: 'money', half: true, show: (x) => x.month },
@@ -1100,7 +1100,7 @@
       title: 'Oylik berish',
       values: { year: y0, month: String(m0), date: A.today(), type: "O'zgarmas", cash_type: 'CASH' },
       fields: [
-        { name: 'user', label: 'Xodim', type: 'select', required: true, options: () => A.S.users.filter((u) => u.role !== 'ADMIN' && u.role !== 'BOSHQA' && u.status === 'Faol' && (u.branches || []).includes(B)).map((u) => [u.id, u.full_name]) },
+        { name: 'user', label: 'Xodim', type: 'select', required: true, options: () => A.S.users.filter((u) => u.role !== 'ADMIN' && u.role !== 'BOSHQA' && u.role !== 'ASOSCHI' && u.status === 'Faol' && (u.branches || []).includes(B)).map((u) => [u.id, u.full_name]) },
         { name: 'year', label: 'Yil', type: 'number', half: true, show: (x) => x.user },
         { name: 'month', label: 'Oy', type: 'select', half: true, show: (x) => x.user, options: A.MONTHS.map((m, i) => [String(i + 1), m]) },
         { name: 'bal', type: 'note', tone: 'info', show: (x) => x.user && x.month, text: (x) => { const s = find(x); return s ? `Jami: ${A.num(s.total)} · berilgan: ${A.num(s.given)} · <b>qoldiq: ${A.money(s.final)}</b>` : 'Bu oy uchun oylik belgilanmagan'; } },

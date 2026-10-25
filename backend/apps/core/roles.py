@@ -18,6 +18,7 @@ class RoleCode(models.TextChoices):
     YORDAMCHI = "YORDAMCHI", "Yordamchi ustoz"
     USTOZ_YORDAMCHI = "USTOZ_YORDAMCHI", "Ustoz+Yordamchi"
     MARKETOLOG = "MARKETOLOG", "Marketolog"
+    ASOSCHI = "ASOSCHI", "Asoschi"
     BOSHQA = "BOSHQA", "Boshqa"
 
 
@@ -38,11 +39,12 @@ SECTIONS = [
     ("parentCalls", "Ota-onalar bilan aloqa"), ("settings", "Sozlamalar"),
     ("ai", "AI yordamchi"), ("audit", "Audit tarixi"), ("staffTasks", "Topshiriqlar"),
     ("calls", "Qo'ng'iroqlar"), ("sms", "SMS"), ("clientbot", "Telegram bot (mijozlar)"),
+    ("founderReport", "Kunlik hisobot (asoschi)"),
 ]
 SECTION_KEYS = [k for k, _ in SECTIONS]
 
 _S = {"AD": "ADMIN", "BM": "BOSH_MENEJER", "FM": "FILIAL_MENEJERI", "A": "ADMINISTRATOR",
-      "AH": "ADMINISTRATOR_HISOBCHI", "H": "HISOBCHI", "U": "USTOZ", "Y": "YORDAMCHI", "UY": "USTOZ_YORDAMCHI", "M": "MARKETOLOG"}
+      "AH": "ADMINISTRATOR_HISOBCHI", "H": "HISOBCHI", "U": "USTOZ", "Y": "YORDAMCHI", "UY": "USTOZ_YORDAMCHI", "M": "MARKETOLOG", "AS": "ASOSCHI"}
 _MATRIX = {
     "dashboard": {"AD": "v", "BM": "v", "FM": "v", "A": "v", "AH": "v", "H": "v", "U": "v", "Y": "v", "UY": "v", "M": "v"},
     "leads": {"AD": "vaed", "BM": "vaed", "FM": "vaed", "A": "vaed", "AH": "vaed", "H": "v", "U": "v", "Y": "v", "UY": "v", "M": "vaed"},
@@ -70,6 +72,7 @@ _MATRIX = {
     "calls": {"AD": "vaed", "BM": "vaed", "FM": "ve", "A": "ve", "AH": "ve", "M": "v"},
     "sms": {"AD": "vaed", "BM": "vaed", "FM": "vaed", "A": "vae", "AH": "vae", "H": "v"},
     "clientbot": {"AD": "vaed", "BM": "vaed", "FM": "ve", "A": "ve", "AH": "ve", "M": "v"},
+    "founderReport": {"AS": "v"},  # asoschi: tizimda hech narsa ko'rmaydi, faqat botdan qisqa kunlik hisobot oladi (2026-10-25)
 }
 DEFAULT_PERMISSIONS = {
     code: {sec: next((ops for short, ops in _MATRIX.get(sec, {}).items() if _S[short] == code), "") for sec in SECTION_KEYS}
@@ -80,7 +83,7 @@ DEFAULT_PERMISSIONS = {
 _ALL = list(RoleCode.values)
 DEFAULT_ROLE_POWER = {
     RoleCode.ADMIN: _ALL,
-    RoleCode.BOSH_MENEJER: [r for r in _ALL if r != RoleCode.ADMIN],
+    RoleCode.BOSH_MENEJER: [r for r in _ALL if r not in (RoleCode.ADMIN, RoleCode.ASOSCHI)],  # asoschini faqat Admin tayinlaydi
     RoleCode.FILIAL_MENEJERI: [
         RoleCode.ADMINISTRATOR, RoleCode.ADMINISTRATOR_HISOBCHI, RoleCode.HISOBCHI, RoleCode.USTOZ,
         RoleCode.YORDAMCHI, RoleCode.USTOZ_YORDAMCHI, RoleCode.MARKETOLOG, RoleCode.BOSHQA,
