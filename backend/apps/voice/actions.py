@@ -16,12 +16,14 @@ from apps.accounts.models import User
 from apps.core.models import Status
 from apps.core.permissions import role_code
 from apps.core.roles import RoleCode
+from apps.education.models import Contract
 from apps.finance import services as fin
-from apps.finance.models import CashType, Confirm, Creditor, Payment, Transfer
+from apps.finance.models import Account, CashType, Confirm, Creditor, Payment, Transfer
 from apps.payroll import services as payroll
 from apps.payroll.models import SalaryAssignment, SalaryPayout
 from apps.references.models import Branch, DiscountType, ExpenseCategory
 from apps.tasks import services as tasks
+from apps.tasks.models import StaffTask
 
 from . import match
 
@@ -325,6 +327,7 @@ def r_payment_edit(ctx, item):
     p = next((x for x in found if str(x.pk) == str(chosen)), None) or (found[0] if len(found) == 1 else None)
     if p is None:
         raise Need("payment", "Qaysi to'lov?", [(str(x.pk), pay_label(x)) for x in found])
+    item.setdefault("picked", {})["payment"] = str(p.pk)  # tasdiqlanganda aynan shu to'lov
     s = raw.get("set") or {}
     d_upd, lines = {}, [f"To'lov №{p.number}: {escape(pay_label(p))}"]
     new_amount = money(s.get("amount"))
@@ -473,9 +476,147 @@ def x_task(ctx, data):
     return f"✅ Topshiriq berildi: {escape(t.assignee.full_name)} — {escape(t.title)}"
 
 
+def r_task_update(ctx, item):
+    """Ochiq topshiriqni yopish (bajarildi), bekor qilish yoki muddatini/mavzusini o'zgartirish."""
+    raw = item["raw"]
+    qs = tasks.scope(StaffTask.objects.filter(status=StaffTask.Status.OPEN), ctx.user).select_related("assignee").order_by("due_at")
+    rows = [t for t in qs if (not raw.get("assignee") or match.find(raw["assignee"], [(t, t.assignee.full_name)])[0])
+            and (not raw.get("title") or match.norm(raw["title"])[:5] in match.norm(t.title) or match.find(raw["title"], [(t, t.title)])[0])]
+    chosen = (item.get("picked") or {}).get("task")
+    t = next((x for x in qs if str(x.pk) == str(chosen)), None) or (rows[0] if len(rows) == 1 else None)
+    if t is None:
+        if not rows and not list(qs):
+            raise Bad("Ochiq topshiriq yo'q")
+        raise Need("task", "Qaysi topshiriq?", [(str(x.pk), f"{x.assignee.full_name}: {x.title}"[:58]) for x in (rows or list(qs))[:match.MAX_OPTIONS]])
+    item.setdefault("picked", {})["task"] = str(t.pk)
+    action = raw.get("action") if raw.get("action") in ("done", "cancel", "edit") else "done"
+    lines = [f"Topshiriq: <b>{escape(t.assignee.full_name)}</b> — {escape(t.title)}", f"Muddat: {timezone.localtime(t.due_at):%d.%m.%Y %H:%M}"]
+    data = {"task": t.pk, "action": action, "comment": str(raw.get("comment") or "")}
+    if action == "edit":
+        upd = {}
+        if raw.get("due"):
+            try:
+                due = datetime.datetime.fromisoformat(str(raw["due"])[:16])
+            except ValueError:
+                raise Bad("Yangi muddat tushunilmadi") from None
+            upd["due_at"] = timezone.make_aware(due) if timezone.is_naive(due) else due
+            lines.append(f"Yangi muddat: <b>{timezone.localtime(upd['due_at']):%d.%m.%Y %H:%M}</b>")
+        if raw.get("new_title"):
+            upd["title"] = str(raw["new_title"])[:200]
+            lines.append(f"Yangi mavzu: <b>{escape(upd['title'])}</b>")
+        if not upd:
+            raise Bad("Topshiriqda nimani o'zgartirish aytilmadi")
+        data["set"] = upd
+    title = {"done": "✅ Topshiriq bajarildi", "cancel": "🚫 Topshiriqni bekor qilish", "edit": "✏️ Topshiriqni o'zgartirish"}[action]
+    if data["comment"]:
+        lines.append(f"Izoh: {escape(data['comment'])}")
+    return Resolved(title, lines, data)
+
+
+def x_task_update(ctx, data):
+    t = StaffTask.objects.select_related("assignee", "created_by").get(pk=data["task"])
+    if data["action"] == "done":
+        tasks.complete(ctx.user, t, data["comment"])
+        return f"✅ Bajarildi deb belgilandi: {escape(t.title)}"
+    if data["action"] == "cancel":
+        tasks.cancel(ctx.user, t, data["comment"])
+        return f"✅ Bekor qilindi: {escape(t.title)}"
+    tasks.update(ctx.user, t, data["set"])
+    return f"✅ Topshiriq o'zgartirildi: {escape(t.title)}"
+
+
+# ------------------------------------------------------------------ yangi to'lov, o'tkazma, ayirboshlash
+
+def r_payment(ctx, item):
+    raw = item["raw"]
+    if not raw.get("student"):
+        raise Bad("Qaysi o'quvchi to'lovi — ism aytilmadi")
+    today = timezone.localdate()
+    contracts = Contract.objects.filter(Q(end_date__isnull=True) | Q(end_date__gte=today - datetime.timedelta(days=60))).select_related("student", "course", "branch")
+    cands = [(c, f"{c.student} — {c.course.name} №{c.number}") for c in contracts]
+    c = pick(item, "contract", "Shartnoma", raw["student"], cands)
+    amount, discount = money(raw.get("amount")) or Decimal(0), money(raw.get("discount")) or Decimal(0)
+    if not amount and not discount:
+        raise Bad("To'lov summasi aytilmadi")
+    d = parse_date(raw.get("date"), ctx.day)
+    data = {"contract": c, "amount": abs(amount), "date": d, "comment": str(raw.get("comment") or "")}
+    lines = [f"Shartnoma: <b>{escape(str(c.student))}</b> — {escape(c.course.name)} №{c.number}"]
+    if amount:
+        ct = cash_type(raw.get("cash_type"))
+        data["cash_type"] = ct
+        if ct == CashType.CASH:
+            data["cashbox"] = account_of(ctx, item, ct, c.branch)
+        box = data.get("cashbox") or c.branch.noncash_cashbox
+        lines.append(f"Summa: <b>{fmt(amount)}</b> so'm ({CASH_LABEL[ct]}{', tasdiq kutadi' if ct != CashType.CASH else ''})")
+        if box:
+            lines.append(f"G'azna: {escape(box.name)}")
+    if discount:
+        types = [(t, t.name) for t in DiscountType.objects.filter(is_system=False).order_by("name")]
+        dt = pick(item, "discount_type", "Chegirma turi", raw.get("discount_type"), types)
+        data.update(discount=abs(discount), discount_type=dt)
+        lines.append(f"Chegirma: <b>{fmt(discount)}</b> ({escape(dt.name)}, tasdiq kutadi)")
+    lines.append(day_line(d, ctx))
+    if data["comment"]:
+        lines.append(f"Izoh: {escape(data['comment'])}")
+    return Resolved("💵 Yangi to'lov", lines, data)
+
+
+def x_payment(ctx, data):
+    p = fin.save_payment(ctx.user, data)
+    return f"✅ To'lov qabul qilindi: chek №{p.number}, {fmt(p.amount)} so'm"
+
+
+def r_transfer(ctx, item):
+    raw = item["raw"]
+    mine = [(a, a.name) for a in fin.my_accounts(ctx.user).order_by("name")]
+    sender = pick(item, "from_account", "Qaysi g'aznadan", raw.get("from_account"), mine)
+    receiver = pick(item, "to_account", "Qaysi g'aznaga", raw.get("to_account"), [(a, a.name) for a in Account.objects.filter(status=Status.ACTIVE).exclude(pk=sender.pk).order_by("name")])
+    amount = money(raw.get("amount"))
+    if amount is None:
+        raise Bad("Summa aytilmadi")
+    d = parse_date(raw.get("date"), ctx.day)
+    lines = [f"{escape(sender.name)} → <b>{escape(receiver.name)}</b>", f"Summa: <b>{fmt(abs(amount))}</b> so'm (naqd)", day_line(d, ctx),
+             "Qabul qiluvchi g'azna mas'uli tasdiqlaydi"]
+    if raw.get("comment"):
+        lines.append(f"Izoh: {escape(str(raw['comment']))}")
+    return Resolved("🔁 Ichki o'tkazma", lines, {"sender_account": sender, "receiver_account": receiver, "amount": abs(amount), "date": d,
+                                                "comment": str(raw.get("comment") or "")})
+
+
+def x_transfer(ctx, data):
+    t = fin.save_transfer(ctx.user, data)
+    return f"✅ O'tkazma yaratildi: {escape(t.sender_account.name)} → {escape(t.receiver_account.name)}, {fmt(t.amount)} so'm"
+
+
+def r_exchange(ctx, item):
+    raw = item["raw"]
+    acc = pick(item, "account", "G'azna", raw.get("account"), [(a, a.name) for a in fin.my_accounts(ctx.user).order_by("name")])
+    src, dst = MONEY.get(str(raw.get("from_type") or "").upper()), MONEY.get(str(raw.get("to_type") or "").upper())
+    if not src or not dst or src == dst:
+        raise Bad("Qaysi pul turidan qaysisiga almashtirish aytilmadi (naqd, karta, bank)")
+    amount = money(raw.get("amount"))
+    if amount is None:
+        raise Bad("Summa aytilmadi")
+    got = money(raw.get("amount_to")) or amount
+    lines = [f"G'azna: {escape(acc.name)}", f"Berildi: <b>{fmt(amount)}</b> {CASH_LABEL[src]}", f"Olindi: <b>{fmt(got)}</b> {CASH_LABEL[dst]}"]
+    if got < amount:
+        lines.append(f"Yo'qotish: {fmt(amount - got)}")
+    return Resolved("💱 Pul ayirboshlash", lines, {"account": acc, "from_type": src, "amount": abs(amount), "to_type": dst, "amount_to": abs(got),
+                                                  "comment": str(raw.get("comment") or "")})
+
+
+def x_exchange(ctx, data):
+    x = fin.save_exchange(ctx.user, data)
+    return f"✅ Ayirboshlandi: {fmt(x.amount)} {CASH_LABEL[x.from_type]} → {fmt(x.amount_to)} {CASH_LABEL[x.to_type]}"
+
+
 # ------------------------------------------------------------------ ro'yxat
 
 HANDLERS = {
+    "payment": (r_payment, x_payment),
+    "transfer": (r_transfer, x_transfer),
+    "exchange": (r_exchange, x_exchange),
+    "task_update": (r_task_update, x_task_update),
     "expense": (r_expense, x_expense),
     "creditor": (r_creditor, x_creditor),
     "confirm_transfer": (r_confirm_transfer, x_confirm_transfer),
@@ -520,3 +661,8 @@ def execute(ctx, item):
         return HANDLERS[item["type"]][1](ctx, r.data)
     except (ValidationError, PermissionDenied, APIException) as e:
         return f"⚠️ {escape(error_text(e))}"
+
+
+from . import records  # noqa: E402 — records shu moduldagi yordamchilardan foydalanadi
+
+HANDLERS.update({"delete": (records.r_delete, records.x_delete), "edit": (records.r_edit, records.x_edit)})

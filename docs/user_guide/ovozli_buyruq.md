@@ -21,6 +21,16 @@ Bitta xabarda bir nechta narsa aytsangiz bo'ladi, masalan: «Internetga 300 ming
 | Oylik berish | «Akbarxo'jaga sentyabr oyligidan 1 million berdim, naqd» |
 | Oylik belgilash: bonus, jarima, oylik | «Akbarxo'jaga 100 ming bonus» (qo'shiladi) · «Bonusi 300 ming bo'lsin» (aniq qiymat) · «50 ming jarima yoz» |
 | Topshiriq | «Akbarxo'jaga ertaga soat 12 gacha xonani tozalashni topshir» |
+| Topshiriqni yopish, bekor qilish, muddatini o'zgartirish | «Akbarxo'janing xona tozalash topshirig'i bajarildi» · «… muddatini juma kuniga surib qo'y» |
+| Yangi to'lov | «Ali Valiyev 400 ming naqd to'ladi» · «… 50 ming rag'batlantiruvchi chegirma bilan» |
+| Ichki o'tkazma | «Emiratdan Bosh g'aznaga 2 million o'tkaz» |
+| Pul ayirboshlash | «Bosh g'aznada kartadagi 1 millionni naqdga yechdim, 990 ming chiqdi» |
+| **O'chirish** (xarajat, to'lov, kreditor amali, oylik berish, o'tkazma, ayirboshlash) | «Xo'jalik xarajatlariga yozilgan 192 000 karta xarajatini o'chir» · «Oxirgi kiritgan xarajatimni o'chir» |
+| **O'zgartirish** (xarajat, to'lov, kreditor amali, oylik berish, o'tkazma) | «Internet 300 ming emas 350 ming» · «Kecha MNSH olgan 2 millionni 2,5 million qil» · «Konstanta xarajatini kantselyariyaga o'tkaz» |
+
+Mavjud yozuvni bot sana, summa, kategoriya, nom, g'azna, kreditor, xodim yoki o'quvchi bo'yicha qidiradi (oxirgi 90 kun, sana aytilsa — shu kun). Bir nechta yozuv mos kelsa, kartada tanlash tugmalari chiqadi. Kreditor amali saytdagidek o'zgartiriladi: eskisi o'chiriladi va yangisi kiritiladi. O'chirilgan yozuv bazada arxivda qoladi, g'azna qoldig'i esa qaytadi.
+
+Hali qila olmaydiganlari: lid, talaba, shartnoma, guruh, davomat va sozlamalarni o'zgartirish. Bular uchun saytdan foydalaning. Bunday buyruq bersangiz, bot qila oladigan ishlar ro'yxatini ko'rsatadi.
 
 ## Tasdiq kartasi
 

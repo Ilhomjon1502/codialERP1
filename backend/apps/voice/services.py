@@ -40,6 +40,13 @@ DAILY_LIMIT = 150
 MAX_SECONDS = 600
 MAX_ROWS = 20
 TEXT_LIMIT = 3900
+HELP = ("Tushunmadim. Men qila oladiganlar:\n"
+        "• istalgan savol (pul, g'azna, qarzdorlar, lidlar, davomat, oyliklar…)\n"
+        "• xarajat, to'lov, kreditor amali, oylik berish, ichki o'tkazma, pul ayirboshlash — yangi kiritish, o'zgartirish, o'chirish\n"
+        "• o'tkazma, naqdsiz to'lov va chegirmani tasdiqlash\n"
+        "• oylikka bonus, jarima, belgilangan oylik\n"
+        "• xodimga topshiriq berish, uni yopish, bekor qilish, muddatini o'zgartirish\n"
+        "Qaytadan, aniqroq ayting.")
 
 
 # ------------------------------------------------------------------ Telegram
@@ -147,7 +154,7 @@ def process(user, chat, msg):
     else:
         head = f"🎙 «{escape(cmd.transcript)}»" if cmd.is_voice and cmd.transcript else ""
         if not questions:
-            edit(chat, placeholder, "\n\n".join(x for x in (head, escape(out["reply"] or "Tushunmadim. Qaytadan, aniqroq ayting.")) if x))
+            edit(chat, placeholder, "\n\n".join(x for x in (head, escape(out["reply"]) if out["reply"] else HELP) if x))
         else:
             edit(chat, placeholder, head or "⏳")
     for q in questions:
@@ -191,6 +198,8 @@ def render(cmd, footer=""):
     if ready and not need_shown:
         bottom.append({"text": f"✅ Tasdiqlash ({ready})" if len(cmd.items) > 1 else "✅ Tasdiqlash", "callback_data": f"vc:ok:{cmd.pk}"})
     bottom += [{"text": "✏️ Tuzatish", "callback_data": f"vc:ed:{cmd.pk}"}, {"text": "❌ Bekor", "callback_data": f"vc:no:{cmd.pk}"}]
+    if not ready and not need_shown and all(i["type"] not in actions.HANDLERS for i in cmd.items):
+        parts.append(HELP)
     parts.append("Tanlang:" if need_shown else ("Tasdiqlaysizmi?" if ready else "Bajariladigan amal yo'q — tuzating yoki bekor qiling."))
     return "\n\n".join(parts), {"inline_keyboard": [*rows, bottom]}
 

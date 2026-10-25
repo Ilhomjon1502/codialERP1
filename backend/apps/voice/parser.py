@@ -2,7 +2,9 @@
 Gemini'ga ovoz va ma'lumotnomalar nomlari boradi (buyurtmachi qarori 2026-10-25: ovozda talaba ismi aytilishi mumkin).
 Nomlarni bazadagi yozuvga server moslaydi (`actions`), Gemini faqat aytilgan so'zni qaytaradi."""
 
+import datetime
 import json
+import re
 import time
 
 from django.utils import timezone
@@ -43,13 +45,30 @@ Band turlari (har biri {"type": ...}; aytilmagan maydonni yozmang yoki null qili
 - {"type":"salary_adjust","employee":"...","period":"YYYY-MM","bonus":null,"fine":null,"fixed":null,"kpi":null,"mode":"add|set","comment":"..."}
   Oylik belgilashga bonus, jarima, belgilangan oylik yoki qo'lda KPI. mode: "add" — qo'shish («yana 100 ming bonus», «50 ming jarima yoz»), "set" — aniq qiymat («bonusi 300 ming bo'lsin»).
 - {"type":"task","assignee":"xodim","title":"qisqa mavzu","description":"batafsil","due":"YYYY-MM-DDTHH:MM"} — xodimga topshiriq. Muddat aytilmasa due=null.
-- {"type":"unknown","text":"..."} — tushunilmagan qism.
+- {"type":"task_update","assignee":"...","title":"topshiriq mavzusidan so'zlar","action":"done|cancel|edit","due":"YYYY-MM-DDTHH:MM","new_title":null,"comment":"..."}
+  Mavjud ochiq topshiriqni bajarildi deb yopish, bekor qilish yoki muddatini/mavzusini o'zgartirish.
+- {"type":"payment","student":"o'quvchi ismi familiyasi","amount":0,"cash_type":"CASH|CARD|BANK","account":"...","discount":null,"discount_type":null,"date":"YYYY-MM-DD","comment":"..."}
+  YANGI to'lov qabul qilish (o'quvchi pul to'ladi).
+- {"type":"transfer","from_account":"...","to_account":"...","amount":0,"date":"YYYY-MM-DD","comment":"..."} — YANGI ichki o'tkazma (bir g'aznadan boshqasiga naqd pul).
+- {"type":"exchange","account":"...","from_type":"CASH|CARD|BANK","amount":0,"to_type":"CASH|CARD|BANK","amount_to":null,"comment":"..."}
+  Pul ayirboshlash (masalan kartadagi pulni naqdga yechish); amount_to — olingan summa (komissiya bo'lsa kam), aytilmasa null.
+- {"type":"delete","entity":"expense|creditor|payment|salary_payout|transfer|exchange","find":{...}} — MAVJUD yozuvni o'chirish.
+- {"type":"edit","entity":"expense|creditor|payment|salary_payout|transfer","find":{...},"set":{...}} — MAVJUD yozuvni o'zgartirish.
+  find — yozuvni topish uchun aytilgan belgilar (faqat aytilganlari): {"date","amount","cash_type","category","name","account","creditor","employee",
+  "student","from_account","to_account","latest":true — «oxirgi kiritilgan» deyilsa}. amount — yozuvning HOZIRGI summasi.
+  set — yangi qiymatlar (faqat o'zgaradiganlari): xarajat {"category","name","quantity","price","cash_type","account","date","period","comment"},
+  kreditor {"amount","direction","cash_type","account","date","comment"}, to'lov {"amount","date","cash_type","discount","discount_type","comment"},
+  oylik berish {"amount","kind","period","cash_type","account","date","comment"}, o'tkazma {"amount","to_account","date","comment"}.
+- {"type":"unknown","text":"..."} — tushunilmagan yoki tizimda bunday amal yo'q.
 
 Qoidalar:
 - Summalar butun so'mda: «300 ming» = 300000, «1,5 million» = 1500000, «yarim million» = 500000.
 - Nisbiy sanalar («bugun», «kecha», «dushanba kuni») — «Xabar yozilgan vaqt»ga nisbatan. Sana aytilmasa null (server xabar sanasini oladi).
 - cash_type: naqd → CASH, karta/plastik/click/payme → CARD, bank/perechisleniye/hisob raqam → BANK. Aytilmasa null.
 - Nomlarni (kategoriya, g'azna, kreditor, xodim, chegirma turi) iloji bo'lsa quyidagi ro'yxatlardagi yozilishida qaytaring.
+- «O'chir», «o'chirib tashla», «noto'g'ri kiritibman, olib tashla» — delete; hech qachon manfiy summali yangi yozuv yaratmang.
+- «… ni … qil», «o'zgartir», «tuzat», «… emas … bo'lsin» mavjud yozuv haqida bo'lsa — edit; payment_edit o'rniga ham edit (entity "payment") ishlating.
+- Avvalgi xabarda yaratilgan yoki hozir aytilgan yozuvni tuzatish/o'chirish so'ralsa — delete/edit (find'da aytilgan belgilar bilan).
 - Bitta xabarda bir nechta band bo'lishi mumkin — hammasini alohida yozing."""
 
 
@@ -81,6 +100,16 @@ def system_prompt(user, said_at):
     )
 
 
+def _recent(user):
+    """So'nggi 2 soatda bajarilgan buyruqlar — «hozir kiritganimni o'chir» kabi gaplar uchun kontekst."""
+    from .models import VoiceCommand
+
+    since = timezone.now() - datetime.timedelta(hours=2)
+    rows = VoiceCommand.objects.filter(user=user, status=VoiceCommand.Status.DONE, created_at__gte=since).order_by("-created_at")[:3]
+    lines = [f"- «{c.transcript[:200]}» → " + "; ".join(re.sub(r"<[^>]+>", "", i.get("result") or "")[:150] for i in c.items) for c in reversed(rows)]
+    return ("So'nggi bajarilgan buyruqlar (kontekst uchun):\n" + "\n".join(lines) + "\n\n") if lines else ""
+
+
 def parse(user, *, text="", audio=None, said_at=None, previous=None):
     """audio=(bytes, mime). previous — tuzatilayotgan buyruq (VoiceCommand). Qaytaradi: (dict, model, ms)."""
     if previous is not None:
@@ -89,7 +118,7 @@ def parse(user, *, text="", audio=None, said_at=None, previous=None):
                   "Menejer tuzatish yubordi (quyida). Tuzatishni qo'llab, BARCHA bandlarni (o'zgarmaganlarini ham) to'liq qaytaring. "
                   "transcript — faqat tuzatish matni.\n\nTuzatish: ")
     else:
-        prompt = "Xabar: "
+        prompt = _recent(user) + "Xabar: "
     prompt += text if text else "(ovozli xabar ilova qilingan)"
     t0 = time.monotonic()
     out = providers.complete_json(system_prompt(user, said_at), prompt, audio=audio, timeout=TIMEOUT_S)  # asosiy (tez) model, kuchli emas

@@ -13,7 +13,7 @@ from apps.core.models import AuditLog
 from apps.crm.models import Student
 from apps.education.models import Contract, Group
 from apps.finance import services as fin
-from apps.finance.models import Account, Confirm, Creditor, CreditorTransaction, Expense
+from apps.finance.models import Account, Confirm, Creditor, CreditorTransaction, Exchange, Expense, Payment, Transfer
 from apps.notifications import services as bot
 from apps.notifications.models import TelegramLink
 from apps.payroll.models import SalaryAssignment, SalaryPayout
@@ -345,3 +345,128 @@ def test_gemini_audio_payload(settings, monkeypatch):
     settings.AI_PROVIDER = "openai"
     with pytest.raises(providers.ProviderError):
         providers.complete_json("s", "u", audio=(b"abc", "audio/ogg"))
+
+
+# ------------------------------------------------------------------ o'chirish, o'zgartirish, yangi amallar (2026-10-25)
+
+def _expense(env, name="Konstanta", price=192000, ct="CARD", cat=None):
+    return fin.save_expense(env["boss"], {"branch": env["branch"], "date": TODAY, "category": cat or env["cat"], "name": name,
+                                          "quantity": 1, "price": Decimal(price), "cash_type": ct, "account": env["card"] if ct == "CARD" else env["cash"]})
+
+
+def test_delete_expense_by_description(env, tg, llm):
+    e = _expense(env)
+    _expense(env, name="Router", price=192000, ct="CASH")
+    llm.reply = {"transcript": "x", "items": [{"type": "delete", "entity": "expense",
+                                               "find": {"category": "Internet", "name": "konstanta", "amount": 192000, "cash_type": "CARD"}}]}
+    voice.handle_update(text_msg("Internetga yozilgan konstanta 192 000 karta xarajatini o'chirib tashla"))
+    assert "O'chiriladi" in card_text(tg) and "Konstanta" in card_text(tg)
+    press(f"vc:ok:{last_cmd().pk}")
+    assert list(Expense.objects.values_list("name", flat=True)) == ["Router"]
+    assert Expense.all_objects.get(pk=e.pk).is_deleted
+    assert fin.balance(env["card"]) == 0  # g'azna qoldig'i qaytdi
+    assert AuditLog.objects.filter(action="delete", model="Xarajat", detail__contains="Telegram").exists()
+
+
+def test_delete_ambiguous_then_pick(env, tg, llm):
+    a = _expense(env, name="Suv", price=50000, ct="CASH")
+    _expense(env, name="Non", price=50000, ct="CASH")
+    llm.reply = {"transcript": "x", "items": [{"type": "delete", "entity": "expense", "find": {"amount": 50000}}]}
+    voice.handle_update(text_msg("50 minglik xarajatni o'chir"))
+    cmd = last_cmd()
+    assert cmd.items[0]["need"]["field"] == "record"
+    press(f"vc:pk:{cmd.pk}:0:{cmd.items[0]['need']['ids'].index(str(a.pk))}")
+    press(f"vc:ok:{cmd.pk}")
+    assert list(Expense.objects.values_list("name", flat=True)) == ["Non"]
+
+
+def test_delete_latest(env, tg, llm):
+    _expense(env, name="Birinchi", price=1000, ct="CASH")
+    _expense(env, name="Ikkinchi", price=2000, ct="CASH")
+    llm.reply = {"transcript": "x", "items": [{"type": "delete", "entity": "expense", "find": {"latest": True}}]}
+    voice.handle_update(text_msg("oxirgi kiritgan xarajatimni o'chir"))
+    press(f"vc:ok:{last_cmd().pk}")
+    assert list(Expense.objects.values_list("name", flat=True)) == ["Birinchi"]
+
+
+def test_edit_expense(env, tg, llm):
+    e = _expense(env, name="Internet", price=300000, ct="CASH")
+    llm.reply = {"transcript": "x", "items": [{"type": "edit", "entity": "expense", "find": {"name": "internet", "amount": 300000},
+                                               "set": {"price": 350000, "category": "Kommunal", "cash_type": "CARD"}}]}
+    voice.handle_update(text_msg("Internet 300 ming emas 350 ming, kommunalga, kartadan"))
+    body = card_text(tg)
+    assert "300 000 → <b>350 000</b>" in body and "Kommunal" in body and "naqd → <b>karta</b>" in body
+    press(f"vc:ok:{last_cmd().pk}")
+    e.refresh_from_db()
+    assert (e.total, e.category.name, e.cash_type, e.account) == (350000, "Kommunal", "CARD", env["cash"])  # «Hammasi» g'azna kartani ham oladi
+
+
+def test_edit_and_delete_creditor(env, tg, llm):
+    t = fin.save_creditor_tx(env["boss"], {"date": TODAY, "creditor": env["mnsh"], "amount": Decimal(200000), "cash_type": "CASH", "account": env["cash"], "comment": ""})
+    llm.reply = {"transcript": "x", "items": [{"type": "edit", "entity": "creditor", "find": {"creditor": "MNSH", "amount": 200000}, "set": {"amount": 250000}}]}
+    voice.handle_update(text_msg("Ilhomjon 200 ming emas 250 ming olgan"))
+    press(f"vc:ok:{last_cmd().pk}")
+    assert list(CreditorTransaction.objects.values_list("amount", flat=True)) == [Decimal(250000)]
+    assert CreditorTransaction.all_objects.get(pk=t.pk).is_deleted
+    llm.reply = {"transcript": "x", "items": [{"type": "delete", "entity": "creditor", "find": {"creditor": "mnsh"}}]}
+    voice.handle_update(text_msg("MNSH amalini o'chir"))
+    press(f"vc:ok:{last_cmd().pk}")
+    assert not CreditorTransaction.objects.exists() and fin.balance(env["cash"]) == 1_000_000
+
+
+def test_new_payment_and_generic_payment_edit(env, tg, llm, contract):
+    llm.reply = {"transcript": "x", "items": [{"type": "payment", "student": "Ali Valiyev", "amount": 400000, "cash_type": "CASH"}]}
+    voice.handle_update(text_msg("Ali Valiyev 400 ming naqd to'ladi"))
+    press(f"vc:ok:{last_cmd().pk}")
+    p = Payment.objects.get()
+    assert p.amount == 400000 and p.cashbox == env["cash"] and p.created_by == env["boss"]
+    llm.reply = {"transcript": "x", "items": [{"type": "edit", "entity": "payment", "find": {"student": "Valiyev"}, "set": {"amount": 450000}}]}
+    voice.handle_update(text_msg("Valiyevning to'lovi 450 ming"))
+    press(f"vc:ok:{last_cmd().pk}")
+    p.refresh_from_db()
+    assert p.amount == 450000
+    llm.reply = {"transcript": "x", "items": [{"type": "delete", "entity": "payment", "find": {"student": "Ali"}}]}
+    voice.handle_update(text_msg("Alining to'lovini o'chir"))
+    press(f"vc:ok:{last_cmd().pk}")
+    assert not Payment.objects.exists()
+
+
+def test_new_transfer_and_exchange(env, tg, llm):
+    llm.reply = {"transcript": "x", "items": [
+        {"type": "transfer", "from_account": "Emirat", "to_account": "Bosh", "amount": 300000},
+        {"type": "exchange", "account": "Emirat", "from_type": "CASH", "amount": 100000, "to_type": "CARD", "amount_to": 99000}]}
+    voice.handle_update(text_msg("Emiratdan boshga 300 ming o'tkaz, 100 ming naqdni kartaga almashtir"))
+    press(f"vc:ok:{last_cmd().pk}")
+    t = Transfer.objects.get()
+    assert (t.sender_account, t.receiver_account, t.amount, t.status) == (env["cash"], env["card"], 300000, Confirm.PENDING)
+    x = Exchange.objects.get()
+    assert (x.amount, x.amount_to, x.from_type, x.to_type) == (100000, 99000, "CASH", "CARD")
+
+
+def test_salary_payout_delete(env, tg, llm):
+    from apps.payroll import services as payroll
+
+    payroll.save_payout(env["boss"], {"branch": env["branch"], "user": env["cashier"], "year": TODAY.year, "month": TODAY.month, "date": TODAY,
+                                      "type": "O'zgarmas", "amount": Decimal(500000), "cash_type": "CASH", "account": env["cash"]})
+    llm.reply = {"transcript": "x", "items": [{"type": "delete", "entity": "salary_payout", "find": {"employee": "Akbarxoja"}}]}
+    voice.handle_update(text_msg("Akbarxo'jaga bergan oylikni o'chir"))
+    press(f"vc:ok:{last_cmd().pk}")
+    assert not SalaryPayout.objects.exists()
+
+
+def test_task_update_done(env, tg, llm):
+    from apps.tasks import services as tasks
+
+    t = tasks.create(env["boss"], {"title": "Xonani tozalash", "assignee": env["cashier"], "due_at": timezone.now() + datetime.timedelta(days=1),
+                                   "remind_before": 60, "remind_every": 0})
+    llm.reply = {"transcript": "x", "items": [{"type": "task_update", "assignee": "Akbarxo'ja", "title": "xona", "action": "done"}]}
+    voice.handle_update(text_msg("Akbarxo'janing xona tozalash topshirig'i bajarildi"))
+    press(f"vc:ok:{last_cmd().pk}")
+    t.refresh_from_db()
+    assert t.status == StaffTask.Status.DONE
+
+
+def test_unknown_shows_help(env, tg, llm):
+    llm.reply = {"transcript": "x", "items": [{"type": "unknown", "text": "guruhni o'chir"}]}
+    voice.handle_update(text_msg("guruhni o'chir"))
+    assert "Men qila oladiganlar" in card_text(tg)
