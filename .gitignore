@@ -25,3 +25,9 @@ deploy/.env
 .pytest_cache/
 .ruff_cache/
 deploy/*.local.md
+
+# Yo'riqnoma videolari (katta fayllar, haqiqiy ma'lumot)
+docs/video/
+tools/tutorial_video/out/
+
+tools/tutorial_video/.venv/
