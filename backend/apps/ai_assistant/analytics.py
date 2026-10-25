@@ -65,7 +65,14 @@ def _period_status(f, start, end):
     return f"CASE WHEN {end} IS NOT NULL AND {end} < {t} THEN 'Nofaol' WHEN {start} > {t} THEN 'Rejada' ELSE 'Faol' END"
 
 
-FIRST_LEAD = "(SELECT l2.id FROM crm_lead l2 WHERE l2.student_id = {s} AND NOT l2.is_deleted ORDER BY l2.created_at LIMIT 1)"
+def _type_balance(cash_type, initial_types):
+    """G'aznaning bitta pul turidagi qoldig'i (finance.services.balances bilan bir xil): boshlang'ich qoldiq asosiy turda
+    ('ALL' g'azna — naqd) + shu turdagi tasdiqlangan harakatlar."""
+    return (f"CASE WHEN a.cash_type IN {initial_types} THEN a.initial_balance ELSE 0 END"
+            f" + COALESCE((SELECT SUM(m.amount) FROM finance_cashmovement m WHERE m.account_id = a.id AND m.is_confirmed AND m.cash_type = '{cash_type}'), 0)")
+
+
+FIRST_LEAD ="(SELECT l2.id FROM crm_lead l2 WHERE l2.student_id = {s} AND NOT l2.is_deleted ORDER BY l2.created_at LIMIT 1)"
 
 D = "sana (YYYY-MM-DD)"
 YMD = [("date", D), ("year", "yil (son)"), ("month", "oy (1–12)"), ("ym", "oy 'YYYY-MM' ko'rinishida — oy bo'yicha filtr/guruhlash uchun eng qulay")]
@@ -341,12 +348,19 @@ JOIN accounts_user u ON u.id = p.user_id
 LEFT JOIN finance_account acc ON acc.id = p.account_id
 WHERE NOT p.is_deleted"""),
 
-        ("analytics_accounts", "G'aznalar va joriy qoldig'i (tasdiqlangan harakatlar bo'yicha).", [
-            ("account", "g'azna nomi", False), ("cash_type", "g'azna turi: 'CASH', 'BANK', 'CARD', 'ALL'", False), ("status", "'Faol' / 'Nofaol'", False),
-            ("initial_balance", "boshlang'ich qoldiq", False), ("balance", "joriy qoldiq", False), ("pending", "tasdiqlanmagan (hali qo'shilmagan) summalar", False),
-        ], """
+        ("analytics_accounts", "G'aznalar va joriy qoldig'i (tasdiqlangan harakatlar bo'yicha). Bitta g'aznada bir necha pul turi bo'lishi mumkin "
+         "('ALL' g'azna): pul turi so'ralsa (naqd, plastik/karta, bank) cash_balance / card_balance / bank_balance ustunini oling; "
+         "balance = cash_balance + card_balance + bank_balance.", [
+            ("account", "g'azna nomi", False), ("cash_type", "g'azna turi: 'CASH', 'BANK', 'CARD', 'ALL' (ALL — hamma pul turi bir g'aznada)", False),
+            ("status", "'Faol' / 'Nofaol'", False), ("initial_balance", "boshlang'ich qoldiq", False), ("balance", "joriy qoldiq (hamma pul turi)", False),
+            ("cash_balance", "naqd pul qoldig'i", False), ("card_balance", "plastik karta (naqdsiz) qoldig'i", False), ("bank_balance", "bank hisobidagi qoldiq", False),
+            ("pending", "tasdiqlanmagan (hali qo'shilmagan) summalar", False),
+        ], f"""
 SELECT a.name AS account, a.cash_type, a.status, a.initial_balance,
   a.initial_balance + COALESCE((SELECT SUM(m.amount) FROM finance_cashmovement m WHERE m.account_id = a.id AND m.is_confirmed), 0) AS balance,
+  {_type_balance('CASH', "('CASH', 'ALL')")} AS cash_balance,
+  {_type_balance('CARD', "('CARD')")} AS card_balance,
+  {_type_balance('BANK', "('BANK')")} AS bank_balance,
   COALESCE((SELECT SUM(m.amount) FROM finance_cashmovement m WHERE m.account_id = a.id AND NOT m.is_confirmed), 0) AS pending
 FROM finance_account a
 WHERE NOT a.is_deleted"""),

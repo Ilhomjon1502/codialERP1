@@ -207,6 +207,35 @@ def test_model_chain_strong_first_on_retry(settings):
     assert len(set(providers.model_chain(strong=True))) == len(providers.model_chain(strong=True))  # takrorsiz
 
 
+def test_unavailable_model_skipped_for_a_while(settings, monkeypatch):
+    settings.AI_API_KEY, settings.AI_PROVIDER, settings.AI_MODEL, settings.AI_MODEL_FALLBACKS, settings.AI_MODEL_STRONG = "k", "gemini", "", None, []
+    tried = []
+
+    def fake(system, user, model, timeout, **kw):
+        tried.append((model, timeout))
+        if model == "gemini-3.7-flash":
+            raise providers.Unavailable("AI 12 soniyada javob bermadi")
+        return '{"sql": ""}'
+
+    monkeypatch.setitem(providers.PROVIDERS, "gemini", fake)
+    assert providers.complete_json("s", "u", strong=True) == {"sql": ""}
+    assert tried[0] == ("gemini-3.7-flash", providers.STRONG_TIMEOUT_S)  # kuchli modelga qisqa vaqt
+    tried.clear()
+    providers.complete_json("s", "u", strong=True)
+    assert "gemini-3.7-flash" not in [m for m, _ in tried]  # javob bermagan model 5 daqiqa o'tkazib yuboriladi
+
+
+def test_accounts_view_balance_by_money_type(fin):  # noqa: F811
+    from apps.finance import services as fsvc
+    from apps.finance.models import CashMovement
+
+    acc = fin["cash"]  # «Hammasi» turidagi g'azna: boshlang'ich 1 000 000 naqd
+    CashMovement.objects.create(account=acc, cash_type="CARD", amount=300_000, date=acc.created_at.date(), source_type="payment", source_id=acc.pk)
+    row = _rows(f"SELECT balance, cash_balance, card_balance, bank_balance FROM analytics_accounts WHERE account = '{acc.name.replace(chr(39), chr(39) * 2)}'")[0]
+    by_type = fsvc.balances([acc.pk])[acc.pk]["by_type"]
+    assert row == (1_300_000, 1_000_000, 300_000, 0) and (row[1], row[2]) == (by_type["CASH"], by_type["CARD"])
+
+
 # ------------------------------------------------------------------ sifat: dars jadvali, bo'sh natija izohi, ma'lumotlar holati
 
 def test_lessons_view_shows_missing_attendance(fin):  # noqa: F811

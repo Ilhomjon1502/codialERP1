@@ -10,6 +10,14 @@ PASSWORD = "Sinov-Parol-2026!"
 _n = itertools.count(1)
 
 
+@pytest.fixture(autouse=True)
+def _ai_models_up():
+    """AI provayderidagi «javob bermagan model» belgisi testlar orasida qolmasin."""
+    from apps.ai_assistant import providers
+
+    providers._down.clear()
+
+
 @pytest.fixture
 def branch(db):
     return Branch.objects.create(name="Emirat")

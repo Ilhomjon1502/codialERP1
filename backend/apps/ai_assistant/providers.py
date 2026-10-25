@@ -35,7 +35,14 @@ def model_chain(strong=False):
     for m in [*first, model_name(), *fallbacks]:
         if m and m not in out:
             out.append(m)
-    return out
+    now = time.monotonic()
+    up = [m for m in out if _down.get(m, 0) <= now]
+    return up or out
+
+
+_down = {}  # model → shu vaqtgacha (monotonic) o'tkazib yuboriladi: javob bermagan model har so'rovni kuttirmasin
+DOWN_S = 300
+STRONG_TIMEOUT_S = 12  # kuchli (o'ylaydigan) model odatda ~5 s; 2026-10-25 da 60 s javobsiz qolgan
 
 
 class Unavailable(ProviderError):
@@ -137,13 +144,17 @@ def complete(system, user, strong=False, audio=None, timeout=None):
         left = deadline - time.monotonic()
         if left < 3:  # sahifa kutib qolmasin (gunicorn 60 s)
             break
+        per = min(timeout or settings.AI_HTTP_TIMEOUT_S, left)
+        if strong and model in (settings.AI_MODEL_STRONG or STRONG_MODELS.get(settings.AI_PROVIDER, [])):
+            per = min(per, STRONG_TIMEOUT_S)
         try:
             extra = {"audio": audio} if audio else {}
-            text = PROVIDERS[settings.AI_PROVIDER](system, user, model, min(timeout or settings.AI_HTTP_TIMEOUT_S, left), **extra)
+            text = PROVIDERS[settings.AI_PROVIDER](system, user, model, per, **extra)
             _state.model = model
             return text
         except Unavailable as e:
             err = e
+            _down[model] = time.monotonic() + DOWN_S
     raise err or Unavailable("AI javob bermadi")
 
 
