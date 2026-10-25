@@ -498,7 +498,7 @@ def test_lead_create_and_update(env, tg, llm, school):
 
     llm.reply = {"transcript": "x", "items": [{"type": "lead_create", "first_name": "Jasur", "last_name": "Toshev", "phone1": "+998 90 777 66 55",
                                                "phone2": "911234567", "source": "instagram", "course": "frontend", "comment": "Kechqurun qulay"}]}
-    voice.handle_update(text_msg("Yangi lid Jasur Toshev..."))
+    voice.handle_update(text_msg("Yangi lid Jasur Toshev, Instagramdan, Frontendga"))
     assert "Yangi lid" in card_text(tg) and "907776655" in card_text(tg)
     press(f"vc:ok:{last_cmd().pk}")
     lead = Lead.objects.get(student__first_name="Jasur")
@@ -517,6 +517,17 @@ def test_lead_create_and_update(env, tg, llm, school):
     voice.handle_update(text_msg("907776655 lidini o'chir"))
     press(f"vc:ok:{last_cmd().pk}")
     assert not Lead.objects.filter(pk=lead.pk).exists()
+
+
+def test_unsaid_course_is_asked(env, tg, llm, school):
+    """Gemini «Frontend» ni ro'yxatdagi boshqa kursga almashtirsa — bot tanlashni so'raydi (2026-10-25 serverda uchragan)."""
+    other = Course.objects.create(name="Backend")
+    other.branches.set([env["branch"]])
+    llm.reply = {"transcript": "x", "items": [{"type": "lead_create", "first_name": "Jasur", "last_name": "Toshev", "phone1": "907776655", "phone2": "911234567",
+                                               "source": "Instagram", "course": "Backend"}]}
+    voice.handle_update(text_msg("Yangi lid Jasur Toshev Instagramdan Robototexnikaga"))
+    cmd = last_cmd()
+    assert cmd.items[0]["need"]["field"] == "course" and "ro'yxatda yo'q" in card_text(tg)
 
 
 def test_lead_create_needs_two_phones(env, tg, llm, school):

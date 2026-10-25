@@ -4,7 +4,9 @@ Har bir band: {"type", "raw" (Gemini), "picked" (menejer tugma bilan tanlagan: m
 `resolve` har safar bazadan qayta o'qiydi (karta chizilganda ham, bajarilganda ham) — eskirgan qiymat saqlanmaydi.
 Ruxsat, muddat, g'azna qoldig'i va limitlarni saytdagi kabi servislar tekshiradi."""
 
+import contextvars
 import datetime
+import difflib
 import html
 from decimal import Decimal, InvalidOperation
 
@@ -51,10 +53,26 @@ class Bad(Exception):
 
 
 class Ctx:
-    def __init__(self, user, said_at=None):
+    def __init__(self, user, said_at=None, text=""):
         self.user = user
         self.said = timezone.localtime(said_at or timezone.now())
         self.day = self.said.date()
+        self.text = text  # menejer aytgan/yozgan matn — nom haqiqatan aytilganini tekshirish uchun
+
+
+_text = contextvars.ContextVar("voice_text", default="")
+
+
+def was_said(name):
+    """Nomning biror so'zi xabarda bormi (Gemini ro'yxatda yo'q nomni o'xshashiga almashtirib yubormasin: «Frontend» → «Backend»)."""
+    text = _text.get()
+    if not text or not name:
+        return True
+    words = match.norm(text).replace("'", "").split()
+    for t in match.norm(name).replace("'", "").split():
+        if len(t) >= 3 and any(w[:4] == t[:4] or difflib.SequenceMatcher(None, w[:len(t)], t).ratio() >= 0.8 for w in words):
+            return True
+    return False
 
 
 class Resolved:
@@ -101,8 +119,9 @@ def cash_type(v, default=CashType.CASH):
     return MONEY.get(str(v or "").upper(), default)
 
 
-def pick(item, field, label, value, candidates, required=True):
-    """candidates: [(obj, nomi)] yoki [(kalit, nomi)]. Avval menejer tanlagani, keyin nom bo'yicha moslash."""
+def pick(item, field, label, value, candidates, required=True, literal=False):
+    """candidates: [(obj, nomi)] yoki [(kalit, nomi)]. Avval menejer tanlagani, keyin nom bo'yicha moslash.
+    literal=True — topilgan nom xabarda aytilgan bo'lishi shart (kurs, xodim, kreditor, manba), aks holda menejer tanlaydi."""
     candidates = list(candidates)
     chosen = (item.get("picked") or {}).get(field)
     if chosen is not None:
@@ -112,6 +131,8 @@ def pick(item, field, label, value, candidates, required=True):
     if not value and not required:
         return None
     obj, options = match.find(value, candidates)
+    if obj is not None and literal and not was_said(dict((id(o), n) for o, n in candidates)[id(obj)]):
+        raise Need(field, f"{label}: aytilgan nom ro'yxatda yo'q — tanlang", [(str(getattr(o, "pk", o)), n) for o, n in candidates[:match.MAX_OPTIONS]])
     if obj is not None:
         return obj
     if not options:
@@ -209,7 +230,7 @@ DIRECTIONS = [("out", "💸 G'aznadan chiqdi (olib ketdi / qarz qaytarildi)"), (
 def r_creditor(ctx, item):
     raw = item["raw"]
     branch = branch_of(item)
-    cred = pick(item, "creditor", "Kreditor", raw.get("creditor"), [(c, c.name) for c in Creditor.objects.order_by("name")])
+    cred = pick(item, "creditor", "Kreditor", raw.get("creditor"), [(c, c.name) for c in Creditor.objects.order_by("name")], literal=True)
     amount = money(raw.get("amount"))
     if amount is None:
         raise Bad("Summa aytilmadi")
@@ -375,7 +396,7 @@ def x_payment_edit(ctx, data):
 
 def staff(ctx, item, raw_name):
     qs = User.objects.filter(employment_status=User.Employment.ACTIVE).exclude(role__code__in=[RoleCode.BOSHQA, RoleCode.ADMIN]).order_by("full_name")
-    return pick(item, "employee", "Xodim", raw_name, [(u, u.full_name) for u in qs])
+    return pick(item, "employee", "Xodim", raw_name, [(u, u.full_name) for u in qs], literal=True)
 
 
 def r_salary_payout(ctx, item):
@@ -446,7 +467,7 @@ def x_salary_adjust(ctx, data):
 def r_task(ctx, item):
     raw = item["raw"]
     people = [(u, u.full_name) for u in tasks.assignable(ctx.user).order_by("full_name")]
-    u = pick(item, "assignee", "Bajaruvchi", raw.get("assignee"), people)
+    u = pick(item, "assignee", "Bajaruvchi", raw.get("assignee"), people, literal=True)
     title = str(raw.get("title") or "").strip()[:200]
     if not title:
         raise Bad("Topshiriq mavzusi aytilmadi")
@@ -643,6 +664,7 @@ def resolve(ctx, item):
     handler = HANDLERS.get(item.get("type"))
     if handler is None:
         return None, None, None
+    token = _text.set(ctx.text)
     try:
         return handler[0](ctx, item), None, None
     except Need as n:
@@ -651,18 +673,25 @@ def resolve(ctx, item):
         return None, None, str(b)
     except (ValidationError, PermissionDenied, APIException) as e:
         return None, None, error_text(e)
+    finally:
+        _text.reset(token)
 
 
 def execute(ctx, item):
     r, need, err = resolve(ctx, item)
     if r is None:
         return f"⚠️ {escape(err or (need.label if need else 'Bajarib bo`lmadi'))}"
+    token = _text.set(ctx.text)
     try:
         return HANDLERS[item["type"]][1](ctx, r.data)
+    except Need as n:
+        return f"⚠️ {escape(n.label)}"
     except Bad as e:
         return f"⚠️ {escape(str(e))}"
     except (ValidationError, PermissionDenied, APIException) as e:
         return f"⚠️ {escape(error_text(e))}"
+    finally:
+        _text.reset(token)
 
 
 from . import edu, records  # noqa: E402 — ular shu moduldagi yordamchilardan foydalanadi

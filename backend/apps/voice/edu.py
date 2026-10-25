@@ -115,8 +115,8 @@ def r_lead_create(ctx, item):
     dup = crm.find_duplicate(branch, first, last, [p1, p2])
     if dup:
         raise Bad(f"{dup} avval kiritilgan — lidlar yoki shartnomalardan qidiring")
-    src = pick(item, "source", "Manba", raw.get("source"), [(s, s.name) for s in LeadSource.objects.filter(status=Status.ACTIVE).order_by("name")])
-    course = pick(item, "course", "Kurs", raw.get("course"), [(c, c.name) for c in Course.objects.filter(status=Status.ACTIVE, branches=branch).order_by("name")])
+    src = pick(item, "source", "Manba", raw.get("source"), [(s, s.name) for s in LeadSource.objects.filter(status=Status.ACTIVE).order_by("name")], literal=True)
+    course = pick(item, "course", "Kurs", raw.get("course"), [(c, c.name) for c in Course.objects.filter(status=Status.ACTIVE, branches=branch).order_by("name")], literal=True)
     status = lead_status(raw.get("status")) or LS.WAITING_GROUP
     data = {"source": src, "course": course, "status": status}
     lines = [f"Talaba: <b>{escape(first)} {escape(last)}</b>", f"Telefon: {p1}, {p2}", f"Manba: {escape(src.name)}", f"Kurs: {escape(course.name)}",
@@ -199,12 +199,12 @@ def r_lead_update(ctx, item):
         lines.append(f"Qayta bog'lanish: <b>{timezone.localtime(at):%d.%m.%Y %H:%M}</b>")
     course = lead.course
     if s.get("course"):
-        course = pick(item, "course", "Kurs", s["course"], [(c, c.name) for c in Course.objects.filter(status=Status.ACTIVE, branches=lead.branch).order_by("name")])
+        course = pick(item, "course", "Kurs", s["course"], [(c, c.name) for c in Course.objects.filter(status=Status.ACTIVE, branches=lead.branch).order_by("name")], literal=True)
         if course.pk != lead.course_id:
             data["course"] = course
             lines.append(f"Kurs: {escape(lead.course.name)} → <b>{escape(course.name)}</b>")
     if s.get("source"):
-        src = pick(item, "source", "Manba", s["source"], [(x, x.name) for x in LeadSource.objects.filter(status=Status.ACTIVE).order_by("name")])
+        src = pick(item, "source", "Manba", s["source"], [(x, x.name) for x in LeadSource.objects.filter(status=Status.ACTIVE).order_by("name")], literal=True)
         if src.pk != lead.source_id:
             data["source"] = src
             lines.append(f"Manba: {escape(lead.source.name)} → <b>{escape(src.name)}</b>")
@@ -256,7 +256,7 @@ def r_contract_create(ctx, item):
     st = find_student(item, raw["student"], branch)
     lead = Lead.objects.filter(student=st).select_related("course", "group").first()
     courses = [(c, c.name) for c in Course.objects.filter(status=Status.ACTIVE, branches=branch).order_by("name")]
-    course = pick(item, "course", "Kurs", raw["course"], courses) if raw.get("course") else (lead.course if lead else pick(item, "course", "Kurs", "", courses))
+    course = pick(item, "course", "Kurs", raw["course"], courses, literal=True) if raw.get("course") else (lead.course if lead else pick(item, "course", "Kurs", "", courses))
     group = pick_group(item, "group", raw.get("group") or (str(lead.group.number) if lead and lead.group_id and lead.course_id == course.pk else ""), branch, course)
     start = parse_date(raw.get("start_date"), None) or (lead.demo_date if lead and lead.demo_date else ctx.day)
     ctype = Contract.Type.GRANT if str(raw.get("type") or "").lower().startswith("grant") else Contract.Type.PAID

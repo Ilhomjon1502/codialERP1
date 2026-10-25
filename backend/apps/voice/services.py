@@ -139,7 +139,7 @@ def process(user, chat, msg):
         cmd.save()
         edit(chat, placeholder, f"⚠️ {escape(str(e))}")
         return cmd
-    cmd.transcript = out["transcript"]
+    cmd.transcript = out["transcript"] if voice else text  # yozma xabar — o'zi (Gemini qayta yozmasin)
     questions = [i for i in out["items"] if i["type"] == "question" and str(i.get("text") or "").strip()]
     cmd.items = [{"type": i["type"], "raw": {k: v for k, v in i.items() if k != "type"}, "picked": {}, "result": None}
                  for i in out["items"] if i["type"] != "question"]
@@ -167,9 +167,21 @@ def process(user, chat, msg):
 
 # ------------------------------------------------------------------ tasdiq kartasi
 
+def said_text(cmd):
+    """Menejer aytgan matn (tuzatishda — oldingi xabarlar bilan birga)."""
+    parts, c = [], cmd
+    while c is not None and len(parts) < 5:
+        parts.append(c.transcript or "")
+        c = c.parent
+    since = cmd.created_at - datetime.timedelta(hours=2) if cmd.created_at else timezone.now() - datetime.timedelta(hours=2)
+    recent = VoiceCommand.objects.filter(user=cmd.user, status=St.DONE, created_at__gte=since).exclude(pk=cmd.pk).order_by("-created_at")[:3]
+    parts += [r.transcript for r in recent]  # «yana 50 ming bonus» — xodim oldingi buyruqda aytilgan (Gemini'ga ham shu kontekst boradi)
+    return " ".join(parts)
+
+
 def render(cmd, footer=""):
     """Karta matni va tugmalari. Tanlash kerak bo'lgan birinchi band uchun variant tugmalari; `item["need"]` ga variant id'lari yoziladi."""
-    ctx = actions.Ctx(cmd.user, cmd.said_at)
+    ctx = actions.Ctx(cmd.user, cmd.said_at, said_text(cmd))
     parts = [f"🎙 «{escape(cmd.transcript)}»"] if cmd.transcript else []
     ready, rows, need_shown = 0, [], False
     for n, item in enumerate(cmd.items, 1):
@@ -260,7 +272,7 @@ def _pick(cb, cmd, rest):
 
 
 def _confirm(cb, cmd):
-    ctx = actions.Ctx(cmd.user, cmd.said_at)
+    ctx = actions.Ctx(cmd.user, cmd.said_at, said_text(cmd))
     tag = f"🎙 Telegram ovozli buyruq: «{cmd.transcript[:200]}»" if cmd.is_voice else f"✈️ Telegram buyruq: «{cmd.transcript[:200]}»"
     done = 0
     with audit.tagged(tag):
