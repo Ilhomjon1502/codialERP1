@@ -15,7 +15,7 @@ from apps.core.roles import RoleCode
 from apps.finance.models import Account, Creditor
 from apps.references.models import Branch, DiscountType, ExpenseCategory
 
-TIMEOUT_S = 45  # bot jarayonida — sahifa kutmaydi, ovozni eshitish uzoqroq
+TIMEOUT_S = 15  # bitta model uchun; javob bermasa — zaxira modelga o'tadi (2026-10-25: gemini-3.7-flash 60 s javobsiz qolgan, flash-lite ~2 s)
 
 WEEKDAYS = ["dushanba", "seshanba", "chorshanba", "payshanba", "juma", "shanba", "yakshanba"]
 
@@ -92,7 +92,7 @@ def parse(user, *, text="", audio=None, said_at=None, previous=None):
         prompt = "Xabar: "
     prompt += text if text else "(ovozli xabar ilova qilingan)"
     t0 = time.monotonic()
-    out = providers.complete_json(system_prompt(user, said_at), prompt, strong=bool(audio), audio=audio, timeout=TIMEOUT_S)
+    out = providers.complete_json(system_prompt(user, said_at), prompt, audio=audio, timeout=TIMEOUT_S)  # asosiy (tez) model, kuchli emas
     items = [i for i in (out.get("items") or []) if isinstance(i, dict) and i.get("type")]
     return ({"transcript": str(out.get("transcript") or text or "").strip(), "items": items, "reply": str(out.get("reply") or "").strip()},
             providers.used_model(), int((time.monotonic() - t0) * 1000))
