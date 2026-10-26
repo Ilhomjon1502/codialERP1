@@ -430,6 +430,7 @@
     const v = await A.http.get(`/sms-rules/${r.id}/preview/`).catch(fail);
     if (!v) return;
     const lines = [`<div class="note info" style="white-space:pre-wrap">${esc(v.sample)}</div><small class="muted">${countHTML(v.sample)}${v.real ? '' : ' · namuna ism va summa bilan'}</small>`];
+    if (v.info) lines.push(`<p class="small muted">${esc(v.info)}</p>`);
     if (v.scheduled) {
       lines.push(v.note ? `<p class="t-red">${esc(v.note)}</p>` : `<p><b>${v.students}</b> ta talaba, <b>${v.messages}</b> ta SMS — hozir shu hisob bo'yicha ketgan bo'lardi (${esc(ruleTime(r))}).</p>`);
       if (v.names.length) lines.push(`<p class="small muted">Masalan: ${v.names.map(esc).join(', ')}${v.students > v.names.length ? ' …' : ''}</p>`);
@@ -473,7 +474,8 @@
       if (!v) return;
       if (v.note) return A.toast(v.note.replace(/<[^>]+>/g, ''), 'warn');
       const now = v.scheduled ? `<br>Bugun: <b>${v.students}</b> ta talaba, <b>${v.messages}</b> ta SMS.${v.runs_today ? " <b>Vaqti allaqachon o'tgan — yoqsangiz, bugungi SMS'lar darrov navbatga qo'yiladi.</b>" : ''}` : '';
-      if (!(await A.confirm(`«${esc(r.label)}» yoqilsinmi?<br><small class="muted">${esc(r.when)}</small><br><br><i>${esc(v.sample)}</i>${now}`, 'Yoqish'))) return;
+      const info = v.info ? `<br><small class="muted">${esc(v.info)}</small>` : '';
+      if (!(await A.confirm(`«${esc(r.label)}» yoqilsinmi?<br><small class="muted">${esc(r.when)}</small><br><br><i>${esc(v.sample)}</i>${info}${now}`, 'Yoqish'))) return;
     }
     A.http.patch(`/sms-rules/${r.id}/`, { enabled: !r.enabled }).then(() => { A.toast(r.enabled ? "O'chirildi" : 'Yoqildi'); A.refresh(); }, fail);
   };

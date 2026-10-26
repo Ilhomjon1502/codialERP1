@@ -86,7 +86,7 @@ def test_contract_sms_gets_link_and_preview_notes_it(env, on):  # noqa: F811
     auto_sms.contract_created(c)
     assert SmsMessage.objects.count() == 3 and all("t.me/CodialTestBot?start=" in m.text for m in SmsMessage.objects.all())
     pv = auto_sms.preview(rule)
-    assert "t.me/CodialTestBot?start=XXXXXXXX" in pv["sample"] and "avtomatik qo'shiladi" in pv["note"]
+    assert "t.me/CodialTestBot?start=XXXXXXXX" in pv["sample"] and "avtomatik qo'shiladi" in pv["info"] and not pv["note"]
 
 
 # ---------- ulash ----------

@@ -385,7 +385,8 @@ def tick(now=None):
 def preview(rule, today=None):
     """Qoida hozir ishga tushsa nima bo'lardi: namuna matn va kimlarga ketishi (hech narsa yuborilmaydi)."""
     today = today or timezone.localdate()
-    out = {"scheduled": rule.key in PLANNERS, "sample": "", "real": False, "students": 0, "messages": 0, "names": [], "note": ""}
+    # note — yoqishga to'sqinlik qiluvchi muammo; info — shunchaki ma'lumot (yoqishni to'xtatmaydi)
+    out = {"scheduled": rule.key in PLANNERS, "sample": "", "real": False, "students": 0, "messages": 0, "names": [], "note": "", "info": ""}
     plans = PLANNERS[rule.key](rule, today) if rule.key in PLANNERS else []
     if plans is None:
         out["note"] = "«Avvaldan to'lov» chegirma turi topilmadi (Sozlamalar → Chegirma turlari) — bonus summasi noma'lum, SMS ketmaydi."
@@ -400,7 +401,7 @@ def preview(rule, today=None):
 
         if bot.configured() and bot.get_config(rule.branch).invite_in_sms:
             out["sample"] += " " + sms.plain(bot.sample_suffix())
-            out["note"] = "Matn oxiriga mijozlar botiga ulanish havolasi (har raqamga alohida kod) avtomatik qo'shiladi; raqam allaqachon ulangan bo'lsa qo'shilmaydi."
+            out["info"] = "Matn oxiriga mijozlar botiga ulanish havolasi (har raqamga alohida kod) avtomatik qo'shiladi; raqam allaqachon ulangan bo'lsa qo'shilmaydi."
     out["parts"] = sms.segments(out["sample"])
     out["students"] = len(plans)
     out["messages"] = sum(len([1 for p, _ in sms.recipients(pl.student) if p not in pl.skip]) for pl in plans)
