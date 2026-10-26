@@ -30,14 +30,33 @@
     title: "To'lovlar",
     section: 'payments',
     async load() {
-      pData = await A.http.get('/payments/?' + qsOf('payments', ['search', 'month', 'type'], { page: A.q('payments:page', 1) }));
+      pData = await A.http.get('/payments/?' + qsOf('payments', ['search', 'month', 'date', 'type'], { page: A.q('payments:page', 1) }));
     },
     render() {
       return `${A.head("To'lovlar", `Guruhlash: oy → sana, jami summalar bilan · filtr bo'yicha jami: <b>${A.money(pData.total)}</b>`, (A.can('payments', 'a') ? A.btn("To'lov qabul qilish", 'pay-new', { icon: 'plus' }) : '') + A.btn('Excel', 'payments-csv', { cls: 'ghost', icon: 'download' }))}
-        ${A.filterBar('payments', [A.fSearch('payments', 'Talaba, shartnoma yoki chek raqami…'), A.fSelect('payments', 'month', A.monthOptions(), 'Barcha oylar'), A.fSelect('payments', 'type', cashOpts, 'Barcha turlar')])}
+        ${A.filterBar('payments', [A.fSearch('payments', 'Talaba, shartnoma yoki chek raqami…'), A.fSelect('payments', 'month', A.monthOptions(), 'Barcha oylar'), dayFilter(), A.fSelect('payments', 'type', cashOpts, 'Barcha turlar')])}
         <div>${paymentGroups(pData)}${A.pager('payments', pData)}</div>`;
     },
   });
+  /** Kun filtri: oy tanlangan bo'lsa — shu oyning bugungacha bo'lgan kunlari, aks holda istalgan sana */
+  function dayFilter() {
+    const ym = A.q('payments:month', '');
+    if (!ym) return `<input class="f-input" type="date" data-filter="payments:date" title="Kun" max="${A.today()}" value="${esc(A.q('payments:date', ''))}">`;
+    const last = new Date(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)), 0).getDate();
+    const days = [];
+    for (let d = 1; d <= last; d++) {
+      const iso = `${ym}-${String(d).padStart(2, '0')}`;
+      if (iso > A.today()) break;
+      days.push([iso, `${A.fdate(iso)} · ${A.WD[A.isoWeekday(iso)]}`]);
+    }
+    return A.fSelect('payments', 'date', days.reverse(), 'Barcha kunlar');
+  }
+  document.addEventListener('input', (e) => {
+    const el = e.target.closest('[data-filter^="payments:"]');
+    if (!el) return;
+    A.ui.q['payments:page'] = 1;
+    if (el.dataset.filter === 'payments:month') A.ui.q['payments:date'] = ''; // boshqa oyga o'tilsa — tanlangan kun tozalanadi
+  }, true);
   function paymentGroups(d) {
     if (!d.results.length) return A.empty("To'lov topilmadi");
     const byM = A.groupBy(d.results, (p) => A.ym(p.date));
@@ -82,7 +101,7 @@
     }
   };
   A.act['payments-csv'] = async () => {
-    const rows = await fetchAll('/payments/?', qsOf('payments', ['search', 'month', 'type']));
+    const rows = await fetchAll('/payments/?', qsOf('payments', ['search', 'month', 'date', 'type']));
     A.downloadCSV('tolovlar.csv', [['№', 'Sana', 'Shartnoma', 'Summa', 'Turi', 'Chegirma', "G'azna"], ...rows.map((p) => [p.number, p.date, p.contract_name, p.amount, p.amount ? A.CASH[p.cash_type] : '', p.discount, A.accName(p.cashbox)])]);
   };
 
