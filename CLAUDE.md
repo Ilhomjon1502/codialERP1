@@ -175,7 +175,7 @@
 3. Ixtiyoriy: AI'da prognoz (buyurtmachi tilga olgan, boshlanmagan).
 
 **Ish usullari** (tokenni tejash va xatosiz ishlash uchun):
-- **Testlar:** `cd backend && .venv/Scripts/python -m pytest -q` (388 test) va `.venv/Scripts/ruff check .`. Front-end o'zgarsa — `frontend/index.html` dagi `?v=` ni oshiring (hozir `m12-70`). Android ilova o'zgarsa — yuqoridagi «APK yig'ish» bandi.
+- **Testlar:** `cd backend && .venv/Scripts/python -m pytest -q` (389 test) va `.venv/Scripts/ruff check .`. Front-end o'zgarsa — `frontend/index.html` dagi `?v=` ni oshiring (hozir `m12-71`). Android ilova o'zgarsa — yuqoridagi «APK yig'ish» bandi.
 - **Serverdagi holatni tekshirish** (masalan, qo'ng'iroqlar tushyaptimi): skript ichida `docker compose --env-file .env exec -T web python manage.py shell <<'PY' … PY` (heredoc), ssh esa `dangerouslyDisableSandbox` bilan ishga tushiriladi. Telefon raqamlarini chatga chiqarmang — kerak bo'lsa yashiring.
 - **Serverga joylash — bitta SSH ulanishda**, skript bilan (server tez-tez ulanishni cheklaydi):
   1. Skriptni scratchpad'ga yozing va `ssh -i ~/.ssh/codial_hetzner root@77.42.9.23 'bash -s' < skript.sh` bilan ishga tushiring.
@@ -561,7 +561,7 @@ Diqqat: AppSheet'da `Exchange`, `CommentToCreditors`, `Parent_Comment`, `Discoun
   - `type`: Grant / Pullik (standart Pullik, faqat Admin va Bosh menejer o'zgartiradi);
   - `number` avtomatik: filial bo'yicha max+1. Nomi: `"{student.full_name} №{number}"`;
   - `stop_reason` (`end_date` bo'lsa majburiy): Kursni tamomladi, Moliyaviy qiyinchilik, Dars sifatidan qoniqmadi, Markaz sharoiti yoqmadi, Chetlashtirildi - o'zlashtirish past, Chetlashtirildi - xulqi yomon, Kurs yoqmadi - Boshqa kursga o'tyapti;
-  - filial va talaba yaratilgandan keyin o'zgarmaydi; kursni faqat Admin o'zgartiradi;
+  - filial va talaba yaratilgandan keyin o'zgarmaydi; kursni Admin, Bosh menejer va Administrator+Hisobchi o'zgartiradi (2026-10-26; guruh yangi kursdan tanlanadi, o'tgan darslar eski kurs narxida qoladi);
   - `status`: end bor va end < bugun → Nofaol; start > bugun → Rejada; aks holda Faol (AppSheet formulasi buzilgan, 18-bo'lim 1-savol);
   - **qarz:** `debt = Σ attendance.student_debt − Σ payments.amount − Σ payments.discount + opening_balance`. Shartnoma sahifasida "Shartnoma summasi" (Σ student_debt), "To'lov summasi", "Chegirma summasi" va "Balans" ko'rsatiladi;
   - ko'rsatiladi: talaba telefonlari, guruh, filial va kurs nomlari, yosh guruhi (lid'dan).

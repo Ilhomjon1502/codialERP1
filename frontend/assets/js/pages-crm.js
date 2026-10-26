@@ -665,6 +665,7 @@
 
   /* ---- Shartnoma formasi. Tekshiruvlar serverda ham bor (services.validate_contract) ---- */
   /** stopOnly — muddati o'tgan shartnoma: faqat to'xtatish (tugash sanasi oxirgi 30 kun ichida, sabab, izoh) */
+  const COURSE_EDITORS = ['ADMIN', 'BOSH_MENEJER', 'ADMINISTRATOR_HISOBCHI']; // shartnoma kursini o'zgartiradi (server: CONTRACT_COURSE_EDITORS)
   A.contractForm = async (c, preset = {}, stopOnly = false) => {
     const isNew = !c;
     const lock = () => !isNew && stopOnly;
@@ -676,7 +677,7 @@
       values: v,
       fields: [
         { name: 'student', label: 'Talaba', type: 'select', required: true, readonly: () => !isNew, options: () => students.map((s) => [s.id, `${s.full_name} · ${s.phone1}`]), help: isNew ? "Yaratilgandan keyin talabani o'zgartirib bo'lmaydi" : "Talaba o'zgarmaydi" },
-        { name: 'course', label: 'Kurs', type: 'select', required: true, resets: ['group'], readonly: () => lock() || (!isNew && A.role() !== 'ADMIN'), options: (x) => A.optList('courses', 'name', (k) => (k.status === 'Faol' && k.branches.includes(B)) || k.id === x.course), help: isNew ? '' : "Kursni faqat Admin o'zgartiradi" },
+        { name: 'course', label: 'Kurs', type: 'select', required: true, resets: ['group'], readonly: () => lock() || (!isNew && !COURSE_EDITORS.includes(A.role())), options: (x) => A.optList('courses', 'name', (k) => (k.status === 'Faol' && k.branches.includes(B)) || k.id === x.course), help: isNew ? '' : (COURSE_EDITORS.includes(A.role()) ? "Kurs o'zgarsa, yangi kursdan guruh tanlang. O'tgan darslar eski kurs narxida qoladi" : "Kursni Admin, Bosh menejer va Administrator+Hisobchi o'zgartiradi") },
         { name: 'group', label: 'Guruh', type: 'select', required: true, show: (x) => x.course, readonly: lock, options: (x) => A.rows('groups').filter((g) => (g.course === x.course && g.branch === B && g.status !== 'Nofaol') || g.id === x.group).map((g) => { const f = A.groupFill(g); return [g.id, `${A.groupName(g)} · ${A.patternName(g.pattern)} ${A.timeName(g.time)} · ${f.n}/${f.cap}`]; }) },
         { name: 'type', label: 'Shartnoma turi', type: 'seg', options: ['Pullik', 'Grant'], show: (x) => x.course, readonly: () => lock() || !A.isTop(), help: () => (A.isTop() ? '' : "Turini faqat Admin va Bosh menejer o'zgartiradi") },
         { name: 'number', label: 'Shartnoma raqami', type: 'computed', show: (x) => x.type, compute: () => (c ? `№${c.number}` : 'avtomatik (filialdagi oxirgi raqam + 1)') },

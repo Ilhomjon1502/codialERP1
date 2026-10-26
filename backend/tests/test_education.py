@@ -391,3 +391,25 @@ def test_attendance_ledger_dates_filters_and_gaps(api, make_user, world):
     assert TODAY.isoformat() in gaps and len(gaps) == TODAY.day
     assert TODAY.isoformat() not in bm.get(f"/api/v1/attendance/gaps/?month={ym}&group={w['group'].pk}").json()["dates"]
     assert TODAY.isoformat() not in bm.get(f"/api/v1/attendance/gaps/?month={ym}&contract={w['contracts'][0].pk}").json()["dates"]
+
+
+def test_contract_course_change_roles(api, make_user, world):
+    """Shartnoma kursini Admin, Bosh menejer va Administrator+Hisobchi o'zgartiradi (2026-10-26); guruh yangi kursdan bo'lsin."""
+    w = world
+    other = Course.objects.create(name="Backend")
+    other.branches.set([w["branch"]])
+    g2 = Group.objects.create(branch=w["branch"], course=other, day_pattern=w["pattern"], time=w["time"], teacher=w["teacher"], room=w["room"],
+                              start_date=PREV, number=1)
+    body = {"course": str(other.pk), "group": str(g2.pk)}
+    old = w["contracts"][0]
+    assert api(make_user("BOSH_MENEJER")).patch(f"/api/v1/contracts/{old.pk}/", body, format="json").status_code == 200
+    old.refresh_from_db()
+    assert (old.course, old.group) == (other, g2)
+    # kurs o'zgarsa guruh ham yangi kursdan bo'lishi shart
+    assert api(make_user("BOSH_MENEJER")).patch(f"/api/v1/contracts/{w['contracts'][1].pk}/", {"course": str(other.pk)}, format="json").status_code == 400
+    fresh = Contract.objects.create(branch=w["branch"], student=w["students"][2], course=w["course"], group=w["group"], number=9, start_date=TODAY)
+    Contract.objects.filter(pk=w["contracts"][2].pk).delete()
+    assert api(make_user("ADMINISTRATOR")).patch(f"/api/v1/contracts/{fresh.pk}/", body, format="json").status_code == 403
+    assert api(make_user("ADMINISTRATOR_HISOBCHI")).patch(f"/api/v1/contracts/{fresh.pk}/", body, format="json").status_code == 200
+    # Administrator+Hisobchi uchun shartnoma tahrirlash muddati (boshlanishdan 7 kun) amal qiladi
+    assert api(make_user("ADMINISTRATOR_HISOBCHI")).patch(f"/api/v1/contracts/{w['contracts'][1].pk}/", body, format="json").status_code == 403

@@ -189,13 +189,17 @@ def next_contract_number(branch):
     return (Contract.all_objects.filter(branch=branch).aggregate(m=Max("number"))["m"] or 0) + 1
 
 
+# Shartnoma kursini o'zgartira oladiganlar (buyurtmachi qarori 2026-10-26; avval faqat Admin). Guruh kursi — hamon faqat Admin.
+CONTRACT_COURSE_EDITORS = {RoleCode.ADMIN, RoleCode.BOSH_MENEJER, RoleCode.ADMINISTRATOR_HISOBCHI}
+
+
 def validate_contract(user, d, instance=None):
     get = lambda k: d.get(k, getattr(instance, k, None))  # noqa: E731
     branch, student, course, group = get("branch"), get("student"), get("course"), get("group")
     start, end = get("start_date"), get("end_date")
     if instance is not None:
-        if "course" in d and course.pk != instance.course_id and role_code(user) != RoleCode.ADMIN:
-            raise PermissionDenied("Shartnoma kursini faqat Admin o'zgartiradi")
+        if "course" in d and course.pk != instance.course_id and role_code(user) not in CONTRACT_COURSE_EDITORS:
+            raise PermissionDenied("Shartnoma kursini Admin, Bosh menejer va Administrator+Hisobchi o'zgartiradi")
         if "student" in d and student.pk != instance.student_id:
             raise ValidationError({"student": "Talabani o'zgartirib bo'lmaydi"})
     new_type = d.get("type")
