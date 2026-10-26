@@ -89,6 +89,29 @@ def test_payout_rules_and_scope(api, make_user, pw):
     assert fin.balance(pw["acc"]) == 5_000_000 and SalaryPayout.all_objects.get(pk=pid).is_deleted
 
 
+def test_payout_edit_moves_account(api, pw):
+    """Berilgan oylikni tahrirlash: g'azna, pul turi, summa, davr — g'azna jurnali ko'chadi."""
+    bosh = Account.objects.create(name="Bosh g'azna", cash_type="CARD", initial_balance=1_000_000)
+    bm = api(pw["bm"])
+    body = {"user": str(pw["teacher"].pk), "year": TODAY.year, "month": TODAY.month, "type": "O'zgarmas", "amount": 300000, "cash_type": "CASH", "account": str(pw["acc"].pk)}
+    pid = bm.post("/api/v1/salary-payouts/", body, format="json").json()["id"]
+    assert fin.balance(pw["acc"]) == 4_700_000
+    r = bm.patch(f"/api/v1/salary-payouts/{pid}/", {"account": str(bosh.pk), "cash_type": "CARD", "amount": 250000, "type": "KPI", "month": PREV.month, "year": PREV.year}, format="json")
+    assert r.status_code == 200, r.content
+    assert fin.balance(pw["acc"]) == 5_000_000 and fin.balance(bosh) == 750_000
+    p = SalaryPayout.objects.get(pk=pid)
+    assert (p.type, p.month, p.amount) == ("KPI", PREV.month, 250000) and p.user == pw["teacher"]
+    # Karta g'aznaga naqd pul turi to'g'ri kelmaydi; xodimni o'zgartirib bo'lmaydi
+    assert bm.patch(f"/api/v1/salary-payouts/{pid}/", {"cash_type": "CASH"}, format="json").status_code == 400
+    assert bm.patch(f"/api/v1/salary-payouts/{pid}/", {"user": str(pw["supporter"].pk)}, format="json").json()["user"] == ["Xodimni o'zgartirib bo'lmaydi"]
+    # Hisobchida standart holda tahrirlash ruxsati yo'q (faqat qo'shish), FM — bor
+    h = api(pw["hisobchi"])
+    hid = h.post("/api/v1/salary-payouts/", {**body, "amount": 100000}, format="json").json()["id"]
+    assert h.patch(f"/api/v1/salary-payouts/{hid}/", {"amount": 120000}, format="json").status_code == 403
+    assert api(pw["fm"]).patch(f"/api/v1/salary-payouts/{hid}/", {"amount": 120000, "comment": "tuzatildi"}, format="json").status_code == 200
+    assert fin.balance(pw["acc"]) == 4_880_000
+
+
 def test_assignment_permissions_and_copy(api, pw):
     body = {"user": str(pw["teacher"].pk), "year": PREV.year, "month": PREV.month, "fixed": 900000}
     assert api(pw["hisobchi"]).post("/api/v1/salary-assignments/", body, format="json").status_code == 403  # faqat menejerlar
