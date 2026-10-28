@@ -350,6 +350,27 @@ def api(method, **params):
     return res["result"]
 
 
+def send_document(chat_id, filename, content, caption=""):
+    """Faylni (masalan PDF hisobot) chatga yuboradi — multipart/form-data. content — baytlar."""
+    token = settings.TELEGRAM_BOT_TOKEN
+    if not token:
+        raise RuntimeError("TELEGRAM_BOT_TOKEN berilmagan")
+    boundary = f"codial{new_code()}"
+    parts = []
+    for name, value in (("chat_id", str(chat_id)), ("caption", caption), ("parse_mode", "HTML")):
+        parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n{value}\r\n'.encode())
+    parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="document"; filename="{filename}"\r\n'
+                 f"Content-Type: application/pdf\r\n\r\n".encode() + content + b"\r\n")
+    body = b"".join(parts) + f"--{boundary}--\r\n".encode()
+    req = urllib.request.Request(f"https://api.telegram.org/bot{token}/sendDocument", data=body,
+                                 headers={"Content-Type": f"multipart/form-data; boundary={boundary}"})
+    with urllib.request.urlopen(req, timeout=60) as r:
+        res = json.loads(r.read().decode())
+    if not res.get("ok"):
+        raise RuntimeError(res.get("description", "Telegram xatosi"))
+    return res["result"]
+
+
 def download_file(file_id, max_bytes=20 * 1024 * 1024):
     """Botga yuborilgan fayl (masalan ovozli xabar) — baytlar. Bot API 20 MB gacha beradi."""
     path = api("getFile", file_id=file_id)["file_path"]

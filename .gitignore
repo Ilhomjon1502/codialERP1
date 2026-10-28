@@ -28,6 +28,7 @@ deploy/*.local.md
 
 # Yo'riqnoma videolari (katta fayllar, haqiqiy ma'lumot)
 docs/video/
+docs/reports/
 tools/tutorial_video/out/
 
 tools/tutorial_video/.venv/
