@@ -671,17 +671,27 @@
     const lock = () => !isNew && stopOnly;
     const B = c ? c.branch : A.branchIds()[0];
     const students = isNew ? (await A.http.get('/students/?page_size=200')).results.filter((s) => s.branch === B) : [c.student_data];
-    const v = c ? { ...c } : { type: 'Pullik', start: A.today(), ...preset };
+    /* Yangi shartnoma: boshlanish sana — guruhning boshlanish sanasi (guruh hali boshlanmagan yoki 7 kun ichida boshlangan bo'lsa),
+       aks holda bugun. Qo'lda o'zgartirilgan sanaga guruh almashtirilganda tegilmaydi. */
+    const startFor = (gid) => {
+      const g = gid && A.get('groups', gid);
+      return g && g.start && A.diffDays(g.start, A.today()) <= 7 ? g.start : A.today();
+    };
+    const v = c ? { ...c } : { type: 'Pullik', ...preset, start: preset.start || startFor(preset.group) };
+    let autoStart = isNew && !preset.start ? v.start : null;
     A.form({
       title: isNew ? 'Yangi shartnoma' : `Shartnoma №${c.number}`,
       values: v,
       fields: [
         { name: 'student', label: 'Talaba', type: 'select', required: true, readonly: () => !isNew, options: () => students.map((s) => [s.id, `${s.full_name} · ${s.phone1}`]), help: isNew ? "Yaratilgandan keyin talabani o'zgartirib bo'lmaydi" : "Talaba o'zgarmaydi" },
         { name: 'course', label: 'Kurs', type: 'select', required: true, resets: ['group'], readonly: () => lock() || (!isNew && !COURSE_EDITORS.includes(A.role())), options: (x) => A.optList('courses', 'name', (k) => (k.status === 'Faol' && k.branches.includes(B)) || k.id === x.course), help: isNew ? '' : (COURSE_EDITORS.includes(A.role()) ? "Kurs o'zgarsa, yangi kursdan guruh tanlang. O'tgan darslar eski kurs narxida qoladi" : "Kursni Admin, Bosh menejer va Administrator+Hisobchi o'zgartiradi") },
-        { name: 'group', label: 'Guruh', type: 'select', required: true, show: (x) => x.course, readonly: lock, options: (x) => A.rows('groups').filter((g) => (g.course === x.course && g.branch === B && g.status !== 'Nofaol') || g.id === x.group).map((g) => { const f = A.groupFill(g); return [g.id, `${A.groupName(g)} · ${A.patternName(g.pattern)} ${A.timeName(g.time)} · ${f.n}/${f.cap}`]; }) },
+        { name: 'group', label: 'Guruh', type: 'select', required: true, show: (x) => x.course, readonly: lock,
+          onChange: (x) => { if (isNew && autoStart !== null && x.start === autoStart) x.start = autoStart = startFor(x.group); },
+          options: (x) => A.rows('groups').filter((g) => (g.course === x.course && g.branch === B && g.status !== 'Nofaol') || g.id === x.group).map((g) => { const f = A.groupFill(g); return [g.id, `${A.groupName(g)} · ${A.patternName(g.pattern)} ${A.timeName(g.time)} · ${f.n}/${f.cap}`]; }) },
         { name: 'type', label: 'Shartnoma turi', type: 'seg', options: ['Pullik', 'Grant'], show: (x) => x.course, readonly: () => lock() || !A.isTop(), help: () => (A.isTop() ? '' : "Turini faqat Admin va Bosh menejer o'zgartiradi") },
         { name: 'number', label: 'Shartnoma raqami', type: 'computed', show: (x) => x.type, compute: () => (c ? `№${c.number}` : 'avtomatik (filialdagi oxirgi raqam + 1)') },
-        { name: 'start', label: 'Boshlanish sana', type: 'date', required: true, show: (x) => x.type, half: true, readonly: lock },
+        { name: 'start', label: 'Boshlanish sana', type: 'date', required: true, show: (x) => x.type, half: true, readonly: lock,
+          help: (x) => { const g = isNew && x.group && A.get('groups', x.group); return g && g.start ? `Guruh ${A.fdate(g.start)} dan boshlanadi` : ''; } },
         { name: 'end', label: 'Tugash sana', type: 'date', show: (x) => x.type && x.start, half: true, required: lock,
           help: () => (lock() ? "To'xtatish: tugash sanasi oxirgi 30 kun ichida" : ''),
           validate: (d, x) => (d && d < x.start ? "Boshlanish sanadan kichik bo'lolmaydi" : d && lock() && A.diffDays(d, A.today()) > 30 ? "Tugash sanasini oxirgi 30 kun ichida qo'yish mumkin" : '') },
