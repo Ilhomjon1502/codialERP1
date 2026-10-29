@@ -62,7 +62,7 @@
     ['dashboard', 'Bosh sahifa', 'home'], ['staffTasks', 'Topshiriqlar', 'task', 'tasks'], ['leads', 'Lidlar', 'userplus'], ['contracts', 'Shartnomalar', 'filesign'],
     ['payments', "To'lovlar", 'sack'], ['debtors', 'Qarzdorlar', 'dollarc'], ['attendance', 'Davomatlar', 'usercheck'],
     ['profit', 'Foyda (oyma-oy)', 'handusd'], ['expenses', 'Xarajatlar', 'arrows'],
-    ['export', 'Shartnoma yuklash', 'filedl'], ['groupAnalysis', 'Guruhlar tahlili', 'chartdown'], ['groups', 'Guruhlar', 'classgrp'],
+    ['export', 'Shartnoma yuklash', 'filedl'], ['groups', 'Guruhlar', 'classgrp'],
     ['approvals', 'Tasdiqlashlar', 'checkdbl'], ['salaries', 'Oyliklar', 'coins'],
     ['transfers', 'Ichki pul oqimi', 'exch'], ['creditors', 'Tashqi pul oqimi', 'sortalt'], ['exchange', 'Pul ayirboshlash', 'sync'],
     ['accounts', "G'aznalar", 'sack'],
