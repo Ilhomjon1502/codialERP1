@@ -179,7 +179,7 @@
 3. Ixtiyoriy: AI'da prognoz (buyurtmachi tilga olgan, boshlanmagan).
 
 **Ish usullari** (tokenni tejash va xatosiz ishlash uchun):
-- **Testlar:** `cd backend && .venv/Scripts/python -m pytest -q` (389 test) va `.venv/Scripts/ruff check .`. Front-end o'zgarsa — `frontend/index.html` dagi `?v=` ni oshiring (hozir `m12-75`). Android ilova o'zgarsa — yuqoridagi «APK yig'ish» bandi.
+- **Testlar:** `cd backend && .venv/Scripts/python -m pytest -q` (389 test) va `.venv/Scripts/ruff check .`. Front-end o'zgarsa — `frontend/index.html` dagi `?v=` ni oshiring (hozir `m12-76`). Android ilova o'zgarsa — yuqoridagi «APK yig'ish» bandi.
 - **Serverdagi holatni tekshirish** (masalan, qo'ng'iroqlar tushyaptimi): skript ichida `docker compose --env-file .env exec -T web python manage.py shell <<'PY' … PY` (heredoc), ssh esa `dangerouslyDisableSandbox` bilan ishga tushiriladi. Telefon raqamlarini chatga chiqarmang — kerak bo'lsa yashiring.
 - **Serverga joylash — bitta SSH ulanishda**, skript bilan (server tez-tez ulanishni cheklaydi):
   1. Skriptni scratchpad'ga yozing va `ssh -i ~/.ssh/codial_hetzner root@77.42.9.23 'bash -s' < skript.sh` bilan ishga tushiring.

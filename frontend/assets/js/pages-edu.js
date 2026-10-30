@@ -11,10 +11,36 @@
     render(p, q) {
       const tab = q.tab || 'Faol';
       const all = A.vis('groups');
-      const cnt = (s) => all.filter((g) => g.status === s).length;
+      /* Qidiruv va filtrlar (brauzerda): nom/raqam, ustoz, yordamchi, xona, kunlar, vaqt bo'yicha qidiruv; kurs, ustoz, kunlar, xona, to'lish */
+      const fq = (n) => A.q(`groups:${n}`, '');
+      const words = fq('search').trim().toLowerCase().split(/\s+/).filter(Boolean);
+      const match = (g) => {
+        if (fq('course') && g.course !== fq('course')) return false;
+        if (fq('teacher') && g.teacher !== fq('teacher') && g.supporter !== fq('teacher')) return false;
+        if (fq('pattern') && g.pattern !== fq('pattern')) return false;
+        if (fq('room') && g.room !== fq('room')) return false;
+        if (fq('fill') && A.groupFill(g).label !== fq('fill')) return false;
+        if (!words.length) return true;
+        const hay = [A.groupName(g), A.userName(g.teacher), g.supporter ? A.userName(g.supporter) : '', A.roomName(g.room), A.patternName(g.pattern), A.timeName(g.time)]
+          .join(' ').toLowerCase();
+        return words.every((w) => (w.startsWith('#') && w.length > 1 ? String(g.number) === w.slice(1) : hay.includes(w))); // «#46» — aniq guruh raqami
+      };
+      const shown = all.filter(match);
+      const uniq = (ids, name) => A.sortBy([...new Set(ids.filter(Boolean))].map((id) => [id, name(id)]), (o) => o[1]);
+      const filters = A.filterBar('groups', [
+        A.fSearch('groups', 'Guruh, ustoz, xona…'),
+        A.fSelect('groups', 'course', uniq(all.map((g) => g.course), (id) => (A.get('courses', id) || {}).name || '—'), 'Barcha kurslar'),
+        A.fSelect('groups', 'teacher', uniq(all.flatMap((g) => [g.teacher, g.supporter]), A.userName), 'Barcha ustozlar'),
+        A.fSelect('groups', 'pattern', uniq(all.map((g) => g.pattern), A.patternName), 'Barcha kunlar'),
+        A.fSelect('groups', 'room', uniq(all.map((g) => g.room), A.roomName), 'Barcha xonalar'),
+        A.fSelect('groups', 'fill', ["Bo'sh", 'Yomon', "O'rtacha", 'Yaxshi', "Zo'r"].map((x) => [x, x]), "To'lish: hammasi"),
+        ...(words.length || ['course', 'teacher', 'pattern', 'room', 'fill'].some(fq) ? [A.btn('Tozalash', 'groups-clear', { cls: 'ghost' })] : []),
+      ]);
+      const cnt = (s) => shown.filter((g) => g.status === s).length;
       return `${A.head('Guruhlar', "Guruh nomi rangi — to'lish holati: qizil yomon, to'q sariq o'rtacha, ko'k yaxshi, yashil zo'r", A.can('groups', 'a') ? A.btn('Yangi guruh', 'group-new', { icon: 'plus' }) : '')}
         ${A.tabs([['Faol', 'Faol', cnt('Faol')], ['Rejada', 'Rejada', cnt('Rejada')], ['Nofaol', 'Nofaol', cnt('Nofaol')]], tab, 'groups')}
-        <div class="cards">${A.sortBy(all.filter((g) => g.status === tab), (g) => A.groupName(g))
+        ${filters}
+        <div class="cards">${A.sortBy(shown.filter((g) => g.status === tab), (g) => A.groupName(g))
           .map((g) => {
             const f = A.groupFill(g);
             return `<a class="gcard" href="#/groups/${g.id}">
@@ -25,9 +51,13 @@
               <div class="small row between"><span>${f.n} / ${f.cap} talaba</span><span>${f.free} bo'sh o'rin · ${f.pctText}</span></div>
             </a>`;
           })
-          .join('') || A.empty("Guruh yo'q")}</div>`;
+          .join('') || A.empty(shown.length < all.length ? "Filtrga mos guruh yo'q" : "Guruh yo'q")}</div>`;
     },
   });
+  A.act['groups-clear'] = () => {
+    for (const k of ['search', 'course', 'teacher', 'pattern', 'room', 'fill']) delete A.ui.q[`groups:${k}`];
+    A.refresh();
+  };
 
   /* ---- Guruh formasi. Tekshiruvlar serverda ham bor (services.validate_group) ---- */
   /* ---- Dars vaqti: 30 daqiqa oralig'ida qo'lda tanlanadi (08:00, 08:30…). Mos vaqt yozuvi bo'lmasa yangisi o'zi yaratiladi ---- */
