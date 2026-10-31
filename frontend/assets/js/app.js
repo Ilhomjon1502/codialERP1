@@ -533,15 +533,21 @@
         <h4>Qaysi xabarlarni olaman</h4>
         <div class="tg-prefs">${d.events.map((e) => `<label class="check"><input type="checkbox" data-ev="${e.key}" ${e.on ? 'checked' : ''}> ${esc(e.label)}</label>`).join('<br>')}</div>
         <p class="muted small">Belgilangan xabarlar keladi. Ro'yxatda faqat sizga tizimda ko'rish huquqi bor bo'limlar bo'yicha xabarlar bor (masalan to'lovlarni ko'rmaydigan xodimga to'lov xabarlari chiqmaydi).</p>`;
+    const extra = (d.extra || []).map((x) => `<h4>Umumiy chat: ${esc(x.label)}${x.username ? ` (@${esc(x.username)})` : ''}${x.active ? '' : " — o'chiq"}</h4>
+      <div class="tg-prefs">${x.events.map((e) => `<label class="check"><input type="checkbox" data-xev="${x.id}" data-k="${e.key}" ${e.on ? 'checked' : ''}> ${esc(e.label)}</label>`).join('<br>')}</div>`).join('');
+    const bodyAll = body + (extra ? `<hr>${extra}<p class="muted small">Umumiy chatga (ishxona Telegrami) qaysi xabarlar borishini faqat Admin va Bosh menejer o'zgartiradi.</p>` : '');
     const m = A.modal({
       title: 'Telegram xabarlari',
-      body,
+      body: bodyAll,
       footer: d.configured ? `${d.linked ? '<button class="btn ghost" data-unlink>Bog\'lanishni uzish</button>' : '<button class="btn ghost" data-code>Yangi kod</button>'}<button class="btn primary" data-save>Saqlash</button>` : '',
     });
     const save = m.el.querySelector('[data-save]');
     if (save) save.onclick = async () => {
       const prefs = Object.fromEntries([...m.el.querySelectorAll('[data-ev]')].map((c) => [c.dataset.ev, c.checked]));
       await A.http.patch('/notifications/me/', { prefs }).catch((e) => A.toast(e.message, 'warn'));
+      const chats = {};
+      m.el.querySelectorAll('[data-xev]').forEach((c) => { (chats[c.dataset.xev] = chats[c.dataset.xev] || []); if (c.checked) chats[c.dataset.xev].push(c.dataset.k); });
+      for (const [id, events] of Object.entries(chats)) await A.http.patch('/notifications/extra/', { id: Number(id), events }).catch((e) => A.toast(e.message, 'warn'));
       m.close();
       A.toast('Saqlandi');
     };

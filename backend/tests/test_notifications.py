@@ -393,3 +393,61 @@ def test_approval_buttons_and_telegram_approve(api, fin, django_capture_on_commi
     p2.discount_status = "Tasdiqlashga"
     p2.save()
     assert services.approve_from_telegram(902, f"ap:d:{p2.pk}").startswith("⚠️")
+
+
+def test_attendance_taken_only_absent_list_once_when_all_marked(api, make_user, world, django_capture_on_commit_callbacks):  # noqa: F811
+    from apps.notifications.models import ExtraRecipient
+    from tests.test_education import take
+
+    link(make_user("ADMINISTRATOR_HISOBCHI"), 910)  # shaxsiy akkaunt — standart holda olmaydi
+    ExtraRecipient.objects.create(label="Codial admin", chat_id=777, roles=["ADMINISTRATOR_HISOBCHI"], events=["attendance_taken"])
+    c0, c1, c2 = world["contracts"]
+    t = api(world["teacher"])
+    with django_capture_on_commit_callbacks(execute=True):  # hammasi belgilanmadi — xabar yo'q
+        assert take(t, world, [(c0, "1", None), (c1, "X", None)]).status_code in (200, 201)
+    assert not Outbox.objects.filter(event="attendance_taken").exists()
+    with django_capture_on_commit_callbacks(execute=True):
+        assert take(api(make_user("BOSH_MENEJER")), world, [(c2, "0", "kasal")]).status_code in (200, 201)  # sababli — faqat menejerlar qo'yadi
+    with django_capture_on_commit_callbacks(execute=True):  # qayta saqlansa — takrorlanmaydi
+        assert take(t, world, [(c1, "X", None)]).status_code in (200, 201)
+    msgs = list(Outbox.objects.filter(event="attendance_taken"))
+    assert [m.chat_id for m in msgs] == [777]
+    text = msgs[0].text
+    assert text.startswith("📞 <b>Ota-onalarga SMS bormasligi uchun kelmaganlar bilan bog'laning</b>") and "Besabab" in text and "+998" in text
+    assert world["students"][1].full_name in text
+    assert world["students"][0].full_name not in text and world["students"][2].full_name not in text and "Sababli" not in text  # faqat besabablar
+
+
+def test_attendance_taken_silent_without_absent_and_for_past_date(api, make_user, world, django_capture_on_commit_callbacks):  # noqa: F811
+    from apps.notifications.models import ExtraRecipient
+    from tests.test_education import TODAY, take
+
+    ExtraRecipient.objects.create(label="Codial admin", chat_id=777, roles=["ADMINISTRATOR"], events=["attendance_taken"])
+    marks = [(c, "1", None) for c in world["contracts"]]
+    with django_capture_on_commit_callbacks(execute=True):
+        assert take(api(make_user("BOSH_MENEJER")), world, marks, date=TODAY - datetime.timedelta(days=1)).status_code in (200, 201)
+        assert take(api(world["teacher"]), world, marks).status_code in (200, 201)  # bugun, hamma keldi — besabab yo'q
+    assert not Outbox.objects.filter(event="attendance_taken").exists()
+
+
+def test_boss_chooses_extra_recipient_events(api, make_user, world, django_capture_on_commit_callbacks):  # noqa: F811
+    from apps.notifications.models import ExtraRecipient
+
+    er = ExtraRecipient.objects.create(label="Codial admin", chat_id=777, roles=["ADMINISTRATOR_HISOBCHI"])  # events=None — rollar bo'yicha
+    boss, adm = make_user("BOSH_MENEJER"), make_user("ADMINISTRATOR_HISOBCHI")
+    link(boss, 920)
+    got = api(boss).get("/api/v1/notifications/me/").json()["extra"][0]
+    on = {e["key"] for e in got["events"] if e["on"]}
+    assert {"new_lead", "morning_plan"} <= on and "daily_report" not in on
+    assert api(adm).get("/api/v1/notifications/me/").json()["extra"] == []  # oddiy xodim ko'rmaydi
+    assert api(adm).patch("/api/v1/notifications/extra/", {"id": er.pk, "events": []}, format="json").status_code == 403
+    r = api(boss).patch("/api/v1/notifications/extra/", {"id": er.pk, "events": ["morning_plan", "attendance_taken"]}, format="json")
+    assert r.status_code == 200, r.content
+    er.refresh_from_db()
+    assert er.events == ["attendance_taken", "morning_plan"]  # EVENT_KEYS tartibida
+    assert api(boss).patch("/api/v1/notifications/extra/", {"id": er.pk, "events": ["yo'q_hodisa"]}, format="json").status_code == 400
+    body = {"mode": "new", "first_name": "Nusxa", "last_name": "Lidov", "phone1": "933334455", "phone2": "944445566",
+            "source": str(LeadSource.objects.create(name="Instagram").pk), "course": str(world["course"].pk), "status": "2"}
+    with django_capture_on_commit_callbacks(execute=True):
+        assert api(make_user("FILIAL_MENEJERI")).post("/api/v1/leads/", body, format="json").status_code == 201
+    assert not Outbox.objects.filter(chat_id=777, event="new_lead").exists()  # olib tashlangan xabar endi bormaydi

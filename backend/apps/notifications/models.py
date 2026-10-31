@@ -13,6 +13,7 @@ EVENTS = [
     ("transfer", "Tasdiq kutayotgan o'tkazma"),
     ("makeup", "Qoldirilgan dars so'rovi"),
     ("attendance_missing", "Davomat olinmagan"),
+    ("attendance_taken", "Davomat olindi: kelmaganlar bilan bog'lanish ro'yxati"),
     ("daily_report", "Kunlik hisobot (19:00)"),
     ("lesson_start", "Dars boshlandi — davomat olish vaqti"),
     ("morning_plan", "Ertalabki ish rejasi (8:30): to'lovlar, sinov darslari, qo'ng'iroqlar"),
@@ -55,6 +56,7 @@ class ExtraRecipient(models.Model):
     chat_id = models.BigIntegerField(unique=True)
     username = models.CharField(max_length=64, blank=True)
     roles = models.JSONField("Qaysi rollar xabarlarining nusxasi", default=list)
+    events = models.JSONField("Qaysi xabar turlari (bo'sh qiymat — rollar bo'yicha standart)", null=True, blank=True, default=None)  # Bosh menejer saytdan o'zgartiradi
     active = models.BooleanField(default=True)
 
     class Meta:

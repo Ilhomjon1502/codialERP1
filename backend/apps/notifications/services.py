@@ -33,6 +33,7 @@ EVENT_PERM = {
     "transfer": ("transfers", "v"),
     "makeup": ("attendance", "p"),
     "attendance_missing": ("attendance", "v"),
+    "attendance_taken": ("attendance", "v"),
     "daily_report": ("audit", "v"),  # hisobotda audit (kim nima qildi) bor — faqat Admin va Bosh menejer
     "lesson_start": ("attendance", "a"),
     "morning_plan": ("payments", "v"),  # qarzdorlar ro'yxati bor
@@ -54,6 +55,7 @@ DEFAULT_ROLES = {
     "transfer": set(),  # standart — faqat qabul qiluvchi g'azna mas'ullari (default_users)
     "makeup": {R.BOSH_MENEJER, R.FILIAL_MENEJERI, R.ADMINISTRATOR, R.ADMINISTRATOR_HISOBCHI},
     "attendance_missing": {R.ADMINISTRATOR, R.ADMINISTRATOR_HISOBCHI},  # + guruh ustozi (default_users)
+    "attendance_taken": {R.ADMINISTRATOR, R.ADMINISTRATOR_HISOBCHI},  # faqat qo'shimcha qabul qiluvchilarga (EXTRA_ONLY): umumiy @codial_admin
     "daily_report": {R.BOSH_MENEJER},
     "lesson_start": set(),  # standart — faqat guruh ustozi (default_users)
     "morning_plan": {R.ADMINISTRATOR_HISOBCHI},
@@ -75,6 +77,8 @@ def allowed(user, event):
     return can(user, sec, op)
 
 
+# Xodimlarga standart holda bormaydigan (faqat o'zi yoqsa), lekin DEFAULT_ROLES bo'yicha qo'shimcha qabul qiluvchilarga boradigan xabarlar
+EXTRA_ONLY = {"attendance_taken"}
 LOCKED = {"demo_soon"}  # o'chirib bo'lmaydigan xabarlar (buyurtmachi qarori 2026-10-19): standart oluvchilarga har doim boradi
 
 
@@ -83,12 +87,28 @@ def wants(link, event, default=False):
     if event in LOCKED:
         return default or role_code(link.user) in DEFAULT_ROLES[event]
     v = link.prefs.get(event)
+    if event in EXTRA_ONLY:
+        return bool(v)
     return v if v is not None else (default or role_code(link.user) in DEFAULT_ROLES[event])
 
 
 def events_for(user, link):
     """«Telegram» oynasi uchun: xodimga ruxsat etilgan xabar turlari va hozirgi holati."""
     return [{"key": k, "label": label, "on": wants(link, k)} for k, label in EVENTS if allowed(user, k) and k not in LOCKED]
+
+
+def extra_events(er):
+    """Qo'shimcha qabul qiluvchi qaysi xabar turlarini oladi: Bosh menejer tanlagan ro'yxat, tanlanmagan bo'lsa — rollariga standart keladiganlar."""
+    if er.events is not None:
+        return set(er.events)
+    return {k for k, roles in DEFAULT_ROLES.items() if any(r in roles for r in er.roles)}
+
+
+def extra_payload():
+    """Bosh menejer/Admin uchun: umumiy chatlar va ularning xabar turlari."""
+    return [{"id": er.pk, "label": er.label, "username": er.username, "active": er.active,
+             "events": [{"key": k, "label": label, "on": k in extra_events(er)} for k, label in EVENTS if k != "founder_report"]}
+            for er in ExtraRecipient.objects.order_by("label")]
 
 
 def in_branch(user, branch):
@@ -116,14 +136,14 @@ def notify(event, text, branch=None, default_users=(), key="", only=None, markup
             # (2) xabar aynan shu rollardagi xodimga mo'ljallangan bo'lsa (masalan topshiriq) — nusxa; (2) da «Kimga» yoziladi. Bitta chatga bir marta.
             sent_to = {x.chat_id for x in rows}
             for er in ExtraRecipient.objects.filter(active=True):
-                by_role = any(role in DEFAULT_ROLES.get(event, ()) for role in er.roles)
+                by_role = event in extra_events(er)
                 targets = [u for u in default_users if u and role_code(u) in er.roles]
-                if er.chat_id in sent_to or not (by_role or targets):
+                if er.chat_id in sent_to or not (by_role or (er.events is None and targets)):
                     continue
                 if key and Outbox.objects.filter(chat_id=er.chat_id, key=key).exists():
                     continue
                 names = ", ".join(escape(str(u)) for u in targets)
-                body = text if by_role else f"👤 <b>Kimga:</b> {names}\n{text}"
+                body = text if not names else f"👤 <b>Kimga:</b> {names}\n{text}"
                 rows.append(Outbox(user=None, chat_id=er.chat_id, event=event, key=key, text=body, markup=markup or {}))
             Outbox.objects.bulk_create(rows)
         except Exception:  # noqa: BLE001 — xabar asosiy amalni buzmasin
@@ -301,6 +321,29 @@ def attendance_missing(group, text, key):
         return role_code(u) not in TEACHER_ROLES or u.pk in mine
 
     notify("attendance_missing", text, branch=group.branch, default_users=[group.teacher], key=key, only=only)
+
+
+def attendance_taken(group, d, rows):
+    """Bugungi davomat to'liq olindi (guruh va sana bo'yicha bir marta) — faqat «Besabab» kelmaganlar ro'yxati telefonlari bilan
+    qo'shimcha qabul qiluvchiga (@codial_admin): ota-onaga SMS ketmasligi uchun bog'lanish. Besabab yo'q bo'lsa xabar yo'q.
+    rows: [(shartnoma, davomat qatori)]. Xodimlar faqat o'zi yoqsa oladi (ustoz — o'z guruhi)."""
+    from apps.education.calc import BESABAB
+
+    absent = [(c, a) for c, a in rows if a.status == BESABAB]
+    if not absent:
+        return
+
+    def line(c, a):
+        phones = " / ".join(f"+998{p}" for p in (c.student.phone1, c.student.phone2) if p) or "raqam yo'q"
+        note = f" ({escape(a.comment)})" if a.comment else ""
+        return f"• {escape(c.student.full_name)} · {phones}{note}"
+
+    text = "\n".join(["📞 <b>Ota-onalarga SMS bormasligi uchun kelmaganlar bilan bog'laning</b>",
+                      f"{escape(group.name)} · {group.time.start_time:%H:%M}–{group.time.end_time:%H:%M}",
+                      "❌ <b>Besabab:</b>", *(line(c, a) for c, a in absent)])
+    mine = {group.teacher_id, group.supporter_id}
+    notify("attendance_taken", text, branch=group.branch, key=f"taken:{group.pk}:{d}",
+           only=lambda u: role_code(u) not in TEACHER_ROLES or u.pk in mine)
 
 
 def lesson_started(group, text, key):

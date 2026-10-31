@@ -56,3 +56,15 @@ Hisobotda: to'lovlar, faol shartnomalar (kurslar bo'yicha), lidlar (bugun yangi,
 - Rolni faqat Admin tayinlaydi (Sozlamalar → Foydalanuvchilar). Saytga kirish uchun pochta va parol kerak (parol havolasi pochtaga boradi); pochtasiz asoschi faqat botdan hisobot oladi.
 - Botga ulash: xodimda Telegram bog'lash kodi bo'ladi (Admin serverdan oladi yoki xodim tizimga kirib «Telegram» oynasidan oladi) va `/start KOD` yoziladi.
 - Ko'rib chiqish: `python manage.py daily_report --print --short`.
+
+## Davomat olindi — kelmaganlar ro'yxati (2026-10-31)
+
+Ustoz (yoki menejer) bugungi davomatda **hamma talabani** belgilab bo'lgach, umumiy chatga (Codial admin) guruh bo'yicha bir marta
+«📞 Ota-onalarga SMS bormasligi uchun kelmaganlar bilan bog'laning» xabari keladi: guruh, vaqt va **faqat «Besabab»** talabalar
+(ism, telefonlari, izoh). Besabab bo'lmasa xabar kelmaydi; o'tgan sanani tuzatish xabar yubormaydi.
+Kelmagan bilan gaplashgach, davomat → «Kelmaganlar» da holatini «Gaplashildi» qiling — «Sababsiz kelmagan» SMS qoidasi (yoqilgan bo'lsa)
+shu talabaga SMS yubormaydi.
+
+## Umumiy chat (Codial admin) xabarlarini sozlash
+
+Admin va Bosh menejer: ism → «✈️ Telegram» oynasining pastida «Umumiy chat: …» — qaysi xabar turlari shu chatga borishini belgilang va «Saqlash».

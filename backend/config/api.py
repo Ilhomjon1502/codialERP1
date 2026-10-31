@@ -84,6 +84,7 @@ urlpatterns = [
     path("export/contracts/", edu.export_contracts),
     path("schedule/", edu.schedule),
     path("notifications/me/", notif.me),
+    path("notifications/extra/", notif.extra),
     path("ai/", ai.info),
     path("ai/ask/", ai.ask),
     path("ai/<int:pk>/run/", ai.rerun),

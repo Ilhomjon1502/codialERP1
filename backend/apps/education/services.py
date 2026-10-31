@@ -1,6 +1,7 @@
 """O'quv jarayoni servislari: guruh va shartnoma qoidalari, davomat olish, kelmaganlar, qoldirilgan darslar (CLAUDE.md 7.4, 9)."""
 
 import datetime
+import logging
 
 from django.db import transaction
 from django.db.models import Count, DecimalField, Max, OuterRef, Q, Subquery, Sum, Value
@@ -17,6 +18,8 @@ from apps.references.models import AttendanceStatus
 
 from . import calc
 from .models import Attendance, Contract, Group, MakeupRequest
+
+log = logging.getLogger(__name__)
 
 TEACHERS = {RoleCode.USTOZ, RoleCode.USTOZ_YORDAMCHI}
 SUPPORTERS = {RoleCode.YORDAMCHI, RoleCode.USTOZ_YORDAMCHI}
@@ -373,7 +376,20 @@ def mark(user, group, d, marks, sub_teacher=None, sub_supporter=None):
             a.save()
             audit.log_update(user, a, before)
         out.append(a)
+    if d == today():
+        _announce_taken(group, d)
     return out
+
+
+def _announce_taken(group, d):
+    """Bugungi davomat hamma talaba uchun belgilangach — kelmaganlar ro'yxati Telegram'ga (guruh va sana bo'yicha bir marta)."""
+    try:
+        cs = list(roster(group, d))
+        rows = {a.contract_id: a for a in Attendance.objects.filter(group=group, date=d)}
+        if cs and all(c.pk in rows for c in cs):
+            notif.attendance_taken(group, d, [(c, rows[c.pk]) for c in cs])
+    except Exception:  # noqa: BLE001 — xabar davomatni saqlashni buzmasin
+        log.exception("Davomat xabari tayyorlanmadi")
 
 
 @transaction.atomic
