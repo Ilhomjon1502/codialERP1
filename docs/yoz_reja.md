@@ -4,6 +4,7 @@
 > joylanmagan): yozish mexanikasi, mashq ekrani, klaviatura va qo'llar, natija oynasi (grafik bilan), lokal
 > profillar, darslar xaritasi va yulduzlar, «Natijalarim» (14 kun, harflar xaritasi, tarix, faylga saqlash/yuklash).
 > Darslar: 0–4 bo'limlar (tayyorgarlik, asosiy, yuqori, pastki qatorlar — barcha lotin harflari), 55 dars.
+> **Y3 bajarildi** (2026-11-02): serverda `/srv/codial-yoz`, Nginx HTTP ishlayapti; DNS (`yoz` A → 77.42.9.23) va SSL (`certbot --nginx -d yoz.codialinfo.uz`) kutilmoqda.
 > Savollarga javob kelmagani uchun tavsiyalar qo'llandi: xatoda to'xtaydi, kunlik maqsad 15 daqiqa, nom «Codial Yoz».
 >
 > Buyurtmachi qarori (2026-11-02): hozircha **faqat mustaqil sayt** — login/parol yo'q, ERP, bot va
