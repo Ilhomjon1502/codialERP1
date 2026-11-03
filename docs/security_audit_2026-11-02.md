@@ -8,7 +8,7 @@ rejimida tekshirildi, loginga urinishlar cheklovi haqiqiy yo'l (Nginx → Gunico
 
 | # | Daraja | Topilma | Holat |
 |---|---|---|---|
-| 1 | **Yuqori** | **Loginga urinishlar cheklovi aylanib o'tiladi.** (a) DRF `NUM_PROXIES` berilmagani uchun mijoz o'zi yozgan `X-Forwarded-For` hisob kaliti bo'lib qoladi: har so'rovda boshqa qiymat yuborilsa, cheklov hech qachon ishlamaydi (sinov: 45 urinish → 45 ta `400`, birortasi `429` emas). (b) Hisob `LocMemCache`da, Gunicorn 3 ta ishchi: «10/daq» amalda 30/daq (sinov: 29 ta o'tdi, keyin `429`). Parol 4 belgigacha bo'lishi mumkin bo'lgani uchun bu parolni terib topishga yo'l ochadi | **Kodda tuzatildi** (serverga joylanmagan) |
+| 1 | **Yuqori** | **Loginga urinishlar cheklovi aylanib o'tiladi.** (a) DRF `NUM_PROXIES` berilmagani uchun mijoz o'zi yozgan `X-Forwarded-For` hisob kaliti bo'lib qoladi: har so'rovda boshqa qiymat yuborilsa, cheklov hech qachon ishlamaydi (sinov: 45 urinish → 45 ta `400`, birortasi `429` emas). (b) Hisob `LocMemCache`da, Gunicorn 3 ta ishchi: «10/daq» amalda 30/daq (sinov: 29 ta o'tdi, keyin `429`). Parol 4 belgigacha bo'lishi mumkin bo'lgani uchun bu parolni terib topishga yo'l ochadi | **Tuzatildi va serverga joylandi** (2026-11-03, commit 0672a58) |
 | 2 | O'rta | Parol siyosati: kamida 4 belgi (buyurtmachi qarori 2026-10-13). Hisob qulfi bilan hujum sekinlashadi (bir pochtaga 8 urinish / 15 daq), lekin raqamli 4 xonali parol kuchsiz | Qaror kerak: kamida Bosh menejer, Asoschi, Administrator+Hisobchi uchun 8 belgi |
 | 3 | O'rta | Zaxira nusxalar faqat shu serverda (`/srv/backups`, 30 kun). Server buzilsa yoki yo'qolsa ma'lumot ham, zaxira ham yo'qoladi (talabalar shaxsiy ma'lumoti, to'lovlar) | Tashqi nusxa kerak (Hetzner snapshot yoki Storage Box) |
 | 4 | Past | Nginx: `Server: nginx/1.24.0` versiyasi ko'rinadi; `limit_req` yo'q; HSTS faqat API javoblarida va 30 kun; CSP yo'q | Sozlanadi |
@@ -30,7 +30,11 @@ rejimida tekshirildi, loginga urinishlar cheklovi haqiqiy yo'l (Nginx → Gunico
 - Barcha o'zgarishlar audit jurnaliga yoziladi; foydalanuvchi bor-yo'qligi parolni tiklashda oshkor qilinmaydi.
 - Avtomatik xavfsizlik yangilanishlari (`unattended-upgrades`) yoqilgan.
 
-## 1-topilma tuzatishi (kodda)
+## 1-topilma tuzatishi (2026-11-03 da serverga joylandi)
+
+Joylangandan keyin xuddi shu sinov takrorlandi: soxta `X-Forwarded-For` bilan 45 urinishdan 10 tasi o'tdi, 35 tasi `429` (oldin 45/45 o'tgan edi);
+oddiy 45 urinishdan 10 tasi o'tdi (oldin 29); bitta pochtaga turli IP'lardan 8 ta xatodan keyin qulf (9-urinishdan `429`).
+
 
 - `REST_FRAMEWORK["NUM_PROXIES"] = 1`: mijoz manzili — `X-Forwarded-For`ning Nginx qo'shgan oxirgi qiymati.
 - `prod.py`: kesh `FileBasedCache` — hamma ishchi uchun umumiy hisob; cheklov haqiqatan 10/daq.
