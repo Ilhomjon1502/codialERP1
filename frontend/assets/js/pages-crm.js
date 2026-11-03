@@ -118,7 +118,7 @@
   const keepStudent = (l) => l && l.student_data && A.putLocal('students', l.student_data);
   const leadFilters = () => {
     const qs = new URLSearchParams();
-    for (const k of ['search', 'course', 'source']) if (A.q('leads:' + k, '')) qs.set(k, A.q('leads:' + k));
+    for (const k of ['search', 'course', 'source', 'month']) if (A.q('leads:' + k, '')) qs.set(k, A.q('leads:' + k));
     return qs;
   };
   let leadData = {};
@@ -159,7 +159,7 @@
       else body = paidTable(leadData.results) + pager(leadData);
       return `${A.head('Lidlar', 'Murojaatlar voronkasi: birinchi qo\'ng\'iroqdan shartnomagacha', actions)}
         ${A.tabs([['funnel', 'Voronka', tab === 'funnel' ? leadData.total : undefined], ['list', "Ro'yxat"], ['stats', 'Statistika'], ['paid', "To'lov qilganlar"]], tab, 'leads')}
-        ${A.filterBar('leads', [A.fSearch('leads', 'Ism yoki telefon…'), A.fSelect('leads', 'course', A.optList('courses'), 'Barcha kurslar'), A.fSelect('leads', 'source', A.optList('leadSources'), 'Barcha manbalar')])}
+        ${A.filterBar('leads', [A.fSearch('leads', 'Ism yoki telefon…'), A.fSelect('leads', 'course', A.optList('courses'), 'Barcha kurslar'), A.fSelect('leads', 'source', A.optList('leadSources'), 'Barcha manbalar'), A.fSelect('leads', 'month', A.monthOptions(), 'Barcha oylar')])}
         <div>${body}</div>`;
     },
   });

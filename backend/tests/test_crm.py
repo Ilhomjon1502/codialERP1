@@ -124,6 +124,23 @@ def test_board_stats_search(api, make_user, refs):
     assert c.get("/api/v1/leads/?status=5").json()["count"] == 1
 
 
+def test_lead_month_filter(api, make_user, refs):
+    from datetime import UTC, datetime
+
+    from apps.crm.models import Lead
+
+    c = api(make_user("BOSH_MENEJER"))
+    for i in range(3):
+        body = new_lead(refs, first_name=f"Oylik{i}", phone1=f"90100000{i}", phone2=f"91100000{i}")
+        assert c.post("/api/v1/leads/", body, format="json").status_code == 201
+    old = Lead.objects.order_by("created_at").first()
+    Lead.objects.filter(pk=old.pk).update(created_at=datetime(2026, 9, 15, 12, 0, tzinfo=UTC))
+    assert c.get("/api/v1/leads/?month=2026-09").json()["count"] == 1
+    assert c.get("/api/v1/leads/stats/?month=2026-09").json()["total"] == 1
+    assert c.get("/api/v1/leads/stats/").json()["total"] == 3
+    assert c.get("/api/v1/leads/?month=bad").status_code == 400
+
+
 def test_student_fill_form_with_new_parent(api, make_user, refs):
     c = api(make_user("ADMINISTRATOR"))
     sid = c.post("/api/v1/leads/", new_lead(refs), format="json").json()["student"]

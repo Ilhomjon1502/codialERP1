@@ -70,6 +70,12 @@ class LeadViewSet(AuditedModelViewSet):
         for key, field in (("course", "course"), ("source", "source"), ("status", "status")):
             if p.get(key):
                 qs = qs.filter(**{field: p[key]})
+        if p.get("month"):  # lid ochilgan oy, "YYYY-MM"
+            try:
+                year, month = (int(x) for x in p["month"].split("-")[:2])
+            except ValueError:
+                raise ValidationError({"month": ["Oy YYYY-MM ko'rinishida bo'lsin"]}) from None
+            qs = qs.filter(created_at__year=year, created_at__month=month)
         if p.get("paid"):
             qs = services.with_payments(qs).filter(paid_total__gt=0)
         return qs
