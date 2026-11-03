@@ -9,6 +9,9 @@ if not SECRET_KEY or len(SECRET_KEY) < 40:
     raise ImproperlyConfigured("SECRET_KEY .env da berilmagan yoki juda qisqa (kamida 40 belgi)")
 
 DEBUG = False
+# Urinishlar hisobi (login cheklovi, hisob qulfi) gunicorn ishchilari orasida umumiy bo'lsin: LocMemCache har ishchida
+# alohida edi, shuning uchun «10/daq» amalda 30/daq bo'lgan. Fayl keshi bitta konteynerdagi hamma ishchi uchun umumiy.
+CACHES = {"default": {"BACKEND": "django.core.cache.backends.filebased.FileBasedCache", "LOCATION": "/tmp/codial-cache"}}
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SECURE_SSL_REDIRECT = env_bool("SECURE_SSL_REDIRECT", True)
 SESSION_COOKIE_SECURE = True

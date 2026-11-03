@@ -144,6 +144,9 @@ REST_FRAMEWORK = {
     "EXCEPTION_HANDLER": "apps.core.exceptions.exception_handler",
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_THROTTLE_RATES": {"login": env("LOGIN_RATE", "10/min"), "password": "5/min"},
+    # Nginx bitta proksi: mijoz manzili — X-Forwarded-For ning OXIRGI qiymati (Nginx qo'shgani). Aks holda mijoz
+    # sarlavhani o'zi yozib, urinishlar cheklovini cheksiz aylanib o'tadi (2026-11-02 da serverda isbotlangan).
+    "NUM_PROXIES": 1,
 }
 SPECTACULAR_SETTINGS = {"TITLE": "Codial ERP API", "VERSION": "1.0", "SERVE_INCLUDE_SCHEMA": False}
 

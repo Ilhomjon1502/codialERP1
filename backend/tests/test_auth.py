@@ -82,3 +82,44 @@ def test_csrf_enforced_for_login_and_writes(make_user):
     assert c.post("/api/v1/auth/login/", body, format="json", **token()).status_code == 200
     assert c.post("/api/v1/lead-sources/", {"name": "Yangi"}, format="json").status_code == 403
     assert c.post("/api/v1/lead-sources/", {"name": "Yangi"}, format="json", **token()).status_code == 201
+
+
+def test_login_locks_after_repeated_failures_from_any_ip(api, make_user):
+    """Bitta pochtaga 8 ta noto'g'ri urinishdan keyin — hatto to'g'ri parol ham 15 daqiqa qabul qilinmaydi (IP'dan qat'i nazar)."""
+    make_user(email="qulf@codial.test")
+    for i in range(8):
+        c = api()
+        r = c.post("/api/v1/auth/login/", {"email": "qulf@codial.test", "password": "xato"}, format="json", HTTP_X_FORWARDED_FOR=f"10.0.0.{i}")
+        assert r.status_code == 400
+    r = api().post("/api/v1/auth/login/", {"email": "Qulf@Codial.test", "password": PASSWORD}, format="json", HTTP_X_FORWARDED_FOR="10.9.9.9")
+    assert r.status_code == 429
+
+
+def test_successful_login_resets_failure_counter(api, make_user):
+    make_user(email="reset@codial.test")
+    for _ in range(5):
+        api().post("/api/v1/auth/login/", {"email": "reset@codial.test", "password": "xato"}, format="json")
+    assert api().post("/api/v1/auth/login/", {"email": "reset@codial.test", "password": PASSWORD}, format="json").status_code == 200
+    for _ in range(5):  # hisob nolga qaytgan: yana 5 ta xato qulfga olib kelmaydi
+        assert api().post("/api/v1/auth/login/", {"email": "reset@codial.test", "password": "xato"}, format="json").status_code == 400
+
+
+def test_lock_is_per_account(api, make_user):
+    make_user(email="bir@codial.test")
+    make_user(email="ikki@codial.test", full_name="Ikkinchi Xodim")
+    for _ in range(8):
+        api().post("/api/v1/auth/login/", {"email": "bir@codial.test", "password": "xato"}, format="json")
+    assert api().post("/api/v1/auth/login/", {"email": "ikki@codial.test", "password": PASSWORD}, format="json").status_code == 200
+
+
+def test_throttle_ignores_spoofed_forwarded_for(settings):
+    """Mijoz yuborgan X-Forwarded-For hisobga olinmaydi: oxirgi qiymat (Nginx qo'shgani) — haqiqiy manzil."""
+    from rest_framework.request import Request
+    from rest_framework.test import APIRequestFactory
+    from rest_framework.throttling import ScopedRateThrottle
+
+    def ident(xff):
+        req = APIRequestFactory().post("/x", HTTP_X_FORWARDED_FOR=xff, REMOTE_ADDR="127.0.0.1")
+        return ScopedRateThrottle().get_ident(Request(req))
+
+    assert ident("1.1.1.1, 203.0.113.7") == ident("2.2.2.2, 203.0.113.7") == "203.0.113.7"

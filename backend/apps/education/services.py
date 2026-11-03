@@ -24,6 +24,8 @@ log = logging.getLogger(__name__)
 TEACHERS = {RoleCode.USTOZ, RoleCode.USTOZ_YORDAMCHI}
 SUPPORTERS = {RoleCode.YORDAMCHI, RoleCode.USTOZ_YORDAMCHI}
 SUBSTITUTE_SETTERS = {RoleCode.ADMIN, RoleCode.BOSH_MENEJER, RoleCode.ADMINISTRATOR, RoleCode.ADMINISTRATOR_HISOBCHI}
+# Shartnomasi shu sanada faol bo'lmagan (tugagan) talabaning mavjud davomat qatorini ham tahrirlaydiganlar (2026-11-03)
+INACTIVE_ROW_EDITORS = {RoleCode.ADMIN, RoleCode.BOSH_MENEJER, RoleCode.ADMINISTRATOR_HISOBCHI}
 FAOL, REJADA, NOFAOL = "Faol", "Rejada", "Nofaol"
 ZERO = Value(0, output_field=DecimalField(max_digits=14, decimal_places=0))
 
@@ -345,7 +347,10 @@ def mark(user, group, d, marks, sub_teacher=None, sub_supporter=None):
     c_calc = calc.Calculator()
     out = []
     for m in marks:
-        contract = active.get(m["contract"].pk if hasattr(m["contract"], "pk") else m["contract"])
+        cid = m["contract"].pk if hasattr(m["contract"], "pk") else m["contract"]
+        contract = active.get(cid)
+        if contract is None and cid in existing and role_code(user) in INACTIVE_ROW_EDITORS:
+            contract = existing[cid].contract  # talaba nofaol, lekin qator bor — Bosh menejer va Adm+Hisobchi tahrirlaydi
         if contract is None:
             raise ValidationError({"contract": "Bu talaba shu sanada guruhda faol emas"})
         st, comment = m["status"], (m.get("comment") or "").strip()

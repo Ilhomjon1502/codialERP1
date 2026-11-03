@@ -1,4 +1,7 @@
+import hashlib
+
 from django.contrib.auth import authenticate, login, logout
+from django.core.cache import cache
 from django.db import transaction
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
@@ -34,6 +37,16 @@ class LoginSerializer(serializers.Serializer):
     password = serializers.CharField(trim_whitespace=False)
 
 
+# Bitta pochtaga ketma-ket noto'g'ri urinishlar: IP'dan qat'i nazar (tarqoq hujum ham to'xtaydi). Parol faqat 4 belgi
+# bo'lishi mumkin (buyurtmachi qarori), shuning uchun bu qulf asosiy himoya.
+LOCK_FAILS = 8
+LOCK_SECONDS = 15 * 60
+
+
+def _lock_key(email):
+    return "login-fail:" + hashlib.sha256(email.strip().lower().encode()).hexdigest()
+
+
 @method_decorator(csrf_protect, name="dispatch")
 class LoginView(APIView):
     permission_classes = [AllowAny]
@@ -43,9 +56,17 @@ class LoginView(APIView):
     def post(self, request):
         s = LoginSerializer(data=request.data)
         s.is_valid(raise_exception=True)
-        user = authenticate(request, email=s.validated_data["email"].strip(), password=s.validated_data["password"])
+        email = s.validated_data["email"].strip()
+        key = _lock_key(email)
+        fails = cache.get(key, 0)
+        if fails >= LOCK_FAILS:
+            return Response({"detail": "Noto'g'ri urinishlar ko'p bo'ldi. 15 daqiqadan keyin qayta urinib ko'ring"},
+                            status=status.HTTP_429_TOO_MANY_REQUESTS)
+        user = authenticate(request, email=email, password=s.validated_data["password"])
         if user is None:
+            cache.set(key, fails + 1, LOCK_SECONDS)
             return Response({"detail": "Pochta yoki parol noto'g'ri"}, status=status.HTTP_400_BAD_REQUEST)
+        cache.delete(key)
         login(request, user)
         audit.record(user, AuditLog.Action.LOGIN, "Foydalanuvchi", user.pk, user)
         return Response(me_payload(user))

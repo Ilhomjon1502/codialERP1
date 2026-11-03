@@ -52,3 +52,11 @@ def api():
         return c
 
     return client
+
+
+@pytest.fixture(autouse=True)
+def _clear_cache():
+    """Urinishlar hisobi (login cheklovi, hisob qulfi) testlar orasida o'tib ketmasin."""
+    from django.core.cache import cache
+
+    cache.clear()

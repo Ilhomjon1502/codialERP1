@@ -247,6 +247,28 @@ def test_administrator_accountant_edits_attendance_without_window(api, make_user
     assert take(api(make_user("ADMINISTRATOR")), w, [(c0, "1", "")], date=old).status_code == 403
 
 
+def test_inactive_contract_attendance_row_editable_by_bm_and_accountant(api, make_user, world):
+    """Shartnomasi tugagan (nofaol) talabaning mavjud davomat qatorini Bosh menejer va Adm+Hisobchi tahrirlaydi; boshqalar — yo'q."""
+    w = world
+    c0 = w["contracts"][0]
+    day = TODAY - datetime.timedelta(days=5)
+    bm = api(make_user("BOSH_MENEJER"))
+    assert take(bm, w, [(c0, "1", "")], date=day).status_code == 200
+    c0.end_date = day - datetime.timedelta(days=1)  # shartnoma shu sanadan oldin tugagan: talaba shu kuni nofaol
+    c0.stop_reason = "Kursni tamomladi"
+    c0.save()
+    ah = api(make_user("ADMINISTRATOR_HISOBCHI"))
+    assert take(bm, w, [(c0, "X", "")], date=day).status_code == 200
+    assert Attendance.objects.get(contract=c0, date=day).status == "X"
+    assert take(ah, w, [(c0, "-", "")], date=day).status_code == 200
+    a = Attendance.objects.get(contract=c0, date=day)
+    assert a.status == "-" and a.student_debt == 0  # qarz qayta hisoblandi
+    assert take(api(make_user("ADMINISTRATOR")), w, [(c0, "1", "")], date=day).status_code == 400  # oddiy administrator — yo'q
+    # Qatori yo'q sanaga nofaol talaba uchun yangi davomat yozilmaydi (bu tahrirlash emas)
+    other = TODAY - datetime.timedelta(days=4)
+    assert take(bm, w, [(c0, "1", "")], date=other).status_code == 400
+
+
 def test_contact_status_and_absent_list(api, make_user, world):
     w = world
     take(api(w["teacher"]), w, [(w["contracts"][0], "X", ""), (w["contracts"][1], "1", "")])
