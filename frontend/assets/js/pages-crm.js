@@ -595,7 +595,16 @@
         cData = await A.http.get('/students/?' + filterQS('contracts', ['search'], { page: A.q('contracts:page', 1) }));
         cData.results.forEach((st) => A.putLocal('students', st));
       } else {
-        cData = await A.http.get('/contracts/?' + filterQS('contracts', ['search', 'course', 'type'], { status: tab, page: A.q('contracts:page', 1) }));
+        /* Daraxt (kurs → guruh, sonlar bilan) butun ro'yxat bo'yicha tuziladi — shuning uchun sahifalanmaydi, hamma sahifa yig'iladi */
+        const qs = filterQS('contracts', ['search', 'course', 'type'], { status: tab, page_size: 200 });
+        let page = 1, d;
+        cData = { results: [], counts: {} };
+        do {
+          qs.set('page', page);
+          d = await A.http.get('/contracts/?' + qs);
+          cData.results.push(...d.results);
+          cData.counts = d.counts;
+        } while (page++ < (d.pages || 1));
         cData.results.forEach(A.keepContract);
         cCounts = cData.counts;
       }
@@ -603,10 +612,10 @@
     render(p, q) {
       const tab = q.tab || 'Faol';
       const actions = (A.can('contracts', 'a') ? A.btn('Yangi shartnoma', 'contract-new', { icon: 'plus' }) : '') + A.btn('Excel', 'contracts-csv', { cls: 'ghost', icon: 'download' });
-      return `${A.head('Shartnomalar', 'Guruhlash: kurs → guruh. Qarzdor talaba nomi qizil', actions)}
+      return `${A.head('Shartnomalar', 'Chapdagi daraxt: kurs → guruh, har birida shartnomalar soni. Qarzdor talaba nomi qizil', actions)}
         ${A.tabs([['Faol', 'Faol', cCounts.Faol], ['Rejada', 'Rejada', cCounts.Rejada], ['Nofaol', 'Nofaol', cCounts.Nofaol], ['students', 'Talabalar']], tab, 'contracts')}
         ${A.filterBar('contracts', [A.fSearch('contracts', tab === 'students' ? 'Ism yoki telefon…' : 'Ism, telefon yoki raqam…'), ...(tab === 'students' ? [] : [A.fSelect('contracts', 'course', A.optList('courses'), 'Barcha kurslar'), A.fSelect('contracts', 'type', [['Pullik', 'Pullik'], ['Grant', 'Grant']], 'Barcha turlar')])])}
-        <div>${tab === 'students' ? studentsTable(cData.results) : contractGroups(cData.results)}${A.pager('contracts', cData)}</div>`;
+        ${tab === 'students' ? `<div>${studentsTable(cData.results)}${A.pager('contracts', cData)}</div>` : contractTree('ctr-' + tab, cData.results)}`;
     },
   });
 
@@ -621,6 +630,13 @@
       rows,
       { empty: 'Talaba topilmadi' },
     );
+  }
+
+  /* Chapda daraxt (Barchasi → [filial] → kurs → guruh, sonlar bilan), o'ngda tanlangan tugundagi shartnomalar (guruhlar bo'yicha) */
+  function contractTree(key, rows) {
+    if (!rows.length) return A.empty('Shartnoma topilmadi');
+    const sel = A.treeFilter(key, rows);
+    return `<div class="settings tree-layout">${A.treeNav(key, rows)}<div class="settings-body">${contractGroups(sel)}</div></div>`;
   }
 
   function contractGroups(rows) {

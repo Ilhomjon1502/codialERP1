@@ -5,8 +5,10 @@ tizimda **ko'rish huquqi** bor narsa haqida (EVENT_PERM) va o'z filiali doirasid
 standart (DEFAULT_ROLES) yoki hodisaga bevosita aloqador bo'lsa (g'azna mas'uli, guruh ustozi).
 """
 
+import datetime
 import json
 import logging
+import urllib.error
 import urllib.parse
 import urllib.request
 from html import escape
@@ -441,12 +443,58 @@ def send_pending(limit=30, sender=None):
             m.status, m.sent_at = Outbox.Status.SENT, timezone.now()
             n += 1
         except Exception as e:  # noqa: BLE001
-            m.attempts += 1
             m.error = str(e)[:255]
+            if is_transient(e):  # Telegram yoki tarmoq nosozligi — xabar yo'qolmasin: urinish hisoblanmaydi, qolganlarini keyingi siklda yuboramiz
+                m.save(update_fields=["error"])
+                break
+            m.attempts += 1
             if m.attempts >= 5:
                 m.status = Outbox.Status.FAILED
         m.save(update_fields=["status", "sent_at", "attempts", "error"])
     return n
+
+
+def is_transient(e):
+    """Qayta urinsa bo'ladigan xato: Telegram 5xx/429, tarmoq uzilishi, timeout. 400/403 (chat bloklangan va h.k.) — doimiy."""
+    if isinstance(e, urllib.error.HTTPError):
+        return e.code >= 500 or e.code == 429
+    return isinstance(e, (urllib.error.URLError, TimeoutError, ConnectionError, OSError))
+
+
+STUCK_AFTER_MIN = 15  # daqiqa: shundan ko'p kutgan xabar bo'lsa — Bosh menejerga pochta orqali ogohlantirish (Telegram o'zi ishlamayotgan bo'lishi mumkin)
+STUCK_REPEAT_H = 6
+_stuck_alerted = None
+
+
+def stuck_alert(now=None):
+    """Navbatdagi xabarlar uzoq yuborilmasa (Telegram/bot nosozligi) — faol Bosh menejerlarga pochta (Telegram bu holda yordam bermaydi).
+    Bir nosozlik uchun STUCK_REPEAT_H soatda bir marta. Qaytaradi: xat yuborilgan manzillar soni."""
+    global _stuck_alerted
+    from django.core.mail import send_mail
+
+    now = now or timezone.now()
+    if _stuck_alerted and now - _stuck_alerted < datetime.timedelta(hours=STUCK_REPEAT_H):
+        return 0
+    stuck = Outbox.objects.filter(status=Outbox.Status.PENDING, created_at__lt=now - datetime.timedelta(minutes=STUCK_AFTER_MIN))
+    n = stuck.count()
+    if not n:
+        return 0
+    oldest = stuck.order_by("created_at").first()
+    emails = [u.email for u in User.objects.filter(role__code=RoleCode.BOSH_MENEJER, employment_status=User.Employment.ACTIVE).exclude(email="")]
+    if not emails:
+        return 0
+    _stuck_alerted = now
+    body = (f"Telegram xabarlari yuborilmayapti: {n} ta xabar {STUCK_AFTER_MIN} daqiqadan ortiq navbatda.\n"
+            f"Eng eskisi: {timezone.localtime(oldest.created_at):%d.%m.%Y %H:%M} ({oldest.get_event_display()}).\n"
+            f"Oxirgi xato: {oldest.error or 'nomalum'}\n\n"
+            "Sabab Telegram nosozligi, bot tokeni yoki server tarmog'i bo'lishi mumkin. Telegram tiklangach xabarlar o'zi yuboriladi. "
+            "Uzoq davom etsa, @BotFather orqali tokenni yangilab, serverda deploy/set-telegram.sh ni ishga tushiring.")
+    try:
+        send_mail("Codial ERP: Telegram xabarlari yuborilmayapti", body, None, emails)
+    except Exception:  # noqa: BLE001
+        log.exception("Navbat ogohlantirishi (pochta) yuborilmadi")
+        return 0
+    return len(emails)
 
 
 HELP = ("Codial ERP boti. Akkauntingizni bog'lash uchun tizimda o'ng yuqoridagi ismingiz → «Telegram» bo'limidagi kodni shu yerga yuboring "

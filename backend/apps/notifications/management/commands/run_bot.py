@@ -28,37 +28,27 @@ class Command(BaseCommand):
             self.stdout.write("TELEGRAM_BOT_TOKEN berilmagan — bot kutish rejimida (deploy/set-telegram.sh bilan sozlang)")
             while not settings.TELEGRAM_BOT_TOKEN:
                 time.sleep(300)
-        me = services.api("getMe")
+        while True:  # Telegram vaqtincha javob bermasa bot o'chib qolmasin (konteyner qayta ishga tushish siklida qolmasin)
+            try:
+                me = services.api("getMe")
+                break
+            except Exception:  # noqa: BLE001
+                log.exception("getMe javob bermadi — 30 soniyadan keyin qayta uriniladi")
+                time.sleep(30)
         self.stdout.write(self.style.SUCCESS(f"Bot ishga tushdi: @{me.get('username')}"))
         if webapp.enabled():  # bot menyusidagi doimiy «Davomat» tugmasi — Mini App
             try:
                 services.api("setChatMenuButton", menu_button=json.dumps({"type": "web_app", "text": "Davomat", "web_app": {"url": webapp.url("attendance")}}))
             except Exception:  # noqa: BLE001
                 log.exception("Menyu tugmasi o'rnatilmadi")
-        offset, last_tick = None, 0.0
+        self.offset, last_tick = None, 0.0
         while True:
             try:
-                params = {"timeout": 5, "allowed_updates": '["message", "callback_query"]'}
-                if offset:
-                    params["offset"] = offset
-                for upd in services.api("getUpdates", **params):
-                    offset = upd["update_id"] + 1
-                    if upd.get("callback_query"):  # xabardagi tugma (masalan topshiriq «✅ Bajarildi»)
-                        self.on_callback(upd["callback_query"])
-                        continue
-                    msg = upd.get("message") or {}
-                    chat = (msg.get("chat") or {}).get("id")
-                    if chat and msg.get("chat", {}).get("type") in ("group", "supergroup"):  # guruhga yuborish uchun chat_id ni bilish (jurnalga)
-                        log.warning("GURUH chat_id=%s nomi=%s", chat, (msg.get("chat") or {}).get("title"))
-                    if chat and msg.get("chat", {}).get("type") == "private":
-                        close_old_connections()
-                        if voice.handle_update(msg):  # Bosh menejerning ovozli/yozma buyrug'i yoki savoli
-                            continue
-                        reply = services.handle_message(chat, msg.get("text", ""), (msg.get("from") or {}).get("username", ""))
-                        if not TelegramLink.objects.filter(chat_id=chat).exists():  # bog'lanmagan chat (masalan qo'shimcha qabul qiluvchi) — chat_id jurnalga va javobga
-                            log.warning("BOT chat_id=%s username=%s", chat, (msg.get("from") or {}).get("username", ""))
-                            reply += f"\n\nChat ID: {chat}"
-                        services.api("sendMessage", chat_id=chat, text=reply)
+                self.poll()
+            except Exception:  # noqa: BLE001 — getUpdates ishlamasa ham eslatmalar va navbat yuborilishi davom etadi
+                log.exception("getUpdates xatosi")
+                time.sleep(10)
+            try:
                 if time.monotonic() - last_tick >= 60:  # har daqiqada: boshlangan darslar → ustozga eslatma (1–2 yengil so'rov)
                     last_tick = time.monotonic()
                     close_old_connections()
@@ -69,10 +59,35 @@ class Command(BaseCommand):
                     reminders.lead_callbacks()
                     auto_sms.tick()  # avtomatik SMS jadvali (oy boshi, bonus, kelmagan) va muammo haqida Bosh menejerga
                     auto_sms.check_problems()
+                    services.stuck_alert()  # navbat uzoq yuborilmasa — Bosh menejerga pochta
                 services.send_pending()
             except Exception:  # noqa: BLE001 — tarmoq xatosi botni to'xtatmasin
                 log.exception("Bot siklida xato")
                 time.sleep(10)
+
+    def poll(self):
+        """Kelgan xabarlar va tugmalarni qayta ishlaydi (long polling). `self.offset` har xabardan keyin yangilanadi (xato bo'lsa takror o'qilmaydi)."""
+        params = {"timeout": 5, "allowed_updates": '["message", "callback_query"]'}
+        if self.offset:
+            params["offset"] = self.offset
+        for upd in services.api("getUpdates", **params):
+            self.offset = upd["update_id"] + 1
+            if upd.get("callback_query"):  # xabardagi tugma (masalan topshiriq «✅ Bajarildi»)
+                self.on_callback(upd["callback_query"])
+                continue
+            msg = upd.get("message") or {}
+            chat = (msg.get("chat") or {}).get("id")
+            if chat and msg.get("chat", {}).get("type") in ("group", "supergroup"):  # guruhga yuborish uchun chat_id ni bilish (jurnalga)
+                log.warning("GURUH chat_id=%s nomi=%s", chat, (msg.get("chat") or {}).get("title"))
+            if chat and msg.get("chat", {}).get("type") == "private":
+                close_old_connections()
+                if voice.handle_update(msg):  # Bosh menejerning ovozli/yozma buyrug'i yoki savoli
+                    continue
+                reply = services.handle_message(chat, msg.get("text", ""), (msg.get("from") or {}).get("username", ""))
+                if not TelegramLink.objects.filter(chat_id=chat).exists():  # bog'lanmagan chat (masalan qo'shimcha qabul qiluvchi) — chat_id jurnalga va javobga
+                    log.warning("BOT chat_id=%s username=%s", chat, (msg.get("from") or {}).get("username", ""))
+                    reply += f"\n\nChat ID: {chat}"
+                services.api("sendMessage", chat_id=chat, text=reply)
 
     def on_callback(self, cb):
         data, chat = cb.get("data") or "", (cb.get("from") or {}).get("id")

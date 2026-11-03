@@ -451,3 +451,51 @@ def test_boss_chooses_extra_recipient_events(api, make_user, world, django_captu
     with django_capture_on_commit_callbacks(execute=True):
         assert api(make_user("FILIAL_MENEJERI")).post("/api/v1/leads/", body, format="json").status_code == 201
     assert not Outbox.objects.filter(chat_id=777, event="new_lead").exists()  # olib tashlangan xabar endi bormaydi
+
+
+def test_send_pending_keeps_messages_on_telegram_outage_and_stops_batch(make_user):
+    import urllib.error
+
+    u = make_user("ADMINISTRATOR")
+    ms = [Outbox.objects.create(user=u, chat_id=i, event="new_lead", text="x") for i in (1, 2, 3)]
+    calls = []
+
+    def down(chat, text, markup=None):
+        calls.append(chat)
+        raise urllib.error.HTTPError("https://api.telegram.org", 502, "Bad Gateway", {}, None)
+
+    for _ in range(7):  # 5 dan ko'p urinish — baribir «Xato» bo'lmaydi
+        assert services.send_pending(sender=down) == 0
+    assert calls == [1] * 7  # paket birinchi xatodayoq to'xtaydi (har biri 15 soniyalik timeout bo'lmasin)
+    assert {m.status for m in Outbox.objects.filter(pk__in=[m.pk for m in ms])} == {"pending"}
+    assert Outbox.objects.get(chat_id=1).attempts == 0 and "502" in Outbox.objects.get(chat_id=1).error
+
+    assert services.send_pending(sender=lambda *a, **k: None) == 3  # Telegram tiklandi — hammasi ketadi
+
+    def blocked(chat, text, markup=None):  # chat bloklangan (403) — doimiy xato, 5 urinishdan keyin «Xato»
+        raise urllib.error.HTTPError("https://api.telegram.org", 403, "Forbidden", {}, None)
+
+    m = Outbox.objects.create(user=u, chat_id=9, event="new_lead", text="x")
+    for _ in range(5):
+        services.send_pending(sender=blocked)
+    m.refresh_from_db()
+    assert m.status == "failed" and m.attempts == 5
+
+
+def test_stuck_alert_emails_boss_once(make_user, mailoutbox):
+    from django.utils import timezone
+
+    boss = make_user("BOSH_MENEJER")
+    boss.email = "boss@example.com"
+    boss.save()
+    u = make_user("ADMINISTRATOR")
+    services._stuck_alerted = None
+    now = timezone.now()
+    assert services.stuck_alert(now) == 0 and not mailoutbox  # navbat bo'sh
+    m = Outbox.objects.create(user=u, chat_id=1, event="morning_plan", text="x", error="HTTP Error 502")
+    Outbox.objects.filter(pk=m.pk).update(created_at=now - datetime.timedelta(minutes=5))
+    assert services.stuck_alert(now) == 0  # hali 15 daqiqa o'tmagan
+    Outbox.objects.filter(pk=m.pk).update(created_at=now - datetime.timedelta(minutes=40))
+    assert services.stuck_alert(now) == 1 and len(mailoutbox) == 1 and "502" in mailoutbox[0].body and mailoutbox[0].to == ["boss@example.com"]
+    assert services.stuck_alert(now + datetime.timedelta(hours=1)) == 0 and len(mailoutbox) == 1  # 6 soatda bir marta
+    assert services.stuck_alert(now + datetime.timedelta(hours=7)) == 1 and len(mailoutbox) == 2
