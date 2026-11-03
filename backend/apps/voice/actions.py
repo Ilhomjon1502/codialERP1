@@ -8,6 +8,7 @@ import contextvars
 import datetime
 import difflib
 import html
+import re
 from decimal import Decimal, InvalidOperation
 
 from django.db.models import Q
@@ -105,14 +106,29 @@ def parse_date(v, default):
         return default
 
 
+YEAR_SAID = re.compile(r"20\d\d|\byil\b|\bgod\b", re.I)  # yil xabarda aytilganmi (raqam bilan yoki «… yil»)
+NEXT_SAID = re.compile(r"kelasi|keyingi|oldindan|sleduyush", re.I)  # kelasi oy uchun
+
+
 def parse_period(v, default_date):
+    """«YYYY-MM» (yoki faqat oy raqami) → (yil, oy). Gemini yilni o'zi taxmin qilib 2025 deb yuborardi (2026-11-03: Hamidulloh oyligi 2025-10 ga tushgan),
+    shuning uchun yil faqat xabarda aytilgan bo'lsa qabul qilinadi; aytilmasa — oy bo'yicha eng yaqin o'tgan (yoki joriy) oy,
+    «kelasi/keyingi oy» deyilsa — eng yaqin kelgusi oy. Xabar matni yo'q bo'lsa (tuzatish tugmalari) Gemini yili saqlanadi."""
     try:
-        y, m = (int(x) for x in str(v)[:7].split("-"))
-        if 1 <= m <= 12 and 2020 <= y <= 2100:
-            return y, m
-    except (TypeError, ValueError):
-        pass
-    return default_date.year, default_date.month
+        parts = str(v).strip().split("-")
+        y, m = (int(parts[0]), int(parts[1])) if len(parts) >= 2 else (None, int(parts[0]))
+        if not 1 <= m <= 12:
+            raise ValueError
+        if y is not None and not 2020 <= y <= 2100:
+            raise ValueError
+    except (TypeError, ValueError, IndexError):
+        return default_date.year, default_date.month
+    text = _text.get()
+    if y is not None and (not text or YEAR_SAID.search(text)):
+        return y, m
+    if text and NEXT_SAID.search(text):
+        return (default_date.year, m) if m > default_date.month else (default_date.year + 1, m)
+    return (default_date.year, m) if m <= default_date.month else (default_date.year - 1, m)
 
 
 def cash_type(v, default=CashType.CASH):
@@ -411,7 +427,7 @@ def r_salary_payout(ctx, item):
     d = parse_date(raw.get("date"), ctx.day)
     y, m = parse_period(raw.get("period"), d)
     kind = raw.get("kind") if raw.get("kind") in SalaryPayout.Kind.values else SalaryPayout.Kind.FIXED
-    lines = [f"Xodim: <b>{escape(u.full_name)}</b>", f"Summa: <b>{fmt(amount)}</b> so'm ({kind})", f"Qaysi oy uchun: {m:02d}.{y}", acc_line(acc, ct), day_line(d, ctx)]
+    lines = [f"Xodim: <b>{escape(u.full_name)}</b>", f"Summa: <b>{fmt(amount)}</b> so'm ({kind})", f"Qaysi oy uchun: <b>{m:02d}.{y}</b>", acc_line(acc, ct), day_line(d, ctx)]
     if raw.get("comment"):
         lines.append(f"Izoh: {escape(str(raw['comment']))}")
     return Resolved("👛 Oylik berish", lines, {"branch": branch, "user": u, "year": y, "month": m, "date": d, "type": kind, "amount": amount,

@@ -581,3 +581,35 @@ def test_attendance_all_present_except_one_and_contact(env, tg, llm, school):
     press(f"vc:ok:{last_cmd().pk}")
     a = Attendance.objects.get(contract__student__first_name="Vali")
     assert (a.contact_status, a.comment) == ("Gaplashildi", "Kasal ekan")
+
+def test_period_year_is_resolved_by_server_not_gemini(env, tg, llm):
+    """Gemini «oktyabr uchun» deganda yilni 2025 deb yuborardi — yil aytilmasa oy bo'yicha eng yaqin o'tgan oy olinadi."""
+    from apps.voice.actions import _text, parse_period
+
+    day = datetime.date(2026, 11, 3)
+
+    def pp(text, v):
+        tok = _text.set(text)
+        try:
+            return parse_period(v, day)
+        finally:
+            _text.reset(tok)
+
+    assert pp("Hamidulloh ustozga oktyabr oyi uchun 2 million berildi", "2025-10") == (2026, 10)  # yil aytilmagan — Gemini yili e'tiborsiz
+    assert pp("noyabr oyligi", "2025-11") == (2026, 11)  # joriy oy
+    assert pp("dekabr uchun", "2026-12") == (2025, 12)  # kelajakka emas — eng yaqin o'tgan dekabr
+    assert pp("oktyabr uchun", "10") == (2026, 10)  # faqat oy raqami
+    assert pp("2025 yil oktyabr uchun", "2025-10") == (2025, 10)  # yil aytilgan — ishoniladi
+    assert pp("2026 oktyabr", "2026-10") == (2026, 10)
+    assert pp("kelasi oy uchun oldindan, dekabr", "2025-12") == (2026, 12)  # kelasi oy — kelgusi
+    assert pp("", "2025-10") == (2025, 10)  # matn yo'q (tuzatish tugmasi) — Gemini yili saqlanadi
+    assert pp("x", "noto'g'ri") == (2026, 11)
+
+
+def test_salary_payout_period_without_year_goes_to_current_year(env, tg, llm):
+    llm.reply = {"transcript": "x", "items": [{"type": "salary_payout", "employee": "Akbarxoja", "amount": 500000, "cash_type": "CASH", "period": "2025-" + f"{TODAY.month:02d}"}]}
+    voice.handle_update(text_msg("Akbarxo'jaga shu oy oyligidan 500 ming berdim"))
+    assert f"<b>{TODAY.month:02d}.{TODAY.year}</b>" in card_text(tg)  # karta yilni qalin ko'rsatadi
+    press(f"vc:ok:{last_cmd().pk}")
+    p = SalaryPayout.objects.get()
+    assert (p.year, p.month) == (TODAY.year, TODAY.month)

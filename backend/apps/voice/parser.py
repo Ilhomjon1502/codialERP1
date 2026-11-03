@@ -79,6 +79,7 @@ Band turlari (har biri {"type": ...}; aytilmagan maydonni yozmang yoki null qili
 Qoidalar:
 - Summalar butun so'mda: «300 ming» = 300000, «1,5 million» = 1500000, «yarim million» = 500000.
 - Nisbiy sanalar («bugun», «kecha», «dushanba kuni») — «Xabar yozilgan vaqt»ga nisbatan. Sana aytilmasa null (server xabar sanasini oladi).
+- period (oy, YYYY-MM): yil aytilmagan bo'lsa «Hozir» yilidan foydalaning, eng yaqin o'tgan oyni oling (kelajakka emas), yilni o'zingizcha taxmin qilmang.
 - cash_type: naqd → CASH, karta/plastik/click/payme → CARD, bank/perechisleniye/hisob raqam → BANK. Aytilmasa null.
 - Nomlarni (kategoriya, g'azna, kreditor, xodim, kurs, manba, guruh, chegirma turi) aynan shu narsa aytilgan bo'lsa ro'yxatdagi yozilishida qaytaring.
   Ro'yxatda yo'q bo'lsa — AYTILGANICHA qaytaring, boshqa (o'xshash) nomga almashtirmang: server menejerdan so'raydi.
