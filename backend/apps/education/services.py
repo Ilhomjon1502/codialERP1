@@ -138,8 +138,8 @@ def validate_group(user, d, instance=None):
     if _changed(instance, "room", room) and room.status != Status.ACTIVE:
         raise ValidationError({"room": "Bu xona nofaol"})
     for u, roles, field, label in ((teacher, TEACHERS, "teacher", "Ustoz"), (supporter, SUPPORTERS, "supporter", "Yordamchi")):
-        if u is None:
-            continue
+        if u is None or not _changed(instance, field, u):
+            continue  # o'zgarmagan ustoz/yordamchi (ishdan ketgan bo'lsa ham) guruhni yopish/tahrirlashga to'sqinlik qilmasin
         if role_code(u) not in roles or u.employment_status != u.Employment.ACTIVE:
             raise ValidationError({field: f"{label} roli va faol holati mos emas"})
         if not u.branches.filter(pk=branch.pk).exists():
