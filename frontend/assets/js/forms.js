@@ -360,6 +360,8 @@
     refresh();
     const firstInput = form.querySelector('.field:not([hidden]) input:not([readonly]), .field:not([hidden]) select');
     if (firstInput && window.innerWidth > 700) firstInput.focus();
+    m.refresh = refresh; // asinxron yangilanish uchun (masalan, serverdan kelgan standart qiymat)
+    m.values = v;
     return m;
   };
 })(window.App);

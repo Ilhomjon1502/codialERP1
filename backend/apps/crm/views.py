@@ -1,3 +1,5 @@
+import uuid
+
 from django.db.models import Count, Q
 from rest_framework import status
 from rest_framework.decorators import action
@@ -189,6 +191,21 @@ class StudentViewSet(AuditedModelViewSet):
         if p.get("free"):
             qs = qs.exclude(leads__is_deleted=False).exclude(contracts__is_deleted=False)
         return qs
+
+    @action(detail=False)
+    def prior(self, request):
+        """Lid formasi: talaba avval Kompyuter savodxonligida o'qiganmi (manba standarti uchun). ?student=<id> yoki ?first_name=&last_name=."""
+        p = request.query_params
+        branch = default_branch(request.user, p.get("branch"))
+        student = None
+        if p.get("student"):
+            try:
+                student = Student.objects.filter(pk=uuid.UUID(p["student"]), branch=branch).first()
+            except ValueError:
+                raise ValidationError({"student": "Noto'g'ri talaba"}) from None
+            if student is None:
+                return Response({"found": False})
+        return Response(services.literacy_history(branch, student=student, first_name=p.get("first_name", ""), last_name=p.get("last_name", "")))
 
     @action(detail=True)
     def calls(self, request, pk=None):

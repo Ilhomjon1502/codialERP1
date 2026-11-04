@@ -435,3 +435,21 @@ def test_contract_course_change_roles(api, make_user, world):
     assert api(make_user("ADMINISTRATOR_HISOBCHI")).patch(f"/api/v1/contracts/{fresh.pk}/", body, format="json").status_code == 200
     # Administrator+Hisobchi uchun shartnoma tahrirlash muddati (boshlanishdan 7 kun) amal qiladi
     assert api(make_user("ADMINISTRATOR_HISOBCHI")).patch(f"/api/v1/contracts/{w['contracts'][1].pk}/", body, format="json").status_code == 403
+
+
+def test_prior_literacy_study_lookup(api, make_user, world):
+    """Lid formasi: talaba avval Kompyuter savodxonligida o'qigan bo'lsa — manba standarti uchun aniqlanadi (ism va familiya bo'yicha, telefon bo'yicha emas)."""
+    w = world
+    w["course"].name = "Kompyuter savodxonligi"
+    w["course"].save()
+    st = w["students"][0]
+    c = api(make_user("ADMINISTRATOR"))
+    r = c.get(f"/api/v1/students/prior/?first_name={st.first_name}&last_name={st.last_name.upper()}").json()
+    assert r["found"] is True and r["course"] == "Kompyuter savodxonligi" and r["student"].startswith(st.first_name)
+    assert c.get(f"/api/v1/students/prior/?student={st.pk}").json()["found"] is True
+    assert c.get("/api/v1/students/prior/?first_name=Boshqa&last_name=Odam").json() == {"found": False}
+    assert c.get("/api/v1/students/prior/?first_name=Ab&last_name=Cd").json() == {"found": False}  # juda qisqa — qidirilmaydi
+    assert c.get("/api/v1/students/prior/?student=xato").status_code == 400
+    w["course"].name = "Frontend"
+    w["course"].save()
+    assert c.get(f"/api/v1/students/prior/?student={st.pk}").json() == {"found": False}

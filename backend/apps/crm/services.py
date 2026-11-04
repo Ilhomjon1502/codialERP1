@@ -71,6 +71,30 @@ def has_contract(student):
     return student.contracts.exists()
 
 
+LITERACY_COURSE = "Kompyuter savodxonligi"  # lid manbasi standarti: «Savodxonlikdan mutaxasislik kursga yo'nalgan» (2026-11-04)
+
+
+def literacy_history(branch, *, student=None, first_name="", last_name=""):
+    """Talaba (yoki shu ism va familiyadagi bazadagi talaba) avval Kompyuter savodxonligida o'qiganmi — lid formasida manba standarti uchun.
+    Telefon bo'yicha emas: bitta raqam ko'p talabaga yozilgan bo'lishi mumkin."""
+    from apps.education.models import Contract
+
+    qs = Contract.objects.filter(branch=branch, course__name__iexact=LITERACY_COURSE).select_related("student")
+    if student is not None:
+        qs = qs.filter(student=student)
+    else:
+        first_name, last_name = clean(first_name), clean(last_name)
+        if len(first_name) < 3 or len(last_name) < 3:
+            return {"found": False}
+        qs = qs.filter(student__first_name__iexact=first_name, student__last_name__iexact=last_name)
+    contracts = list(qs.order_by("-start_date")[:5])
+    if not contracts:
+        return {"found": False}
+    last = contracts[0]
+    return {"found": True, "course": LITERACY_COURSE, "student": last.student.full_name, "start": last.start_date.isoformat(),
+            "end": last.end_date.isoformat() if last.end_date else None}
+
+
 def contract_exists():
     """Lid uchun: talabasining (o'chirilmagan) shartnomasi bormi — annotatsiya."""
     from apps.education.models import Contract

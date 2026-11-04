@@ -366,15 +366,38 @@
     if (v.demo_date == null) delete v.demo_date; // standart — bugun (guruh tanlanganda ko'rinadi)
     v.callback_at = cbValue(lead); // datetime-local uchun mahalliy ko'rinish
     const phone = (t) => (!/^\d{9}$/.test(t) ? "9 sondan iborat bo'lsin. Masalan, 998883322" : '');
+    /* Talaba avval Kompyuter savodxonligida o'qigan bo'lsa, manba standarti «Savodxonlikdan mutaxasislik kursga yo'nalgan» (qabul bo'limi o'zgartira oladi) */
+    let fm = null, prior = null, autoSrc = '', srcTouched = false, priorTimer = null, priorSeq = 0;
+    const literacySource = () => (A.rows('leadSources').find((s) => (s.name || '').startsWith('Savodxonlikdan') && (s.status || 'Faol') === 'Faol') || {}).id || '';
+    const checkPrior = (x) => {
+      if (!isNew) return;
+      clearTimeout(priorTimer);
+      const seq = ++priorSeq;
+      priorTimer = setTimeout(async () => {
+        const qs = new URLSearchParams();
+        if (x.mode === 'old' && x.student) qs.set('student', x.student);
+        else if (x.mode === 'new' && (x.first_name || '').trim().length >= 3 && (x.last_name || '').trim().length >= 3) { qs.set('first_name', x.first_name.trim()); qs.set('last_name', x.last_name.trim()); }
+        let res = { found: false };
+        if ([...qs].length) { try { res = await A.http.get('/students/prior/?' + qs); } catch (e) { res = { found: false }; } }
+        if (seq !== priorSeq || !fm) return;
+        prior = res.found ? res : null;
+        const id = prior ? literacySource() : '';
+        if (id && !srcTouched && (!x.source || x.source === autoSrc)) { fm.values.source = id; autoSrc = id; }
+        else if (!prior && autoSrc && !srcTouched && x.source === autoSrc) { fm.values.source = ''; autoSrc = ''; }
+        fm.refresh();
+      }, 350);
+    };
+    const priorNote = (x) => (prior && autoSrc && x.source === autoSrc
+      ? `<span class="muted small">Talaba avval Kompyuter savodxonligida o'qigan${prior.end ? ` (${A.fdate(prior.end)} da tugagan)` : ''}, shuning uchun manba shunday qo'yildi. Kerak bo'lsa o'zgartiring.</span>` : '');
     const fields = [
-      { name: 'mode', label: 'Murojaatchi', type: 'seg', options: [['new', 'Yangi talaba'], ['old', "Bazadagi talaba"]], show: () => isNew },
+      { name: 'mode', label: 'Murojaatchi', type: 'seg', options: [['new', 'Yangi talaba'], ['old', "Bazadagi talaba"]], show: () => isNew, onChange: checkPrior },
       {
         name: 'student', label: 'Talabani tanlang', type: 'select', show: (x) => !isNew || x.mode === 'old', required: true, readonly: () => !isNew,
         options: () => (isNew ? freeStudents : [lead.student_data]).map((s) => [s.id, `${s.full_name} · ${s.phone1}`]),
-        help: "Shartnomasi bor yoki lidi ochilgan talabalar ro'yxatda chiqmaydi",
+        help: "Shartnomasi bor yoki lidi ochilgan talabalar ro'yxatda chiqmaydi", onChange: checkPrior,
       },
-      { name: 'first_name', label: 'Ism', show: (x) => isNew && x.mode === 'new', required: true, half: true, validate: (t) => (t.trim().length < 3 || t.trim().length > 20 ? "Eng ozi 3 harf, ko'pi 20" : '') },
-      { name: 'last_name', label: 'Familiya', show: (x) => isNew && x.mode === 'new' && x.first_name, required: true, half: true, validate: (t) => (t.trim().length < 3 || t.trim().length > 20 ? "Eng ozi 3 harf, ko'pi 20" : '') },
+      { name: 'first_name', label: 'Ism', show: (x) => isNew && x.mode === 'new', required: true, half: true, onChange: checkPrior, validate: (t) => (t.trim().length < 3 || t.trim().length > 20 ? "Eng ozi 3 harf, ko'pi 20" : '') },
+      { name: 'last_name', label: 'Familiya', show: (x) => isNew && x.mode === 'new' && x.first_name, required: true, half: true, onChange: checkPrior, validate: (t) => (t.trim().length < 3 || t.trim().length > 20 ? "Eng ozi 3 harf, ko'pi 20" : '') },
       { name: 'phone1', label: '1-telefon (+998)', placeholder: '901234567', show: (x) => isNew && x.mode === 'new' && x.last_name, required: true, half: true, validate: phone },
       { name: 'phone2', label: '2-telefon (+998)', placeholder: '911234567', show: (x) => isNew && x.mode === 'new' && x.last_name, required: true, half: true, validate: (t, x) => phone(t) || (t === x.phone1 ? "Ikki bir xil nomer kiritib bo'lmaydi!" : '') },
       { name: 'comment', label: 'Izoh', type: 'textarea', placeholder: "Masalan: narxni so'radi, kechki guruh bo'lsa yoziladi", show: (x) => isNew && (x.student || (x.phone1 && x.phone2)) },
@@ -383,7 +406,8 @@
       { name: 'social', label: 'Ijtimoiy holati', type: 'select', options: ["Maktab o'quvchisi", 'Oliygoh talabasi', 'Kompaniya xodimi', 'Davlat xizmatchisi', 'Vaqtincha ishsiz'], show: (x) => x.age_group, half: true },
       { name: 'laptop', label: 'Noutbuki bormi?', type: 'seg', options: ['Bor', "Yo'q", 'Sotib oladi'], show: (x) => x.social },
       { name: 'tags', label: 'Teglar', type: 'chips', options: ['VIP', "Chegirma so'radi", "Ota-onasi qo'ng'iroq qiladi", 'Kechki vaqt', 'Hafta oxiri'], show: (x) => x.laptop },
-      { name: 'source', label: 'Manba', type: 'select', options: (x) => A.optList('leadSources', 'name', (s) => (s.status || 'Faol') === 'Faol' || s.id === x.source), required: true, half: true },
+      { name: 'source', label: 'Manba', type: 'select', options: (x) => A.optList('leadSources', 'name', (s) => (s.status || 'Faol') === 'Faol' || s.id === x.source), required: true, half: true,
+        help: priorNote, onChange: (x) => { if (x.source !== autoSrc) srcTouched = true; } },
       { name: 'course', label: 'Kurs', type: 'select', options: (x) => A.optList('courses', 'name', (c) => (c.status === 'Faol' && c.branches.includes(B)) || c.id === x.course), required: true, half: true },
       { name: 'pattern', label: 'Hafta kunlari', type: 'seg', options: (x) => A.optList('dayPatterns', 'name', (p) => (p.status || 'Faol') === 'Faol' || p.id === x.pattern) },
       ...A.timeFields({ optional: true }),
@@ -399,7 +423,7 @@
       { name: 'demo_attended', label: 'Sinov darsga qatnashdimi?', type: 'seg', options: [['yes', 'Ha, qatnashdi'], ['no', 'Kelmadi']], show: (x) => x.demo_date && x.group && ['3', '4', '5'].includes(x.status) },
     ];
     if (lead) v.demo_attended = lead.demo_attended === true ? 'yes' : lead.demo_attended === false ? 'no' : '';
-    A.form({
+    fm = A.form({
       title: isNew ? 'Yangi lid' : 'Lidni tahrirlash',
       fields,
       values: v,
