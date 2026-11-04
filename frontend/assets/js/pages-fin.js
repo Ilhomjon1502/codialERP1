@@ -469,14 +469,32 @@
 
   /* ===================================================== Xarajatlar (/expenses/) */
   let eData = { results: [] };
+  let eOpen = new Set(); // "Oy → kategoriya" tabida ochilgan qatorlar: "YYYY-MM|kategoriya id"
+  let eRows = {};
+  const eKey = (r) => `${r.month}|${r.category}`;
+  async function loadCatRows(key) {
+    const [month, category] = key.split('|');
+    let rows = [], page = 1, pages = 1;
+    do {
+      const d = await A.http.get(`/expenses/?month=${month}&category=${category}&page=${page}`);
+      rows = rows.concat(d.results);
+      pages = d.pages;
+      page++;
+    } while (page <= pages && page <= 10);
+    eRows[key] = rows;
+  }
   A.page('expenses', {
     title: 'Xarajatlar',
     section: 'expenses',
     async load(p, q) {
       const tab = q.tab || 'date';
       const qs = qsOf('expenses', ['month', 'category']);
-      if (tab === 'cat') eData = { summary: await A.http.get('/expenses/summary/?' + qs) };
-      else { qs.set('page', A.q('expenses:page', 1)); eData = await A.http.get('/expenses/?' + qs); }
+      if (tab === 'cat') {
+        eData = { summary: await A.http.get('/expenses/summary/?' + qs) };
+        const alive = new Set(eData.summary.map(eKey));
+        eOpen = new Set([...eOpen].filter((k) => alive.has(k)));
+        await Promise.all([...eOpen].map(loadCatRows));
+      } else { qs.set('page', A.q('expenses:page', 1)); eData = await A.http.get('/expenses/?' + qs); }
     },
     render(p, q) {
       const tab = q.tab || 'date';
@@ -489,38 +507,45 @@
   function expenseSummary(rows) {
     const byM = A.groupBy(A.sortBy(rows, (r) => r.month, true), (r) => r.month);
     return [...byM]
-      .map(([ym, list]) => `<section class="group-block"><h3>${A.ymLabel(ym)} <span class="muted">· ${A.money(A.sum(list, (r) => Number(r.sum)))}</span></h3>${A.table(
-        [
-          { h: 'Kategoriya', f: (r) => esc(r.name) },
-          { h: 'Turi', f: (r) => A.badge(r.kind, r.kind === 'Xarajat' ? 'gray' : 'blue') },
-          { h: 'Soni', f: (r) => r.n, cls: 'num' },
-          { h: 'Summa', f: (r) => `<b>${A.num(r.sum)}</b>`, cls: 'num', sum: (rr) => A.num(A.sum(rr, (r) => Number(r.sum))) },
-        ],
-        A.sortBy(list, (r) => Number(r.sum), true),
-      )}</section>`)
+      .map(([ym, list]) => {
+        const body = A.sortBy(list, (r) => Number(r.sum), true).map((r) => {
+          const k = eKey(r), open = eOpen.has(k);
+          const head = `<tr class="exp-cat-row" data-act="exp-cat" data-key="${esc(k)}" style="cursor:pointer" title="Xarajatlar ro'yxatini ochish">
+            <td data-label="Kategoriya"><b>${open ? '▾' : '▸'}</b> ${esc(r.name)}</td><td data-label="Turi">${A.badge(r.kind, r.kind === 'Xarajat' ? 'gray' : 'blue')}</td>
+            <td class="num" data-label="Soni">${r.n}</td><td class="num" data-label="Summa"><b>${A.num(r.sum)}</b></td></tr>`;
+          const detail = open ? `<tr class="exp-detail"><td colspan="4">${A.table(expenseCols(false), eRows[k] || [], { empty: "Xarajat yo'q" })}</td></tr>` : '';
+          return head + detail;
+        }).join('');
+        return `<section class="group-block"><h3>${A.ymLabel(ym)} <span class="muted">· ${A.money(A.sum(list, (r) => Number(r.sum)))}</span></h3>
+          <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Kategoriya</th><th>Turi</th><th class="num">Soni</th><th class="num">Summa</th></tr></thead><tbody>${body}</tbody>
+          <tfoot><tr><td><b>Jami</b></td><td></td><td></td><td class="num"><b>${A.num(A.sum(list, (r) => Number(r.sum)))}</b></td></tr></tfoot></table></div></section>`;
+      })
       .join('') || A.empty("Xarajat yo'q");
   }
+  A.act['exp-cat'] = async (el) => {
+    const k = el.dataset.key;
+    if (eOpen.has(k)) eOpen.delete(k);
+    else eOpen.add(k);
+    A.refresh();
+  };
+  const expenseCols = (withCategory = true) => [
+    { h: 'Sana', f: (e) => A.fdate(e.date) },
+    ...(withCategory ? [{ h: 'Kategoriya', f: (e) => esc((A.get('expenseCats', e.category) || {}).name) }] : []),
+    { h: 'Nomi', f: (e) => esc(e.name) },
+    { h: 'Soni × narx', f: (e) => `${e.quantity} × ${A.num(e.price)}`, cls: 'num' },
+    { h: 'Jami', f: (e) => `<b>${A.num(e.total)}</b>`, cls: 'num', sum: (rr) => A.num(A.sum(rr, (e) => Number(e.total))) },
+    { h: "G'azna", f: (e) => `${esc(A.accName(e.account))} · ${A.CASH[e.cash_type]}` },
+    ...(withCategory ? [{ h: 'Hisob davri', f: (e) => `${A.MONTHS[e.period_month - 1]} ${e.period_year}` }] : [{ h: 'Izoh', f: (e) => esc(e.comment || '') }]),
+    {
+      h: '',
+      f: (e) => {
+        const ed = A.canEdit('expenses', e), del = A.canEdit('expenses', e, 'date', 'd');
+        return `<div class="row gap nowrap">${A.can('expenses', 'e') ? `<button class="btn sm ghost" data-act="exp-edit" data-id="${e.id}" ${ed.ok ? '' : `disabled title="${esc(ed.why)}"`}>✎</button>` : ''}${A.can('expenses', 'd') ? `<button class="btn sm ghost" data-act="exp-del" data-id="${e.id}" ${del.ok ? '' : `disabled title="${esc(del.why)}"`}>🗑</button>` : ''}</div>`;
+      },
+    },
+  ];
   function expenseTable(d) {
-    return `${d.results.length ? `<p class="muted small">Filtr bo'yicha jami: <b>${A.money(d.total)}</b></p>` : ''}${A.table(
-      [
-        { h: 'Sana', f: (e) => A.fdate(e.date) },
-        { h: 'Kategoriya', f: (e) => esc((A.get('expenseCats', e.category) || {}).name) },
-        { h: 'Nomi', f: (e) => esc(e.name) },
-        { h: 'Soni × narx', f: (e) => `${e.quantity} × ${A.num(e.price)}`, cls: 'num' },
-        { h: 'Jami', f: (e) => `<b>${A.num(e.total)}</b>`, cls: 'num' },
-        { h: "G'azna", f: (e) => `${esc(A.accName(e.account))} · ${A.CASH[e.cash_type]}` },
-        { h: 'Hisob davri', f: (e) => `${A.MONTHS[e.period_month - 1]} ${e.period_year}` },
-        {
-          h: '',
-          f: (e) => {
-            const ed = A.canEdit('expenses', e), del = A.canEdit('expenses', e, 'date', 'd');
-            return `<div class="row gap nowrap">${A.can('expenses', 'e') ? `<button class="btn sm ghost" data-act="exp-edit" data-id="${e.id}" ${ed.ok ? '' : `disabled title="${esc(ed.why)}"`}>✎</button>` : ''}${A.can('expenses', 'd') ? `<button class="btn sm ghost" data-act="exp-del" data-id="${e.id}" ${del.ok ? '' : `disabled title="${esc(del.why)}"`}>🗑</button>` : ''}</div>`;
-          },
-        },
-      ],
-      d.results,
-      { empty: "Xarajat yo'q" },
-    )}${A.pager('expenses', d)}`;
+    return `${d.results.length ? `<p class="muted small">Filtr bo'yicha jami: <b>${A.money(d.total)}</b></p>` : ''}${A.table(expenseCols(true), d.results, { empty: "Xarajat yo'q" })}${A.pager('expenses', d)}`;
   }
   A.expenseForm = async (e) => {
     await A.reloadMoney();
