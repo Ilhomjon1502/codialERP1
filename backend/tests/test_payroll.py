@@ -63,7 +63,7 @@ def test_salary_total_fine_and_carry_across_years(api, pw):
                                            "cash_type": "CASH", "account": str(pw["acc"].pk)}, format="json")
     assert p.status_code == 201, p.content
     assert fin.balance(pw["acc"]) == 4_600_000 and CashMovement.objects.get(source_type="salary").amount == -400000
-    a = h.get(f"/api/v1/salary-assignments/{d['id']}/").json()
+    a = bm.get(f"/api/v1/salary-assignments/{d['id']}/").json()
     assert a["given"] == 400000 and a["final"] == 730000
     assert old.pk  # tarixdagi yozuv qoldi
     bal = bm.get("/api/v1/salary-assignments/balances/").json()
@@ -149,3 +149,28 @@ def test_query_counts(api, pw, django_assert_max_num_queries):
         assert len(bm.get("/api/v1/salary-assignments/").json()) == 5
     with django_assert_max_num_queries(12):
         bm.get("/api/v1/salary-assignments/balances/")
+
+
+def test_salaries_visible_only_to_owner_unless_top(api, make_user, pw):
+    """2026-11-04: bo'limga to'liq ruxsat berilsa ham (masalan Marketolog), har kim faqat o'zining oyligi va KPI'sini ko'radi; Bosh menejer — hammasini."""
+    from apps.accounts.models import Role, RolePermission
+
+    marketer = make_user("MARKETOLOG")
+    RolePermission.objects.update_or_create(role=Role.objects.get(code="MARKETOLOG"), section="salaries", defaults={"ops": "vaed"})
+    KPIRate.objects.create(branch=pw["branch"], user=pw["teacher"], role_type="USTOZ", course=pw["course"], effective_from=PREV, type="O'zgarmas", fixed_amount=120000)
+    take(api(pw["teacher"]), pw, [(c, "1", "") for c in pw["contracts"]])
+    mine = SalaryAssignment.objects.create(branch=pw["branch"], user=marketer, year=TODAY.year, month=TODAY.month, fixed=800000)
+    SalaryAssignment.objects.create(branch=pw["branch"], user=pw["teacher"], year=TODAY.year, month=TODAY.month, fixed=1_000_000)
+    for u, amount in ((marketer, 100000), (pw["teacher"], 200000)):
+        SalaryPayout.objects.create(branch=pw["branch"], user=u, year=TODAY.year, month=TODAY.month, date=TODAY, type="O'zgarmas", amount=amount, cash_type="CASH", account=pw["acc"])
+    m, bm = api(marketer), api(pw["bm"])
+    assert [a["id"] for a in m.get("/api/v1/salary-assignments/").json()] == [str(mine.pk)]
+    assert [b["user"] for b in m.get("/api/v1/salary-assignments/balances/").json()] == [str(marketer.pk)]
+    assert m.get("/api/v1/salary-payouts/").json()["count"] == 1
+    assert m.get("/api/v1/kpi-rates/").json() == []
+    assert m.get("/api/v1/kpi/").json() == []  # hisoblangan KPI daraxti — boshqa xodimniki ko'rinmaydi
+    assert len(bm.get("/api/v1/kpi/").json()) >= 1
+    assert len(bm.get("/api/v1/salary-assignments/").json()) == 2 and bm.get("/api/v1/salary-payouts/").json()["count"] == 2
+    p = {"month": f"{TODAY:%Y-%m}", "user": str(pw["teacher"].pk), "role": "USTOZ", "group": str(pw["group"].pk)} if "group" in pw else None
+    if p:
+        assert m.get("/api/v1/kpi/rows/", p).status_code == 403

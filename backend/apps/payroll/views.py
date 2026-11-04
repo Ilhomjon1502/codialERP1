@@ -162,7 +162,7 @@ def kpi_tree(request):
     if not can(request.user, "salaries"):
         raise PermissionDenied(NO_PERMISSION)
     entries = services.kpi_entries(_kpi_scope(request.user))
-    if role_code(request.user) in TEACHER_ROLES:
+    if not services.sees_all_pay(request.user):  # boshqalar — faqat o'z KPI'si (ruxsat qanday berilmasin)
         entries = [e for e in entries if e["user"] == request.user.pk]
     return Response(entries)
 
@@ -175,7 +175,7 @@ def kpi_rows(request):
     p = request.query_params
     if not all(p.get(k) for k in ("month", "user", "role", "group")):
         raise ValidationError({"detail": "month, user, role, group kerak"})
-    if role_code(request.user) in TEACHER_ROLES and str(request.user.pk) != p["user"]:
+    if not services.sees_all_pay(request.user) and str(request.user.pk) != p["user"]:
         raise PermissionDenied(NO_PERMISSION)
     start, end = month_bounds(p["month"])
     field = "teacher" if p["role"] == "USTOZ" else "supporter"

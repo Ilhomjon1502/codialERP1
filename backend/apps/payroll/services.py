@@ -37,13 +37,19 @@ def ym_key(year, month):
 
 # ------------------------------------------------------------------ doira (6.3)
 
+def sees_all_pay(user):
+    """Hamma xodimning oyligini ko'radi: Admin, Bosh menejer, asoschi (`sees_all`) va Filial menejeri (o'z filialida)."""
+    return sees_all(user) or role_code(user) == RoleCode.FILIAL_MENEJERI
+
+
 def scope(qs, user):
-    """Admin, Bosh menejer — hammasi; Filial menejeri va oylik beruvchilar (ruxsat «qo'shish») — o'z filiali; boshqalar — faqat o'zi."""
+    """Admin, Bosh menejer — hammasi; Filial menejeri — o'z filiali; boshqalar (bo'limga qanday ruxsat berilmasin) — faqat o'zining oyligi
+    va o'zi kiritgan yozuvlar (buyurtmachi qarori 2026-11-04)."""
     if sees_all(user):
         return qs
-    if role_code(user) == RoleCode.FILIAL_MENEJERI or can(user, "salaries", "a"):
+    if role_code(user) == RoleCode.FILIAL_MENEJERI:
         return scope_branch(qs, user)
-    return qs.filter(user=user)
+    return qs.filter(Q(user=user) | Q(created_by=user))
 
 
 def require_manager(user):
