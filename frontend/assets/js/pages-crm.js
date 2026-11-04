@@ -122,6 +122,25 @@
     return qs;
   };
   let leadData = {};
+  let leadTree = [];
+  let lastTreeSel = null;
+  /* Chap daraxt: holat → kurs → guruh → talaba (sonlar bilan). Faqat Voronka va Ro'yxat tablarida. */
+  const LEAD_TREE = [
+    { key: (r) => r.status, label: (k) => `${k}. ${LS[k] || ''}`, sort: (k) => Number(k) },
+    { key: (r) => r.course, label: (k) => A.courseName(k) },
+    { key: (r) => r.group, label: (k) => (k ? A.groupName(k) : 'Guruhsiz'), sort: (k) => (k ? (A.get('groups', k) || {}).number || 0 : -1) },
+    { key: (r) => r.id, label: (k) => { const r = leadTree.find((x) => x.id === k); return r ? r.name : ''; } },
+  ];
+  const LEAD_TREE_OPTS = { levels: LEAD_TREE };
+  const treeParams = (qs) => {
+    const sel = A.q('leads:tree', '');
+    const parts = sel ? sel.split('|') : [];
+    if (parts[0]) qs.set('status', parts[0]);
+    if (parts[1]) qs.set('course', parts[1]);
+    if (parts.length > 2) qs.set('group', parts[2] || 'none');
+    if (parts[3]) qs.set('lead', parts[3]);
+  };
+  const treeWrap = (body) => `<div class="settings tree-layout">${A.treeNav('leads', leadTree, LEAD_TREE_OPTS)}<div class="settings-body">${body}</div></div>`;
 
   A.page('leads', {
     title: 'Lidlar',
@@ -134,6 +153,13 @@
       }
       const tab = q.tab || 'funnel';
       const qs = leadFilters();
+      const treeTab = tab === 'funnel' || tab === 'list';
+      if (treeTab) {
+        leadTree = await A.http.get('/leads/tree/?' + leadFilters());
+        const cur = A.q('leads:tree', '');
+        if (cur !== lastTreeSel) { A.ui.q['leads:page'] = 1; lastTreeSel = cur; }
+        treeParams(qs);
+      }
       if (tab === 'funnel') {
         leadData = await A.http.get('/leads/board/?' + qs);
         Object.values(leadData.columns).flat().forEach(keepStudent);
@@ -153,8 +179,8 @@
       const tab = q.tab || 'funnel';
       const actions = A.can('leads', 'a') ? A.btn('Yangi lid', 'lead-new', { icon: 'plus' }) : '';
       let body = '';
-      if (tab === 'funnel') body = funnel(leadData);
-      else if (tab === 'list') body = leadTable(leadData.results) + pager(leadData);
+      if (tab === 'funnel') body = treeWrap(funnel(leadData));
+      else if (tab === 'list') body = treeWrap(leadTable(leadData.results) + pager(leadData));
       else if (tab === 'stats') body = leadStats(leadData);
       else body = paidTable(leadData.results) + pager(leadData);
       return `${A.head('Lidlar', 'Murojaatlar voronkasi: birinchi qo\'ng\'iroqdan shartnomagacha', actions)}

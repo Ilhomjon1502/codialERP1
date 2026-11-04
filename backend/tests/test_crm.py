@@ -141,6 +141,22 @@ def test_lead_month_filter(api, make_user, refs):
     assert c.get("/api/v1/leads/?month=bad").status_code == 400
 
 
+def test_lead_tree_and_group_filters(api, make_user, refs):
+    c = api(make_user("BOSH_MENEJER"))
+    ids = []
+    for i in range(3):
+        body = new_lead(refs, first_name=f"Daraxt{i}", phone1=f"90200000{i}", phone2=f"91200000{i}", status="2" if i < 2 else "1")
+        ids.append(c.post("/api/v1/leads/", body, format="json").json()["id"])
+    tree = c.get("/api/v1/leads/tree/").json()
+    assert len(tree) == 3 and {r["status"] for r in tree} == {"1", "2"}
+    assert all(r["group"] == "" and r["course"] == str(refs["course"].pk) for r in tree)
+    assert c.get("/api/v1/leads/tree/?search=Daraxt1").json()[0]["name"].startswith("Daraxt1")
+    assert c.get("/api/v1/leads/?group=none").json()["count"] == 3
+    assert c.get(f"/api/v1/leads/?lead={ids[0]}").json()["count"] == 1
+    assert c.get("/api/v1/leads/board/?status=1").json()["total"] == 1
+    assert c.get("/api/v1/leads/tree/?month=bad").status_code == 400
+
+
 def test_student_fill_form_with_new_parent(api, make_user, refs):
     c = api(make_user("ADMINISTRATOR"))
     sid = c.post("/api/v1/leads/", new_lead(refs), format="json").json()["student"]

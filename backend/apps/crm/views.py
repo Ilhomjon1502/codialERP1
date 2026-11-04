@@ -53,7 +53,7 @@ class LeadViewSet(AuditedModelViewSet):
     branch_field = "branch"
     pagination_class = Pagination
     check_usage_on_delete = False
-    action_ops = {"board": "v", "stats": "v", "comments": "a", "contract": "v", "call_note": "a", "calls": "v"}
+    action_ops = {"board": "v", "stats": "v", "tree": "v", "comments": "a", "contract": "v", "call_note": "a", "calls": "v"}
 
     def get_serializer_class(self):
         return LeadCreateSerializer if self.action == "create" else LeadSerializer
@@ -72,6 +72,10 @@ class LeadViewSet(AuditedModelViewSet):
         for key, field in (("course", "course"), ("source", "source"), ("status", "status")):
             if p.get(key):
                 qs = qs.filter(**{field: p[key]})
+        if p.get("group"):  # "none" — guruhsiz lidlar
+            qs = qs.filter(group__isnull=True) if p["group"] == "none" else qs.filter(group_id=p["group"])
+        if p.get("lead"):
+            qs = qs.filter(pk=p["lead"])
         if p.get("month"):  # lid ochilgan oy, "YYYY-MM"
             try:
                 year, month = (int(x) for x in p["month"].split("-")[:2])
@@ -131,6 +135,27 @@ class LeadViewSet(AuditedModelViewSet):
     @action(detail=False)
     def stats(self, request):
         return Response(services.stats(self.filtered()))
+
+    @action(detail=False)
+    def tree(self, request):
+        """Chap daraxt uchun yengil ro'yxat (holat → kurs → guruh → talaba): faqat qidiruv, kurs, manba va oy filtri."""
+        p = request.query_params
+        qs = self.get_queryset()
+        if p.get("search"):
+            qs = qs.filter(search_q(p["search"], "student__"))
+        for key in ("course", "source"):
+            if p.get(key):
+                qs = qs.filter(**{key: p[key]})
+        if p.get("month"):
+            try:
+                year, month = (int(x) for x in p["month"].split("-")[:2])
+            except ValueError:
+                raise ValidationError({"month": ["Oy YYYY-MM ko'rinishida bo'lsin"]}) from None
+            qs = qs.filter(created_at__year=year, created_at__month=month)
+        rows = qs.order_by("student__first_name", "student__last_name").values_list(
+            "id", "status", "course_id", "group_id", "student__first_name", "student__last_name")
+        return Response([{"id": str(i), "status": st, "course": str(c), "group": str(g) if g else "", "name": f"{fn} {ln}".strip()}
+                         for i, st, c, g, fn, ln in rows])
 
     @action(detail=True, methods=["post"])
     def contract(self, request, pk=None):
