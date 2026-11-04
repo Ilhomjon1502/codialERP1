@@ -25,6 +25,7 @@ EVENTS = [
     ("survey", "Tamomlagan/to'xtagan talaba so'rovnomasiga javob berdi"),
     ("referral", "Tavsiya bonusi berildi yoki berilmadi"),
     ("founder_report", "Qisqa kunlik hisobot (asoschi uchun)"),
+    ("ig_lead", "Instagram/Facebook target orqali yangi lid (jadvaldan)"),
 ]
 EVENT_KEYS = [k for k, _ in EVENTS]
 
@@ -92,3 +93,33 @@ class Outbox(models.Model):
 
     def __str__(self):
         return f"{self.event} → {self.user}: {self.status}"
+
+
+class IgWatch(models.Model):
+    """Instagram/Facebook target lidlari jadvalini kuzatish holati (bitta qator)."""
+
+    active = models.BooleanField("Kuzatilyapti", default=True)
+    last_new_at = models.DateTimeField("Oxirgi yangi lid", null=True, blank=True)
+    last_check_at = models.DateTimeField("Oxirgi tekshiruv", null=True, blank=True)
+    fail_since = models.DateTimeField("Jadval o'qilmay qolgan vaqt", null=True, blank=True)
+    fail_alerted = models.BooleanField(default=False)
+
+    class Meta:
+        verbose_name = "Instagram lidlari kuzatuvi"
+
+    def __str__(self):
+        return "Instagram kuzatuvi: " + ("yoqilgan" if self.active else "to'xtatilgan")
+
+
+class IgLead(models.Model):
+    """Jadvalda ko'rilgan lid qatori (Meta lid ID si) — bir lid ikki marta xabar bo'lmasin."""
+
+    lead_id = models.CharField("Meta lid ID", max_length=64, unique=True)
+    notified = models.BooleanField("Xabar yuborilgan", default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Instagram lidi"
+
+    def __str__(self):
+        return self.lead_id

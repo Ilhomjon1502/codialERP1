@@ -12,7 +12,7 @@ from django.core.management.base import BaseCommand
 from django.db import close_old_connections
 
 from apps.calls import auto_sms
-from apps.notifications import reminders, services, webapp
+from apps.notifications import ig_leads, reminders, services, webapp
 from apps.notifications.models import TelegramLink
 from apps.tasks import services as tasks
 from apps.voice import services as voice
@@ -59,6 +59,7 @@ class Command(BaseCommand):
                     reminders.lead_callbacks()
                     auto_sms.tick()  # avtomatik SMS jadvali (oy boshi, bonus, kelmagan) va muammo haqida Bosh menejerga
                     auto_sms.check_problems()
+                    ig_leads.tick()  # Instagram target lidlari jadvali (har 5 daqiqada o'zi tekshiradi)
                     services.stuck_alert()  # navbat uzoq yuborilmasa — Bosh menejerga pochta
                 services.send_pending()
             except Exception:  # noqa: BLE001 — tarmoq xatosi botni to'xtatmasin
@@ -82,6 +83,9 @@ class Command(BaseCommand):
             if chat and msg.get("chat", {}).get("type") == "private":
                 close_old_connections()
                 if voice.handle_update(msg):  # Bosh menejerning ovozli/yozma buyrug'i yoki savoli
+                    continue
+                if (msg.get("text") or "").strip().startswith("/instagram"):
+                    services.api("sendMessage", chat_id=chat, text=ig_leads.handle_command(chat))
                     continue
                 reply = services.handle_message(chat, msg.get("text", ""), (msg.get("from") or {}).get("username", ""))
                 if not TelegramLink.objects.filter(chat_id=chat).exists():  # bog'lanmagan chat (masalan qo'shimcha qabul qiluvchi) — chat_id jurnalga va javobga

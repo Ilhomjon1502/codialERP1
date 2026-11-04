@@ -47,6 +47,7 @@ EVENT_PERM = {
     "survey": ("clientbot", "v"),
     "referral": ("clientbot", "v"),
     "founder_report": ("founderReport", "v"),
+    "ig_lead": ("leads", "v"),
 }
 # Xodim hali tanlamagan bo'lsa — kimga standart holda boradi
 DEFAULT_ROLES = {
@@ -69,6 +70,7 @@ DEFAULT_ROLES = {
     "survey": {R.BOSH_MENEJER},  # tamomlash so'rovnomasi javobi (B4)
     "referral": {R.BOSH_MENEJER},  # tavsiya bonusi (B5)
     "founder_report": {R.ASOSCHI},  # asoschiga faqat shu xabar boradi (2026-10-25)
+    "ig_lead": {R.BOSH_MENEJER},  # buyurtmachi qarori 2026-11-04: Instagram target lidlari faqat Bosh menejerga
 }
 
 
