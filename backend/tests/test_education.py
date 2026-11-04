@@ -138,6 +138,25 @@ def test_group_create_number_and_rules(api, make_user, world):
     assert api(make_user("ADMIN")).patch(f"/api/v1/groups/{w['group'].pk}/", {"course": str(other.pk)}, format="json").status_code == 400
 
 
+def test_group_close_with_inactive_supporter(api, make_user, world):
+    """Ishdan ketgan yordamchisi bor guruhni yopish (end sanasi) mumkin; yangi tayinlash esa mumkin emas."""
+    w = world
+    sup = w["supporter"]
+    g = w["group"]
+    g.supporter = sup
+    g.save()
+    sup.employment_status = sup.Employment.LEFT
+    sup.save()
+    bm = api(make_user("BOSH_MENEJER"))
+    r = bm.patch(f"/api/v1/groups/{g.pk}/", {"end": (TODAY + datetime.timedelta(days=30)).isoformat()}, format="json")
+    assert r.status_code == 200, r.content
+    # boshqa ishdan ketgan xodimni yangi yordamchi qilib bo'lmaydi
+    g2 = bm.post("/api/v1/groups/", {"course": str(w["course"].pk), "pattern": str(w["pattern"].pk), "time": str(w["time"].pk),
+                                      "teacher": str(w["teacher"].pk), "room": str(w["room"].pk), "start": TODAY.isoformat(),
+                                      "supporter": str(sup.pk)}, format="json")
+    assert g2.status_code == 400
+
+
 def test_group_status_fill_and_teacher_scope(api, make_user, world):
     w = world
     d = api(make_user("BOSH_MENEJER")).get("/api/v1/groups/?status=Faol").json()
@@ -433,8 +452,8 @@ def test_contract_course_change_roles(api, make_user, world):
     Contract.objects.filter(pk=w["contracts"][2].pk).delete()
     assert api(make_user("ADMINISTRATOR")).patch(f"/api/v1/contracts/{fresh.pk}/", body, format="json").status_code == 403
     assert api(make_user("ADMINISTRATOR_HISOBCHI")).patch(f"/api/v1/contracts/{fresh.pk}/", body, format="json").status_code == 200
-    # Administrator+Hisobchi uchun shartnoma tahrirlash muddati (boshlanishdan 7 kun) amal qiladi
-    assert api(make_user("ADMINISTRATOR_HISOBCHI")).patch(f"/api/v1/contracts/{w['contracts'][1].pk}/", body, format="json").status_code == 403
+    # Administrator+Hisobchi shartnomani boshlanishidan qancha vaqt o'tgan bo'lmasin tahrirlaydi (2026-11-04); oddiy Administrator uchun muddat 7 kun (roles.edit_days)
+    assert api(make_user("ADMINISTRATOR_HISOBCHI")).patch(f"/api/v1/contracts/{w['contracts'][1].pk}/", body, format="json").status_code == 200
 
 
 def test_prior_literacy_study_lookup(api, make_user, world):
