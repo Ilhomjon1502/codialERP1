@@ -253,7 +253,7 @@
   };
   A.pendingOf = (accId) => A.sum(A.ledger().filter((m) => m.account === accId && !m.confirmed), 'amount');
   /** Pul qabul qila/chiqara oladigan g'aznalar: Admin va Bosh menejer — barcha faol g'aznalar, boshqalar — mas'ul bo'lganlari */
-  A.myAccounts = () => A.rows('accounts').filter((a) => a.status === 'Faol' && (A.isTop() || a.responsible.includes(A.S.currentUser)));
+  A.myAccounts = () => A.rows('accounts').filter((a) => a.status === 'Faol' && a.responsible.includes(A.S.currentUser));
 
   /* ---- Oylik ---- */
   A.kpiAgg = () =>

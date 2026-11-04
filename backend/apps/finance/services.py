@@ -46,10 +46,9 @@ def fmt(n):
 # ------------------------------------------------------------------ g'aznalar va balans
 
 def my_accounts(user):
-    """Foydalanuvchi pul qabul qila/chiqara oladigan faol g'aznalar: Admin va Bosh menejer — hammasi (buyurtmachi qarori 2026-10-13),
-    boshqalar — mas'ul bo'lganlari."""
-    qs = Account.objects.filter(status=Status.ACTIVE)
-    return qs if is_top(user) else qs.filter(responsible=user)
+    """Foydalanuvchi pul qabul qila/chiqara oladigan faol g'aznalar: faqat o'zi mas'ul bo'lganlari — Admin va Bosh menejer ham
+    (buyurtmachi qarori 2026-11-04; 2026-10-13 dagi «istalgan g'azna» qoidasi bekor qilingan)."""
+    return Account.objects.filter(status=Status.ACTIVE, responsible=user)
 
 
 def scoped_account_ids(user):

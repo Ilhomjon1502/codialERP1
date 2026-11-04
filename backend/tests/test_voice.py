@@ -64,7 +64,7 @@ def env(branch, make_user):
     TelegramLink.objects.create(user=boss, chat_id=CHAT)
     cashier = make_user("ADMINISTRATOR_HISOBCHI", full_name="Akbarxo'ja Karimov")
     cash = Account.objects.create(name="Emirat g'azna", cash_type="ALL", initial_balance=1_000_000)
-    cash.responsible.set([cashier])
+    cash.responsible.set([cashier, boss])  # 2026-11-04: Bosh menejer ham faqat mas'ul g'aznalarida ishlaydi
     card = Account.objects.create(name="Bosh g'azna", cash_type="CARD", initial_balance=0)
     card.responsible.set([boss])
     branch.default_cashbox, branch.noncash_cashbox = cash, card
@@ -146,7 +146,9 @@ def test_voice_message_sent_as_audio_and_forward_date(env, tg, llm):
 
 def test_ambiguous_account_pick_then_confirm(env, tg, llm):
     k1 = Account.objects.create(name="Kassa 1", cash_type="CASH")
-    Account.objects.create(name="Kassa 2", cash_type="CASH")
+    k2 = Account.objects.create(name="Kassa 2", cash_type="CASH")
+    for k in (k1, k2):
+        k.responsible.add(env["boss"])
     llm.reply = {"transcript": "x", "items": [{"type": "expense", "category": "Kommunal", "price": 50000, "cash_type": "CASH", "account": "kassa"}]}
     voice.handle_update(text_msg("Kommunal 50 ming emiratdan"))
     cmd = last_cmd()

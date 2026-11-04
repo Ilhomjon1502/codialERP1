@@ -92,6 +92,8 @@ def test_payout_rules_and_scope(api, make_user, pw):
 def test_payout_edit_moves_account(api, pw):
     """Berilgan oylikni tahrirlash: g'azna, pul turi, summa, davr — g'azna jurnali ko'chadi."""
     bosh = Account.objects.create(name="Bosh g'azna", cash_type="CARD", initial_balance=1_000_000)
+    for a in (bosh, pw["acc"]):
+        a.responsible.add(pw["bm"])  # 2026-11-04: Bosh menejer faqat mas'ul g'aznalarida ishlaydi
     bm = api(pw["bm"])
     body = {"user": str(pw["teacher"].pk), "year": TODAY.year, "month": TODAY.month, "type": "O'zgarmas", "amount": 300000, "cash_type": "CASH", "account": str(pw["acc"].pk)}
     pid = bm.post("/api/v1/salary-payouts/", body, format="json").json()["id"]

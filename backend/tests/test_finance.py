@@ -191,7 +191,10 @@ def test_pending_transfer_edit_delete(api, make_user, fin):
 def test_exchange_only_top(api, make_user, fin):
     body = {"account": str(fin["cash"].pk), "from_type": "CASH", "amount": 100000, "to_type": "CARD", "amount_to": 98000}
     assert api(fin["cashier"]).post("/api/v1/exchanges/", body, format="json").status_code == 403
-    adm = api(make_user("ADMIN"))
+    admin_user = make_user("ADMIN")
+    assert api(admin_user).post("/api/v1/exchanges/", body, format="json").status_code == 400  # mas'ul bo'lmagan g'azna
+    fin["cash"].responsible.add(admin_user)
+    adm = api(admin_user)
     assert adm.post("/api/v1/exchanges/", {**body, "amount_to": 120000}, format="json").json()["amount_to"] == ["100 000 dan katta bo'lolmaydi"]
     r = adm.post("/api/v1/exchanges/", body, format="json")
     assert r.status_code == 201 and r.json()["loss"] == 2000
@@ -274,8 +277,22 @@ def test_leads_paid_tab(api, fin):
     assert r["count"] == 1 and r["results"][0]["paid_total"] == 300000 and r["results"][0]["first_paid"] == TODAY.isoformat()
 
 
-def test_boss_can_use_any_cashbox(api, fin):
+def test_boss_uses_only_own_cashbox(api, fin):
+    """2026-11-04: Admin va Bosh menejer ham faqat o'zi mas'ul bo'lgan g'aznadan foydalanadi."""
     assert not fin["cash"].responsible.filter(pk=fin["boss"].pk).exists()
-    r = pay(api(fin["boss"]), fin)
+    bm = api(fin["boss"])
+    r = pay(bm, fin)
+    assert r.status_code == 400 and "cashbox" in r.json()
+    assert [a.pk for a in services.my_accounts(fin["boss"])] == [fin["card"].pk]
+    assert {a.pk for a in services.my_accounts(fin["cashier"])} == {fin["cash"].pk}
+    exp = {"date": TODAY.isoformat(), "category": str(fin["cat"].pk), "name": "Elektr", "quantity": 1, "price": 10000, "cash_type": "CARD", "account": str(fin["cash"].pk)}
+    assert bm.post("/api/v1/expenses/", exp, format="json").status_code == 400
+    assert api(fin["cashier"]).post("/api/v1/expenses/", {**exp, "cash_type": "CASH"}, format="json").status_code == 201
+
+
+def test_cashier_takes_card_payment_into_main_cashbox(api, fin):
+    """Karta to'lovi to'g'ridan-to'g'ri Bosh g'aznaga tushadi — uni Emirat kassirlari ham kirita oladi."""
+    assert not fin["card"].responsible.filter(pk=fin["cashier"].pk).exists()
+    r = api(fin["cashier"]).post("/api/v1/payments/", {"contract": str(fin["contract"].pk), "amount": 200000, "cash_type": "CARD"}, format="json")
     assert r.status_code == 201, r.content
-    assert r.json()["cashbox"] == str(fin["cash"].pk) and r.json()["accountant"] in (str(fin["cashier"].pk), str(fin["accountant"].pk))
+    assert r.json()["cashbox"] == str(fin["card"].pk)
