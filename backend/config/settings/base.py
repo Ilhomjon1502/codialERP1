@@ -184,6 +184,7 @@ AI_MODEL_STRONG = env_list("AI_MODEL_STRONG")  # bo'sh — provayder standarti (
 # Google Sheets hisobot (Foyda → «Hisobot olish»): kalit va fayl ID'si deploy/set-google.sh bilan
 GOOGLE_SERVICE_ACCOUNT_B64 = env("GOOGLE_SERVICE_ACCOUNT_B64", "")  # service account JSON, base64
 GOOGLE_SHEET_ID = env("GOOGLE_SHEET_ID", "")
+IG_LEADS_CHAT_ID = int(env("IG_LEADS_CHAT_ID", "-1001530659909") or 0)  # Codial (ichki guruh): Instagram lidlari shu yerga
 IG_LEADS_SHEET_URL = env("IG_LEADS_SHEET_URL", "")  # Instagram target lidlari jadvali (havola — maxfiy, faqat deploy/.env da)
 # Foyda taqsimoti: (hisobotdagi nom, kreditor nomida qatnashadigan so'z, foiz)
 PROFIT_SHARE_HOLDERS = [("MNSH", "mnsh", 75), ("Ilhomjon", "ilhomjon", 25)]

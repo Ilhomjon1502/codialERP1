@@ -1,6 +1,7 @@
 import datetime
 
 import pytest
+from django.conf import settings
 from django.test import override_settings
 from django.utils import timezone
 
@@ -33,6 +34,10 @@ def texts():
     return list(Outbox.objects.filter(event="ig_lead").values_list("text", flat=True))
 
 
+def group_texts():
+    return list(Outbox.objects.filter(event="ig_lead", chat_id=settings.IG_LEADS_CHAT_ID, user__isnull=True).values_list("text", flat=True))
+
+
 def test_parse_skips_header_and_incomplete_rows():
     assert ig_leads.parse(["ad_id", "ad_name"]) is None
     assert ig_leads.parse(["", "", "", "", "", "", "", "", "", "Umumiy forma"]) is None
@@ -48,12 +53,13 @@ def test_first_run_marks_old_then_notifies_only_new(boss, now_commit):
         assert IgLead.objects.count() == 2
         later = now + datetime.timedelta(minutes=6)
         assert ig_leads.tick(later, rows=[row("l:1"), row("l:3", phone="+998 88 207-62-62", name="Farruxbek", platform="fb")]) == 1
-        t = texts()[0]
+        t = group_texts()[0]
+        assert not Outbox.objects.filter(event="ig_lead", chat_id=9001).exists()  # xodimning shaxsiy chatiga bormaydi
         assert "Yangi lid (Facebook)" in t and "Farruxbek · +998882076262" in t and "Manba: Facebook: kompyuter sav — interesli" in t
         assert "Kurs: Kompyuter savodxonligi" in t and "🕒 04.11.2026 12:30" in t
         # qayta o'qilsa takror ketmaydi; 5 daqiqadan oldin umuman o'qilmaydi
         assert ig_leads.tick(later + datetime.timedelta(minutes=6), rows=[row("l:3", phone="+998 88 207-62-62")]) == 0
-        assert len(texts()) == 1
+        assert len(group_texts()) == 1
 
 
 def test_stops_after_10_days_and_resumes_by_command(boss, now_commit):

@@ -1,4 +1,4 @@
-"""Instagram/Facebook target orqali tushgan lidlar (Meta Lead Ads → Google Sheets) → Bosh menejerga Telegram xabari.
+"""Instagram/Facebook target orqali tushgan lidlar (Meta Lead Ads → Google Sheets) → Codial ichki guruhiga Telegram xabari (to'xtash va xato haqidagi ogohlantirishlar — Bosh menejerga).
 
 Jadval havola bo'yicha ochiq: CSV sifatida o'qiladi (`IG_LEADS_SHEET_URL`, deploy/.env). Ustunlar o'rniga qarab olinadi — jadvaldagi
 sarlavha qatori buzuq, shuning uchun nomga tayanilmaydi. ERP'da lid ochilmaydi, faqat xabar.
@@ -22,7 +22,7 @@ from apps.accounts.models import User
 from apps.calls.services import normalize
 from apps.core.roles import RoleCode
 from apps.notifications import services as notif
-from apps.notifications.models import IgLead, IgWatch, TelegramLink
+from apps.notifications.models import IgLead, IgWatch, Outbox, TelegramLink
 
 log = logging.getLogger(__name__)
 
@@ -105,6 +105,13 @@ def message(lead):
     return text + (f"\n⚠️ Bazada bor: {escape(known)}" if known else "")
 
 
+def send_group(text, key):
+    """Lid xabarini Codial ichki guruhiga (IG_LEADS_CHAT_ID) navbatga qo'yadi — xodimlarning shaxsiy chatiga emas."""
+    chat = settings.IG_LEADS_CHAT_ID
+    if chat and not Outbox.objects.filter(chat_id=chat, key=key).exists():
+        Outbox.objects.create(user=None, chat_id=chat, event="ig_lead", key=key, text=text)
+
+
 def _watch():
     return IgWatch.objects.get_or_create(pk=1)[0]
 
@@ -143,12 +150,12 @@ def tick(now=None, rows=None):
     for x in fresh[:MAX_PER_TICK]:
         _, created = IgLead.objects.get_or_create(lead_id=x["id"], defaults={"notified": True})
         if created:
-            notif.notify("ig_lead", message(x), force=True, key=f"ig:{x['id']}")
+            send_group(message(x), f"ig:{x['id']}")
             sent += 1
     for x in fresh[MAX_PER_TICK:]:  # qolganlari keyingi safar yuborilmasin deb belgilanadi, lekin bir xabarda aytiladi
         IgLead.objects.get_or_create(lead_id=x["id"], defaults={"notified": False})
     if len(fresh) > MAX_PER_TICK:
-        notif.notify("ig_lead", f"ℹ️ Jadvalga yana {len(fresh) - MAX_PER_TICK} ta lid tushgan — jadvaldan ko'ring.", force=True, key=f"igmore:{now:%Y%m%d%H%M}")
+        send_group(f"ℹ️ Jadvalga yana {len(fresh) - MAX_PER_TICK} ta lid tushgan — jadvaldan ko'ring.", f"igmore:{now:%Y%m%d%H%M}")
     if fresh:
         w.last_new_at = now
     elif w.last_new_at and now - w.last_new_at >= STOP_AFTER:
