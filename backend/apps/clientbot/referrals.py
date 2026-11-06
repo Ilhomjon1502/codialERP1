@@ -100,7 +100,7 @@ def on_payment(payment):
         return
     try:
         with transaction.atomic():
-            ref = (Referral.objects.select_for_update().select_related("lead__student", "branch", "referrer_student")
+            ref = (Referral.objects.select_for_update(of=("self",)).select_related("lead__student", "branch", "referrer_student")
                    .filter(lead__student=payment.contract.student, state=Referral.State.PENDING).first())
             if ref:
                 evaluate(ref)

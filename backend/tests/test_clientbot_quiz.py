@@ -112,6 +112,19 @@ def test_full_run_score_review_and_notifications(env, api, django_capture_on_com
     assert "tugagan" in bot.handle_callback(1, f"qz:go:{at.pk}")[1][0].text
 
 
+def test_resume_after_interrupted_finish_completes_the_test(env, api, on):  # noqa: F811
+    """Oxirgi javob saqlangan, lekin yakunlash uzilgan (masalan Telegram/DB xatosi) — «Davom etamiz» testni yakunlaydi, qotib qolmaydi."""
+    st, c, at = sent_one(env, api)
+    link_phone(st, st.parent.phone, 2)
+    bot.handle_callback(1, f"qz:go:{at.pk}")
+    at.refresh_from_db()
+    at.answers = [q["correct"] for q in at.questions]  # hamma javob saqlangan, state hali «Jarayonda»
+    at.save(update_fields=["answers"])
+    ans, rep = bot.handle_callback(1, f"qz:go:{at.pk}")
+    at.refresh_from_db()
+    assert ans == "✅" and at.state == "Tugadi" and at.score == 20 and any("20/20" in r.text for r in rep)
+
+
 def test_only_student_account_can_start_and_buttons_must_be_in_order(env, api, on):  # noqa: F811
     st, c, at = sent_one(env, api)
     link_phone(st, st.parent.phone, 2)

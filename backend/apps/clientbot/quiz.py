@@ -275,6 +275,8 @@ def start(acc, attempt_id, now=None, rnd=random):
                 return "Boshqa akkauntda", [Reply("Test boshqa Telegram akkauntda boshlangan.")]
             if now >= _deadline(at):
                 return "⏰", [Reply("⏰ Vaqt tugadi.", done=True), *finish(at, timed_out=True)]
+            if len(at.answers) >= len(at.questions):  # hamma savolga javob berilgan, lekin yakunlash uzilib qolgan — endi yakunlaymiz
+                return "✅", [Reply("✅ Barcha savollarga javob berdingiz.", done=True), *finish(at)]
             acc.state = {"step": "quiz", "attempt": str(at.pk)}
             acc.save(update_fields=["state"])
             return "▶️", [Reply("▶️ Davom etamiz.", done=True), *_ask(at)]
@@ -375,7 +377,8 @@ def finish(at, timed_out=False, now=None):
 
     now = now or timezone.now()
     with transaction.atomic():
-        at = QuizAttempt.objects.select_for_update().select_related("student", "course", "group__course", "branch").get(pk=at.pk)
+        # of=self: group bo'sh bo'lishi mumkin (LEFT JOIN) — PostgreSQL FOR UPDATE ni aks holda rad etadi
+        at = QuizAttempt.objects.select_for_update(of=("self",)).select_related("student", "course", "group__course", "branch").get(pk=at.pk)
         if at.state != St.STARTED:
             return []
         at.score = sum(1 for r in review(at) if r["ok"])
