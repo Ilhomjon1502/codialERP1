@@ -15,11 +15,11 @@ from apps.core.scoping import scope_branch
 from apps.core.viewsets import AuditedModelViewSet, BranchScopedSerializerMixin
 from apps.crm.models import Student
 from apps.education.models import Contract
-from apps.references.models import Branch
+from apps.references.models import Branch, Course
 
 from . import invites as bulk
-from . import referrals, services, survey
-from .models import BotConfig, BotInvite, BotLink, ClientOutbox, ExitSurvey, LeadSurvey, Referral, SurveyQuestion
+from . import quiz, referrals, services, survey
+from .models import BotConfig, BotInvite, BotLink, ClientOutbox, ExitSurvey, LeadSurvey, QuizAttempt, QuizQuestion, Referral, SurveyQuestion
 
 READ_ONLY = ["get", "head", "options"]
 
@@ -435,6 +435,141 @@ class ExitSurveyViewSet(AuditedModelViewSet):
     @action(detail=False)
     def stats(self, request):
         return Response(survey.stats(self.get_queryset()))
+
+
+# ---------- kurs testi (2026-11-06) ----------
+
+
+class QuizQuestionSerializer(serializers.ModelSerializer):
+    course_name = serializers.CharField(source="course.name", read_only=True)
+
+    class Meta:
+        model = QuizQuestion
+        fields = ["id", "course", "course_name", "lesson", "text", "options", "correct", "explanation", "order", "status"]
+
+    def validate_text(self, v):
+        v = (v or "").strip()
+        if len(v) < 5:
+            raise serializers.ValidationError("Savol matnini kiriting")
+        return v
+
+    def validate_lesson(self, v):
+        if not 1 <= v <= 99:
+            raise serializers.ValidationError("Dars raqami 1 dan 99 gacha")
+        return v
+
+    def validate_options(self, v):
+        if not isinstance(v, list):
+            raise serializers.ValidationError("Variantlar ro'yxat bo'lsin")
+        v = [str(x).strip() for x in v if str(x).strip()]
+        if not 2 <= len(v) <= len(quiz.LETTERS) or any(len(x) > 120 for x in v):
+            raise serializers.ValidationError(f"2 tadan {len(quiz.LETTERS)} tagacha variant, har biri 120 belgigacha")
+        if len(set(v)) != len(v):
+            raise serializers.ValidationError("Variantlar takrorlanmasin")
+        return v
+
+    def validate(self, d):
+        options = d["options"] if "options" in d else (self.instance.options if self.instance else [])
+        correct = d["correct"] if "correct" in d else (self.instance.correct if self.instance else 0)
+        if correct >= len(options):
+            raise serializers.ValidationError({"correct": "To'g'ri javobni variantlardan tanlang"})
+        return d
+
+
+class QuizQuestionViewSet(AuditedModelViewSet):
+    """Test savollari (Bosh menejer boshqaradi). ?course=. Ro'yxat so'ralganda «Kompyuter savodxonligi»da savol bo'lmasa boshlang'ich 20 tasi yaratiladi."""
+
+    section = "clientbot"
+    serializer_class = QuizQuestionSerializer
+    check_usage_on_delete = False  # testlarda savol nusxasi saqlanadi
+    queryset = QuizQuestion.objects.select_related("course")
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if self.request.query_params.get("course"):
+            qs = qs.filter(course=self.request.query_params["course"])
+        return qs
+
+    def list(self, request, *args, **kwargs):
+        for c in Course.objects.filter(is_deleted=False, name__iexact=quiz.LITERACY_COURSE):
+            quiz.ensure_questions(c)
+        return super().list(request, *args, **kwargs)
+
+
+class QuizAttemptSerializer(serializers.ModelSerializer):
+    student_name = serializers.CharField(source="student.full_name", read_only=True)
+    course_name = serializers.CharField(source="course.name", read_only=True)
+    group_name = serializers.SerializerMethodField()
+    sent_by = serializers.SerializerMethodField()
+    percent = serializers.IntegerField(read_only=True)
+    passed = serializers.SerializerMethodField()
+    review = serializers.SerializerMethodField()
+
+    class Meta:
+        model = QuizAttempt
+        fields = ["id", "student", "student_name", "contract", "group", "group_name", "course", "course_name", "state", "score", "total", "percent", "passed",
+                  "timed_out", "created_at", "started_at", "finished_at", "sent_by", "review"]
+        read_only_fields = fields
+
+    def get_group_name(self, at):
+        return f"{at.group.course.name} / #{at.group.number}" if at.group_id else ""
+
+    def get_sent_by(self, at):
+        return str(at.created_by) if at.created_by_id else ""
+
+    def get_passed(self, at):
+        return quiz.passed(at) if at.state == QuizAttempt.State.DONE else None
+
+    def get_review(self, at):
+        return quiz.review(at) if at.state == QuizAttempt.State.DONE else []
+
+
+ATTEMPT_QS = QuizAttempt.objects.select_related("student", "course", "group__course", "created_by")
+
+
+class QuizAttemptViewSet(AuditedModelViewSet):
+    """Testlar va natijalar. ?state=&group=&course=&passed=1|0&q=. `stats/`; `{id}/retake/` — qayta topshirish, `{id}/cancel/` — tugamaganini bekor qilish."""
+
+    section = "clientbot"
+    branch_field = "branch"
+    serializer_class = QuizAttemptSerializer
+    pagination_class = Pagination
+    http_method_names = ["get", "post", "head", "options"]
+    action_ops = {"stats": "v", "retake": "e", "cancel": "e"}
+    queryset = ATTEMPT_QS
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        p = self.request.query_params
+        if p.get("state") in QuizAttempt.State.values:
+            qs = qs.filter(state=p["state"])
+        for f in ("group", "course"):
+            if p.get(f):
+                qs = qs.filter(**{f: p[f]})
+        if p.get("passed") == "1":
+            qs = qs.filter(quiz.passed_q())
+        elif p.get("passed") == "0":
+            qs = qs.filter(state=QuizAttempt.State.DONE).exclude(quiz.passed_q())
+        return _search(qs, p.get("q"), "student__first_name", "student__last_name")
+
+    def create(self, request, *args, **kwargs):
+        raise MethodNotAllowed("POST")
+
+    @action(detail=False)
+    def stats(self, request):
+        return Response(quiz.stats(self.get_queryset()))
+
+    @action(detail=True, methods=["post"])
+    def retake(self, request, pk=None):
+        at = self.get_object()
+        if not at.group_id or not at.contract_id:
+            return Response({"detail": "Guruh yoki shartnoma topilmadi"}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(quiz.send_to_group(request.user, at.group, contract=at.contract), status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["post"])
+    def cancel(self, request, pk=None):
+        at = quiz.cancel(request.user, self.get_object())
+        return Response(self.get_serializer(ATTEMPT_QS.get(pk=at.pk)).data)
 
 
 # ---------- sozlamalar ----------

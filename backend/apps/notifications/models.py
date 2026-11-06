@@ -26,6 +26,7 @@ EVENTS = [
     ("referral", "Tavsiya bonusi berildi yoki berilmadi"),
     ("founder_report", "Qisqa kunlik hisobot (asoschi uchun)"),
     ("ig_lead", "Instagram/Facebook target orqali yangi lid (jadvaldan)"),
+    ("quiz", "Talaba botda kurs testini topshirdi (natija)"),
 ]
 EVENT_KEYS = [k for k, _ in EVENTS]
 

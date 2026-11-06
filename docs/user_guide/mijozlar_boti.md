@@ -139,3 +139,25 @@ Administrator yoki hisobchi yangi to'lov kiritganda, shu talabaga botda ulangan 
 - Faqat yangi to'lovga; to'lovni tahrirlash yoki o'chirishda qayta xabar yuborilmaydi (kabinetdagi 💳 To'lovlar har doim haqiqiy holatni ko'rsatadi). Faqat chegirmali yozuvlarga (masalan tavsiya bonusi) to'lov xabari ketmaydi — bonus haqida alohida xabar bor.
 - AppSheet'dan import qilingan eski to'lovlarga xabar ketmaydi.
 - Telegram bot → Sozlamalarda filial bo'yicha yoqiladi/o'chiriladi («To'lov va balans ma'lumotlari botda»).
+
+## Kurs testi (2026-11-06)
+
+«Kompyuter savodxonligi» kursi o'quvchisi botda **20 savollik test** topshiradi (savollar o'quv rejaning 1–11-darslaridan: Windows, fayllar, internet, AI, Word, Excel, taqdimot, xavfsizlik). Har savolda 4 ta variant; savollar va variantlar har safar aralashtiriladi.
+
+**Qanday ochiladi.** Guruh sahifasi → **«📝 Test»** → «Hammasiga yuborish» (yoki talaba qatoridagi «Qayta»). Ochishga guruh ustozi, yordamchisi va guruhni tahrirlay oladigan xodim (administrator, menejer) haqli. Test faqat guruhdagi **faol shartnomali** talabalarga ketadi.
+
+**O'quvchi nima ko'radi.** Botga «📝 Test» xabari va «▶️ Testni boshlash» tugmasi keladi (menyudagi «📝 Test» ham shuni ochadi). Har savol ostida A, B, C, D tugmalari bor. Vaqt — **30 daqiqa**; tugasa, javob berilgan savollar bilan o'zi yakunlanadi. Oxirida ball (masalan 17/20), o'tish/o'tmaslik va **xato javoblar** to'g'risi hamda qisqa izoh bilan ko'rsatiladi.
+
+**Qoidalar.**
+- Topshiradi **faqat o'quvchining o'zi** (botga «O'quvchining o'zi» bo'lib ulangan akkaunt). Vasiy testni topshira olmaydi — u menyudagi «📝 Test» orqali farzandining natijasini ko'radi, topshirilganda unga ham xabar keladi.
+- Bir marta. Qayta topshirish: guruhdagi «Qayta» yoki Telegram bot → Kurs testi → «Qayta topshirish» (yangi urinish ochiladi, eskisi saqlanadi).
+- O'quvchi botga hali ulanmagan bo'lsa, test «botga ulanmagan» deb ko'rinadi va u ulangach avtomatik taklif qilinadi.
+- O'tish chegarasi — 60% (12/20), hozircha faqat ma'lumot uchun.
+- Test tugamagan bo'lsa, «Bekor qilish» mumkin.
+
+**Natijalar (Qo'ng'iroqlar va SMS → Telegram bot).**
+- **Kurs testi** tabi: yuborilgan/topshirgan, o'rtacha natija, o'tganlar; **eng ko'p xato qilingan savollar** va darslar (qaysi mavzuni qayta tushuntirish kerakligini ko'rsatadi); guruhlar bo'yicha o'rtacha; har talabaning natijasi va «Xatolar» tugmasi.
+- **Test savollari** tabi (Bosh menejer): savol qo'shish, tahrirlash (variantlar, to'g'ri javob, izoh, dars raqami), nofaol qilish. O'zgarish faqat keyin boshlanadigan testlarga ta'sir qiladi; topshirilgan testlar o'zgarmaydi. 20 tadan ko'p savol bo'lsa, har testga har darsdan teng olinadi.
+- Test tugaganda guruh ustozi va yordamchisiga xodimlar botida «📝 Test natijasi» xabari boradi (Telegram profilidagi xabar turlaridan o'chirsa bo'ladi).
+
+Boshqa kurslar uchun ham test qo'shish mumkin: «Test savollari» → «Savol qo'shish» → kursni tanlang. Savoli bor kurs guruhida «📝 Test» tugmasi chiqadi.

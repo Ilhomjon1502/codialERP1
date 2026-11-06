@@ -11,6 +11,7 @@ from rest_framework.decorators import action, api_view
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 
+from apps.clientbot import quiz as quiz_mod
 from apps.core import audit
 from apps.core.models import AuditLog
 from apps.core.pagination import Pagination
@@ -75,7 +76,7 @@ class GroupViewSet(BranchDefaultMixin, AuditedModelViewSet):
     queryset = GROUP_QS
     serializer_class = GroupSerializer
     branch_field = "branch"
-    action_ops = {"journal": "v"}
+    action_ops = {"journal": "v", "quiz": "v"}  # quiz POST: ustoz/yordamchi yoki groups:e — clientbot.quiz.can_send
     http_method_names = ["get", "post", "patch", "delete", "head", "options"]
 
     def get_queryset(self):
@@ -120,6 +121,37 @@ class GroupViewSet(BranchDefaultMixin, AuditedModelViewSet):
             "contracts": ContractSerializer(contracts, many=True, context=ctx).data,
             "marks": marks,
             "frequency": {"frequency": freq.frequency, "status": freq.status} if freq else None,
+            "quiz": quiz_mod.available(g.course),  # kurs testi bor — guruh sahifasida «📝 Test» tugmasi
+        })
+
+    @action(detail=True, methods=["get", "post"])
+    def quiz(self, request, pk=None):
+        """Kurs testi (mijozlar boti). GET — guruhdagi faol talabalar va oxirgi test holati; POST {contract?} — hammaga yoki bitta talabaga yuborish
+        (topshirgan talabaga faqat `contract` bilan — qayta topshirish). Yuborishni guruh ustozi/yordamchisi yoki guruhni tahrirlay oladigan xodim qiladi."""
+
+        from apps.clientbot.models import BotInvite, BotLink
+        from apps.clientbot.views import QuizAttemptSerializer
+
+        g = self.get_object()
+        if request.method == "POST":
+            contract = None
+            if request.data.get("contract"):
+                contract = Contract.objects.filter(pk=request.data["contract"], group=g, is_deleted=False).first()
+                if contract is None:
+                    raise ValidationError({"detail": "Shartnoma topilmadi"})
+            return Response(quiz_mod.send_to_group(request.user, g, contract=contract), status=status.HTTP_201_CREATED)
+        contracts = quiz_mod._active_contracts(g, today())
+        ids = [c.student_id for c in contracts]
+        last = quiz_mod.last_attempts(ids, g.course)
+        linked = set(BotLink.objects.filter(student__in=ids, role=BotInvite.Role.STUDENT, is_active=True).values_list("student_id", flat=True))
+        ctx = self.get_serializer_context()
+        return Response({
+            "available": quiz_mod.available(g.course),
+            "questions": min(quiz_mod.SIZE, len(quiz_mod.questions(g.course))),
+            "minutes": quiz_mod.MINUTES, "pass_percent": quiz_mod.PASS_PERCENT,
+            "can_send": quiz_mod.can_send(request.user, g),
+            "rows": [{"contract": str(c.pk), "student": str(c.student_id), "student_name": c.student.full_name, "bot": c.student_id in linked,
+                      "attempt": QuizAttemptSerializer(last[c.student_id], context=ctx).data if c.student_id in last else None} for c in contracts],
         })
 
 

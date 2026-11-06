@@ -202,6 +202,7 @@
       return `<a class="back" href="#/groups">← Guruhlar</a>
         ${A.head(A.groupName(g), `${A.badge(g.status, g.status === 'Faol' ? 'green' : 'blue')} · ${esc(A.patternName(g.pattern))} · ${A.timeName(g.time)} · ${esc(A.roomName(g.room))}`,
           `${A.can('attendance', 'a') && A.hasLesson(g, today) ? `<a class="btn primary" href="#/attendance?tab=take&group=${g.id}">${A.icon('check')}Davomat olish</a>` : ''}
+           ${j.quiz ? A.btn('📝 Test', 'group-quiz', { id, cls: 'ghost' }) : ''}
            ${A.can('groups', 'e') ? A.btn('Tahrirlash', 'group-edit', { id, cls: 'ghost' }) : ''}
            ${A.can('groups', 'd') && !j.contracts.length ? A.btn("O'chirish", 'group-del', { id, cls: 'ghost' }) : ''}`)}
         <div class="stats">

@@ -18,7 +18,7 @@ from apps.crm.models import Lead, Student
 from apps.education.models import Contract
 from apps.references.models import LeadSource
 
-from . import cabinet, survey
+from . import cabinet, quiz, survey
 from .models import BotAccount, BotConfig, BotInvite, BotLink, ClientOutbox, LeadSurvey, LinkAttempt, Referral
 
 log = logging.getLogger(__name__)
@@ -237,6 +237,8 @@ def handle_message(chat_id, text, username="", first_name=""):
         return cabinet_request(acc, cabinet.MENU_TEXTS[text])
     if (acc.state or {}).get("step") == "survey" and text and not text.startswith("/"):  # so'rovnoma: matnli javob
         return survey.text_answer(acc, text)
+    if (acc.state or {}).get("step") == "quiz" and text and not text.startswith("/"):  # test: javob faqat tugma bilan
+        return quiz.text_while_quiz(acc)
     if (acc.state or {}).get("step") == "verify" and text and not text.startswith("/"):  # shartnoma raqami yuborilgan — endi telefon oxirgi 4 raqami
         return contract_verify(acc, text)
     if (acc.state or {}).get("step") == "referrer" and text and not text.startswith("/"):
@@ -307,6 +309,7 @@ def after_link(acc, ln):
         hello = f"✅ Salom, <b>{escape(st.first_name)}</b>! Siz Codial botiga ulandingiz."
     replies = [Reply(hello + "\nBu yerga markazdan muhim xabarlar keladi, pastdagi tugmalar orqali ma'lumotlarni ko'rishingiz mumkin.",
                      cabinet.menu_markup(finance_enabled(st)))]
+    replies += quiz.on_linked(acc, ln)  # o'quvchini kutib turgan test
     lead = Lead.objects.filter(student=st).select_related("branch").order_by("-created_at").first()
     if lead and not LeadSurvey.objects.filter(lead=lead).exists():
         sources = list(LeadSource.objects.filter(status="Faol", is_deleted=False).order_by("name"))
@@ -335,6 +338,12 @@ def handle_callback(chat_id, data):
             return cabinet_chosen(acc, rest)
         if kind == "sv":
             return survey.callback(acc, rest)
+        if kind == "qz":
+            sub, _, tail = rest.partition(":")
+            if sub == "go":
+                return quiz.start(acc, tail)
+            if sub == "a":
+                return quiz.answer(acc, tail)
     except Exception:  # noqa: BLE001 — bitta xato botni to'xtatmasin
         log.exception("Mijoz boti tugmasi: %s", data)
         return "Xatolik. Qayta urinib ko'ring", []
@@ -446,6 +455,8 @@ def cabinet_request(acc, action):
         return [Reply(HELP)]
     if action in cabinet.FINANCE_ACTIONS and not finance_enabled(students[0]):
         return [_paused(action)]
+    if action == "quiz":  # hamma farzand birdan (vasiy) yoki o'quvchining testi
+        return quiz.menu(acc, students)
     if len(students) == 1:
         return [Reply(cabinet.TEXTS[action](students[0]))]
     pairs = [(f"{st.first_name} {st.last_name}".strip(), f"cs:{action}:{st.pk}") for st in students]

@@ -68,6 +68,8 @@ router.register("bot-messages", clientbot.BotMessageViewSet, basename="bot-messa
 router.register("bot-questions", clientbot.SurveyQuestionViewSet, basename="bot-question")
 router.register("bot-exit-surveys", clientbot.ExitSurveyViewSet, basename="bot-exit-survey")
 router.register("bot-config", clientbot.BotConfigViewSet, basename="bot-config")
+router.register("bot-quiz-questions", clientbot.QuizQuestionViewSet, basename="bot-quiz-question")
+router.register("bot-quiz-attempts", clientbot.QuizAttemptViewSet, basename="bot-quiz-attempt")
 
 urlpatterns = [
     path("auth/csrf/", acc.CsrfView.as_view()),

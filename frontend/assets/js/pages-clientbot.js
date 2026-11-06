@@ -4,7 +4,7 @@
 (function (A) {
   const esc = A.esc;
   const BK = 'bot';
-  const SUBS = [['overview', 'Umumiy'], ['links', 'Ulanganlar'], ['students', 'Talabalar'], ['surveys', 'Manba javoblari'], ['referrals', 'Tavsiyalar'], ['exits', "Ketish so'rovnomasi"], ['questions', 'Savollar'], ['messages', 'Xabarlar'], ['config', 'Sozlamalar']];
+  const SUBS = [['overview', 'Umumiy'], ['links', 'Ulanganlar'], ['students', 'Talabalar'], ['surveys', 'Manba javoblari'], ['referrals', 'Tavsiyalar'], ['exits', "Ketish so'rovnomasi"], ['questions', 'Savollar'], ['quiz', 'Kurs testi'], ['quizq', 'Test savollari'], ['messages', 'Xabarlar'], ['config', 'Sozlamalar']];
   const REF_TONE = { Aniqlanmagan: 'orange', Kutilmoqda: 'blue', Berildi: 'green', 'Rad etildi': 'gray' };
   const fphone = (p) => (p ? `+998 ${p.slice(0, 2)} ${p.slice(2, 5)}-${p.slice(5, 7)}-${p.slice(7)}` : '');
   const fail = (e) => A.toast(e.message || 'Xatolik', 'error');
@@ -19,6 +19,9 @@
   let exitStats = null;
   let questions = [];
   let config = [];
+  let quizzes = { results: [] };
+  let quizStats = null;
+  let quizQs = [];
 
   const sub = (q) => (SUBS.some(([k]) => k === q.sub) ? q.sub : 'overview');
   const qs = (extra = {}, keys = ['search']) => {
@@ -40,6 +43,8 @@
       else if (s === 'referrals') refs = await A.http.get('/bot-referrals/?' + qs({}, ['search', 'state']));
       else if (s === 'exits') [exits, exitStats] = await Promise.all([A.http.get('/bot-exit-surveys/?' + qs({}, ['search', 'state', 'flow'])), A.http.get('/bot-exit-surveys/stats/')]);
       else if (s === 'questions') questions = await A.http.get('/bot-questions/');
+      else if (s === 'quiz') [quizzes, quizStats] = await Promise.all([A.http.get('/bot-quiz-attempts/?' + qs({}, ['search', 'state', 'passed'])), A.http.get('/bot-quiz-attempts/stats/')]);
+      else if (s === 'quizq') quizQs = await A.http.get('/bot-quiz-questions/');
       else if (s === 'messages') msgs = await A.http.get('/bot-messages/?' + qs({}, ['search', 'status']));
       else config = await A.http.get('/bot-config/');
     },
@@ -52,13 +57,15 @@
       if (s === 'referrals') return A.filterBar(BK, [A.fSearch(BK, 'Lid yoki yozilgan ism…'), A.fSelect(BK, 'state', Object.keys(REF_TONE).map((k) => [k, k]), 'Barcha holatlar')]);
       if (s === 'exits') return A.filterBar(BK, [A.fSearch(BK, 'Talaba…'), A.fSelect(BK, 'state', [['Tugadi', 'Javob bergan'], ['Jarayonda', 'Jarayonda'], ['Yuborildi', 'Javob bermagan']], 'Barcha holatlar'),
         A.fSelect(BK, 'flow', [['Tamomlaganlarga', 'Tamomlaganlar'], ["To'xtatganlarga", "To'xtatganlar"]], 'Hamma')]);
+      if (s === 'quiz') return A.filterBar(BK, [A.fSearch(BK, 'Talaba…'), A.fSelect(BK, 'state', [['Tugadi', 'Topshirgan'], ['Jarayonda', 'Jarayonda'], ['Yuborildi', 'Boshlamagan'], ['Bekor qilindi', 'Bekor qilingan']], 'Barcha holatlar'),
+        A.fSelect(BK, 'passed', [['1', "O'tgan"], ['0', "O'tmagan"]], 'Hammasi')]);
       if (s === 'messages') return A.filterBar(BK, [A.fSearch(BK, 'Talaba yoki matn…'), A.fSelect(BK, 'status', [['sent', 'Yuborildi'], ['pending', 'Navbatda'], ['failed', 'Xato']], 'Barcha holatlar')]);
       return '';
     },
     view(q) {
       const s = sub(q);
       const nav = `<nav class="tabs sub">${SUBS.map(([k, l]) => `<a href="#/calls?tab=bot&sub=${k}" class="${k === s ? 'on' : ''}">${esc(l)}</a>`).join('')}</nav>`;
-      const body = { overview, links: linksView, students: studentsView, surveys: surveysView, referrals: refsView, exits: exitsView, questions: questionsView, messages: messagesView, config: configView }[s]();
+      const body = { overview, links: linksView, students: studentsView, surveys: surveysView, referrals: refsView, exits: exitsView, questions: questionsView, quiz: quizView, quizq: quizQuestionsView, messages: messagesView, config: configView }[s]();
       return `${nav}${A.botTab.filters(q)}${body}`;
     },
   };
@@ -257,6 +264,128 @@
     const q = questions.find((x) => String(x.id) === el.dataset.id);
     if (!(await A.confirm(`«${esc(q.text)}» savoli o'chirilsinmi? Avvalgi javoblar saqlanib qoladi.`, "O'chirish", true))) return;
     A.http.del(`/bot-questions/${q.id}/`).then(() => { A.toast("O'chirildi"); A.refresh(); }, fail);
+  };
+
+  /* ---------- Kurs testi (2026-11-06): guruh sahifasidan yuboriladi, o'quvchi botda topshiradi ---------- */
+  const QZ_TONE = { Tugadi: 'green', Jarayonda: 'blue', Yuborildi: 'orange', 'Bekor qilindi': 'gray' };
+  const QZ_LABEL = { Tugadi: 'Topshirgan', Jarayonda: 'Jarayonda', Yuborildi: 'Boshlamagan', 'Bekor qilindi': 'Bekor qilingan' };
+  const scoreCell = (a) => (a.state === 'Tugadi' ? `<b class="${a.passed ? 't-green' : 't-red'}">${a.score}/${a.total}</b> <small class="muted">${a.percent}%</small>${a.timed_out ? ' ' + A.badge('vaqt tugadi', 'orange') : ''}` : '<span class="muted">—</span>');
+
+  function quizView() {
+    const st = quizStats;
+    const cards = st ? `<div class="stats">
+      ${A.stat('Yuborilgan', A.num(st.sent), `topshirgan ${A.num(st.done)} · kutayotgan ${A.num(st.waiting)}`)}
+      ${A.stat("O'rtacha natija", st.avg === null ? '—' : st.avg + '%', `o'tish chegarasi ${st.pass_percent}%`)}
+      ${A.stat("Testdan o'tgan", `${A.num(st.passed)} / ${A.num(st.done)}`, '', st.done && st.passed < st.done ? 'warn' : '')}
+    </div>` : '';
+    const hard = st && st.questions.length ? `<div class="grid-2">
+      <div class="card"><h3>Eng ko'p xato qilingan savollar</h3><p class="muted small">Ustoz shu mavzularni qayta tushuntirsa bo'ladi.</p>${A.table([
+        { h: 'Savol', f: (x) => esc(x.text) }, { h: 'Xato', cls: 'num', f: (x) => `<b>${x.rate}%</b> <small class="muted">${x.wrong}/${x.asked}</small>` }], st.questions, { empty: '—' })}</div>
+      <div class="card"><h3>Darslar bo'yicha xato</h3>${A.table([
+        { h: 'Dars', f: (x) => `${x.lesson}-dars` }, { h: 'Xato', cls: 'num', f: (x) => `<b>${x.rate}%</b> <small class="muted">${x.wrong}/${x.asked}</small>` }], st.lessons, { empty: '—' })}</div></div>` : '';
+    const groups = st && st.groups.length ? `<div class="card"><h3>Guruhlar bo'yicha o'rtacha</h3>${A.table([
+      { h: 'Guruh', f: (x) => esc(x.group) }, { h: 'Topshirgan', cls: 'num', f: (x) => A.num(x.n) }, { h: "O'rtacha", cls: 'num', f: (x) => `<b>${x.avg}%</b>` }], st.groups, { empty: '—' })}</div>` : '';
+    const canE = A.can('clientbot', 'e');
+    const table = A.table([
+      { h: 'Talaba', f: (a) => `${esc(a.student_name)}<br><small class="muted">${esc(a.group_name || a.course_name)}</small>` },
+      { h: 'Holat', f: (a) => `${A.badge(QZ_LABEL[a.state] || a.state, QZ_TONE[a.state])}<br><small class="muted">${A.fdt(a.finished_at || a.started_at || a.created_at)}</small>` },
+      { h: 'Natija', f: scoreCell },
+      { h: 'Yubordi', f: (a) => esc(a.sent_by || '—') },
+      { h: '', f: (a) => `${a.state === 'Tugadi' ? `<button class="btn sm ghost" data-act="quiz-view" data-id="${a.id}">Xatolar</button>` : ''}${canE && a.state === 'Tugadi' ? `<button class="btn sm ghost" data-act="quiz-retake" data-id="${a.id}">Qayta topshirish</button>` : ''}${canE && (a.state === 'Yuborildi' || a.state === 'Jarayonda') ? `<button class="btn sm ghost" data-act="quiz-cancel" data-id="${a.id}">Bekor qilish</button>` : ''}` },
+    ], quizzes.results, { empty: "Hali test yuborilmagan. Guruh sahifasidagi «📝 Test» tugmasi orqali yuboring" });
+    return `<p class="muted small">Test o'quvchining o'zi uchun: u botda «📝 Test» tugmasini bosadi. Testni ustoz yoki administrator guruh sahifasidan ochadi (kurs oxirida). Har bir o'quvchi bir marta topshiradi, qayta topshirishga bu yerdan ruxsat berasiz.</p>${cards}${hard}${groups}${table}${A.pager(BK, quizzes)}`;
+  }
+
+  A.act['quiz-view'] = (el) => {
+    const a = quizzes.results.find((x) => String(x.id) === el.dataset.id);
+    const rows = a.review.map((r) => `<div class="card" style="margin:6px 0;padding:8px"><b>${r.n}.</b> ${esc(r.text)} <small class="muted">(${r.lesson}-dars)</small><br>
+      ${r.ok ? `<span class="t-green">✅ ${esc(r.correct)}</span>` : `<span class="t-red">❌ ${r.chosen === null ? 'javob berilmagan' : esc(r.chosen)}</span><br><span class="t-green">✅ ${esc(r.correct)}</span>`}</div>`).join('');
+    A.modal({ title: `${a.student_name} — ${a.score}/${a.total} (${a.percent}%)`, wide: true, body: rows });
+  };
+  A.act['quiz-retake'] = async (el) => {
+    if (!(await A.confirm("Talabaga testni qayta topshirishga ruxsat berilsinmi? Avvalgi natija saqlanib qoladi.", 'Ruxsat berish'))) return;
+    A.http.post(`/bot-quiz-attempts/${el.dataset.id}/retake/`).then((r) => { A.toast(r.sent ? 'Talabaga yuborildi' : "Yuborildi — talaba botga ulangach ko'radi"); A.refresh(); }, fail);
+  };
+  A.act['quiz-cancel'] = async (el) => {
+    if (!(await A.confirm('Test bekor qilinsinmi? Talaba uni topshira olmaydi.', 'Bekor qilish', true))) return;
+    A.http.post(`/bot-quiz-attempts/${el.dataset.id}/cancel/`).then(() => { A.toast('Bekor qilindi'); A.refresh(); }, fail);
+  };
+
+  function quizQuestionsView() {
+    const canA = A.can('clientbot', 'a');
+    const canE = A.can('clientbot', 'e');
+    const canD = A.can('clientbot', 'd');
+    const table = A.table([
+      { h: 'Dars', cls: 'num', f: (q) => A.num(q.lesson) },
+      { h: 'Savol', f: (q) => `${esc(q.text)}${q.status !== 'Faol' ? ' ' + A.badge('Nofaol', 'gray') : ''}<br><small class="muted">${esc(q.course_name)}</small>` },
+      { h: 'Variantlar', f: (q) => q.options.map((o, i) => (i === q.correct ? `<b class="t-green">✓ ${esc(o)}</b>` : esc(o))).join('<br>') },
+      { h: '', f: (q) => `${canE ? `<button class="btn sm ghost" data-act="qq-edit" data-id="${q.id}">✎</button>` : ''}${canD ? `<button class="btn sm ghost" data-act="qq-del" data-id="${q.id}">🗑</button>` : ''}` },
+    ], quizQs, { empty: "Savol yo'q" });
+    return `<div class="row gap" style="margin:8px 0;align-items:center">${canA ? A.btn("Savol qo'shish", 'qq-edit', { icon: 'plus' }) : ''}
+      <span class="muted small">Test har safar shu savollardan tuziladi (20 tadan ko'p bo'lsa — har darsdan teng olinadi). Variantlar o'quvchiga aralashtirib ko'rsatiladi. O'zgarish faqat keyin boshlanadigan testlarga ta'sir qiladi.</span></div>${table}`;
+  }
+
+  A.act['qq-edit'] = (el) => {
+    const q = el.dataset.id ? quizQs.find((x) => String(x.id) === el.dataset.id) : null;
+    const courses = A.vis('courses').filter((c) => c.status === 'Faol');
+    const last = (quizQs[quizQs.length - 1] || {}).order || 0;
+    A.form({
+      title: q ? 'Savolni tahrirlash' : 'Yangi test savoli',
+      values: q ? { ...q, options: (q.options || []).join('\n'), correct: q.correct + 1 } : { course: (courses[0] || {}).id, lesson: 1, order: last + 10, status: 'Faol', options: '', correct: 1 },
+      fields: [
+        { name: 'course', label: 'Kurs', type: 'select', required: true, options: () => courses.map((c) => [c.id, c.name]) },
+        { name: 'lesson', label: 'Dars raqami', type: 'number', min: 1, max: 99, required: true },
+        { name: 'text', label: 'Savol', type: 'textarea', required: true },
+        { name: 'options', label: 'Variantlar (har birini yangi qatorga, 2–6 ta)', type: 'textarea', required: true },
+        { name: 'correct', label: "To'g'ri variant raqami (1 dan)", type: 'number', min: 1, max: 6, required: true },
+        { name: 'explanation', label: "Izoh (xato javobdan keyin o'quvchiga ko'rsatiladi)", type: 'textarea' },
+        { name: 'order', label: 'Tartib raqami', type: 'number', min: 1, max: 9999, required: true },
+        { name: 'status', label: 'Holat', type: 'seg', options: [['Faol', 'Faol'], ['Nofaol', 'Nofaol']], show: () => !!q },
+      ],
+      async onSubmit(x) {
+        const body = { course: x.course, lesson: Number(x.lesson), text: x.text, options: String(x.options || '').split('\n').map((t) => t.trim()).filter(Boolean),
+          correct: Number(x.correct) - 1, explanation: x.explanation || '', order: Number(x.order), status: x.status || 'Faol' };
+        if (q) await A.http.patch(`/bot-quiz-questions/${q.id}/`, body);
+        else await A.http.post('/bot-quiz-questions/', body);
+        A.toast('Saqlandi');
+        A.refresh();
+      },
+    });
+  };
+  A.act['qq-del'] = async (el) => {
+    const q = quizQs.find((x) => String(x.id) === el.dataset.id);
+    if (!(await A.confirm(`«${esc(q.text)}» savoli o'chirilsinmi? Topshirilgan testlar natijasi saqlanib qoladi.`, "O'chirish", true))) return;
+    A.http.del(`/bot-quiz-questions/${q.id}/`).then(() => { A.toast("O'chirildi"); A.refresh(); }, fail);
+  };
+
+  /* Guruh sahifasidagi «📝 Test» oynasi (pages-edu.js tugmasi) */
+  A.act['group-quiz'] = async (el) => {
+    const gid = el.dataset.id;
+    let d;
+    try { d = await A.http.get(`/groups/${gid}/quiz/`); } catch (e) { return fail(e); }
+    const draw = (m) => {
+      const rows = d.rows.map((r) => {
+        const a = r.attempt;
+        const state = a ? `${A.badge(QZ_LABEL[a.state] || a.state, QZ_TONE[a.state])} ${scoreCell(a)}` : '<span class="muted">yuborilmagan</span>';
+        return `<tr><td>${esc(r.student_name)}</td><td>${r.bot ? '' : '<small class="t-red">botga ulanmagan</small>'}</td><td>${state}</td>
+          <td>${d.can_send && a && a.state === 'Tugadi' ? `<button class="btn sm ghost" data-quiz-one="${r.contract}">Qayta</button>` : ''}</td></tr>`;
+      }).join('');
+      m.el.querySelector('.modal-body').innerHTML = `<p class="muted small">${d.questions} ta savol, ${d.minutes} daqiqa, o'tish chegarasi ${d.pass_percent}%. Test <b>o'quvchining o'zi</b> Telegram botida «📝 Test» tugmasi bilan topshiriladi; bir marta. Botga hali ulanmagan o'quvchi ulangach testni ko'radi.</p>
+        <table class="tbl"><thead><tr><th>Talaba</th><th></th><th>Holat</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="4" class="muted">Faol talaba yo\'q</td></tr>'}</tbody></table>`;
+      m.el.querySelectorAll('[data-quiz-one]').forEach((b) => { b.onclick = () => send(m, b.dataset.quizOne); });
+    };
+    const send = async (m, contract) => {
+      try {
+        const r = await A.http.post(`/groups/${gid}/quiz/`, contract ? { contract } : {});
+        A.toast(`Yuborildi: ${r.sent} · botga ulanmagan: ${r.waiting} · allaqachon bor: ${r.open + r.done}`);
+        d = await A.http.get(`/groups/${gid}/quiz/`);
+        draw(m);
+      } catch (e) { fail(e); }
+    };
+    const m = A.modal({ title: '📝 Kurs testi', wide: true, body: '', footer: `<button class="btn ghost" data-close>Yopish</button>${d.can_send && d.available ? '<button class="btn primary" data-send-all>Hammasiga yuborish</button>' : ''}` });
+    const all = m.el.querySelector('[data-send-all]');
+    if (all) all.onclick = async () => { if (await A.confirm(`Guruhning hamma faol talabasiga test yuborilsinmi? (${d.questions} ta savol)`, 'Yuborish')) send(m); };
+    draw(m);
   };
 
   const MSG_TONE = { sent: ['Yuborildi', 'green'], pending: ['Navbatda', 'orange'], failed: ['Xato', 'red'] };

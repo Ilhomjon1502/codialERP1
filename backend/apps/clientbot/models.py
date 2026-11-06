@@ -265,3 +265,63 @@ class ExitSurvey(BaseModel):
 
     def __str__(self):
         return f"{self.student} · {self.state}"
+
+
+class QuizQuestion(BaseModel):
+    """Kurs testi savoli (2026-11-06): bitta to'g'ri javobli, 2–4 variant. Bosh menejer «Telegram bot → Test savollari»da boshqaradi."""
+
+    course = models.ForeignKey("references.Course", on_delete=models.PROTECT, related_name="quiz_questions", verbose_name="Kurs")
+    lesson = models.PositiveSmallIntegerField("Dars raqami", default=1)
+    text = models.CharField("Savol", max_length=300)
+    options = models.JSONField("Variantlar", default=list)
+    correct = models.PositiveSmallIntegerField("To'g'ri javob (0 dan)", default=0)
+    explanation = models.CharField("Izoh (xato javobdan keyin ko'rsatiladi)", max_length=300, blank=True)
+    order = models.PositiveSmallIntegerField("Tartib", default=100)
+    status = models.CharField(max_length=8, choices=Status.choices, default=Status.ACTIVE)
+
+    class Meta:
+        verbose_name = "Test savoli"
+        verbose_name_plural = "Test savollari"
+        ordering = ["course", "order", "created_at"]
+
+    def __str__(self):
+        return self.text
+
+
+class QuizAttempt(BaseModel):
+    """Talabaga yuborilgan test (o'quvchining o'zi topshiradi). Savollar boshlanganda nusxalanadi: keyin savol o'zgarsa ham natija buzilmaydi."""
+
+    class State(models.TextChoices):
+        SENT = "Yuborildi", "Yuborildi"
+        STARTED = "Jarayonda", "Jarayonda"
+        DONE = "Tugadi", "Tugadi"
+        CANCELLED = "Bekor qilindi", "Bekor qilindi"
+
+    branch = models.ForeignKey("references.Branch", on_delete=models.PROTECT, related_name="quiz_attempts")
+    course = models.ForeignKey("references.Course", on_delete=models.PROTECT, related_name="quiz_attempts")
+    student = models.ForeignKey("crm.Student", on_delete=models.CASCADE, related_name="quiz_attempts")
+    contract = models.ForeignKey("education.Contract", null=True, blank=True, on_delete=models.SET_NULL, related_name="quiz_attempts")
+    group = models.ForeignKey("education.Group", null=True, blank=True, on_delete=models.SET_NULL, related_name="quiz_attempts")
+    state = models.CharField(max_length=14, choices=State.choices, default=State.SENT, db_index=True)
+    account = models.ForeignKey(BotAccount, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    timed_out = models.BooleanField("Vaqt tugadi", default=False)
+    # [{q, lesson, text, options (aralashtirilgan), correct, explanation}] va har savolga tanlangan variant raqami
+    questions = models.JSONField(default=list, blank=True)
+    answers = models.JSONField(default=list, blank=True)
+    score = models.PositiveSmallIntegerField(null=True, blank=True)
+    total = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        verbose_name = "Test"
+        verbose_name_plural = "Testlar"
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["student", "course"])]
+
+    def __str__(self):
+        return f"{self.student} · {self.course} · {self.state}"
+
+    @property
+    def percent(self):
+        return round(self.score * 100 / self.total) if self.total and self.score is not None else None
