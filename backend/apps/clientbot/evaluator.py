@@ -124,7 +124,8 @@ def evaluate_submission(submission, *, file_bytes=None, downloader=None, ai_call
     fname = (submission.file_name or "").lower()
 
     if sub_type == LessonSubmission.SubmissionType.PHOTO and file_bytes:
-        attachment = (file_bytes, "image/jpeg")
+        mime = "image/png" if file_bytes[:4] == b"\x89PNG" else "image/webp" if file_bytes[:4] == b"RIFF" else "image/jpeg"
+        attachment = (file_bytes, mime)
     elif sub_type == LessonSubmission.SubmissionType.DOCUMENT and file_bytes:
         if fname.endswith(".pdf"):
             attachment = (file_bytes, "application/pdf")

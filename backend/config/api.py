@@ -6,6 +6,7 @@ from rest_framework.routers import DefaultRouter
 from apps.accounts import views as acc
 from apps.ai_assistant import views as ai
 from apps.calls import views as calls
+from apps.clientbot import miniapp
 from apps.clientbot import views as clientbot
 from apps.core import views as core
 from apps.crm import views as crm
@@ -81,6 +82,10 @@ urlpatterns = [
     path("auth/password/reset/", acc.PasswordResetView.as_view()),
     path("auth/password/set/", acc.PasswordSetView.as_view()),
     path("auth/telegram/", notif.TelegramLoginView.as_view()),
+    path("learn/state/", miniapp.StateView.as_view()),
+    path("learn/lesson/", miniapp.LessonView.as_view()),
+    path("learn/submit/", miniapp.SubmitView.as_view()),
+    path("learn/submission/<uuid:pk>/", miniapp.SubmissionView.as_view()),
     path("health/", core.health),
     path("bootstrap/", ref.bootstrap),
     path("approvals/", fin.approvals),

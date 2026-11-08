@@ -11,7 +11,7 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db import close_old_connections
 
-from apps.clientbot import quiz, services, survey
+from apps.clientbot import miniapp, quiz, services, survey
 
 log = logging.getLogger(__name__)
 
@@ -31,6 +31,11 @@ class Command(BaseCommand):
             services.api("setMyCommands", commands=json.dumps(commands))
         except Exception:  # noqa: BLE001
             log.exception("Bot buyruqlari o'rnatilmadi")
+        if miniapp.enabled():  # chat menyusidagi «📚 Darslik» tugmasi ilovani to'g'ridan-to'g'ri ochadi
+            try:
+                services.api("setChatMenuButton", menu_button=json.dumps({"type": "web_app", "text": "📚 Darslik", "web_app": {"url": miniapp.app_url()}}))
+            except Exception:  # noqa: BLE001
+                log.exception("Chat menyu tugmasi o'rnatilmadi")
         offset, last_tick = None, 0.0
         while True:
             try:

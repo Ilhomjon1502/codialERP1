@@ -161,3 +161,13 @@ Administrator yoki hisobchi yangi to'lov kiritganda, shu talabaga botda ulangan 
 - Test tugaganda guruh ustozi va yordamchisiga xodimlar botida «📝 Test natijasi» xabari boradi (Telegram profilidagi xabar turlaridan o'chirsa bo'ladi).
 
 Boshqa kurslar uchun ham test qo'shish mumkin: «Test savollari» → «Savol qo'shish» → kursni tanlang. Savoli bor kurs guruhida «📝 Test» tugmasi chiqadi.
+
+## «📚 Darslik» ilovasi (Telegram Mini App, 2026-11-08)
+
+O'quvchi botdagi «📚 Darslik» tugmasini (yoki chat menyusidagi tugmani) bossa, Telegram ichida alohida **ilova** ochiladi (`frontend/learn.html`):
+- **Bosh sahifa:** ism, kurs, jarayon halqasi (o'tilgan darslar), o'rtacha ball, 12 darslik yo'l (✓ o'tdi, sariq — qayta urinish, 🔒 hali ochilmagan).
+- **Dars sahifasi:** «Nazariya», «Amaliyot» (qadamlar), «Natijalar» (har urinish: ball halqasi, yutuqlar, kamchiliklar, maslahat, ustoz bahosi).
+- **Vazifa topshirish:** matn, rasm/skrinshot, PDF, Word yoki Excel (8 MB gacha). AI 10–30 soniyada tekshiradi, ilova «AI tekshirmoqda» animatsiyasini ko'rsatadi va natijani (o'tsa — konfetti bilan) chiqaradi.
+- **Vasiy** ham kiradi (farzandlari orasida almashtirib), faqat ko'radi — topshirmaydi. Telegram yorug'/qorong'i mavzusiga moslashadi.
+
+Kirish parolsiz: Telegram imzosi (`initData`) bot tokeni bilan tekshiriladi, shuning uchun faqat botga ulangan akkaunt kira oladi. Darslar ochilishi, urinishlar (3 ta) va 60 ball chegarasi avvalgidek (`textbook.py`). Mini App faqat HTTPS manzilda ishlaydi; sozlanmagan bo'lsa bot eski chat ro'yxatini ko'rsatadi. Fayllar serverda `MEDIA_ROOT/lesson_files` ga saqlanadi (saytdan ochilmaydi).

@@ -288,7 +288,7 @@ def student_progress(student, contract, today=None):
         passed = any(s.passed for s in lsn_subs)
         attempts = len(lsn_subs)
         allowed = latest.max_attempts if latest else MAX_ATTEMPTS
-        can_sub = unlocked and (attempts < allowed or not passed)
+        can_sub = unlocked and not passed and attempts < allowed
 
         out.append({
             "lesson": lsn,
@@ -364,8 +364,13 @@ def menu(acc, students):
     """
     from html import escape
 
+    from . import miniapp
     from .models import BotInvite
     from .services import Reply, buttons
+
+    if miniapp.enabled():  # 2026-11-08: darslik — Telegram Mini App; chat ro'yxati faqat zaxira (HTTPS yoki token yo'q bo'lsa)
+        return [Reply("📚 <b>Elektron darslik</b>\nDarslar, amaliyot topshiriqlari va ballaringiz — qulay ilovada. Ochish uchun tugmani bosing 👇",
+                      miniapp.open_button())]
 
     roles = {ln.student_id: ln.role for ln in acc.links.filter(is_active=True)}
     replies = []
@@ -481,7 +486,7 @@ def lesson_view(acc, student_id, lesson_num):
         lines.append(f"\n💬 <b>So'nggi AI xulosasi:</b>\n{latest.feedback}")
 
     row_btns = []
-    can_sub = attempts_used < allowed or not passed
+    can_sub = not passed and attempts_used < allowed
     if can_sub:
         btn_label = "📤 Qayta topshirish" if attempts_used > 0 else "📤 Vazifa topshirish"
         row_btns.append((btn_label, f"bk:sub:{lesson.number}:{st.pk}"))
