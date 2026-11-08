@@ -72,11 +72,14 @@
     if (tg) tg.BackButton.hide();
     const st = student();
     app.replaceChildren();
-    const root = el('div', { class: 'fade' });
+    const root = el('div', { class: 'fade split' });
+    const side = el('div', { class: 'side' });
+    const main = el('div', { class: 'main' });
+    root.append(side, main);
     app.append(root);
 
     if (!st.lessons.length) {
-      root.append(el('div', { class: 'empty card' }, el('span', { class: 'big' }, '📚'), `${st.first_name} uchun faol kurs topilmadi. Markaz administratoriga murojaat qiling.`));
+      main.append(el('div', { class: 'empty card' }, el('span', { class: 'big' }, '📚'), `${st.first_name} uchun faol kurs topilmadi. Markaz administratoriga murojaat qiling.`));
       return;
     }
     const s = st.stats;
@@ -92,15 +95,15 @@
         ),
       ),
     );
-    root.append(hero);
+    side.append(hero);
 
     if (state.students.length > 1) {
-      root.append(el('div', { class: 'switch' }, state.students.map((x, i) => el('button', { class: i === cur ? 'on' : '', onclick: () => { cur = i; haptic(); home(); } }, x.first_name))));
+      side.append(el('div', { class: 'switch' }, state.students.map((x, i) => el('button', { class: i === cur ? 'on' : '', onclick: () => { cur = i; haptic(); home(); } }, x.first_name))));
     }
-    root.append(typingCard(st));
-    if (st.role === 'Vasiy') root.append(el('div', { class: 'banner' }, "👪 Siz vasiy sifatida kirgansiz: darslar va ballarni ko'rasiz. Vazifani o'quvchining o'zi topshiradi."));
+    side.append(typingCard(st));
+    if (st.role === 'Vasiy') side.append(el('div', { class: 'banner' }, "👪 Siz vasiy sifatida kirgansiz: darslar va ballarni ko'rasiz. Vazifani o'quvchining o'zi topshiradi."));
 
-    root.append(el('div', { class: 'section-title' }, 'Darslar'));
+    main.append(el('div', { class: 'section-title', style: 'margin-top:4px' }, 'Darslar'));
     const path = el('div', { class: 'path' });
     st.lessons.forEach((l) => {
       const cls = !l.unlocked ? 'locked' : l.passed ? 'done' : l.attempts > 0 ? 'retry' : '';
@@ -112,7 +115,7 @@
         l.best !== null ? el('div', { class: `score ${l.best >= s.pass_score ? 'ok' : 'bad'}` }, l.best) : el('div', { class: 'arrow' }, l.unlocked ? '›' : ''),
       ));
     });
-    root.append(path);
+    main.append(path);
   }
 
   /* ---------- klaviatura trenajori (Codial Yoz) ---------- */
@@ -208,28 +211,31 @@
     const p = L.progress;
     const st = student();
     app.replaceChildren();
-    const root = el('div', { class: 'fade' });
+    const root = el('div', { class: 'fade split' });
+    const side = el('div', { class: 'side' });
+    const main = el('div', { class: 'main' });
+    root.append(side, main);
     app.append(root);
-    root.append(el('div', { class: 'top' }, el('button', { class: 'back', onclick: () => go('#/') }, '‹'), el('div', { class: 'muted small' }, st.course)));
+    side.append(el('div', { class: 'top' }, el('button', { class: 'back', onclick: () => go('#/') }, '‹'), el('div', { class: 'muted small' }, st.course)));
     const badge = p.passed ? el('span', { class: 'pill ok' }, `✓ O'tdi · ${p.best}`) : p.pending ? el('span', { class: 'pill' }, '⏳ Tekshirilmoqda') : p.attempts > 0 ? el('span', { class: 'pill warn' }, `${p.best ?? 0} ball · qayta urinish`) : el('span', { class: 'pill' }, 'Yangi dars');
-    root.append(el('div', { class: 'lhero', 'data-n': L.number }, el('small', {}, `${L.number}-dars`), el('h2', {}, L.title), el('div', { class: 'chips' }, badge, el('span', { class: 'pill' }, `${p.attempts}/${p.max_attempts} urinish`))));
+    side.append(el('div', { class: 'lhero', 'data-n': L.number }, el('small', {}, `${L.number}-dars`), el('h2', {}, L.title), el('div', { class: 'chips' }, badge, el('span', { class: 'pill' }, `${p.attempts}/${p.max_attempts} urinish`))));
 
     const tabs = el('div', { class: 'tabs' }, [['theory', '📖 Nazariya'], ['task', '🛠 Amaliyot'], ['hw', '🏠 Uy vazifasi'], ['results', `🏆 Natijalar${L.submissions.length + L.homework.submissions.length ? ' · ' + (L.submissions.length + L.homework.submissions.length) : ''}`]].map(([k, label]) => el('button', { class: tab === k ? 'on' : '', onclick: () => { tab = k; haptic(); drawLesson(); } }, label)));
-    root.append(tabs);
+    side.append(tabs);
 
     if (tab === 'theory') {
       const vp = videoPlayer(L.video);
-      if (vp) root.append(el('div', { class: 'card video-card' }, el('h3', { class: 'v-title' }, '🎬 Videodars'), vp));
-      root.append(el('div', { class: 'card' }, prose(L.summary)));
+      if (vp) main.append(el('div', { class: 'card video-card' }, el('h3', { class: 'v-title' }, '🎬 Videodars'), vp));
+      main.append(el('div', { class: 'card' }, prose(L.summary)));
     } else if (tab === 'task') {
-      root.append(el('div', { class: 'card' }, steps(L.practice)), el('div', { class: 'card muted small' }, "Ishingizni matn, rasm (skrinshot), PDF, Word (.docx) yoki Excel (.xlsx) ko'rinishida yuboring. AI ishni tekshirib, 100 ballik tizimda baholaydi. 60 va undan yuqori ball — o'tdi."));
+      main.append(el('div', { class: 'card' }, steps(L.practice)), el('div', { class: 'card muted small' }, "Ishingizni matn, rasm (skrinshot), PDF, Word (.docx) yoki Excel (.xlsx) ko'rinishida yuboring. AI ishni tekshirib, 100 ballik tizimda baholaydi. 60 va undan yuqori ball — o'tdi."));
     } else if (tab === 'hw') {
-      root.append(L.homework.text ? el('div', { class: 'card' }, steps(L.homework.text)) : el('div', { class: 'card empty' }, el('span', { class: 'big' }, '🏠'), "Bu dars uchun uy vazifasi berilmagan."),
+      main.append(L.homework.text ? el('div', { class: 'card' }, steps(L.homework.text)) : el('div', { class: 'card empty' }, el('span', { class: 'big' }, '🏠'), "Bu dars uchun uy vazifasi berilmagan."),
         el('div', { class: 'card muted small' }, "Uy vazifasini ham AI tekshiradi: 80 ball vazifa mazmuniga, 20 ball Codial Yoz mashqiga (10 daqiqa va undan ko'p — to'liq ball). Yozish mashqi tizimdan avtomatik hisoblanadi."));
     } else {
-      if (!L.submissions.length && !L.homework.submissions.length) root.append(el('div', { class: 'card empty' }, el('span', { class: 'big' }, '📝'), "Hali vazifa topshirilmagan."));
-      if (L.submissions.length) { root.append(el('div', { class: 'section-title' }, 'Amaliyot')); L.submissions.forEach((s) => root.append(attemptCard(s))); }
-      if (L.homework.submissions.length) { root.append(el('div', { class: 'section-title' }, 'Uy vazifasi')); L.homework.submissions.forEach((s) => root.append(attemptCard(s))); }
+      if (!L.submissions.length && !L.homework.submissions.length) main.append(el('div', { class: 'card empty' }, el('span', { class: 'big' }, '📝'), "Hali vazifa topshirilmagan."));
+      if (L.submissions.length) { main.append(el('div', { class: 'section-title' }, 'Amaliyot')); L.submissions.forEach((s) => main.append(attemptCard(s))); }
+      if (L.homework.submissions.length) { main.append(el('div', { class: 'section-title' }, 'Uy vazifasi')); L.homework.submissions.forEach((s) => main.append(attemptCard(s))); }
     }
 
     const bar = el('div', { class: 'bar' }, el('div', { class: 'bar-in' }));
@@ -331,7 +337,7 @@
     haptic(ok ? 'ok' : 'bad');
     if (ok) confetti();
     app.replaceChildren();
-    const wrap = el('div', { class: 'fade' });
+    const wrap = el('div', { class: 'fade narrow' });
     const body = el('div', { class: 'card result' },
       el('div', { class: 'ring-wrap' }, ring(score / 100, 150, 14, scoreColor(score), score, '/ 100')),
       el('h2', {}, ok ? "🎉 Tabriklaymiz, o'tdingiz!" : 'Yana bir urinib ko\'ring 💪'),
@@ -340,7 +346,7 @@
     if (s.strengths) wrap.append(el('div', { class: 'card' }, el('div', { class: 'fb good', style: 'margin:0' }, el('b', {}, '✅ Yutuqlar'), s.strengths)));
     if (s.mistakes && !/jiddiy kamchilik yo'q/i.test(s.mistakes)) wrap.append(el('div', { class: 'card' }, el('div', { class: 'fb bad', style: 'margin:0' }, el('b', {}, '⚠️ Kamchiliklar'), s.mistakes)));
     if (s.advice) wrap.append(el('div', { class: 'card' }, el('div', { class: 'fb tip', style: 'margin:0' }, el('b', {}, '💡 Maslahat'), s.advice)));
-    const bar = el('div', { class: 'bar' }, el('div', { class: 'bar-in' }));
+    const bar = el('div', { class: 'bar' }, el('div', { class: 'bar-in narrow' }));
     bar.firstChild.append(el('button', { class: 'cta', onclick: async () => { await refresh(); nav('#/lesson/' + lesson.number); } }, 'Darsga qaytish'),
       el('button', { class: 'cta ghost', onclick: async () => { await refresh(); nav('#/'); } }, '📚 Barcha darslar'));
     app.append(wrap, bar);
@@ -365,9 +371,23 @@
     window.scrollTo(0, 0);
   }
 
+  /* Telegram Desktop mini ilovani kichik oynada ochadi; to'liq ekran so'raladi (Bot API 8.0+). Telefonda kerak emas. */
+  function fullscreenSetup() {
+    const desktop = tg && !['android', 'ios'].includes(tg.platform);
+    if (!desktop || typeof tg.requestFullscreen !== 'function' || !(tg.isVersionAtLeast && tg.isVersionAtLeast('8.0'))) return;
+    const btn = el('button', { class: 'fs-btn', 'aria-label': 'Kattalashtirish', onclick: () => { try { if (tg.isFullscreen) tg.exitFullscreen(); else tg.requestFullscreen(); } catch (e) { /* qo'llanmaydi */ } } }, '⛶');
+    const sync = () => { btn.textContent = tg.isFullscreen ? '🗗' : '⛶'; try { localStorage.setItem('learn-fs', tg.isFullscreen ? '1' : '0'); } catch (e) { /* ixtiyoriy */ } };
+    tg.onEvent('fullscreenChanged', sync);
+    tg.onEvent('fullscreenFailed', () => toast("To'liq ekran ishlamadi. Telegram'ni yangilang"));
+    document.body.append(btn);
+    let pref = null;
+    try { pref = localStorage.getItem('learn-fs'); } catch (e) { /* ixtiyoriy */ }
+    if (pref !== '0') { try { tg.requestFullscreen(); } catch (e) { /* qo'llanmaydi */ } } // standart: kompyuterda kattalashtirib ochiladi
+  }
+
   async function boot() {
     if (tg) {
-      tg.ready(); tg.expand();
+      tg.ready(); tg.expand(); fullscreenSetup();
       try { tg.setHeaderColor('#0f1b3d'); } catch (e) { /* eski versiya */ }
       if (tg.colorScheme === 'dark') document.documentElement.setAttribute('data-dark', '');
       tg.BackButton.onClick(() => go('#/'));

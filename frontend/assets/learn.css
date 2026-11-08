@@ -185,3 +185,25 @@ textarea:focus { border-color: var(--brand); }
 .video-card { padding: 12px; } .v-title { font-size: 14px; margin: 2px 4px 10px; }
 .video { position: relative; width: 100%; aspect-ratio: 16 / 9; border-radius: 14px; overflow: hidden; background: #000; }
 .video iframe, .video video { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+
+/* ---------- kompyuter ekrani: ikki ustunli kengroq maket ---------- */
+.fs-btn { position: fixed; top: 14px; right: 14px; z-index: 30; width: 40px; height: 40px; border-radius: 12px; font-size: 18px; background: var(--card); box-shadow: var(--shadow); }
+.narrow { max-width: 620px; margin: 0 auto; }
+.center { max-width: 560px; margin: 0 auto; }
+.side > * + * { margin-top: 0; }
+@media (min-width: 900px) {
+  html, body { font-size: 16px; }
+  #app { max-width: 1180px; padding: 26px 14px calc(110px + var(--safe-b)); }
+  .split { display: grid; grid-template-columns: 380px minmax(0, 1fr); gap: 22px; align-items: start; }
+  .split > .side { position: sticky; top: 18px; }
+  .hero { padding: 24px 22px 22px; } .hero h1 { font-size: 26px; }
+  .lesson { padding: 14px 16px 14px 10px; } .lesson .t b { font-size: 16px; }
+  .path { gap: 14px; }
+  .side .tabs { flex-direction: column; } .side .tabs button { text-align: left; padding: 12px 14px; font-size: 14.5px; }
+  .card { padding: 20px; } .card + .card { margin-top: 16px; }
+  .video-card { padding: 16px; }
+  .bar-in { max-width: 1152px; padding-left: 402px; }
+  .bar-in.narrow { max-width: 620px; padding-left: 0; }
+  .sheet { max-width: 620px; bottom: 50%; transform: translateY(50%); border-radius: 26px; animation: fadeIn .2s ease both; }
+  .toast { bottom: 40px; }
+}
