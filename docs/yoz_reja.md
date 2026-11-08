@@ -7,6 +7,8 @@
 > **Y3 bajarildi** (2026-11-02): serverda `/srv/codial-yoz`, Nginx HTTP ishlayapti; DNS (`yoz` A → 77.42.9.23) va SSL (Let's Encrypt) ulandi — **https://yoz.codialinfo.uz ishlayapti** (2026-11-02).
 > Savollarga javob kelmagani uchun tavsiyalar qo'llandi: xatoda to'xtaydi, kunlik maqsad 15 daqiqa, nom «Codial Yoz».
 >
+> **2026-11-08:** Yoz darslik ilovasiga ulandi (ixtiyoriy, kod bilan; `yoz/assets/js/sync.js`, `docs/decisions.md`). Ulanmagan Yoz mustaqil ishlayveradi.
+>
 > Buyurtmachi qarori (2026-11-02): hozircha **faqat mustaqil sayt** — login/parol yo'q, ERP, bot va
 > boshqa hech narsaga ulanmaydi. O'quvchiga manzil beriladi, xolos. Natija darsda sinalgandan keyin
 > integratsiya alohida reja bilan qilinadi.

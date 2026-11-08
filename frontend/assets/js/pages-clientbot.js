@@ -4,7 +4,7 @@
 (function (A) {
   const esc = A.esc;
   const BK = 'bot';
-  const SUBS = [['overview', 'Umumiy'], ['links', 'Ulanganlar'], ['students', 'Talabalar'], ['surveys', 'Manba javoblari'], ['referrals', 'Tavsiyalar'], ['exits', "Ketish so'rovnomasi"], ['questions', 'Savollar'], ['quiz', 'Kurs testi'], ['quizq', 'Test savollari'], ['subs', 'Darslik: vazifalar'], ['lessons', 'Darslik: mavzular'], ['messages', 'Xabarlar'], ['config', 'Sozlamalar']];
+  const SUBS = [['overview', 'Umumiy'], ['links', 'Ulanganlar'], ['students', 'Talabalar'], ['surveys', 'Manba javoblari'], ['referrals', 'Tavsiyalar'], ['exits', "Ketish so'rovnomasi"], ['questions', 'Savollar'], ['quiz', 'Kurs testi'], ['quizq', 'Test savollari'], ['subs', 'Darslik: vazifalar'], ['lessons', 'Darslik: mavzular'], ['typing', 'Yozish (Yoz)'], ['messages', 'Xabarlar'], ['config', 'Sozlamalar']];
   const REF_TONE = { Aniqlanmagan: 'orange', Kutilmoqda: 'blue', Berildi: 'green', 'Rad etildi': 'gray' };
   const fphone = (p) => (p ? `+998 ${p.slice(0, 2)} ${p.slice(2, 5)}-${p.slice(5, 7)}-${p.slice(7)}` : '');
   const fail = (e) => A.toast(e.message || 'Xatolik', 'error');
@@ -24,6 +24,7 @@
   let quizQs = [];
   let subsList = { results: [] };
   let lessonsList = [];
+  let typingList = { results: [] };
 
   const sub = (q) => (SUBS.some(([k]) => k === q.sub) ? q.sub : 'overview');
   const qs = (extra = {}, keys = ['search']) => {
@@ -47,7 +48,8 @@
       else if (s === 'questions') questions = await A.http.get('/bot-questions/');
       else if (s === 'quiz') [quizzes, quizStats] = await Promise.all([A.http.get('/bot-quiz-attempts/?' + qs({}, ['search', 'state', 'passed'])), A.http.get('/bot-quiz-attempts/stats/')]);
       else if (s === 'quizq') quizQs = await A.http.get('/bot-quiz-questions/');
-      else if (s === 'subs') subsList = await A.http.get('/bot-lesson-submissions/?' + qs({}, ['search', 'status', 'lesson']));
+      else if (s === 'subs') subsList = await A.http.get('/bot-lesson-submissions/?' + qs({}, ['search', 'status', 'lesson', 'task']));
+      else if (s === 'typing') typingList = await A.http.get('/bot-typing/?' + qs({}, ['search']));
       else if (s === 'lessons') {
         const c = A.vis('courses').find((x) => /savodxon/i.test(x.name));
         lessonsList = c ? await A.http.get('/bot-textbook-lessons/?course=' + c.id) : [];
@@ -66,7 +68,8 @@
         A.fSelect(BK, 'flow', [['Tamomlaganlarga', 'Tamomlaganlar'], ["To'xtatganlarga", "To'xtatganlar"]], 'Hamma')]);
       if (s === 'quiz') return A.filterBar(BK, [A.fSearch(BK, 'Talaba…'), A.fSelect(BK, 'state', [['Tugadi', 'Topshirgan'], ['Jarayonda', 'Jarayonda'], ['Yuborildi', 'Boshlamagan'], ['Bekor qilindi', 'Bekor qilingan']], 'Barcha holatlar'),
         A.fSelect(BK, 'passed', [['1', "O'tgan"], ['0', "O'tmagan"]], 'Hammasi')]);
-      if (s === 'subs') return A.filterBar(BK, [A.fSearch(BK, 'Talaba…'), A.fSelect(BK, 'status', [['Tekshirildi', 'Tekshirildi'], ['Qayta topshirish', 'Qayta topshirish'], ['Kutilmoqda', 'Kutilmoqda']], 'Barcha holatlar'),
+      if (s === 'typing') return A.filterBar(BK, [A.fSearch(BK, 'Talaba…')]);
+      if (s === 'subs') return A.filterBar(BK, [A.fSearch(BK, 'Talaba…'), A.fSelect(BK, 'task', [['Amaliyot', 'Amaliyot'], ['Uy vazifasi', 'Uy vazifasi']], 'Amaliyot va uy vazifasi'), A.fSelect(BK, 'status', [['Tekshirildi', 'Tekshirildi'], ['Qayta topshirish', 'Qayta topshirish'], ['Kutilmoqda', 'Kutilmoqda']], 'Barcha holatlar'),
         A.fSelect(BK, 'lesson', Array.from({ length: 12 }, (_, i) => [String(i + 1), `${i + 1}-dars`]), 'Barcha darslar')]);
       if (s === 'messages') return A.filterBar(BK, [A.fSearch(BK, 'Talaba yoki matn…'), A.fSelect(BK, 'status', [['sent', 'Yuborildi'], ['pending', 'Navbatda'], ['failed', 'Xato']], 'Barcha holatlar')]);
       return '';
@@ -74,7 +77,7 @@
     view(q) {
       const s = sub(q);
       const nav = `<nav class="tabs sub">${SUBS.map(([k, l]) => `<a href="#/calls?tab=bot&sub=${k}" class="${k === s ? 'on' : ''}">${esc(l)}</a>`).join('')}</nav>`;
-      const body = { overview, links: linksView, students: studentsView, surveys: surveysView, referrals: refsView, exits: exitsView, questions: questionsView, quiz: quizView, quizq: quizQuestionsView, subs: subsView, lessons: lessonsView, messages: messagesView, config: configView }[s]();
+      const body = { overview, links: linksView, students: studentsView, surveys: surveysView, referrals: refsView, exits: exitsView, questions: questionsView, quiz: quizView, quizq: quizQuestionsView, subs: subsView, lessons: lessonsView, typing: typingView, messages: messagesView, config: configView }[s]();
       return `${nav}${A.botTab.filters(q)}${body}`;
     },
   };
@@ -403,7 +406,7 @@
     const canE = A.can('clientbot', 'e');
     const table = A.table([
       { h: 'Talaba', f: (x) => `${esc(x.student_name)}<br><small class="muted">${esc(x.group_name)}</small>` },
-      { h: 'Dars', f: (x) => `${x.lesson_number}. ${esc(x.lesson_title)}<br><small class="muted">${x.attempt}/${x.max_attempts}-urinish · ${esc(x.submission_type)}${x.file_name ? ' · ' + esc(x.file_name) : ''}</small>` },
+      { h: 'Dars', f: (x) => `${x.lesson_number}. ${esc(x.lesson_title)}${x.task_type === 'Uy vazifasi' ? ' ' + A.badge('🏠 uy vazifasi', 'blue') : ''}<br><small class="muted">${x.attempt}/${x.max_attempts}-urinish · ${esc(x.submission_type)}${x.file_name ? ' · ' + esc(x.file_name) : ''}</small>` },
       { h: 'Ball', f: (x) => (x.final_score === null || x.final_score === undefined ? '<span class="muted">—</span>'
         : `<b class="${x.final_score >= 60 ? 't-green' : 't-red'}">${x.final_score}</b>${x.teacher_score !== null ? ' <small class="muted">ustoz</small>' : ` <small class="muted">AI</small>`}`) },
       { h: 'Holat', f: (x) => `${A.badge(x.status, SUB_TONE[x.status])}<br><small class="muted">${A.fdt(x.submitted_at)}</small>` },
@@ -441,12 +444,29 @@
     A.http.post(`/bot-lesson-submissions/${el.dataset.id}/reset_attempts/`, { extra: 1 }).then(() => { A.toast('Urinish qo\'shildi'); A.refresh(); }, fail);
   };
 
+  function typingView() {
+    const n = typingList.count || 0;
+    const rows = typingList.results;
+    const table = A.table([
+      { h: 'Talaba', f: (x) => `${esc(x.full_name)}<br><small class="muted">${esc(x.group)}</small>` },
+      { h: 'Mashqlar', cls: 'num', f: (x) => A.num(x.sessions) },
+      { h: 'Jami vaqt', cls: 'num', f: (x) => `${A.num(x.total_min)} daq` },
+      { h: 'Bugun', cls: 'num', f: (x) => `<b class="${x.today_min >= 10 ? 't-green' : ''}">${x.today_min} daq</b>` },
+      { h: "Eng yaxshi tezlik", cls: 'num', f: (x) => (x.best_wpm ? `<b>${x.best_wpm}</b> <small class="muted">s/daq</small>` : '—') },
+      { h: 'Aniqlik', cls: 'num', f: (x) => (x.avg_acc === null ? '—' : x.avg_acc + '%') },
+      { h: 'Oxirgi mashq', f: (x) => A.fdt(x.last_at) },
+    ], rows, { empty: "Hali hech kim Yoz'da mashq qilmagan. O'quvchi darslik ilovasidagi «Klaviatura trenajori» orqali ulanadi" });
+    return `<p class="muted small">«Codial Yoz» klaviatura trenajorida mashq qilgan talabalar. Natijalar o'quvchi darslik ilovasidan Yoz'ni ulagach avtomatik tushadi. «Eng yaxshi tezlik» — aniqligi 90% va undan yuqori mashqlardan. Uy vazifasining 20 bali shu mashq (10 daqiqa va undan ko'p) uchun beriladi.</p>
+      <div class="stats">${A.stat('Mashq qilganlar', A.num(n))}</div>${table}${A.pager(BK, typingList)}`;
+  }
+
   function lessonsView() {
     const canE = A.can('clientbot', 'e');
     const table = A.table([
       { h: '№', cls: 'num', f: (l) => A.num(l.number) },
       { h: 'Mavzu', f: (l) => `${esc(l.title)}${l.status !== 'Faol' ? ' ' + A.badge('Nofaol', 'gray') : ''}${l.video_url ? `<br><small class="muted">${esc(l.video_url)}</small>` : ''}` },
-      { h: 'Amaliyot', f: (l) => `<span class="small">${esc(String(l.practice_task || '').slice(0, 140))}${(l.practice_task || '').length > 140 ? '…' : ''}</span>` },
+      { h: 'Video', f: (l) => (l.video_url ? `<small class="muted">${esc(l.video_url.replace(/^https?:\/\//, '').slice(0, 34))}</small>` : '<span class="muted small">yo\'q</span>') },
+      { h: 'Amaliyot / uy vazifasi', f: (l) => `<span class="small">🛠 ${esc(String(l.practice_task || '').slice(0, 70))}…<br>🏠 ${l.homework_task ? esc(String(l.homework_task).slice(0, 70)) + '…' : '<span class="muted">yo\'q</span>'}</span>` },
       { h: '', f: (l) => (canE ? `<button class="btn sm ghost" data-act="les-edit" data-id="${l.id}">✎</button>` : '') },
     ], lessonsList, { empty: "Mavzu yo'q. «Kompyuter savodxonligi» kursi tizimda bo'lishi kerak" });
     return `<p class="muted small">Botdagi «📚 Darslik» mavzulari (12 ta). Nazariya, videodars havolasi va amaliyot topshirig'ini o'zgartirsangiz, o'quvchilar darhol yangisini ko'radi. «AI baholash mezoni» — Gemini vazifani nimaga qarab baholashini aytadi.</p>${table}`;
@@ -459,13 +479,15 @@
       fields: [
         { name: 'title', label: 'Mavzu nomi', type: 'text', required: true },
         { name: 'summary', label: 'Nazariya (konspekt)', type: 'textarea' },
-        { name: 'video_url', label: 'Videodars havolasi', type: 'text' },
+        { name: 'video_url', label: 'Videodars havolasi (YouTube yoki .mp4 havola — ilova ichida o\'ynaydi)', type: 'text' },
         { name: 'practice_task', label: "Amaliyot topshirig'i", type: 'textarea' },
-        { name: 'rubric', label: 'AI baholash mezoni', type: 'textarea' },
+        { name: 'rubric', label: 'Amaliyotni AI baholash mezoni', type: 'textarea' },
+        { name: 'homework_task', label: "Uy vazifasi", type: 'textarea' },
+        { name: 'homework_rubric', label: 'Uy vazifasini AI baholash mezoni', type: 'textarea' },
         { name: 'status', label: 'Holat', type: 'seg', options: [['Faol', 'Faol'], ['Nofaol', 'Nofaol']] },
       ],
       async onSubmit(v) {
-        await A.http.patch(`/bot-textbook-lessons/${l.id}/`, { title: v.title, summary: v.summary || '', video_url: v.video_url || '', practice_task: v.practice_task || '', rubric: v.rubric || '', status: v.status });
+        await A.http.patch(`/bot-textbook-lessons/${l.id}/`, { title: v.title, summary: v.summary || '', video_url: v.video_url || '', practice_task: v.practice_task || '', rubric: v.rubric || '', homework_task: v.homework_task || '', homework_rubric: v.homework_rubric || '', status: v.status });
         A.toast('Saqlandi');
         A.refresh();
       },

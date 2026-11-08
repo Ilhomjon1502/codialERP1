@@ -72,6 +72,7 @@ router.register("bot-config", clientbot.BotConfigViewSet, basename="bot-config")
 router.register("bot-quiz-questions", clientbot.QuizQuestionViewSet, basename="bot-quiz-question")
 router.register("bot-quiz-attempts", clientbot.QuizAttemptViewSet, basename="bot-quiz-attempt")
 router.register("bot-textbook-lessons", clientbot.CourseLessonViewSet, basename="bot-textbook-lesson")
+router.register("bot-typing", clientbot.TypingViewSet, basename="bot-typing")
 router.register("bot-lesson-submissions", clientbot.LessonSubmissionViewSet, basename="bot-lesson-submission")
 
 urlpatterns = [
@@ -85,6 +86,9 @@ urlpatterns = [
     path("learn/state/", miniapp.StateView.as_view()),
     path("learn/lesson/", miniapp.LessonView.as_view()),
     path("learn/submit/", miniapp.SubmitView.as_view()),
+    path("learn/yoz-code/", miniapp.YozCodeView.as_view()),
+    path("learn/yoz/exchange/", miniapp.YozExchangeView.as_view()),
+    path("learn/yoz/sessions/", miniapp.YozSessionsView.as_view()),
     path("learn/submission/<uuid:pk>/", miniapp.SubmissionView.as_view()),
     path("health/", core.health),
     path("bootstrap/", ref.bootstrap),

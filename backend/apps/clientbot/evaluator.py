@@ -155,13 +155,24 @@ def evaluate_submission(submission, *, file_bytes=None, downloader=None, ai_call
         "}"
     )
 
+    homework = submission.task_type == "Uy vazifasi"
     user_prompt_parts = [
         f"DARS RAQAMI: {lesson.number}",
         f"MAVZU: {lesson.title}",
-        f"AMALIYOT TOPSHIRIG'I:\n{lesson.practice_task}",
-        f"BAHOLASH MEZONI (RUBRIKA):\n{lesson.rubric}",
-        f"\nO'QUVCHINING TOPSHIRIG'I (Urinish {submission.attempt}):",
+        (f"UY VAZIFASI:\n{lesson.homework_task}" if homework else f"AMALIYOT TOPSHIRIG'I:\n{lesson.practice_task}"),
+        f"BAHOLASH MEZONI (RUBRIKA):\n{lesson.homework_rubric if homework else lesson.rubric}",
     ]
+    if homework:  # uy vazifasining 20 bali — Codial Yoz mashqi (serverdagi haqiqiy statistika, o'quvchi aytganiga ishonilmaydi)
+        from . import yoz
+
+        mins = yoz.minutes_since(submission.student, days=2)
+        user_prompt_parts.append(
+            "BALL TAQSIMOTI (jami 100): 80 ball — uy vazifasining mazmuni (yuqoridagi mezon bo'yicha); 20 ball — Codial Yoz klaviatura mashqi.\n"
+            f"CODIAL YOZ STATISTIKASI (oxirgi 2 kun, tizimdan): {mins} daqiqa mashq qilingan. "
+            "Yozish mashqi bahosi: 10 daqiqa va undan ko'p — 20 ball, 5–9 daqiqa — 10 ball, kamroq — 0 ball. "
+            "Feedback'da yozish mashqi natijasini ham alohida ayt."
+        )
+    user_prompt_parts.append(f"\nO'QUVCHINING TOPSHIRIG'I (Urinish {submission.attempt}):")
 
     if submission.content_text:
         user_prompt_parts.append(f"O'quvchi yozgan matn/izoh:\n{submission.content_text}")

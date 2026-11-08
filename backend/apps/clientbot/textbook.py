@@ -23,6 +23,100 @@ LITERACY_COURSE = "Kompyuter savodxonligi"
 PASS_SCORE = 60
 MAX_ATTEMPTS = 3
 
+PRACTICE = "Amaliyot"
+HOMEWORK = "Uy vazifasi"
+YOZ_LINE = "⌨️ Codial Yoz'da kamida 10 daqiqa klaviatura mashqi qiling (ilovadagi «Klaviatura trenajori» tugmasi). Bu avtomatik hisoblanadi."
+
+# Uy vazifalari — o'quv reja (Ks-darsi) bo'yicha; har birida Codial Yoz mashqi. (dars raqami: (vazifa, AI mezoni))
+KS_HOMEWORK = {
+    1: (
+        "1. Uyda kompyuter ish stoli fonini o'zgartiring (Win + I → Shaxsiylashtirish) va ish stolingiz skrinshotini yuboring.\n"
+        "2. Kompyuter qismlarini (monitor, tizim bloki, klaviatura, sichqoncha, RAM, disk) oilangizga tushuntirib bering va 3-4 gapda yozing: RAM bilan disk farqi nima?\n"
+        "3. " + YOZ_LINE,
+        "Skrinshotda o'zgargan ish stoli foni ko'rinishi; matnda kamida 4 ta qism vazifasi to'g'ri tushuntirilgan va RAM "
+        "(vaqtinchalik, o'chsa yo'qoladi) bilan disk (doimiy) farqi to'g'ri aytilgan bo'lishi kerak.",
+    ),
+    2: (
+        "1. Uydagi kompyuter yoki telefonda Yuklamalar (Downloads) papkasini tartiblang: keraksiz fayllarni o'chiring, keraklilarini papkalarga ajrating.\n"
+        "2. Oldin va keyin holatining skrinshoti (yoki surati) ni yuboring.\n"
+        "3. Qaysi 3 ta faylni qanday nomlagan bo'lsangiz, nomlarini matnda yozing (Sana_Ism_Mavzu qoidasi).\n"
+        "4. " + YOZ_LINE,
+        "Oldin va keyin tasvirlari (yoki tartiblanganini ko'rsatuvchi tasvir) bo'lishi, fayl nomlari Sana_Ism_Mavzu "
+        "qoidasiga mos va taqiqlangan belgilarsiz (\\ / : * ? \" < > |) yozilgani tekshiriladi.",
+    ),
+    3: (
+        "1. AI dan Windows tezkor tugmalari ro'yxatini so'rang.\n"
+        "2. Eng kerakli 15 tasini tanlab, o'zingiz Bloknotda tartiblang (fayl nomi: Tugmalar_Ism.txt) va fayl mazmunini matn yoki skrinshot ko'rinishida yuboring.\n"
+        "3. Har kuni kamida 3 ta tezkor tugmani ishlating.\n"
+        "4. " + YOZ_LINE,
+        "Ro'yxatda kamida 10-15 ta tezkor tugma va ularning vazifasi to'g'ri yozilgan bo'lishi kerak (Ctrl+C/V/X/Z/S/A, Win+E/D/Shift+S, "
+        "Alt+Tab va hokazo). Faylni o'zi tartiblagani (AI javobini shunchaki ko'chirmagani) e'tiborga olinadi.",
+    ),
+    4: (
+        "1. O'qituvchiga Gmail orqali xat yuboring: mavzu, salomlashuv, qisqa matn, ism-familiya; Ism_birinchi.txt faylini biriktiring. Xat yuborilgan ekranning skrinshotini yuboring.\n"
+        "2. Brauzerda 3 ta foydali saytni xatcho'pga qo'shing va xatcho'plar panelining skrinshotini yuboring.\n"
+        "3. " + YOZ_LINE,
+        "Skrinshotda xat mavzusi, salomlashuv va biriktirilgan fayl ko'rinishi; xatcho'plar panelida kamida 3 ta sayt bo'lishi kerak. Shaxsiy parol yoki kod ko'rinmasligi shart.",
+    ),
+    5: (
+        "1. «Mening 10 ta promptim.txt» faylini tuzing: o'qish, sport, hobbi uchun foydali 10 ta prompt (har biri R-V-K-F formulasiga mos).\n"
+        "2. Faylni Codial_Ism/05_AI papkasiga saqlang va fayl mazmunini matn ko'rinishida yuboring.\n"
+        "3. " + YOZ_LINE,
+        "10 ta prompt bo'lishi, ular Rol, Vazifa, Kontekst va Format elementlarini o'z ichiga olishi (kamida 7 "
+        "tasida) va shaxsiy nozik ma'lumot (parol, karta, telefon) bo'lmasligi kerak.",
+    ),
+    6: (
+        "1. Oilangiz uchun bir sahifali bayram tabriknomasi tayyorlang: sarlavha, rasm va ramka bo'lsin.\n"
+        "2. PDF qilib saqlang va oilangizga Telegramda yuboring; tabriknomaning PDF faylini yoki skrinshotini bu yerga ham yuboring.\n"
+        "3. " + YOZ_LINE,
+        "Hujjatda sarlavha, rasm va ramka (yoki jadval) borligi, matn markazga tekislanganligi va chiroyli formatlanganligi tekshiriladi. PDF yoki to'liq ko'ringan skrinshot kerak.",
+    ),
+    7: (
+        "1. Referatni tugating (titul varag'i, avtomatik mundarija, 3 bob, xulosa, manbalar).\n"
+        "2. PDF nusxasini Gmail orqali o'qituvchiga yuboring (mavzu va salom bilan) va xat skrinshotini yoki referat faylini bu yerga yuboring.\n"
+        "3. " + YOZ_LINE,
+        "Referatda avtomatik mundarija (Sarlavha stillari), boblar, xulosa va tekshirilgan manbalar ro'yxati borligi baholanadi; matn shunchaki AI dan ko'chirilmagani sezilishi kerak.",
+    ),
+    8: (
+        "1. Oilaviy haftalik xarajatlar jadvalini Excelda tuzing: kun, nima uchun, summa (kamida 7 qator).\n"
+        "2. Pastida jami summa (=SUM) va eng katta xarajat (=MAX) formulalarini yozing.\n"
+        "3. .xlsx faylini yuboring.\n"
+        "4. " + YOZ_LINE,
+        "Faylda kamida 7 qatorli jadval, =SUM va =MAX formulalari to'g'ri ishlatilgan bo'lishi, summalar son ko'rinishida (matn emas) yozilishi kerak.",
+    ),
+    9: (
+        "1. Xarajatlar jadvaliga «toifa» ustunini qo'shing: oziq-ovqat, transport, boshqa.\n"
+        "2. Har toifa jami summasini =SUMIF bilan hisoblang.\n"
+        "3. Natijadan doiraviy diagramma yasang va .xlsx faylini yuboring.\n"
+        "4. " + YOZ_LINE,
+        "Faylda toifa ustuni, =SUMIF formulasi va doiraviy diagramma (yoki diagramma mavjudligi) tekshiriladi.",
+    ),
+    10: (
+        "1. Taqdimotni oilangizga ko'rsating va ulardan 1 ta maslahat so'rang.\n"
+        "2. Maslahat asosida bitta slaydni yaxshilang; yaxshilangan slaydning skrinshotini yuboring.\n"
+        "3. Maslahat nima bo'lganini va nimani o'zgartirganingizni 2-3 gapda yozing.\n"
+        "4. " + YOZ_LINE,
+        "Slayd dizayn qoidalariga mos (1 fikr, kam matn, katta shrift, kontrast) bo'lishi va matnda maslahat hamda qilingan o'zgarish aniq yozilgani baholanadi.",
+    ),
+    11: (
+        "1. Ota-onangiz bilan Google akkauntda ikki bosqichli himoyani (2FA) yoqing va sozlamalar sahifasining skrinshotini yuboring (kodlar va parollar ko'rinmasin!).\n"
+        "2. Oilaviy maxfiy so'zni kelishib oling — so'zning o'zini HECH QACHON yozmang, faqat «kelishdik» deb yozing.\n"
+        "3. Fishingga o'xshash 1 ta xabar namunasini (o'zingiz to'qigan) va uning 3 ta belgisini yozing.\n"
+        "4. " + YOZ_LINE,
+        "2FA yoqilganligini ko'rsatuvchi skrinshot (kod va parol yashirin) kerak; maxfiy so'z ochiq yozilgan bo'lsa ball kamaytiriladi va "
+        "ogohlantiriladi. Fishing belgilari (shoshiltirish, g'alati havola, kod so'rash va h.k.) to'g'ri sanalishi tekshiriladi.",
+    ),
+    12: (
+        "1. Himoyaga tayyorlaning: 3 daqiqalik chiqish rejasini yozing (mavzu va nega tanladim; nima qildim; AI qayerda yordam berdi va qayerda xato qildi; nimani o'zim qildim).\n"
+        "2. Codial_Ism portfolio papkangiz ichi ko'ringan skrinshotni yuboring.\n"
+        "3. Codial Yoz'dagi yakuniy yozish tezligingiz va aniqligingizni yozing (boshlang'ich tezlik bilan solishtiring).\n"
+        "4. " + YOZ_LINE,
+        "Chiqish rejasida to'rtala band borligi, portfolio papkada hujjat, jadval, taqdimot va promptlar.txt "
+        "fayllari tartibli nomlangani va yozish tezligi o'sishi aytilgani baholanadi.",
+    ),
+}
+
+
 KS_LESSONS = [
     (
         1,
@@ -170,6 +264,7 @@ def ensure_lessons(course):
     if not course:
         return
     existing = set(CourseLesson.all_objects.filter(course=course).values_list("number", flat=True))
+    _fill_homework(course)
     to_create = []
     for num, title, summary, v_url, task, rubric in KS_LESSONS:
         if num not in existing:
@@ -182,11 +277,24 @@ def ensure_lessons(course):
                     video_url=v_url,
                     practice_task=task,
                     rubric=rubric,
+                    homework_task=KS_HOMEWORK.get(num, ("", ""))[0],
+                    homework_rubric=KS_HOMEWORK.get(num, ("", ""))[1],
                     order=num * 10,
                 )
             )
     if to_create:
         CourseLesson.objects.bulk_create(to_create)
+
+
+def _fill_homework(course):
+    """Allaqachon yaratilgan darslarda uy vazifasi bo'sh bo'lsa — o'quv reja bo'yicha to'ldiradi (qo'lda yozilganiga tegmaydi)."""
+    if course.name.strip().lower() != LITERACY_COURSE.lower():
+        return
+    for lsn in CourseLesson.objects.filter(course=course, homework_task=""):
+        hw = KS_HOMEWORK.get(lsn.number)
+        if hw:
+            lsn.homework_task, lsn.homework_rubric = hw
+            lsn.save(update_fields=["homework_task", "homework_rubric", "updated_at"])
 
 
 def lessons_for_course(course):
@@ -276,8 +384,9 @@ def student_progress(student, contract, today=None):
         ).select_related("lesson").order_by("submitted_at")
     )
     by_lesson = defaultdict(list)
+    by_homework = defaultdict(list)
     for s in subs:
-        by_lesson[s.lesson_id].append(s)
+        (by_homework if s.task_type == HOMEWORK else by_lesson)[s.lesson_id].append(s)
 
     out = []
     for lsn in lessons:
@@ -299,8 +408,20 @@ def student_progress(student, contract, today=None):
             "max_attempts": allowed,
             "can_submit": can_sub,
             "latest_submission": latest,
+            "homework": _task_state(by_homework.get(lsn.id, []), unlocked and bool(lsn.homework_task)),
         })
     return out
+
+
+def _task_state(subs, enabled):
+    latest = subs[-1] if subs else None
+    allowed = latest.max_attempts if latest else MAX_ATTEMPTS
+    passed = any(x.passed for x in subs)
+    return {
+        "enabled": enabled, "passed": passed, "attempts_used": len(subs), "max_attempts": allowed,
+        "best_score": max((x.final_score for x in subs if x.final_score is not None), default=None),
+        "can_submit": enabled and not passed and len(subs) < allowed, "latest_submission": latest,
+    }
 
 
 def submit_lesson_task(
@@ -315,6 +436,7 @@ def submit_lesson_task(
     file_path="",
     account=None,
     today=None,
+    task_type=PRACTICE,
 ):
     """Vazifani qabul qilish va yangi LessonSubmission yaratish.
     Qaytaradi: (submission, error_msg)
@@ -323,11 +445,14 @@ def submit_lesson_task(
     if lesson.number > unlocked_limit:
         return None, f"{lesson.number}-dars hali ochilmagan. Guruhda dars o'tilishini kuting."
 
+    if task_type == HOMEWORK and not lesson.homework_task:
+        return None, "Bu dars uchun uy vazifasi berilmagan."
     existing_subs = list(
         LessonSubmission.objects.filter(
             student=student,
             contract=contract,
             lesson=lesson,
+            task_type=task_type,
             is_deleted=False,
         ).order_by("attempt")
     )
@@ -345,6 +470,7 @@ def submit_lesson_task(
             contract=contract,
             lesson=lesson,
             account=account,
+            task_type=task_type,
             attempt=next_attempt,
             max_attempts=allowed_attempts,
             submission_type=submission_type,

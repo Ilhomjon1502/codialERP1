@@ -22,11 +22,12 @@ from django.db import close_old_connections
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from apps.notifications import webapp
 
-from . import evaluator, textbook
+from . import evaluator, textbook, yoz
 from .models import BotAccount, BotInvite, CourseLesson, LessonSubmission
 
 log = logging.getLogger(__name__)
@@ -35,7 +36,7 @@ ASYNC = True  # testlarda False — baholash darhol, shu oqimda bajariladi
 MAX_FILE = 8 * 1024 * 1024  # nginx client_max_body_size 10m
 ALLOWED = {".jpg": "image", ".jpeg": "image", ".png": "image", ".webp": "image", ".pdf": "doc", ".docx": "doc", ".xlsx": "doc"}
 RETRY_AFTER_S = 120  # baholash shundan ko'p kutib qolsa (jarayon o'lgan) — qayta ishga tushiriladi
-APP_VERSION = "1"
+APP_VERSION = "2"
 
 
 def enabled():
@@ -49,6 +50,29 @@ def app_url():
 
 def open_button(text="📚 Darslikni ochish"):
     return {"inline_keyboard": [[{"text": text, "web_app": {"url": app_url()}}]]}
+
+
+# ---------- video ----------
+
+_YT = re.compile(r"(?:youtube\.com/(?:watch\?(?:.*&)?v=|embed/|shorts/|live/)|youtu\.be/)([A-Za-z0-9_-]{11})")
+_VIMEO = re.compile(r"vimeo\.com/(?:video/)?(\d+)")
+_DRIVE = re.compile(r"drive\.google\.com/file/d/([A-Za-z0-9_-]+)")
+
+
+def video_info(url):
+    """Havola → ilova ichida o'ynatish usuli: YouTube/Vimeo/Drive — iframe; .mp4/.webm/.mov — <video>; boshqasi — oddiy havola."""
+    url = (url or "").strip()
+    if not url:
+        return None
+    if m := _YT.search(url):
+        return {"kind": "embed", "src": f"https://www.youtube-nocookie.com/embed/{m.group(1)}?rel=0&modestbranding=1&playsinline=1", "url": url}
+    if m := _VIMEO.search(url):
+        return {"kind": "embed", "src": f"https://player.vimeo.com/video/{m.group(1)}", "url": url}
+    if m := _DRIVE.search(url):
+        return {"kind": "embed", "src": f"https://drive.google.com/file/d/{m.group(1)}/preview", "url": url}
+    if re.search(r"\.(mp4|webm|mov|m4v)(\?|$)", url, re.I):
+        return {"kind": "file", "src": url, "url": url}
+    return {"kind": "link", "src": url, "url": url}
 
 
 # ---------- kirish ----------
@@ -119,8 +143,14 @@ def sub_payload(sub):
         "text": sub.content_text, "status": sub.status, "pending": pending, "passed": sub.passed, "score": sub.score,
         "teacher_score": sub.teacher_score, "teacher_comment": sub.teacher_comment, "final_score": sub.final_score,
         "strengths": _plain(ai.get("strengths")), "mistakes": _plain(ai.get("mistakes")), "advice": _plain(ai.get("feedback")) or (_plain(sub.feedback) if not ai else ""),
-        "submitted_at": sub.submitted_at.isoformat(),
+        "submitted_at": sub.submitted_at.isoformat(), "task": "homework" if sub.task_type == textbook.HOMEWORK else "practice",
     }
+
+
+def _task_item(t):
+    latest = t["latest_submission"]
+    return {"enabled": t["enabled"], "passed": t["passed"], "best": t["best_score"], "attempts": t["attempts_used"], "max_attempts": t["max_attempts"],
+            "can_submit": t["can_submit"], "pending": bool(latest and latest.evaluated_at is None and latest.teacher_score is None)}
 
 
 def _item(p):
@@ -128,14 +158,15 @@ def _item(p):
     return {
         "number": lsn.number, "title": lsn.title, "unlocked": p["unlocked"], "passed": p["passed"], "best": p["best_score"],
         "attempts": p["attempts_used"], "max_attempts": p["max_attempts"], "can_submit": p["can_submit"],
-        "pending": bool(latest and latest.evaluated_at is None and latest.teacher_score is None),
+        "pending": bool(latest and latest.evaluated_at is None and latest.teacher_score is None), "homework": _task_item(p["homework"]),
     }
 
 
 def student_state(st, role):
     contract = textbook.active_contract_for_student(st)
     if not contract:
-        return {"id": str(st.pk), "name": st.full_name, "first_name": st.first_name, "role": role, "course": "", "lessons": [], "stats": None}
+        return {"id": str(st.pk), "name": st.full_name, "first_name": st.first_name, "role": role, "course": "", "lessons": [], "stats": None,
+                "typing": yoz.summary(st)}
     prog = textbook.student_progress(st, contract)
     items = [_item(p) for p in prog]
     scored = [i["best"] for i in items if i["best"] is not None]
@@ -144,6 +175,7 @@ def student_state(st, role):
         "lessons": items,
         "stats": {"total": len(items), "passed": sum(1 for i in items if i["passed"]), "unlocked": sum(1 for i in items if i["unlocked"]),
                   "avg": round(sum(scored) / len(scored)) if scored else None, "pass_score": textbook.PASS_SCORE},
+        "typing": yoz.summary(st),
     }
 
 
@@ -175,13 +207,18 @@ class LessonView(LearnView):
         if n > textbook.max_unlocked_lesson(st, contract):
             return Response({"detail": f"{n}-dars hali ochilmagan. Guruhda dars o'tilishini kuting.", "locked": True}, status=403)
         item = next((_item(p) for p in textbook.student_progress(st, contract) if p["lesson"].pk == lsn.pk), None)
-        subs = LessonSubmission.objects.filter(student=st, contract=contract, lesson=lsn, is_deleted=False).order_by("attempt")
-        for s in subs:
+        allsubs = list(LessonSubmission.objects.filter(student=st, contract=contract, lesson=lsn, is_deleted=False).order_by("attempt"))
+        for s in allsubs:
             _maybe_retry(s)
+        subs = [s for s in allsubs if s.task_type != textbook.HOMEWORK]
+        hw_subs = [s for s in allsubs if s.task_type == textbook.HOMEWORK]
+        is_student = role == Role.STUDENT
         return Response({
-            "student": str(st.pk), "role": role, "number": lsn.number, "title": lsn.title, "summary": lsn.summary, "video_url": lsn.video_url,
-            "practice": lsn.practice_task, "progress": item, "can_submit": bool(item and item["can_submit"]) and role == Role.STUDENT,
+            "student": str(st.pk), "role": role, "number": lsn.number, "title": lsn.title, "summary": lsn.summary, "video": video_info(lsn.video_url),
+            "practice": lsn.practice_task, "progress": item, "can_submit": bool(item and item["can_submit"]) and is_student,
             "submissions": [sub_payload(s) for s in subs][::-1],
+            "homework": {"text": lsn.homework_task, "can_submit": bool(item and item["homework"]["can_submit"]) and is_student,
+                         "submissions": [sub_payload(s) for s in hw_subs][::-1]},
         })
 
 
@@ -241,6 +278,7 @@ class SubmitView(LearnView):
         lsn = CourseLesson.objects.filter(course=contract.course, number=n, is_deleted=False, status="Faol").first()
         if not lsn:
             return Response({"detail": "Dars topilmadi"}, status=404)
+        task_type = textbook.HOMEWORK if request.data.get("task") == "homework" else textbook.PRACTICE
         text = str(request.data.get("text") or "").strip()[:4000]
         upload = request.FILES.get("file")
         data, name, kind = None, "", LessonSubmission.SubmissionType.TEXT
@@ -255,7 +293,7 @@ class SubmitView(LearnView):
         if not text and data is None:
             return Response({"detail": "Matn yozing yoki fayl biriktiring"}, status=400)
         sub, err = textbook.submit_lesson_task(st, contract, lsn, kind, content_text=text, file_name=name, account=acc,
-                                               file_path=_save_file(data, name) if data else "")
+                                               file_path=_save_file(data, name) if data else "", task_type=task_type)
         if err:
             return Response({"detail": err}, status=409)
         start_eval(sub)
@@ -275,3 +313,82 @@ class SubmissionView(LearnView):
         sub.refresh_from_db()
         return Response(sub_payload(sub))
 
+
+
+# ---------- Codial Yoz ulanishi ----------
+
+
+def yoz_url():
+    return getattr(settings, "YOZ_URL", "https://yoz.codialinfo.uz").rstrip("/")
+
+
+class YozCodeView(LearnView):
+    """POST {student} → Yoz'ni ulash kodi (faqat o'quvchining o'zi; 15 daqiqa, bir marta) va tayyor havola."""
+
+    def post(self, request):
+        acc = authenticate(request)
+        st, role = _student_for(acc, request.data.get("student"))
+        if role != Role.STUDENT:
+            return Response({"detail": "Klaviatura trenajorini o'quvchining o'zi ulaydi"}, status=403)
+        pr = yoz.new_pairing(st, acc)
+        return Response({"code": pr.code, "expires_in": int(yoz.CODE_TTL.total_seconds()), "url": f"{yoz_url()}/?code={pr.code}", "site": yoz_url()}, status=201)
+
+
+class YozView(APIView):
+    """Yoz saytidan keladigan so'rovlar (boshqa domen): CORS faqat Yoz uchun; o'quvchi `X-Yoz-Token` bilan taniladi."""
+
+    authentication_classes = []
+    permission_classes = []
+
+    def _cors(self, request, response):
+        origin = request.META.get("HTTP_ORIGIN", "")
+        if origin in yoz.ORIGINS:
+            response["Access-Control-Allow-Origin"] = origin
+            response["Access-Control-Allow-Headers"] = "Content-Type, X-Yoz-Token"
+            response["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+            response["Access-Control-Max-Age"] = "86400"
+            response["Vary"] = "Origin"
+        return response
+
+    def finalize_response(self, request, response, *args, **kwargs):
+        return self._cors(request, super().finalize_response(request, response, *args, **kwargs))
+
+    def options(self, request, *args, **kwargs):
+        return Response(status=204)
+
+    def _student(self, request):
+        got = yoz.read_token(request.META.get("HTTP_X_YOZ_TOKEN", ""))
+        if got is None:
+            raise Unauthorized("Ulanish eskirgan. Darslik ilovasidan yangi kod oling.")
+        return got[0]
+
+    def handle_exception(self, exc):
+        if isinstance(exc, Unauthorized):
+            return Response({"detail": str(exc)}, status=exc.code)
+        return super().handle_exception(exc)
+
+
+class YozExchangeView(YozView):
+    """POST {code} → {token, name, summary}. Kod noto'g'ri/eskirgan bo'lsa 400 (urinishlar cheklangan)."""
+
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "login"
+
+    def post(self, request):
+        got = yoz.exchange(request.data.get("code"))
+        if got is None:
+            return Response({"detail": "Kod noto'g'ri yoki eskirgan. Darslik ilovasidan yangi kod oling."}, status=400)
+        token, st = got
+        return Response({"token": token, "name": st.first_name, "full_name": st.full_name, "summary": yoz.summary(st)})
+
+
+class YozSessionsView(YozView):
+    """POST {sessions: [{id, at(ms), ms, wpm, acc, stars, l}]} → saqlanganlar soni va yangi statistika. GET — faqat statistika."""
+
+    def get(self, request):
+        return Response({"summary": yoz.summary(self._student(request))})
+
+    def post(self, request):
+        st = self._student(request)
+        n = yoz.record(st, request.data.get("sessions"))
+        return Response({"saved": n, "summary": yoz.summary(st)}, status=201 if n else 200)

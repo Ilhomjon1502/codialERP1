@@ -3,7 +3,7 @@
 import datetime
 
 from django.conf import settings
-from django.db.models import Count, F, Prefetch, Q
+from django.db.models import Avg, Count, F, Max, Prefetch, Q, Sum
 from django.utils import timezone
 from rest_framework import serializers, status
 from rest_framework.decorators import action
@@ -18,7 +18,7 @@ from apps.education.models import Contract
 from apps.references.models import Branch, Course
 
 from . import invites as bulk
-from . import quiz, referrals, services, survey, textbook
+from . import quiz, referrals, services, survey, textbook, yoz
 from .models import BotConfig, BotInvite, BotLink, ClientOutbox, CourseLesson, ExitSurvey, LeadSurvey, LessonSubmission, QuizAttempt, QuizQuestion, Referral, SurveyQuestion
 
 READ_ONLY = ["get", "head", "options"]
@@ -572,6 +572,64 @@ class QuizAttemptViewSet(AuditedModelViewSet):
         return Response(self.get_serializer(ATTEMPT_QS.get(pk=at.pk)).data)
 
 
+# ---------- Codial Yoz (klaviatura trenajori) natijalari ----------
+
+
+class TypingRowSerializer(serializers.ModelSerializer):
+    sessions = serializers.IntegerField(read_only=True)
+    total_min = serializers.SerializerMethodField()
+    today_min = serializers.SerializerMethodField()
+    best_wpm = serializers.IntegerField(read_only=True)
+    avg_acc = serializers.SerializerMethodField()
+    last_at = serializers.DateTimeField(read_only=True)
+    group = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Student
+        fields = ["id", "full_name", "group", "sessions", "total_min", "today_min", "best_wpm", "avg_acc", "last_at"]
+        read_only_fields = fields
+
+    def get_total_min(self, st):
+        return round((st.total_ms or 0) / 60000)
+
+    def get_today_min(self, st):
+        return round((st.today_ms or 0) / 60000)
+
+    def get_avg_acc(self, st):
+        return round(st.acc_avg) if st.acc_avg is not None else None
+
+    def get_group(self, st):
+        c = next((c for c in st.contracts.all() if not c.is_deleted and c.group_id), None)
+        return f"{c.group.course.name} / #{c.group.number}" if c else ""
+
+
+class TypingViewSet(AuditedModelViewSet):
+    """Yozish mashqi qilgan talabalar (faqat o'qish). ?q=&group=. `{id}/` — bitta talabaning batafsil statistikasi (hafta, o'sish)."""
+
+    section = "clientbot"
+    branch_field = "branch"
+    serializer_class = TypingRowSerializer
+    pagination_class = Pagination
+    http_method_names = READ_ONLY
+
+    def get_queryset(self):
+        start = timezone.localtime().replace(hour=0, minute=0, second=0, microsecond=0)
+        qs = (Student.objects.filter(is_deleted=False, typing_sessions__isnull=False).distinct()
+              .annotate(sessions=Count("typing_sessions"), total_ms=Sum("typing_sessions__duration_ms"), last_at=Max("typing_sessions__at"),
+                        today_ms=Sum("typing_sessions__duration_ms", filter=Q(typing_sessions__at__gte=start)),
+                        best_wpm=Max("typing_sessions__wpm", filter=Q(typing_sessions__accuracy__gte=yoz.GOOD_ACCURACY)),
+                        acc_avg=Avg("typing_sessions__accuracy"))
+              .prefetch_related(Prefetch("contracts", queryset=Contract.objects.select_related("group__course"))))
+        qs = scope_branch(qs, self.request.user, "branch")
+        p = self.request.query_params
+        if p.get("group"):
+            qs = qs.filter(contracts__group_id=p["group"])
+        return _search(qs, p.get("q"), "first_name", "last_name").order_by("-total_ms")
+
+    def retrieve(self, request, *args, **kwargs):
+        return Response(yoz.summary(self.get_object()))
+
+
 # ---------- sozlamalar ----------
 
 
@@ -627,7 +685,7 @@ class CourseLessonSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CourseLesson
-        fields = ["id", "course", "course_name", "number", "title", "summary", "video_url", "practice_task", "rubric", "order", "status"]
+        fields = ["id", "course", "course_name", "number", "title", "summary", "video_url", "practice_task", "rubric", "homework_task", "homework_rubric", "order", "status"]
 
     def validate_title(self, v):
         v = (v or "").strip()
@@ -666,12 +724,12 @@ class LessonSubmissionSerializer(serializers.ModelSerializer):
         model = LessonSubmission
         fields = [
             "id", "branch", "student", "student_name", "contract", "group_name", "lesson", "lesson_number", "lesson_title",
-            "attempt", "max_attempts", "submission_type", "content_text", "telegram_file_id", "file_name",
+            "task_type", "attempt", "max_attempts", "submission_type", "content_text", "telegram_file_id", "file_name",
             "status", "score", "passed", "feedback", "teacher_score", "teacher_comment", "final_score",
             "submitted_at", "evaluated_at",
         ]
         read_only_fields = [
-            "id", "branch", "student", "contract", "lesson", "attempt", "submission_type", "telegram_file_id",
+            "id", "branch", "student", "contract", "lesson", "task_type", "attempt", "submission_type", "telegram_file_id",
             "submitted_at", "evaluated_at",
         ]
 
@@ -702,6 +760,8 @@ class LessonSubmissionViewSet(AuditedModelViewSet):
             qs = qs.filter(status=p["status"])
         if p.get("lesson"):
             qs = qs.filter(lesson__number=p["lesson"])
+        if p.get("task") in ("Amaliyot", "Uy vazifasi"):
+            qs = qs.filter(task_type=p["task"])
         if p.get("student"):
             qs = qs.filter(student_id=p["student"])
         if p.get("group"):

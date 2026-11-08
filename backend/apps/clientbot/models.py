@@ -338,6 +338,8 @@ class CourseLesson(BaseModel):
     video_url = models.URLField("Videodars havolasi (YouTube/Drive)", blank=True)
     practice_task = models.TextField("Amaliyot topshirig'i (bosqichma-bosqich)", blank=True)
     rubric = models.TextField("AI baholash mezoni (Gemini uchun ko'rsatma)", blank=True)
+    homework_task = models.TextField("Uy vazifasi", blank=True)
+    homework_rubric = models.TextField("Uy vazifasini AI baholash mezoni", blank=True)
     order = models.PositiveSmallIntegerField("Tartib", default=10)
     status = models.CharField(max_length=8, choices=Status.choices, default=Status.ACTIVE)
 
@@ -371,6 +373,7 @@ class LessonSubmission(BaseModel):
     lesson = models.ForeignKey(CourseLesson, on_delete=models.CASCADE, related_name="submissions")
     account = models.ForeignKey(BotAccount, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
 
+    task_type = models.CharField("Topshiriq turi", max_length=12, default="Amaliyot")  # «Amaliyot» yoki «Uy vazifasi»
     attempt = models.PositiveSmallIntegerField("Urinish raqami", default=1)
     max_attempts = models.PositiveSmallIntegerField("Ruxsat etilgan urinishlar", default=3)
 
@@ -409,3 +412,46 @@ class LessonSubmission(BaseModel):
     @property
     def final_score(self):
         return self.teacher_score if self.teacher_score is not None else self.score
+
+
+class TypingSession(models.Model):
+    """«Codial Yoz» (yoz.codialinfo.uz) da tugatilgan mashq: Yoz o'quvchi ulanganda (kod bilan) natijani shu yerga yuboradi.
+    `client_id` — Yoz yaratgan noyob raqam: qayta yuborilsa dublikat bo'lmaydi."""
+
+    student = models.ForeignKey("crm.Student", on_delete=models.CASCADE, related_name="typing_sessions")
+    client_id = models.CharField(max_length=40)
+    lesson_key = models.CharField("Yoz darsi", max_length=40, blank=True)
+    at = models.DateTimeField("Vaqt")
+    duration_ms = models.PositiveIntegerField("Davomiyligi (ms)", default=0)
+    wpm = models.PositiveSmallIntegerField("Tezlik (so'z/daqiqa)", default=0)
+    accuracy = models.PositiveSmallIntegerField("Aniqlik (%)", default=0)
+    stars = models.PositiveSmallIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Yozish mashqi"
+        verbose_name_plural = "Yozish mashqlari"
+        ordering = ["-at"]
+        constraints = [models.UniqueConstraint(fields=["student", "client_id"], name="uniq_typing_session")]
+        indexes = [models.Index(fields=["student", "-at"])]
+
+    def __str__(self):
+        return f"{self.student} · {self.wpm} wpm · {self.accuracy}%"
+
+
+class YozPairing(models.Model):
+    """Yoz'ni o'quvchiga ulash kodi: darslik ilovasi beradi (15 daqiqa, bir marta), Yoz almashtirib uzoq muddatli token oladi."""
+
+    code = models.CharField(max_length=8, unique=True, default=new_code)
+    student = models.ForeignKey("crm.Student", on_delete=models.CASCADE, related_name="yoz_pairings")
+    account = models.ForeignKey(BotAccount, on_delete=models.CASCADE, related_name="+")
+    expires_at = models.DateTimeField()
+    used_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Yoz ulash kodi"
+        verbose_name_plural = "Yoz ulash kodlari"
+
+    def __str__(self):
+        return f"{self.student} · {self.code}"

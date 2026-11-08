@@ -97,6 +97,7 @@
     if (state.students.length > 1) {
       root.append(el('div', { class: 'switch' }, state.students.map((x, i) => el('button', { class: i === cur ? 'on' : '', onclick: () => { cur = i; haptic(); home(); } }, x.first_name))));
     }
+    root.append(typingCard(st));
     if (st.role === 'Vasiy') root.append(el('div', { class: 'banner' }, "👪 Siz vasiy sifatida kirgansiz: darslar va ballarni ko'rasiz. Vazifani o'quvchining o'zi topshiradi."));
 
     root.append(el('div', { class: 'section-title' }, 'Darslar'));
@@ -104,13 +105,58 @@
     st.lessons.forEach((l) => {
       const cls = !l.unlocked ? 'locked' : l.passed ? 'done' : l.attempts > 0 ? 'retry' : '';
       const sub = !l.unlocked ? `Guruhda ${l.number}-dars o'tilgach ochiladi` : l.pending ? '⏳ AI tekshirmoqda…' : l.passed ? `Topshirildi · ${l.attempts}/${l.max_attempts} urinish` : l.attempts > 0 ? `Qayta urinish mumkin · ${l.attempts}/${l.max_attempts}` : 'Boshlashga tayyor';
+      const hwMark = l.unlocked && l.homework && l.homework.enabled ? (l.homework.passed ? ' · 🏠✓' : l.homework.pending ? ' · 🏠⏳' : ' · 🏠') : '';
       path.append(el('button', { class: `lesson ${cls}`, onclick: () => { if (!l.unlocked) { haptic('bad'); toast(`🔒 ${l.number}-dars hali ochilmagan`); return; } haptic(); go(`#/lesson/${l.number}`); } },
         el('div', { class: 'node' }, !l.unlocked ? '🔒' : l.passed ? '✓' : l.number),
-        el('div', { class: 't' }, el('b', {}, `${l.number}. ${l.title}`), el('span', {}, sub)),
+        el('div', { class: 't' }, el('b', {}, `${l.number}. ${l.title}`), el('span', {}, sub + hwMark)),
         l.best !== null ? el('div', { class: `score ${l.best >= s.pass_score ? 'ok' : 'bad'}` }, l.best) : el('div', { class: 'arrow' }, l.unlocked ? '›' : ''),
       ));
     });
     root.append(path);
+  }
+
+  /* ---------- klaviatura trenajori (Codial Yoz) ---------- */
+  function typingCard(st) {
+    const t = st.typing || {};
+    const goal = 15;
+    const pct = Math.min(1, (t.today_min || 0) / goal);
+    const growth = t.first_wpm !== null && t.first_wpm !== undefined && t.recent_wpm !== null && t.recent_wpm !== undefined && t.sessions > 3
+      ? el('div', { class: 'growth' }, `📈 ${t.first_wpm} → ${t.recent_wpm} so'z/daq`) : null;
+    const card = el('div', { class: 'card yoz' },
+      el('div', { class: 'yoz-head' }, el('div', { class: 'yoz-ic' }, '⌨️'), el('div', {}, el('h3', {}, 'Klaviatura trenajori'),
+        el('div', { class: 'muted small' }, t.sessions ? 'Har kuni 10–15 daqiqa mashq qiling' : "Birinchi kundan boshlang: o'n barmoq bilan yozishni o'rganing"))),
+      el('div', { class: 'yoz-stats' },
+        el('div', {}, el('b', {}, `${t.today_min || 0}/${goal}`), el('span', {}, 'bugun, daq')),
+        el('div', {}, el('b', {}, `🔥 ${t.streak || 0}`), el('span', {}, 'ketma-ket kun')),
+        el('div', {}, el('b', {}, t.best_wpm || '—'), el('span', {}, "eng yaxshi, s/daq")),
+        el('div', {}, el('b', {}, t.avg_acc === null || t.avg_acc === undefined ? '—' : t.avg_acc + '%'), el('span', {}, 'aniqlik'))),
+      el('div', { class: 'goal' }, el('i', { style: `width:${Math.round(pct * 100)}%` })),
+      growth,
+      st.role === 'Talaba' ? el('button', { class: 'cta', style: 'margin-top:14px', onclick: () => { haptic(); openYoz(st); } }, t.sessions ? '⌨️ Mashq qilish' : '⌨️ Boshlash')
+        : el('div', { class: 'muted small', style: 'margin-top:10px' }, "Mashqni o'quvchining o'zi qiladi, natijasi shu yerda ko'rinadi."),
+      el('div', { class: 'muted small', style: 'margin-top:8px' }, "💻 Mashq kompyuterda, klaviatura bilan qilinadi."));
+    return card;
+  }
+
+  async function openYoz(st) {
+    let r;
+    try {
+      const fd = new FormData();
+      fd.append('student', st.id);
+      r = await api('/yoz-code/', { method: 'POST', body: fd });
+    } catch (e) { toast(e.message); return; }
+    const bg = el('div', { class: 'sheet-bg' });
+    const sheet = el('div', { class: 'sheet' });
+    const close = () => { bg.remove(); sheet.remove(); };
+    bg.onclick = close;
+    sheet.append(el('div', { class: 'grab' }), el('h3', {}, '⌨️ Klaviatura trenajori'),
+      el('div', { class: 'muted small' }, "Bu qurilmada ochsangiz, avtomatik ulanadi. Boshqa kompyuterda ishlasangiz — quyidagi kodni kiriting."),
+      el('div', { class: 'code' }, r.code.split('').join(' ')),
+      el('div', { class: 'muted small', style: 'text-align:center' }, `${Math.round(r.expires_in / 60)} daqiqa amal qiladi, bir marta ishlaydi`),
+      el('button', { class: 'cta', style: 'margin-top:14px', onclick: () => { location.href = r.url; } }, "⌨️ Shu qurilmada ochish"),
+      el('div', { class: 'steps-how' }, el('b', {}, 'Boshqa kompyuterda:'), el('div', {}, `1. Brauzerda ${r.site.replace('https://', '')} ni oching`), el('div', {}, "2. «Darslik bilan ulash» ga yuqoridagi kodni kiriting")),
+      el('button', { class: 'cta ghost', onclick: close }, 'Yopish'));
+    document.body.append(bg, sheet);
   }
 
   /* ---------- dars sahifasi ---------- */
@@ -121,10 +167,18 @@
       if (e.status === 403) { toast(e.message); return go('#/'); }
       return fatal(e.message);
     }
-    tab = lesson.submissions.length && lesson.progress && lesson.progress.pending ? 'results' : 'theory';
+    tab = lesson.progress && (lesson.progress.pending || lesson.progress.homework.pending) ? 'results' : 'theory';
     drawLesson();
     window.scrollTo(0, 0);
-    if (lesson.progress && lesson.progress.pending) watch(lesson.submissions.find((x) => x.pending));
+    const waiting = [...lesson.submissions, ...lesson.homework.submissions].find((x) => x.pending);
+    if (waiting) watch(waiting);
+  }
+
+  function videoPlayer(v) {
+    if (!v) return null;
+    if (v.kind === 'embed') return el('div', { class: 'video' }, el('iframe', { src: v.src, allow: 'fullscreen; picture-in-picture; encrypted-media', allowfullscreen: true, loading: 'lazy', title: 'Videodars' }));
+    if (v.kind === 'file') return el('div', { class: 'video' }, el('video', { src: v.src, controls: true, playsinline: true, preload: 'metadata' }));
+    return el('a', { class: 'btn-link', href: v.url, target: '_blank', rel: 'noopener', onclick: (e) => { if (tg && tg.openLink) { e.preventDefault(); tg.openLink(v.url); } } }, "🔗 Qo'shimcha material");
   }
 
   function prose(text) {
@@ -159,27 +213,35 @@
     const badge = p.passed ? el('span', { class: 'pill ok' }, `✓ O'tdi · ${p.best}`) : p.pending ? el('span', { class: 'pill' }, '⏳ Tekshirilmoqda') : p.attempts > 0 ? el('span', { class: 'pill warn' }, `${p.best ?? 0} ball · qayta urinish`) : el('span', { class: 'pill' }, 'Yangi dars');
     root.append(el('div', { class: 'lhero', 'data-n': L.number }, el('small', {}, `${L.number}-dars`), el('h2', {}, L.title), el('div', { class: 'chips' }, badge, el('span', { class: 'pill' }, `${p.attempts}/${p.max_attempts} urinish`))));
 
-    const tabs = el('div', { class: 'tabs' }, [['theory', '📖 Nazariya'], ['task', '🛠 Amaliyot'], ['results', `🏆 Natijalar${L.submissions.length ? ' · ' + L.submissions.length : ''}`]].map(([k, label]) => el('button', { class: tab === k ? 'on' : '', onclick: () => { tab = k; haptic(); drawLesson(); } }, label)));
+    const tabs = el('div', { class: 'tabs' }, [['theory', '📖 Nazariya'], ['task', '🛠 Amaliyot'], ['hw', '🏠 Uy vazifasi'], ['results', `🏆 Natijalar${L.submissions.length + L.homework.submissions.length ? ' · ' + (L.submissions.length + L.homework.submissions.length) : ''}`]].map(([k, label]) => el('button', { class: tab === k ? 'on' : '', onclick: () => { tab = k; haptic(); drawLesson(); } }, label)));
     root.append(tabs);
 
     if (tab === 'theory') {
-      const card = el('div', { class: 'card' }, prose(L.summary));
-      if (L.video_url) card.append(el('a', { class: 'btn-link', href: L.video_url, target: '_blank', rel: 'noopener', onclick: (e) => { if (tg && tg.openLink) { e.preventDefault(); tg.openLink(L.video_url); } } }, '▶ Videodars va qo\'shimcha material'));
-      root.append(card);
+      const vp = videoPlayer(L.video);
+      if (vp) root.append(el('div', { class: 'card video-card' }, el('h3', { class: 'v-title' }, '🎬 Videodars'), vp));
+      root.append(el('div', { class: 'card' }, prose(L.summary)));
     } else if (tab === 'task') {
       root.append(el('div', { class: 'card' }, steps(L.practice)), el('div', { class: 'card muted small' }, "Ishingizni matn, rasm (skrinshot), PDF, Word (.docx) yoki Excel (.xlsx) ko'rinishida yuboring. AI ishni tekshirib, 100 ballik tizimda baholaydi. 60 va undan yuqori ball — o'tdi."));
+    } else if (tab === 'hw') {
+      root.append(L.homework.text ? el('div', { class: 'card' }, steps(L.homework.text)) : el('div', { class: 'card empty' }, el('span', { class: 'big' }, '🏠'), "Bu dars uchun uy vazifasi berilmagan."),
+        el('div', { class: 'card muted small' }, "Uy vazifasini ham AI tekshiradi: 80 ball vazifa mazmuniga, 20 ball Codial Yoz mashqiga (10 daqiqa va undan ko'p — to'liq ball). Yozish mashqi tizimdan avtomatik hisoblanadi."));
     } else {
-      if (!L.submissions.length) root.append(el('div', { class: 'card empty' }, el('span', { class: 'big' }, '📝'), "Hali vazifa topshirilmagan."));
-      L.submissions.forEach((s) => root.append(attemptCard(s)));
+      if (!L.submissions.length && !L.homework.submissions.length) root.append(el('div', { class: 'card empty' }, el('span', { class: 'big' }, '📝'), "Hali vazifa topshirilmagan."));
+      if (L.submissions.length) { root.append(el('div', { class: 'section-title' }, 'Amaliyot')); L.submissions.forEach((s) => root.append(attemptCard(s))); }
+      if (L.homework.submissions.length) { root.append(el('div', { class: 'section-title' }, 'Uy vazifasi')); L.homework.submissions.forEach((s) => root.append(attemptCard(s))); }
     }
 
     const bar = el('div', { class: 'bar' }, el('div', { class: 'bar-in' }));
     const inner = bar.firstChild;
-    if (L.role !== 'Talaba') inner.append(el('div', { class: 'note-bar' }, "👪 Vazifani o'quvchining o'zi topshiradi"));
-    else if (p.pending) inner.append(el('div', { class: 'note-bar' }, '⏳ AI vazifangizni tekshirmoqda…'));
-    else if (L.can_submit) inner.append(el('button', { class: 'cta', onclick: () => { haptic(); openSheet(); } }, p.attempts > 0 ? '🔄 Qayta topshirish' : '📤 Vazifani topshirish'));
-    else if (p.passed) inner.append(el('div', { class: 'note-bar' }, '✅ Bu dars muvaffaqiyatli topshirilgan'));
-    else inner.append(el('div', { class: 'note-bar' }, "Urinishlar tugadi — ustozingizga murojaat qiling"));
+    const hw = tab === 'hw';
+    const ps = hw ? p.homework : p;
+    const can = hw ? L.homework.can_submit : L.can_submit;
+    if (hw && !L.homework.text) inner.append(el('div', { class: 'note-bar' }, 'Uy vazifasi berilmagan'));
+    else if (L.role !== 'Talaba') inner.append(el('div', { class: 'note-bar' }, "👪 Vazifani o'quvchining o'zi topshiradi"));
+    else if (ps.pending) inner.append(el('div', { class: 'note-bar' }, '⏳ AI vazifangizni tekshirmoqda…'));
+    else if (can) inner.append(el('button', { class: 'cta', onclick: () => { haptic(); openSheet(hw ? 'homework' : 'practice'); } }, (hw ? ps.attempts : p.attempts) > 0 ? '🔄 Qayta topshirish' : (hw ? '🏠 Uy vazifasini topshirish' : '📤 Vazifani topshirish')));
+    else if (ps.passed) inner.append(el('div', { class: 'note-bar' }, hw ? '✅ Uy vazifasi topshirilgan' : '✅ Bu dars muvaffaqiyatli topshirilgan'));
+    else inner.append(el('div', { class: 'note-bar' }, 'Urinishlar tugadi — ustozingizga murojaat qiling'));
     app.append(bar);
   }
 
@@ -196,7 +258,7 @@
   }
 
   /* ---------- topshirish oynasi ---------- */
-  function openSheet() {
+  function openSheet(task) {
     let file = null;
     const bg = el('div', { class: 'sheet-bg' });
     const sheet = el('div', { class: 'sheet' });
@@ -218,14 +280,14 @@
       inp.onchange = () => { if (inp.files[0]) { file = inp.files[0]; err.textContent = ''; paintFile(); } };
       return el('label', {}, el('span', {}, icon), label, inp);
     };
-    sheet.append(el('div', { class: 'grab' }), el('h3', {}, `${lesson.number}-dars vazifasi`), el('div', { class: 'muted small' }, "Rasm, PDF, Word yoki Excel yuboring — yoki shunchaki yozing."),
+    sheet.append(el('div', { class: 'grab' }), el('h3', {}, `${lesson.number}-dars ${task === 'homework' ? 'uy vazifasi' : 'vazifasi'}`), el('div', { class: 'muted small' }, "Rasm, PDF, Word yoki Excel yuboring — yoki shunchaki yozing."),
       ta, el('div', { class: 'pick' }, picker('Rasm / skrinshot', '🖼', 'image/*'), picker('Fayl (PDF, Word, Excel)', '📎', '.pdf,.docx,.xlsx,application/pdf')), fileBox, err, send);
     send.onclick = async () => {
       if (!ta.value.trim() && !file) { err.textContent = 'Matn yozing yoki fayl biriktiring'; haptic('bad'); return; }
       if (file && file.size > 8 * 1024 * 1024) { err.textContent = 'Fayl hajmi 8 MB dan oshmasin'; return; }
       send.disabled = true; send.textContent = 'Yuborilmoqda…';
       const fd = new FormData();
-      fd.append('student', student().id); fd.append('lesson', lesson.number); fd.append('text', ta.value.trim());
+      fd.append('student', student().id); fd.append('lesson', lesson.number); fd.append('task', task); fd.append('text', ta.value.trim());
       if (file) fd.append('file', file);
       try {
         const s = await api('/submit/', { method: 'POST', body: fd });
