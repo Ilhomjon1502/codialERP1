@@ -16,7 +16,14 @@ from apps.education.models import Attendance, Contract
 from apps.education.services import NOFAOL, REJADA, period_status, with_balance
 from apps.finance.models import Confirm, Payment
 
-ACTIONS = {"pay": "💳 To'lovlar", "att": "📋 Davomat", "sch": "📅 Dars jadvali", "due": "💰 To'lov muddati", "quiz": "📝 Test"}  # quiz — clientbot.quiz.menu
+ACTIONS = {
+    "book": "📚 Darslik",
+    "quiz": "📝 Test",
+    "att": "📋 Davomat",
+    "sch": "📅 Dars jadvali",
+    "pay": "💳 To'lovlar",
+    "due": "💰 To'lov muddati",
+}
 MENU_TEXTS = {label: key for key, label in ACTIONS.items()}
 WEEKDAYS = ["Dushanba", "Seshanba", "Chorshanba", "Payshanba", "Juma", "Shanba", "Yakshanba"]
 SHORT = ["Dush", "Sesh", "Chor", "Pay", "Jum", "Shan", "Yak"]

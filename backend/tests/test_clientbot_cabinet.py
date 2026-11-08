@@ -17,7 +17,7 @@ from tests.test_sms_auto import env, refs  # noqa: F401 — fixtures
 pytestmark = pytest.mark.django_db
 D = datetime.date
 PAY, ATT, SCH, DUE = cabinet.ACTIONS["pay"], cabinet.ACTIONS["att"], cabinet.ACTIONS["sch"], cabinet.ACTIONS["due"]
-QUIZ = cabinet.ACTIONS["quiz"]
+QUIZ, BOOK = cabinet.ACTIONS["quiz"], cabinet.ACTIONS["book"]
 
 
 @pytest.fixture(autouse=True)
@@ -45,8 +45,8 @@ def test_menu_shown_after_link_and_status(env, on):  # noqa: F811
     env["contract"](st)
     inv = bot.invite_for(st, st.phone1)
     r = bot.handle_message(1, f"/start {inv.code}")
-    assert r[0].markup["keyboard"][0][0]["text"] == PAY and r[0].markup["resize_keyboard"]
-    assert [b["text"] for row in r[0].markup["keyboard"] for b in row] == [PAY, ATT, SCH, DUE, QUIZ]
+    assert r[0].markup["keyboard"][0][0]["text"] == BOOK and r[0].markup["resize_keyboard"]
+    assert [b["text"] for row in r[0].markup["keyboard"] for b in row] == [BOOK, QUIZ, ATT, SCH, PAY, DUE]
     s = bot.handle_message(1, "/menu")
     assert "Siz ulangansiz" in s[0].text and s[0].markup["keyboard"]
 
@@ -183,13 +183,13 @@ def test_finance_paused_hides_buttons_and_blocks_payment_screens(env, on):  # no
     c = env["contract"](st)
     inv = bot.invite_for(st, st.phone1)
     r = bot.handle_message(1, f"/start {inv.code}")
-    assert [b["text"] for row in r[0].markup["keyboard"] for b in row] == [ATT, SCH, QUIZ]  # to'lov va muddat tugmalari yo'q
-    assert [b["text"] for row in bot.handle_message(1, "/menu")[0].markup["keyboard"] for b in row] == [ATT, SCH, QUIZ]
+    assert [b["text"] for row in r[0].markup["keyboard"] for b in row] == [BOOK, QUIZ, ATT, SCH]  # to'lov va muddat tugmalari yo'q
+    assert [b["text"] for row in bot.handle_message(1, "/menu")[0].markup["keyboard"] for b in row] == [BOOK, QUIZ, ATT, SCH]
     pay(env, c, 1, D(2026, 10, 3), 500_000, cash_type="CASH")
     for label in (PAY, DUE):  # eski klaviaturadagi tugma bosilsa ham ma'lumot chiqmaydi, yangi menyu qaytadi
         r = bot.handle_message(1, label)
         assert "vaqtincha ishlamayapti" in r[0].text and "500 000" not in r[0].text
-        assert [b["text"] for row in r[0].markup["keyboard"] for b in row] == [ATT, SCH, QUIZ]
+        assert [b["text"] for row in r[0].markup["keyboard"] for b in row] == [BOOK, QUIZ, ATT, SCH]
     assert "Davomat" in text(bot.handle_message(1, ATT)) and "Dars jadvali" in text(bot.handle_message(1, SCH))  # qolgan bo'limlar ishlaydi
     b = env["student"](2)
     env["contract"](b)

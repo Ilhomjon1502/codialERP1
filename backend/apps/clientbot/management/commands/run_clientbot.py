@@ -68,7 +68,26 @@ class Command(BaseCommand):
         if chat.get("type") != "private" or not chat.get("id"):
             return
         frm = msg.get("from") or {}
-        self.send(chat["id"], services.handle_message(chat["id"], msg.get("text", ""), frm.get("username", ""), frm.get("first_name", "")))
+        text = msg.get("text") or ""
+        caption = msg.get("caption") or ""
+        photos = msg.get("photo") or []
+        photo_id = photos[-1]["file_id"] if photos else ""
+        doc = msg.get("document") or {}
+        doc_id = doc.get("file_id") or ""
+        doc_name = doc.get("file_name") or ""
+        self.send(
+            chat["id"],
+            services.handle_message(
+                chat["id"],
+                text,
+                frm.get("username", ""),
+                frm.get("first_name", ""),
+                photo_id=photo_id,
+                doc_id=doc_id,
+                doc_name=doc_name,
+                caption=caption,
+            ),
+        )
 
     def on_callback(self, cb):
         chat, message = (cb.get("from") or {}).get("id"), cb.get("message") or {}

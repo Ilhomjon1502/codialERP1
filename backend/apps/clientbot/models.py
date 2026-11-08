@@ -325,3 +325,87 @@ class QuizAttempt(BaseModel):
     @property
     def percent(self):
         return round(self.score * 100 / self.total) if self.total and self.score is not None else None
+
+
+class CourseLesson(BaseModel):
+    """Elektron darslik mavzusi (2026-11-08): Kompyuter savodxonligi o'quv rejasidagi 12 ta dars.
+    Bosh menejer ERP'da tahrirlashi, video havola yoki amaliyot shartini o'zgartirishi mumkin."""
+
+    course = models.ForeignKey("references.Course", on_delete=models.PROTECT, related_name="lessons", verbose_name="Kurs")
+    number = models.PositiveSmallIntegerField("Dars raqami", default=1)
+    title = models.CharField("Mavzu nomi", max_length=150)
+    summary = models.TextField("Nazariya (qisqa konspekt, qoidalar)", blank=True)
+    video_url = models.URLField("Videodars havolasi (YouTube/Drive)", blank=True)
+    practice_task = models.TextField("Amaliyot topshirig'i (bosqichma-bosqich)", blank=True)
+    rubric = models.TextField("AI baholash mezoni (Gemini uchun ko'rsatma)", blank=True)
+    order = models.PositiveSmallIntegerField("Tartib", default=10)
+    status = models.CharField(max_length=8, choices=Status.choices, default=Status.ACTIVE)
+
+    class Meta:
+        verbose_name = "Darslik mavzusi"
+        verbose_name_plural = "Darslik mavzulari"
+        ordering = ["course", "number", "order"]
+        constraints = [models.UniqueConstraint(fields=["course", "number"], condition=ALIVE, name="uniq_course_lesson_num")]
+
+    def __str__(self):
+        return f"{self.number}. {self.title}"
+
+
+class LessonSubmission(BaseModel):
+    """Talabaning dars bo'yicha topshirgan vazifasi va AI bahosi."""
+
+    class SubmissionType(models.TextChoices):
+        TEXT = "Matn", "Matn"
+        PHOTO = "Rasm", "Rasm / Skrinshot"
+        DOCUMENT = "Hujjat", "Hujjat (fayl)"
+
+    class Status(models.TextChoices):
+        PENDING = "Kutilmoqda", "Kutilmoqda"
+        EVALUATED = "Tekshirildi", "Tekshirildi"
+        RETRY = "Qayta topshirish", "Qayta topshirish"
+        REJECTED = "Rad etildi", "Rad etildi"
+
+    branch = models.ForeignKey("references.Branch", on_delete=models.PROTECT, related_name="lesson_submissions")
+    student = models.ForeignKey("crm.Student", on_delete=models.CASCADE, related_name="lesson_submissions")
+    contract = models.ForeignKey("education.Contract", null=True, blank=True, on_delete=models.SET_NULL, related_name="lesson_submissions")
+    lesson = models.ForeignKey(CourseLesson, on_delete=models.CASCADE, related_name="submissions")
+    account = models.ForeignKey(BotAccount, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+
+    attempt = models.PositiveSmallIntegerField("Urinish raqami", default=1)
+    max_attempts = models.PositiveSmallIntegerField("Ruxsat etilgan urinishlar", default=3)
+
+    submission_type = models.CharField("Topshiriq turi", max_length=12, choices=SubmissionType.choices, default=SubmissionType.TEXT)
+    content_text = models.TextField("Matnli javob", blank=True)
+    telegram_file_id = models.CharField("Telegram fayl ID", max_length=255, blank=True)
+    file_name = models.CharField("Fayl nomi", max_length=255, blank=True)
+    file_path = models.CharField("Serverdagi fayl yo'li", max_length=500, blank=True)
+
+    status = models.CharField("Holat", max_length=18, choices=Status.choices, default=Status.PENDING, db_index=True)
+    score = models.PositiveSmallIntegerField("AI qo'ygan ball (0-100)", null=True, blank=True)
+    passed = models.BooleanField("O'tdi (60+)", default=False)
+    feedback = models.TextField("AI xulosasi / tavsiyalari", blank=True)
+    raw_ai = models.JSONField("To'liq AI javobi", default=dict, blank=True)
+
+    teacher_score = models.PositiveSmallIntegerField("Ustoz qo'ygan ball", null=True, blank=True)
+    teacher_comment = models.TextField("Ustoz izohi", blank=True)
+    teacher_user = models.ForeignKey("accounts.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+
+    submitted_at = models.DateTimeField("Topshirilgan vaqt", auto_now_add=True)
+    evaluated_at = models.DateTimeField("Baholangan vaqt", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Vazifa topshirig'i"
+        verbose_name_plural = "Vazifa topshiriqlari"
+        ordering = ["-submitted_at"]
+        indexes = [
+            models.Index(fields=["student", "lesson"]),
+            models.Index(fields=["contract", "lesson"]),
+            models.Index(fields=["status"]),
+        ]
+
+    def __str__(self):
+        return f"{self.student} · {self.lesson.number}-dars (urinish {self.attempt}) · {self.status}"
+
+    @property
+    def final_score(self):
+        return self.teacher_score if self.teacher_score is not None else self.score

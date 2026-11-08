@@ -88,14 +88,15 @@ def _post(url, headers, body, timeout, retries=0):
             raise ProviderError(f"AI xizmatiga ulanib bo'lmadi: {e.reason}") from None
 
 
-def _gemini(system, user, model, timeout, thinking=True, audio=None):
+def _gemini(system, user, model, timeout, thinking=True, audio=None, attachment=None):
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
     config = {"temperature": 0, "responseMimeType": "application/json"}
     if settings.AI_THINKING and thinking:
         config["thinkingConfig"] = {"thinkingLevel": settings.AI_THINKING}  # «low» — SQL uchun yetarli va 3–4 barobar tez
     parts = [{"text": user}]
-    if audio:  # (bytes, mime) — ovozli xabar (Telegram ovozli buyruq)
-        parts.append({"inline_data": {"mime_type": audio[1], "data": base64.b64encode(audio[0]).decode()}})
+    media = attachment or audio
+    if media:  # (bytes, mime) — rasm, PDF yoki ovozli xabar
+        parts.append({"inline_data": {"mime_type": media[1], "data": base64.b64encode(media[0]).decode()}})
     try:
         data = _post(url, {"x-goog-api-key": settings.AI_API_KEY}, {
             "systemInstruction": {"parts": [{"text": system}]},
@@ -104,7 +105,7 @@ def _gemini(system, user, model, timeout, thinking=True, audio=None):
         }, timeout)
     except ProviderError as e:
         if thinking and "thinkingConfig" in config and " 400:" in str(e):  # model bu sozlamani qo'llamasa — sozlamasiz
-            return _gemini(system, user, model, timeout, thinking=False, audio=audio)
+            return _gemini(system, user, model, timeout, thinking=False, audio=audio, attachment=attachment)
         raise
     try:
         return "".join(p.get("text", "") for p in data["candidates"][0]["content"]["parts"] if not p.get("thought"))
@@ -131,12 +132,13 @@ def _openai(system, user, model, timeout):
 PROVIDERS = {"gemini": _gemini, "anthropic": _anthropic, "openai": _openai}
 
 
-def complete(system, user, strong=False, audio=None, timeout=None):
-    """audio=(bytes, mime) — faqat Gemini; timeout — har model uchun (bot jarayonida uzunroq bo'lishi mumkin)."""
+def complete(system, user, strong=False, audio=None, attachment=None, timeout=None):
+    """audio/attachment=(bytes, mime) — faqat Gemini; timeout — har model uchun (bot jarayonida uzunroq bo'lishi mumkin)."""
     if not configured():
         raise ProviderError("AI yordamchi hali sozlanmagan: serverda deploy/set-ai.sh bilan API kalitini kiriting")
-    if audio and settings.AI_PROVIDER != "gemini":
-        raise ProviderError("Ovozli xabarni faqat Gemini tushunadi — yozma yuboring")
+    media = attachment or audio
+    if media and settings.AI_PROVIDER != "gemini":
+        raise ProviderError("Fayl va ovozli xabarlarni faqat Gemini tushunadi — yozma yuboring")
     _state.model = ""
     deadline = time.monotonic() + (timeout * 2 if timeout else settings.AI_TOTAL_TIMEOUT_S)
     err = None
@@ -148,7 +150,7 @@ def complete(system, user, strong=False, audio=None, timeout=None):
         if strong and model in (settings.AI_MODEL_STRONG or STRONG_MODELS.get(settings.AI_PROVIDER, [])):
             per = min(per, STRONG_TIMEOUT_S)
         try:
-            extra = {"audio": audio} if audio else {}
+            extra = {"audio": audio, "attachment": attachment} if media else {}
             text = PROVIDERS[settings.AI_PROVIDER](system, user, model, per, **extra)
             _state.model = model
             return text
@@ -158,8 +160,8 @@ def complete(system, user, strong=False, audio=None, timeout=None):
     raise err or Unavailable("AI javob bermadi")
 
 
-def complete_json(system, user, strong=False, audio=None, timeout=None):
-    text = complete(system, user, strong, audio=audio, timeout=timeout).strip()
+def complete_json(system, user, strong=False, audio=None, attachment=None, timeout=None):
+    text = complete(system, user, strong, audio=audio, attachment=attachment, timeout=timeout).strip()
     if text.startswith("```"):
         text = text.strip("`")
         text = text[text.find("{"):]

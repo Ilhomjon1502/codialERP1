@@ -4,7 +4,7 @@
 (function (A) {
   const esc = A.esc;
   const BK = 'bot';
-  const SUBS = [['overview', 'Umumiy'], ['links', 'Ulanganlar'], ['students', 'Talabalar'], ['surveys', 'Manba javoblari'], ['referrals', 'Tavsiyalar'], ['exits', "Ketish so'rovnomasi"], ['questions', 'Savollar'], ['quiz', 'Kurs testi'], ['quizq', 'Test savollari'], ['messages', 'Xabarlar'], ['config', 'Sozlamalar']];
+  const SUBS = [['overview', 'Umumiy'], ['links', 'Ulanganlar'], ['students', 'Talabalar'], ['surveys', 'Manba javoblari'], ['referrals', 'Tavsiyalar'], ['exits', "Ketish so'rovnomasi"], ['questions', 'Savollar'], ['quiz', 'Kurs testi'], ['quizq', 'Test savollari'], ['subs', 'Darslik: vazifalar'], ['lessons', 'Darslik: mavzular'], ['messages', 'Xabarlar'], ['config', 'Sozlamalar']];
   const REF_TONE = { Aniqlanmagan: 'orange', Kutilmoqda: 'blue', Berildi: 'green', 'Rad etildi': 'gray' };
   const fphone = (p) => (p ? `+998 ${p.slice(0, 2)} ${p.slice(2, 5)}-${p.slice(5, 7)}-${p.slice(7)}` : '');
   const fail = (e) => A.toast(e.message || 'Xatolik', 'error');
@@ -22,6 +22,8 @@
   let quizzes = { results: [] };
   let quizStats = null;
   let quizQs = [];
+  let subsList = { results: [] };
+  let lessonsList = [];
 
   const sub = (q) => (SUBS.some(([k]) => k === q.sub) ? q.sub : 'overview');
   const qs = (extra = {}, keys = ['search']) => {
@@ -45,6 +47,11 @@
       else if (s === 'questions') questions = await A.http.get('/bot-questions/');
       else if (s === 'quiz') [quizzes, quizStats] = await Promise.all([A.http.get('/bot-quiz-attempts/?' + qs({}, ['search', 'state', 'passed'])), A.http.get('/bot-quiz-attempts/stats/')]);
       else if (s === 'quizq') quizQs = await A.http.get('/bot-quiz-questions/');
+      else if (s === 'subs') subsList = await A.http.get('/bot-lesson-submissions/?' + qs({}, ['search', 'status', 'lesson']));
+      else if (s === 'lessons') {
+        const c = A.vis('courses').find((x) => /savodxon/i.test(x.name));
+        lessonsList = c ? await A.http.get('/bot-textbook-lessons/?course=' + c.id) : [];
+      }
       else if (s === 'messages') msgs = await A.http.get('/bot-messages/?' + qs({}, ['search', 'status']));
       else config = await A.http.get('/bot-config/');
     },
@@ -59,13 +66,15 @@
         A.fSelect(BK, 'flow', [['Tamomlaganlarga', 'Tamomlaganlar'], ["To'xtatganlarga", "To'xtatganlar"]], 'Hamma')]);
       if (s === 'quiz') return A.filterBar(BK, [A.fSearch(BK, 'Talaba…'), A.fSelect(BK, 'state', [['Tugadi', 'Topshirgan'], ['Jarayonda', 'Jarayonda'], ['Yuborildi', 'Boshlamagan'], ['Bekor qilindi', 'Bekor qilingan']], 'Barcha holatlar'),
         A.fSelect(BK, 'passed', [['1', "O'tgan"], ['0', "O'tmagan"]], 'Hammasi')]);
+      if (s === 'subs') return A.filterBar(BK, [A.fSearch(BK, 'Talaba…'), A.fSelect(BK, 'status', [['Tekshirildi', 'Tekshirildi'], ['Qayta topshirish', 'Qayta topshirish'], ['Kutilmoqda', 'Kutilmoqda']], 'Barcha holatlar'),
+        A.fSelect(BK, 'lesson', Array.from({ length: 12 }, (_, i) => [String(i + 1), `${i + 1}-dars`]), 'Barcha darslar')]);
       if (s === 'messages') return A.filterBar(BK, [A.fSearch(BK, 'Talaba yoki matn…'), A.fSelect(BK, 'status', [['sent', 'Yuborildi'], ['pending', 'Navbatda'], ['failed', 'Xato']], 'Barcha holatlar')]);
       return '';
     },
     view(q) {
       const s = sub(q);
       const nav = `<nav class="tabs sub">${SUBS.map(([k, l]) => `<a href="#/calls?tab=bot&sub=${k}" class="${k === s ? 'on' : ''}">${esc(l)}</a>`).join('')}</nav>`;
-      const body = { overview, links: linksView, students: studentsView, surveys: surveysView, referrals: refsView, exits: exitsView, questions: questionsView, quiz: quizView, quizq: quizQuestionsView, messages: messagesView, config: configView }[s]();
+      const body = { overview, links: linksView, students: studentsView, surveys: surveysView, referrals: refsView, exits: exitsView, questions: questionsView, quiz: quizView, quizq: quizQuestionsView, subs: subsView, lessons: lessonsView, messages: messagesView, config: configView }[s]();
       return `${nav}${A.botTab.filters(q)}${body}`;
     },
   };
@@ -386,6 +395,81 @@
     const all = m.el.querySelector('[data-send-all]');
     if (all) all.onclick = async () => { if (await A.confirm(`Guruhning hamma faol talabasiga test yuborilsinmi? (${d.questions} ta savol)`, 'Yuborish')) send(m); };
     draw(m);
+  };
+
+  /* ---------- Elektron darslik (2026-11-08): o'quvchi vazifalari, AI bahosi va ustoz bahosi ---------- */
+  const SUB_TONE = { Tekshirildi: 'green', 'Qayta topshirish': 'orange', Kutilmoqda: 'blue', 'Rad etildi': 'red' };
+  function subsView() {
+    const canE = A.can('clientbot', 'e');
+    const table = A.table([
+      { h: 'Talaba', f: (x) => `${esc(x.student_name)}<br><small class="muted">${esc(x.group_name)}</small>` },
+      { h: 'Dars', f: (x) => `${x.lesson_number}. ${esc(x.lesson_title)}<br><small class="muted">${x.attempt}/${x.max_attempts}-urinish · ${esc(x.submission_type)}${x.file_name ? ' · ' + esc(x.file_name) : ''}</small>` },
+      { h: 'Ball', f: (x) => (x.final_score === null || x.final_score === undefined ? '<span class="muted">—</span>'
+        : `<b class="${x.final_score >= 60 ? 't-green' : 't-red'}">${x.final_score}</b>${x.teacher_score !== null ? ' <small class="muted">ustoz</small>' : ` <small class="muted">AI</small>`}`) },
+      { h: 'Holat', f: (x) => `${A.badge(x.status, SUB_TONE[x.status])}<br><small class="muted">${A.fdt(x.submitted_at)}</small>` },
+      { h: '', f: (x) => `<button class="btn sm ghost" data-act="sub-view" data-id="${x.id}">Ko'rish</button>${canE ? `<button class="btn sm ghost" data-act="sub-grade" data-id="${x.id}">Baholash</button><button class="btn sm ghost" data-act="sub-more" data-id="${x.id}">+ Urinish</button>` : ''}` },
+    ], subsList.results, { empty: "Hali vazifa topshirilmagan" });
+    return `<p class="muted small">O'quvchilar botdagi «📚 Darslik» orqali topshirgan vazifalar. Ball avval AI (Gemini) tomonidan qo'yiladi, ustoz o'zgartirsa (60 va undan yuqori — o'tdi) ustoz bali hisobga olinadi. 3 ta urinish tugagan talabaga «+ Urinish» bilan yana imkon berasiz.</p>${table}${A.pager(BK, subsList)}`;
+  }
+  A.act['sub-view'] = (el) => {
+    const x = subsList.results.find((r) => String(r.id) === el.dataset.id);
+    A.modal({ title: `${x.student_name} — ${x.lesson_number}-dars`, wide: true, body: `
+      <p class="small muted">${x.attempt}-urinish · ${esc(x.submission_type)} · ${A.fdt(x.submitted_at)}</p>
+      ${x.content_text ? `<div class="card" style="padding:8px;white-space:pre-wrap">${esc(x.content_text)}</div>` : '<p class="muted">Matnli javob yo\'q (rasm yoki fayl yuborilgan)</p>'}
+      <h4>AI xulosasi ${x.score !== null ? `(${x.score}/100)` : ''}</h4><div style="white-space:pre-wrap">${esc(x.feedback || '—')}</div>
+      ${x.teacher_score !== null ? `<h4>Ustoz bahosi: ${x.teacher_score}/100</h4><div style="white-space:pre-wrap">${esc(x.teacher_comment || '')}</div>` : ''}` });
+  };
+  A.act['sub-grade'] = (el) => {
+    const x = subsList.results.find((r) => String(r.id) === el.dataset.id);
+    A.form({
+      title: `Baholash: ${x.student_name}, ${x.lesson_number}-dars`,
+      values: { score: x.teacher_score !== null ? x.teacher_score : (x.score !== null ? x.score : ''), comment: x.teacher_comment || '' },
+      fields: [
+        { name: 'note', type: 'note', text: () => `AI bahosi: <b>${x.score === null ? '—' : x.score}</b>. O'tish bali — 60.` },
+        { name: 'score', label: 'Ball (0–100)', type: 'number', min: 0, max: 100, required: true },
+        { name: 'comment', label: "Izoh (o'quvchi ko'rmaydi)", type: 'textarea' },
+      ],
+      async onSubmit(v) {
+        await A.http.post(`/bot-lesson-submissions/${x.id}/grade/`, { score: Number(v.score), comment: v.comment || '' });
+        A.toast('Saqlandi');
+        A.refresh();
+      },
+    });
+  };
+  A.act['sub-more'] = async (el) => {
+    if (!(await A.confirm("Talabaga shu dars uchun yana 1 ta urinish berilsinmi?", 'Ruxsat berish'))) return;
+    A.http.post(`/bot-lesson-submissions/${el.dataset.id}/reset_attempts/`, { extra: 1 }).then(() => { A.toast('Urinish qo\'shildi'); A.refresh(); }, fail);
+  };
+
+  function lessonsView() {
+    const canE = A.can('clientbot', 'e');
+    const table = A.table([
+      { h: '№', cls: 'num', f: (l) => A.num(l.number) },
+      { h: 'Mavzu', f: (l) => `${esc(l.title)}${l.status !== 'Faol' ? ' ' + A.badge('Nofaol', 'gray') : ''}${l.video_url ? `<br><small class="muted">${esc(l.video_url)}</small>` : ''}` },
+      { h: 'Amaliyot', f: (l) => `<span class="small">${esc(String(l.practice_task || '').slice(0, 140))}${(l.practice_task || '').length > 140 ? '…' : ''}</span>` },
+      { h: '', f: (l) => (canE ? `<button class="btn sm ghost" data-act="les-edit" data-id="${l.id}">✎</button>` : '') },
+    ], lessonsList, { empty: "Mavzu yo'q. «Kompyuter savodxonligi» kursi tizimda bo'lishi kerak" });
+    return `<p class="muted small">Botdagi «📚 Darslik» mavzulari (12 ta). Nazariya, videodars havolasi va amaliyot topshirig'ini o'zgartirsangiz, o'quvchilar darhol yangisini ko'radi. «AI baholash mezoni» — Gemini vazifani nimaga qarab baholashini aytadi.</p>${table}`;
+  }
+  A.act['les-edit'] = (el) => {
+    const l = lessonsList.find((x) => String(x.id) === el.dataset.id);
+    A.form({
+      title: `${l.number}-dars: ${l.title}`,
+      values: { ...l },
+      fields: [
+        { name: 'title', label: 'Mavzu nomi', type: 'text', required: true },
+        { name: 'summary', label: 'Nazariya (konspekt)', type: 'textarea' },
+        { name: 'video_url', label: 'Videodars havolasi', type: 'text' },
+        { name: 'practice_task', label: "Amaliyot topshirig'i", type: 'textarea' },
+        { name: 'rubric', label: 'AI baholash mezoni', type: 'textarea' },
+        { name: 'status', label: 'Holat', type: 'seg', options: [['Faol', 'Faol'], ['Nofaol', 'Nofaol']] },
+      ],
+      async onSubmit(v) {
+        await A.http.patch(`/bot-textbook-lessons/${l.id}/`, { title: v.title, summary: v.summary || '', video_url: v.video_url || '', practice_task: v.practice_task || '', rubric: v.rubric || '', status: v.status });
+        A.toast('Saqlandi');
+        A.refresh();
+      },
+    });
   };
 
   const MSG_TONE = { sent: ['Yuborildi', 'green'], pending: ['Navbatda', 'orange'], failed: ['Xato', 'red'] };

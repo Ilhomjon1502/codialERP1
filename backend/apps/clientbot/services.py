@@ -18,7 +18,7 @@ from apps.crm.models import Lead, Student
 from apps.education.models import Contract
 from apps.references.models import LeadSource
 
-from . import cabinet, quiz, survey
+from . import cabinet, quiz, survey, textbook
 from .models import BotAccount, BotConfig, BotInvite, BotLink, ClientOutbox, LeadSurvey, LinkAttempt, Referral
 
 log = logging.getLogger(__name__)
@@ -216,7 +216,7 @@ def account_for(chat_id, username="", first_name=""):
     return acc
 
 
-def handle_message(chat_id, text, username="", first_name=""):
+def handle_message(chat_id, text="", username="", first_name="", *, photo_id="", doc_id="", doc_name="", caption=""):
     """Botga kelgan xabar → [Reply]."""
     acc = account_for(chat_id, username, first_name)
     text = (text or "").strip()
@@ -235,6 +235,8 @@ def handle_message(chat_id, text, username="", first_name=""):
         return _status(acc)
     if text in cabinet.MENU_TEXTS:  # menyu tugmasi (suhbat qadamidan ustun)
         return cabinet_request(acc, cabinet.MENU_TEXTS[text])
+    if (acc.state or {}).get("step") == "submission" and not text.startswith("/"):
+        return textbook.handle_submission_message(acc, text=text, photo_id=photo_id, doc_id=doc_id, doc_name=doc_name, caption=caption)
     if (acc.state or {}).get("step") == "survey" and text and not text.startswith("/"):  # so'rovnoma: matnli javob
         return survey.text_answer(acc, text)
     if (acc.state or {}).get("step") == "quiz" and text and not text.startswith("/"):  # test: javob faqat tugma bilan
@@ -338,6 +340,8 @@ def handle_callback(chat_id, data):
             return cabinet_chosen(acc, rest)
         if kind == "sv":
             return survey.callback(acc, rest)
+        if kind == "bk":
+            return textbook.callback(acc, rest)
         if kind == "qz":
             sub, _, tail = rest.partition(":")
             if sub == "go":
@@ -457,6 +461,8 @@ def cabinet_request(acc, action):
         return [_paused(action)]
     if action == "quiz":  # hamma farzand birdan (vasiy) yoki o'quvchining testi
         return quiz.menu(acc, students)
+    if action == "book":
+        return textbook.menu(acc, students)
     if len(students) == 1:
         return [Reply(cabinet.TEXTS[action](students[0]))]
     pairs = [(f"{st.first_name} {st.last_name}".strip(), f"cs:{action}:{st.pk}") for st in students]

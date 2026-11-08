@@ -18,8 +18,8 @@ from apps.education.models import Contract
 from apps.references.models import Branch, Course
 
 from . import invites as bulk
-from . import quiz, referrals, services, survey
-from .models import BotConfig, BotInvite, BotLink, ClientOutbox, ExitSurvey, LeadSurvey, QuizAttempt, QuizQuestion, Referral, SurveyQuestion
+from . import quiz, referrals, services, survey, textbook
+from .models import BotConfig, BotInvite, BotLink, ClientOutbox, CourseLesson, ExitSurvey, LeadSurvey, LessonSubmission, QuizAttempt, QuizQuestion, Referral, SurveyQuestion
 
 READ_ONLY = ["get", "head", "options"]
 
@@ -617,3 +617,131 @@ class BotConfigViewSet(AuditedModelViewSet):
         for b in scope_branch(Branch.objects.filter(is_deleted=False), request.user, "pk"):
             services.get_config(b)
         return super().list(request, *args, **kwargs)
+
+
+# ---------- elektron darslik va vazifalar ----------
+
+
+class CourseLessonSerializer(serializers.ModelSerializer):
+    course_name = serializers.CharField(source="course.name", read_only=True)
+
+    class Meta:
+        model = CourseLesson
+        fields = ["id", "course", "course_name", "number", "title", "summary", "video_url", "practice_task", "rubric", "order", "status"]
+
+    def validate_title(self, v):
+        v = (v or "").strip()
+        if len(v) < 3:
+            raise serializers.ValidationError("Mavzu nomini kiriting")
+        return v
+
+
+class CourseLessonViewSet(AuditedModelViewSet):
+    """Elektron darslik mavzulari. ?course=. Ro'yxat so'ralganda mavzular bo'lmasa 12 tasi avtomatik yaratiladi."""
+
+    section = "clientbot"
+    serializer_class = CourseLessonSerializer
+    check_usage_on_delete = True
+    queryset = CourseLesson.objects.select_related("course")
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        course_id = self.request.query_params.get("course")
+        if course_id:
+            c = Course.objects.filter(pk=course_id, is_deleted=False).first()
+            if c:
+                textbook.ensure_lessons(c)
+            qs = qs.filter(course_id=course_id)
+        return qs.order_by("number", "order")
+
+
+class LessonSubmissionSerializer(serializers.ModelSerializer):
+    student_name = serializers.CharField(source="student.full_name", read_only=True)
+    lesson_number = serializers.IntegerField(source="lesson.number", read_only=True)
+    lesson_title = serializers.CharField(source="lesson.title", read_only=True)
+    final_score = serializers.IntegerField(read_only=True)
+    group_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = LessonSubmission
+        fields = [
+            "id", "branch", "student", "student_name", "contract", "group_name", "lesson", "lesson_number", "lesson_title",
+            "attempt", "max_attempts", "submission_type", "content_text", "telegram_file_id", "file_name",
+            "status", "score", "passed", "feedback", "teacher_score", "teacher_comment", "final_score",
+            "submitted_at", "evaluated_at",
+        ]
+        read_only_fields = [
+            "id", "branch", "student", "contract", "lesson", "attempt", "submission_type", "telegram_file_id",
+            "submitted_at", "evaluated_at",
+        ]
+
+    def get_group_name(self, sub):
+        return f"{sub.contract.group.course.name} / #{sub.contract.group.number}" if sub.contract_id and sub.contract.group_id else ""
+
+
+class LessonSubmissionViewSet(AuditedModelViewSet):
+    """Talabalar topshirgan vazifalar va AI baholari.
+    ?status=&lesson=&student=&contract=&group=&q=.
+    Actions:
+      - {id}/grade/: ustoz o'zi baholashi yoki izoh qoldirishi
+      - {id}/reset_attempts/: qo'shimcha urinish berish
+    """
+
+    section = "clientbot"
+    branch_field = "branch"
+    serializer_class = LessonSubmissionSerializer
+    pagination_class = Pagination
+    http_method_names = ["get", "post", "patch", "head", "options"]
+    action_ops = {"grade": "e", "reset_attempts": "e"}
+    queryset = LessonSubmission.objects.select_related("student", "contract__group__course", "lesson", "branch")
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        p = self.request.query_params
+        if p.get("status"):
+            qs = qs.filter(status=p["status"])
+        if p.get("lesson"):
+            qs = qs.filter(lesson__number=p["lesson"])
+        if p.get("student"):
+            qs = qs.filter(student_id=p["student"])
+        if p.get("group"):
+            qs = qs.filter(contract__group_id=p["group"])
+        return _search(qs, p.get("q"), "student__first_name", "student__last_name", "file_name")
+
+    @action(detail=True, methods=["post"])
+    def grade(self, request, pk=None):
+        sub = self.get_object()
+        score = request.data.get("score")
+        comment = (request.data.get("comment") or "").strip()
+        if score is None:
+            return Response({"detail": "Ball kiritilmadi"}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            score = int(score)
+            if not 0 <= score <= 100:
+                raise ValueError
+        except ValueError:
+            return Response({"detail": "Ball 0 dan 100 gacha bo'lishi kerak"}, status=status.HTTP_400_BAD_REQUEST)
+
+        sub.teacher_score = score
+        sub.teacher_comment = comment
+        sub.teacher_user = request.user
+        sub.passed = score >= 60
+        sub.status = LessonSubmission.Status.EVALUATED
+        sub.save(update_fields=["teacher_score", "teacher_comment", "teacher_user", "passed", "status", "updated_at"])
+        return Response(self.get_serializer(sub).data)
+
+    @action(detail=True, methods=["post"])
+    def reset_attempts(self, request, pk=None):
+        sub = self.get_object()
+        try:
+            extra = max(1, min(int(request.data.get("extra") or 1), 5))
+        except (TypeError, ValueError):
+            return Response({"detail": "Urinishlar soni son bo'lsin"}, status=status.HTTP_400_BAD_REQUEST)
+        # Bot oxirgi topshiriqdagi limitni o'qiydi — shu talaba va dars bo'yicha oxirgisiga qo'shamiz
+        last = LessonSubmission.objects.filter(student=sub.student, contract=sub.contract, lesson=sub.lesson).order_by("-attempt").first() or sub
+        last.max_attempts += extra
+        if not last.passed:
+            last.status = LessonSubmission.Status.RETRY
+        last.save(update_fields=["max_attempts", "status", "updated_at"])
+        return Response(self.get_serializer(last).data)
+
