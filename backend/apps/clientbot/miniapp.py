@@ -36,7 +36,7 @@ ASYNC = True  # testlarda False — baholash darhol, shu oqimda bajariladi
 MAX_FILE = 8 * 1024 * 1024  # nginx client_max_body_size 10m
 ALLOWED = {".jpg": "image", ".jpeg": "image", ".png": "image", ".webp": "image", ".pdf": "doc", ".docx": "doc", ".xlsx": "doc"}
 RETRY_AFTER_S = 120  # baholash shundan ko'p kutib qolsa (jarayon o'lgan) — qayta ishga tushiriladi
-APP_VERSION = "2"
+APP_VERSION = "3"
 
 
 def enabled():

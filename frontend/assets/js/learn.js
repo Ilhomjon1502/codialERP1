@@ -176,7 +176,8 @@
 
   function videoPlayer(v) {
     if (!v) return null;
-    if (v.kind === 'embed') return el('div', { class: 'video' }, el('iframe', { src: v.src, allow: 'fullscreen; picture-in-picture; encrypted-media', allowfullscreen: true, loading: 'lazy', title: 'Videodars' }));
+    if (v.kind === 'embed') return el('div', { class: 'video' }, el('iframe', { src: v.src, allow: 'fullscreen; picture-in-picture; encrypted-media', allowfullscreen: true, loading: 'lazy', title: 'Videodars',
+      referrerpolicy: 'strict-origin-when-cross-origin' }));
     if (v.kind === 'file') return el('div', { class: 'video' }, el('video', { src: v.src, controls: true, playsinline: true, preload: 'metadata' }));
     return el('a', { class: 'btn-link', href: v.url, target: '_blank', rel: 'noopener', onclick: (e) => { if (tg && tg.openLink) { e.preventDefault(); tg.openLink(v.url); } } }, "🔗 Qo'shimcha material");
   }
