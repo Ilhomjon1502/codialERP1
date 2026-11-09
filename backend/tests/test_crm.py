@@ -244,3 +244,19 @@ def test_merge_duplicate_students(make_user, refs, branch):
     assert set(new_lead_.comments.values_list("comment", flat=True)) == {"Keyinroq", "Boshladi"}
     services.update_student(bm, new, {"birth_date": datetime.date(2005, 7, 14)})
     assert Student.objects.get(pk=new.pk).birth_date == datetime.date(2005, 7, 14)
+
+
+def test_merge_moves_client_bot_records(make_user, refs, branch):
+    """Birlashtirishda mijozlar boti taklifi ham `keep` ga o'tadi (dublikat raqam — yashiriladi), talaba o'chadi."""
+    from apps.clientbot.models import BotInvite
+    from apps.crm import services
+
+    bm = make_user("BOSH_MENEJER")
+    common = {"branch": branch, "first_name": "Aziz", "last_name": "Karimov", "phone1": "937770011"}
+    keep, drop = Student.objects.create(**common, gender="Erkak"), Student.objects.create(**common)
+    BotInvite.objects.create(branch=branch, student=keep, phone="937770011")
+    BotInvite.objects.create(branch=branch, student=drop, phone="937770011")  # dublikat raqam
+    BotInvite.objects.create(branch=branch, student=drop, phone="911112233")
+    services.merge_students(bm, keep, drop)
+    assert not Student.objects.filter(pk=drop.pk).exists()
+    assert sorted(BotInvite.objects.filter(student=keep).values_list("phone", flat=True)) == ["911112233", "937770011"]

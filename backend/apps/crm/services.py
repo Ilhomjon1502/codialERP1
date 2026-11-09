@@ -447,5 +447,27 @@ def merge_students(user, keep, drop):
     drop.calls.update(student=keep)
     if hasattr(drop, "sms_messages"):  # SMS jurnali talabaga bog'langan bo'lsa
         drop.sms_messages.update(student=keep)
+    _move_bot_records(keep, drop)
     soft_delete(drop, user)
     return keep
+
+
+def _move_bot_records(keep, drop):
+    """Mijozlar boti yozuvlari (taklif, bog'lanish, so'rovnoma, test, darslik va h.k.) `keep` ga o'tadi. (talaba, ...) bo'yicha takrorlanuvchi yozuv
+    (masalan ikkalasida ham shu raqamga taklif bor) o'chirilgan deb belgilanadi — ma'lumot yo'qolmaydi, faqat dublikat yashiriladi."""
+    from django.db import IntegrityError
+
+    for rel in drop._meta.get_fields(include_hidden=True):
+        if not (rel.auto_created and (rel.one_to_many or rel.one_to_one)) or rel.related_model._meta.app_label != "clientbot":
+            continue
+        model, name = rel.related_model, rel.field.name
+        for obj in list(model._base_manager.filter(**{name: drop})):
+            try:
+                with transaction.atomic():
+                    setattr(obj, name, keep)
+                    obj.save()
+            except IntegrityError:
+                if hasattr(obj, "is_deleted"):
+                    model._base_manager.filter(pk=obj.pk).update(is_deleted=True)
+                else:
+                    obj.delete()
