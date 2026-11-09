@@ -1,6 +1,7 @@
 import datetime
 from decimal import Decimal
 
+from django.conf import settings
 from django.db.models import Count, OuterRef, Prefetch, Q, Subquery, Sum
 from django.db.models.functions import Coalesce
 from django.http import HttpResponse
@@ -638,7 +639,7 @@ def dashboard_work(request):
              .filter(Q(callback_at__lt=end) | Q(status="1", callback_at__isnull=True)))
     leads = leads.order_by("callback_at", "created_at")
     absent = (scope_branch(Attendance.objects.filter(status__in=["X", "0"], contact_status=Attendance.Contact.TO_CALL,
-                                                      date__gte=on - datetime.timedelta(days=7), date__lte=on), user)
+                                                      date__gte=max(on - datetime.timedelta(days=7), datetime.date.fromisoformat(settings.ABSENT_CONTACT_FROM)), date__lte=on), user)
               .filter(Q(contract__end_date__isnull=True) | Q(contract__end_date__gte=on))
               .select_related("contract__student", "group__course").order_by("-date"))
     return Response({

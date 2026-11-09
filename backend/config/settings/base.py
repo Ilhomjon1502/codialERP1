@@ -115,6 +115,9 @@ PASSWORD_RESET_TIMEOUT = 60 * 60 * 72  # parol o'rnatish havolasi 3 kun amal qil
 
 LANGUAGE_CODE = "uz"
 TIME_ZONE = "Asia/Tashkent"
+
+# Kelmagan talabalar bilan bog'lanish (bosh sahifa, 08:30 reja) shu sanadan boshlab hisoblanadi; eskilari faqat Davomatlar → Kelmaganlar sahifasida (2026-11-09, buyurtmachi qarori)
+ABSENT_CONTACT_FROM = "2026-11-09"
 USE_I18N = True
 USE_TZ = True
 

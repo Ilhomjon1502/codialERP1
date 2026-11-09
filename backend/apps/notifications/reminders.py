@@ -275,7 +275,7 @@ def plan_text(branch, day):
 
     # 3. Kelmaganlar bilan bog'lanish (oxirgi 7 kun, hali bog'lanilmagan)
     absent = (Attendance.objects.filter(branch=branch, status__in=["X", "0"], contact_status=Attendance.Contact.TO_CALL,
-                                        date__gte=day - datetime.timedelta(days=7), date__lt=day)
+                                        date__gte=max(day - datetime.timedelta(days=7), datetime.date.fromisoformat(settings.ABSENT_CONTACT_FROM)), date__lt=day)
               .filter(Q(contract__end_date__isnull=True) | Q(contract__end_date__gte=day))
               .select_related("contract__student", "group__course").order_by("-date"))
     absent = list(absent[:200])
