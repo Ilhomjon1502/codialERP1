@@ -791,14 +791,18 @@
         const qs = new URLSearchParams();
         for (const k of ['from', 'to', 'source', 'course', 'owner']) if (A.q('fn:' + k, '')) qs.set(k, A.q('fn:' + k));
         stData = await A.http.get('/reports/funnel/?' + qs);
+      } else if (tab === 'paths') {
+        const qs = new URLSearchParams();
+        for (const k of ['from', 'to', 'course']) if (A.q('cp:' + k, '')) qs.set(k, A.q('cp:' + k));
+        stData = await A.http.get('/reports/course-paths/?' + qs);
       } else stData = await A.http.get(`/reports/first-payers/?month=${A.q('fp:month', A.ym(A.today()))}`);
     },
     render(p, q) {
       const tab = q.tab || 'month';
       if (!A.isManager()) return A.head('Statistika') + A.empty("Hisobotlarni Admin, Bosh menejer va Filial menejeri ko'radi");
-      const body = tab === 'month' ? monthStats(stData) : tab === 'funnel' ? funnelView(stData) : firstPayers(stData);
+      const body = tab === 'month' ? monthStats(stData) : tab === 'funnel' ? funnelView(stData) : tab === 'paths' ? pathsView(stData) : firstPayers(stData);
       return `${A.head('Statistika', 'Oyma-oy taqqoslash, sotuv voronkasi va birinchi marta to\'lov qilganlar')}
-        ${A.tabs([['month', 'Oylik statistika'], ['funnel', 'Sotuv voronkasi'], ['first', "Birinchi to'lovchilar"]], tab, 'stats')}${body}`;
+        ${A.tabs([['month', 'Oylik statistika'], ['funnel', 'Sotuv voronkasi'], ['first', "Birinchi to'lovchilar"], ['paths', "Yo'nalish (KS → mutaxassislik)"]], tab, 'stats')}${body}`;
     },
   });
 
@@ -864,6 +868,44 @@
         f.by_owner || [],
         { empty: "Lid yo'q" },
       )}</section></div>`;
+  }
+
+  /* Boshlang'ich kurs (Kompyuter savodxonligi) bitiruvchilari qaysi kurslarga o'tdi — shartnomalardan o'zi hisoblanadi */
+  A.act['paths-group'] = (el) => { A.ui.q['cp:group'] = el.dataset.id; A.refresh(); };
+  function pathsView(d) {
+    const kv = (o) => Object.entries(o || {}).sort((a, b) => b[1] - a[1]);
+    const pct = (n, t) => (t ? Math.round((n / t) * 100) + '%' : '—');
+    const months = A.monthOptions();
+    const mSel = (k, all) => `<select class="f-input" data-filter="cp:${k}"><option value="">${all}</option>${months.map(([v, l]) => `<option value="${v}" ${A.q('cp:' + k, '') === v ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+    const gSel = A.q('cp:group', '');
+    const courses = [...new Set(kv(d.by_course).map((x) => x[0]))];
+    const rows = (d.rows || []).filter((r) => !gSel || r.group === gSel);
+    const gl = d.groups || [];
+    return `<div class="filters">${mSel('from', 'Bitirgan oy: dan')}${mSel('to', 'gacha')}
+        <select class="f-input" data-filter="cp:group"><option value="">Barcha guruhlar</option>${gl.map((g) => `<option value="${g.group}" ${gSel === g.group ? 'selected' : ''}>${esc(g.group_name)}</option>`).join('')}</select></div>
+      <div class="stats">${A.stat('Bitiruvchilar', d.total || 0, "Kompyuter savodxonligi — kursi tugaganlar")}${A.stat("Mutaxassislikka o'tdi", pct(d.moved, d.total), `${d.moved || 0} ta`)}${A.stat("Hali o'tmagan", (d.total || 0) - (d.moved || 0), "boshqa kursda shartnomasi yo'q", ((d.total || 0) - (d.moved || 0)) ? 'warn' : '')}${A.stat("To'xtatganlar", d.dropped || 0, 'boshqa sabab bilan — bitiruvchi emas')}</div>
+      <div class="grid-2"><section class="card"><h2>Qaysi kursga o'tdi</h2>${courses.length ? A.chart({ type: 'doughnut', data: { labels: courses, datasets: [{ data: courses.map((c) => d.by_course[c]), backgroundColor: A.PALETTE }] } }, 240) : `<div class="muted">Hali hech kim o'tmagan</div>`}
+        ${A.table([{ h: 'Kurs', f: (r) => esc(r[0]) }, { h: 'Soni', f: (r) => r[1], cls: 'num' }, { h: 'Bitiruvchilardan', f: (r) => pct(r[1], d.total), cls: 'num' }], kv(d.by_course))}</section>
+      <section class="card"><h2>Guruhlar bo'yicha</h2>${A.table(
+        [
+          { h: 'Guruh', f: (g) => `<a href="javascript:void(0)" data-act="paths-group" data-id="${g.group}">${esc(g.group_name)}</a><br><small class="muted">${g.end ? 'tugagan ' + A.fdate(g.end) : ''}</small>` },
+          { h: 'Bitiruvchi', f: (g) => g.graduates, cls: 'num', sum: (rr) => A.sum(rr, 'graduates') },
+          { h: "O'tdi", f: (g) => `<b>${g.moved}</b> <small class="muted">(${pct(g.moved, g.graduates)})</small>`, cls: 'num', sum: (rr) => A.sum(rr, 'moved') },
+          { h: 'Qaysi kursga', f: (g) => (Object.entries(g.by_course).map(([c, n]) => `${esc(c)}: ${n}`).join('<br>') || '—') },
+        ],
+        gl,
+        { empty: "Bitirgan guruh yo'q" },
+      )}</section></div>
+      <section class="card"><h2>Talabalar${gSel ? ' — tanlangan guruh' : ''}</h2>${A.table(
+        [
+          { h: 'Talaba', f: (r) => `<a href="#/contracts/${r.contract}">${esc(r.student)}</a>` },
+          { h: 'Guruh', f: (r) => `${esc(r.group_name)}<br><small class="muted">bitirgan: ${A.fdate(r.finish)}</small>` },
+          { h: "Yo'nalgan kurs", f: (r) => (r.moved_course ? `${A.badge(r.moved_course, 'green')} <small class="muted">${A.fdate(r.moved_start)}</small>` : `<span class="t-orange">hali yo'q</span>`) },
+          { h: 'Telefon', f: (r) => (r.phone ? `<a href="tel:+998${esc(r.phone)}">${esc(r.phone)}</a>` : '') },
+        ],
+        A.sortBy(rows, (r) => (r.moved_course ? 1 : 0)),
+        { empty: "Bitiruvchi yo'q" },
+      )}<p class="muted small">«O'tdi» — talabaning boshqa kursda shu shartnomadan keyin boshlangan shartnomasi bor. «Hali yo'q» — hozircha yo'q; vaqt o'tishi bilan kamayadi, qo'ng'iroq qilish mumkin.</p></section>`;
   }
 
   function firstPayers(d) {

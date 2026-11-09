@@ -482,3 +482,21 @@ def test_rounding_remainder_is_not_debt(api, make_user, world):
     bm = api(make_user("BOSH_MENEJER"))
     ids = {r["id"] for r in bm.get("/api/v1/debtors/").json()["results"]}
     assert str(w["contracts"][0].pk) not in ids and str(w["contracts"][1].pk) in ids
+
+
+def test_course_paths_report(api, make_user, world):
+    """Bitiruvchilar yo'nalishi: boshqa kursda keyin boshlangan shartnoma = «o'tdi»; boshqa sabab bilan to'xtaganlar bitiruvchi emas."""
+    w = world
+    Group.objects.filter(pk=w["group"].pk).update(end_date=TODAY - datetime.timedelta(days=1))
+    back = Course.objects.create(name="Backend")
+    back.branches.set([w["branch"]])
+    g2 = Group.objects.create(branch=w["branch"], course=back, day_pattern=w["pattern"], time=w["time"], teacher=w["teacher"], room=w["room"], start_date=TODAY, number=1)
+    Contract.objects.create(branch=w["branch"], student=w["students"][0], course=back, group=g2, number=10, start_date=TODAY)
+    Contract.objects.filter(pk=w["contracts"][1].pk).update(end_date=TODAY - datetime.timedelta(days=2), stop_reason="Moliyaviy qiyinchilik")
+    bm = api(make_user("BOSH_MENEJER"))
+    d = bm.get(f"/api/v1/reports/course-paths/?course={w['course'].pk}").json()
+    assert d["total"] == 2 and d["moved"] == 1 and d["dropped"] == 1
+    assert d["by_course"] == {"Backend": 1} and d["groups"][0]["graduates"] == 2
+    moved = [r for r in d["rows"] if r["moved_course"]]
+    assert len(moved) == 1 and moved[0]["student"].startswith("Talaba0")
+    assert api(make_user("USTOZ")).get("/api/v1/reports/course-paths/").status_code == 403

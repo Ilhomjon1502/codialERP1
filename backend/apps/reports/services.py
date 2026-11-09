@@ -153,3 +153,67 @@ def first_payers(user, month):
         by_course[str(p.contract.course)] += 1
     rows.sort(key=lambda r: r["date"])
     return {"count": len(rows), "rows": rows, "by_source": dict(by_source), "by_course": dict(by_course)}
+
+
+# ------------------------------------------------------------------ yo'nalish: boshlang'ich kurs → mutaxassislik
+
+def course_paths(user, course_ids, start=None, end=None, on=None):
+    """Boshlang'ich kurs (masalan Kompyuter savodxonligi) bitiruvchilari qaysi boshqa kurslarga o'tgan.
+
+    Bitiruvchi: shu kurs(lar)dagi shartnoma, kursi tugagan — guruhi tugagan yoki «Kursni tamomladi» sababi bilan to'xtatilgan.
+    Boshqa sabab bilan to'xtatilganlar («Moliyaviy qiyinchilik» va h.k.) bitiruvchi emas — alohida «to'xtatganlar» sifatida sanaladi.
+    «O'tdi»: shu talabaning boshqa kursda (shu kurslardan tashqari) shartnomasi bor va u shu shartnoma boshlanganidan keyin boshlangan.
+    start/end — oy 1-kunlari: bitiruv sanasi (shartnoma tugashi, bo'lmasa guruh tugashi) shu oraliqda. Faqat o'qiladi."""
+    from apps.education.models import Contract
+
+    on = on or datetime.date.today()
+    course_ids = list(course_ids)
+    cs = (scope_branch(Contract.objects.filter(course__in=course_ids), user)
+          .select_related("student", "group", "course").order_by("group__start_date", "group_id", "student__first_name", "student__last_name"))
+    done_reason = Contract.StopReason.FINISHED
+    graduates, dropped = [], defaultdict(int)
+    for c in cs:
+        gend = c.group.end_date if c.group.end_date and c.group.end_date < on else None
+        if c.stop_reason and c.stop_reason != done_reason:
+            if start is None and end is None:
+                dropped[c.group_id] += 1
+            elif (c.end_date or gend) and _in_range(c.end_date or gend, start, end):
+                dropped[c.group_id] += 1
+            continue
+        finish = c.end_date if (c.stop_reason == done_reason and c.end_date) else (gend or (c.end_date if c.end_date and c.end_date < on else None))
+        if finish is None or not _in_range(finish, start, end):
+            continue
+        graduates.append((c, finish))
+    # shu talabalarning boshqa kurslardagi shartnomalari (eng birinchi boshlanganlari)
+    students = {c.student_id for c, _ in graduates}
+    nxt = defaultdict(list)
+    for o in (Contract.objects.filter(student__in=students).exclude(course__in=course_ids).select_related("course").order_by("start_date", "number")):
+        nxt[o.student_id].append(o)
+    groups, rows, by_course = {}, [], defaultdict(int)
+    for c, finish in graduates:
+        g = groups.setdefault(c.group_id, {"group": str(c.group_id), "group_name": c.group.name, "end": c.group.end_date, "graduates": 0, "moved": 0,
+                                           "by_course": defaultdict(int), "dropped": dropped.get(c.group_id, 0)})
+        g["graduates"] += 1
+        target = next((o for o in nxt.get(c.student_id, []) if o.start_date >= c.start_date), None)
+        if target:
+            g["moved"] += 1
+            g["by_course"][target.course.name] += 1
+            by_course[target.course.name] += 1
+        rows.append({"contract": str(c.pk), "student": c.student.full_name, "phone": c.student.phone1, "group": str(c.group_id), "group_name": c.group.name,
+                     "finish": finish, "moved_course": target.course.name if target else None, "moved_start": target.start_date if target else None,
+                     "moved_contract": str(target.pk) if target else None})
+    gl = sorted(groups.values(), key=lambda g: (g["end"] or datetime.date.max, g["group_name"]))
+    for g in gl:
+        g["by_course"] = dict(g["by_course"])
+    total, moved = len(graduates), sum(1 for r in rows if r["moved_course"])
+    return {"total": total, "moved": moved, "dropped": sum(g["dropped"] for g in gl), "by_course": dict(by_course), "groups": gl, "rows": rows}
+
+
+def _in_range(d, start, end):
+    if start and d < start:
+        return False
+    if end:
+        _, nxt = bounds(end, end)
+        if d >= nxt:
+            return False
+    return True

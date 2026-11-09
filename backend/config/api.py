@@ -108,6 +108,7 @@ urlpatterns = [
     path("reports/stats/", rep.stats),
     path("reports/funnel/", rep.funnel),
     path("reports/first-payers/", rep.first_payers),
+    path("reports/course-paths/", rep.course_paths),
     path("kpi/rows/", pay.kpi_rows),
     path("calls/pair/", calls.PairView.as_view()),
     path("calls/ingest/", calls.IngestView.as_view()),

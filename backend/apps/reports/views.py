@@ -59,6 +59,21 @@ def first_payers(request):
     return Response(services.first_payers(request.user, month_start(request.query_params.get("month") or f"{today():%Y-%m}")))
 
 
+@api_view(["GET"])
+def course_paths(request):
+    """Boshlang'ich kurs bitiruvchilari qaysi kurslarga o'tdi: ?course=id,id (standart — «Kompyuter savodxonligi…» kurslari) &from=YYYY-MM &to=YYYY-MM"""
+    from apps.references.models import Course
+
+    _manager(request.user)
+    p = request.query_params
+    ids = [x for x in (p.get("course") or "").split(",") if x]
+    if not ids:
+        ids = list(Course.objects.filter(name__istartswith="Kompyuter savodxonligi").values_list("pk", flat=True))
+    start = month_start(p["from"]) if p.get("from") else None
+    end = month_start(p["to"]) if p.get("to") else None
+    return Response(services.course_paths(request.user, ids, start, end, today()))
+
+
 def _top(user):
     if not can(user, "profit") or role_code(user) not in VIEW_ALL_ROLES:
         raise PermissionDenied("Moliyaviy hisobotni faqat Admin, Bosh menejer va asoschi oladi")
