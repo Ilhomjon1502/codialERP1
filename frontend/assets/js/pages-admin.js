@@ -620,7 +620,8 @@
   /* ===================================================== Bosh sahifa (M1) */
   let dash = {};
   // «Bugungi ish» ko'rinishi (hozircha Administrator+Hisobchi): topshiriqlar, qayta bog'lanish lidlari, kelmaganlar
-  const isWorkRole = () => A.me().role === 'ADMINISTRATOR_HISOBCHI';
+  const isWorkRole = () => A.me().role === 'ADMINISTRATOR_HISOBCHI'; // faqat «Bugungi ish» (statistika kartalarisiz)
+  const showsWork = () => isWorkRole() || A.me().role === 'BOSH_MENEJER'; // Bosh menejerda statistika kartalari ham qoladi
   function workHTML(w) {
     const tel = (p) => (p ? `<a href="tel:+998${esc(p)}">${esc(p)}</a>` : '');
     const hm = (iso) => (iso ? new Date(iso).toLocaleTimeString('uz', { hour: '2-digit', minute: '2-digit', hour12: false }) : '');
@@ -690,7 +691,7 @@
         A.reloadPending(),
         A.http.get('/schedule/'),
         A.reloadTaskSummary ? A.reloadTaskSummary() : null,
-        get(ah, '/dashboard/work/'),
+        get(showsWork(), '/dashboard/work/'),
       ]);
       dash = { debt, counts: contracts ? contracts.counts : null, summary, pays, sched, work };
     },
@@ -706,7 +707,8 @@
       return `${A.head(`Assalomu alaykum, ${esc(me.full_name.split(' ')[0])}!`, `${A.WD_FULL[A.isoWeekday(A.today())]}, ${A.fdate(A.today())} · ${esc(A.ROLES[me.role])}`)}
         ${unapproved.length && A.can('settings') ? `<div class="alert warn">${A.icon('alert')}<div><b>${A.ymLabel(ym)} uchun oydagi dars soni tasdiqlanmagan:</b> ${unapproved.map((p) => esc(p.name)).join(', ')}. <a href="#/settings?tab=freq">Tekshirish va tasdiqlash →</a></div></div>` : ''}
         ${(() => { const ts = A.S.taskSummary; return ts && ts.in_open ? `<div class="alert ${ts.in_overdue ? 'danger' : 'info'}">${A.icon('task')}<div><b>Sizda ${ts.in_open} ta ochiq topshiriq${ts.in_overdue ? `, ${ts.in_overdue} tasining muddati o'tgan` : ''}.</b> <a href="#/tasks">Topshiriqlarni ochish →</a></div></div>` : ''; })()}
-        ${dash.work ? workHTML(dash.work) : `<div class="stats">
+        ${dash.work ? workHTML(dash.work) : ''}
+        ${isWorkRole() ? '' : `<div class="stats">
           ${dash.pays ? A.stat("Bugungi to'lovlar", A.money(Number(dash.pays.cash) + Number(dash.pays.noncash)), `Naqd: ${A.num(dash.pays.cash)} · Naqdsiz: ${A.num(dash.pays.noncash)}`, '', '#/payments') : ''}
           ${dash.pays ? A.stat('Shu oy tushum', A.money(dash.pays.month), A.ymLabel(A.ym(today)), '', '#/payments') : ''}
           ${A.can('approvals') ? A.stat('Tasdiq kutmoqda', A.pendingCount(), A.pendingCount() ? 'sizning tasdiqingiz kerak' : 'hammasi tasdiqlangan', A.pendingCount() ? 'warn' : '', '#/approvals') : ''}
