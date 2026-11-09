@@ -1037,17 +1037,30 @@
       A.sortBy(A.sortBy(sel, (r) => `${A.userName(r.user)}|${r.role}|${A.groupName(r.group)}`), (r) => r.ym, true),
       { empty: "KPI yo'q" },
     );
-    const detail = leafRows
-      ? `<h3>Davomat qatorlari</h3>${A.table(
-          [
-            { h: 'Sana', f: (a) => A.fdate(a.date) },
-            { h: 'Shartnoma', f: (a) => `<a href="#/contracts/${a.contract}">${esc(a.student_name)} №${a.contract_number}</a>` },
-            { h: 'Status', f: (a) => A.attSelect({ contract: a.contract, group: a.group, date: a.date, status: a.status, comment: a.comment }) },
-            { h: 'KPI', f: (a) => { const v = (A.q('kpi:tree', '').split('|')[4] || '').endsWith('YORDAMCHI') ? a.skpi : a.tkpi; return v === null ? A.badge('kutilmoqda', 'orange') : A.num(v); }, cls: 'num' },
-          ],
-          leafRows,
-        )}`
-      : '';
+    let detail = '';
+    if (leafRows) {
+      // Talaba (shartnoma) bo'yicha yig'ilgan: sanalar ko'rsatilmaydi
+      const isSup = (A.q('kpi:tree', '').split('|')[4] || '').endsWith('YORDAMCHI');
+      const by = new Map();
+      leafRows.forEach((a) => {
+        let s = by.get(a.contract);
+        if (!s) { s = { contract: a.contract, student_name: a.student_name, contract_number: a.contract_number, lessons: 0, paid: 0, pending: 0, sum: 0 }; by.set(a.contract, s); }
+        s.lessons += 1;
+        const v = isSup ? a.skpi : a.tkpi;
+        if (v === null || v === undefined) s.pending += 1;
+        else { const n = Number(v); s.sum += n; if (n > 0) s.paid += 1; }
+      });
+      const rows = A.sortBy([...by.values()], (s) => s.student_name);
+      detail = `<h3>Talabalar bo'yicha KPI</h3>${A.table(
+        [
+          { h: 'Talaba', f: (s) => `<a href="#/contracts/${s.contract}">${esc(s.student_name)} №${s.contract_number}</a>` },
+          { h: 'Darslar', f: (s) => `${s.lessons} <small class="muted">(KPI: ${s.paid})</small>`, cls: 'num' },
+          { h: 'KPI', f: (s) => `<b>${A.num(s.sum)}</b>${s.pending ? ` ${A.badge(s.pending + ' ta kutilmoqda', 'orange')}` : ''}`, cls: 'num', sum: (rr) => A.num(A.sum(rr, (s) => s.sum)) },
+        ],
+        rows,
+        { empty: "KPI yo'q" },
+      )}`;
+    }
     return `<div class="settings tree-layout">${A.treeNav('kpi', entries, opts)}<div class="settings-body">${table}${detail}
     <p class="muted small">KPI har bir davomat qatori uchun: O'zgarmas — stavka ÷ oydagi dars soni; Foiz — foiz × kurs narxi ÷ oydagi dars soni. Besabab (X), Nofaol (–) va Grant shartnomalar uchun KPI yozilmaydi. «Kutilmoqda» — oydagi dars soni hali tasdiqlanmagan.</p></div></div>`;
   }
