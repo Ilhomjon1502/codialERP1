@@ -633,14 +633,20 @@
     const canA = A.can('attendance', 'e');
     const tasks = w.tasks.items.map((t) => `<li><a href="#/tasks"><b>${esc(t.title)}</b></a><span class="${t.overdue ? 't-red' : 'muted'}">${t.overdue ? `muddati o'tgan · ${dm(t.due_at)} ` : 'bugun '}${hm(t.due_at)}</span>
       <div class="work-act">${btn('work-task-done', t.id, '✅ Bajarildi')}</div></li>`);
-    const leads = w.leads.items.map((l) => `<li><a href="#/leads"><b>${esc(l.name)}</b></a><span>${esc(l.course)} · ${tel(l.phone)}</span>
-      <span class="${l.overdue ? 't-red' : 'muted'}">${l.callback_at ? `${l.overdue ? `muddati o'tgan · ${dm(l.callback_at)} ` : 'bugun '}${hm(l.callback_at)}` : 'vaqti belgilanmagan'}${l.talked ? ' · gaplashilgan, izoh yozing' : ''}</span>
-      ${canL ? `<div class="work-act">${btn('work-lead-note', l.id, '📝 Izoh yozish')}${btn('work-lead-time', l.id, '⏰ Vaqtni belgilash', 'ghost')}</div>` : ''}</li>`);
+    const leads = w.leads.items.map((l) => {
+      const demo = l.kind === 'demo';
+      const when = demo
+        ? `${l.overdue ? `🧪 sinov darsi o'tgan · ${dm(l.demo_date)} — natijasi belgilanmagan` : `🧪 bugun sinov darsi${l.demo_time ? ' · ' + l.demo_time : ''}`}${l.group ? ' · ' + esc(l.group) : ''}`
+        : `${l.callback_at ? `${l.overdue ? `muddati o'tgan · ${dm(l.callback_at)} ` : 'bugun '}${hm(l.callback_at)}` : 'vaqti belgilanmagan'}${l.talked ? ' · gaplashilgan, izoh yozing' : ''}`;
+      return `<li><a href="#/leads"><b>${esc(l.name)}</b></a><span>${esc(l.course)} · ${tel(l.phone)}</span>
+      <span class="${l.overdue ? 't-red' : 'muted'}">${when}</span>
+      ${canL ? `<div class="work-act">${btn('work-lead-note', l.id, demo ? '📝 Natijani belgilash' : '📝 Izoh yozish')}${demo ? '' : btn('work-lead-time', l.id, '⏰ Vaqtni belgilash', 'ghost')}</div>` : ''}</li>`;
+    });
     const absent = w.absent.items.map((a) => `<li><a href="#/contracts/${a.contract}"><b>${esc(a.name)}</b></a><span>${esc(a.group)} · ${tel(a.phone)}</span><span class="muted">${dm(a.date)} · ${a.status === 'X' ? 'besabab' : 'sababli'}</span>
       ${canA ? `<div class="work-act"><button type="button" class="btn sm" data-act="work-abs" data-id="${a.id}" data-val="Gaplashildi">✅ Gaplashildi</button><button type="button" class="btn sm ghost" data-act="work-abs" data-id="${a.id}" data-val="Tushib bo'lmadi">Tushib bo'lmadi</button><button type="button" class="btn sm ghost" data-act="work-abs" data-id="${a.id}" data-val="Noto'g'ri raqam">Noto'g'ri raqam</button></div>` : ''}</li>`);
     return `<div class="work-grid">
       ${card('📌 Bugungi topshiriqlar', '#/tasks', w.tasks, tasks, "Bugun topshiriq yo'q ✨")}
-      ${card("🔁 Qayta bog'lanish lidlari", '#/leads', w.leads, leads, "Qayta bog'lanish kerak lid yo'q ✨")}
+      ${card('⏰ Lidlar vaqti', '#/leads', w.leads, leads, "Muddati kelgan lid yo'q ✨")}
       ${card("📞 Kelmaganlar — bog'lanilmagan", '#/attendance?tab=absent', w.absent, absent, "Bog'lanmagan kelmagan talaba yo'q ✨")}
     </div>`;
   }

@@ -635,9 +635,18 @@ def dashboard_work(request):
     start = timezone.make_aware(datetime.datetime.combine(on, datetime.time.min))
     end = start + datetime.timedelta(days=1)
     tasks = StaffTask.objects.filter(assignee=user, status="Ochiq", due_at__lt=end).order_by("due_at")
-    leads = (scope_branch(Lead.objects.filter(status__in=["1", "8"]), user).select_related("student", "course")
-             .filter(Q(callback_at__lt=end) | Q(status="1", callback_at__isnull=True)))
-    leads = leads.order_by("callback_at", "created_at")
+    # Lidlar vaqti: muddati kelgan har qanday lid — qayta bog'lanish vaqti (1, 8) va sinov darsi kuni (3: bugun yoki o'tgan, natijasi belgilanmagan)
+    leads = (scope_branch(Lead.objects.all(), user).select_related("student", "course", "group__time")
+             .filter(Q(status__in=["1", "8"], callback_at__lt=end) | Q(status="1", callback_at__isnull=True)
+                     | Q(status="3", demo_date__lte=on)))
+
+    def due_at(ld):  # tartiblash uchun: belgilangan vaqt (vaqtsizlar — oxirida)
+        if ld.status == "3":
+            t = ld.group.time.start_time if ld.group_id else datetime.time.min
+            return timezone.make_aware(datetime.datetime.combine(ld.demo_date, t))
+        return ld.callback_at or timezone.make_aware(datetime.datetime(2100, 1, 1))
+
+    lead_list = sorted(leads, key=due_at)
     absent = (scope_branch(Attendance.objects.filter(status__in=["X", "0"], contact_status=Attendance.Contact.TO_CALL,
                                                       date__gte=max(on - datetime.timedelta(days=7), datetime.date.fromisoformat(settings.ABSENT_CONTACT_FROM)), date__lte=on), user)
               .filter(Q(contract__end_date__isnull=True) | Q(contract__end_date__gte=on))
@@ -645,10 +654,14 @@ def dashboard_work(request):
     return Response({
         "tasks": {"total": tasks.count(), "items": [
             {"id": t.pk, "title": t.title, "due_at": t.due_at, "overdue": t.due_at < start} for t in tasks[:LIM]]},
-        "leads": {"total": leads.count(), "items": [
+        "leads": {"total": len(lead_list), "items": [
             {"id": ld.pk, "name": ld.student.full_name, "course": ld.course.name if ld.course_id else "", "phone": ld.student.phone1,
-             "callback_at": ld.callback_at, "overdue": bool(ld.callback_at and ld.callback_at < start), "talked": bool(ld.callback_talked_at)}
-            for ld in leads[:LIM]]},
+             "kind": "demo" if ld.status == "3" else "callback", "callback_at": ld.callback_at,
+             "demo_date": ld.demo_date if ld.status == "3" else None,
+             "demo_time": f"{ld.group.time.start_time:%H:%M}" if ld.status == "3" and ld.group_id else "",
+             "group": ld.group.name if ld.group_id else "",
+             "overdue": (ld.demo_date < on) if ld.status == "3" else bool(ld.callback_at and ld.callback_at < start),
+             "talked": bool(ld.callback_talked_at)} for ld in lead_list[:LIM]]},
         "absent": {"total": absent.count(), "items": [
             {"id": a.pk, "contract": a.contract_id, "name": a.contract.student.full_name, "phone": a.contract.student.phone1,
              "group": a.group.name, "date": a.date, "status": a.status} for a in absent[:LIM]]},
