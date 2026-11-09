@@ -56,6 +56,7 @@
   };
   A.isTop = () => ['ADMIN', 'BOSH_MENEJER'].includes(A.role());
   A.isTeacherRole = () => ['USTOZ', 'YORDAMCHI', 'USTOZ_YORDAMCHI'].includes(A.role());
+  A.isOwner = () => ['ADMIN', 'BOSH_MENEJER', 'ASOSCHI'].includes(A.role()); // Foyda va Statistika
   A.isManager = () => ['ADMIN', 'BOSH_MENEJER', 'FILIAL_MENEJERI'].includes(A.role());
 
   /** Tahrirlash muddati (kun) serverdan: null — cheklovsiz, 0 — faqat bugun, -1 — mumkin emas */

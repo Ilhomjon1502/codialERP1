@@ -623,3 +623,5 @@ select.att-inline.st-\- { background: #eef0f3; color: #5b6472; }
 .work-act{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
 .work-act .btn{padding:3px 10px;font-size:12px;line-height:1.4;min-height:0;height:auto;font-weight:500}
 @media (max-width:900px){.work-card{max-height:300px}.work-act .btn{padding:7px 12px;font-size:13px}}
+.top-tabs { margin-bottom: 8px; }
+.top-tabs a { font-weight: 700; }

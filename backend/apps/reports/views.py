@@ -3,15 +3,16 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 
 from apps.core.permissions import NO_PERMISSION, can, role_code, today
-from apps.core.roles import MANAGER_ROLES, VIEW_ALL_ROLES
+from apps.core.roles import VIEW_ALL_ROLES
 from apps.references.services import month_start
 
 from . import gsheets, services, sheet_report
 
 
 def _manager(user):
-    if role_code(user) not in MANAGER_ROLES | VIEW_ALL_ROLES:
-        raise PermissionDenied("Hisobotlarni Admin, Bosh menejer, Filial menejeri va asoschi ko'radi")
+    """Statistika «Foyda (oyma-oy)» ichida — Foyda bilan bir xil doira: Admin, Bosh menejer va asoschi (Filial menejeri ko'rmaydi; 2026-11-09)."""
+    if role_code(user) not in VIEW_ALL_ROLES:
+        raise PermissionDenied("Statistikani Admin, Bosh menejer va asoschi ko'radi")
 
 
 def _months(request, default=6):

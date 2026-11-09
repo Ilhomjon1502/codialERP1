@@ -711,7 +711,7 @@
       const rows = prData.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, k === 'ym' ? v : Number(v)])));
       const tot = (k) => A.sum(rows, k);
       const cls = (n) => (n > 0 ? 't-green' : n < 0 ? 't-red' : '');
-      return `${A.head('Foyda (oyma-oy)', "Foyda = to'lovlar − xarajatlar (faqat «Xarajat» turi) − hisoblangan oyliklar", A.isTop() ? A.btn('Hisobot olish', 'profit-report', { icon: 'download' }) : '')}
+      return `${A.head('Foyda (oyma-oy)', "Foyda = to'lovlar − xarajatlar (faqat «Xarajat» turi) − hisoblangan oyliklar", A.isTop() ? A.btn('Hisobot olish', 'profit-report', { icon: 'download' }) : '')}${profitTop('profit')}
         <div class="filters"><span class="muted">Oylar:</span><div class="chips">${all.map((m) => `<button class="chip ${sel.includes(m) ? 'on' : ''}" data-act="profit-month" data-id="${m}">${A.ymLabel(m)}</button>`).join('')}</div></div>
         <div class="stats">${A.stat("To'lovlar", `<span class="t-blue">${A.money(tot('payments'))}</span>`)}${A.stat('Xarajatlar', `<span class="t-pink">${A.money(tot('expenses'))}</span>`)}${A.stat('Hisoblangan oyliklar', A.money(tot('salaries')))}${A.stat("Ko'rilgan foyda", `<span class="${cls(tot('profit'))}">${A.money(tot('profit'))}</span>`)}</div>
         <section class="card">${A.table(
@@ -781,11 +781,11 @@
   let stData = {};
   A.page('stats', {
     title: 'Statistika',
-    section: 'dashboard',
+    section: 'profit', // menyuda «Foyda (oyma-oy)» ichida
     async load(p, q) {
       const tab = q.tab || 'month';
       stData = {};
-      if (!A.isManager()) return;
+      if (!A.isOwner()) return;
       if (tab === 'month') stData = await A.http.get(`/reports/stats/?count=${A.q('st:count', 6)}`);
       else if (tab === 'funnel') {
         const qs = new URLSearchParams();
@@ -799,13 +799,15 @@
     },
     render(p, q) {
       const tab = q.tab || 'month';
-      if (!A.isManager()) return A.head('Statistika') + A.empty("Hisobotlarni Admin, Bosh menejer va Filial menejeri ko'radi");
+      if (!A.isOwner()) return A.head('Statistika') + A.empty("Statistikani Admin, Bosh menejer va asoschi ko'radi");
       const body = tab === 'month' ? monthStats(stData) : tab === 'funnel' ? funnelView(stData) : tab === 'paths' ? pathsView(stData) : firstPayers(stData);
-      return `${A.head('Statistika', 'Oyma-oy taqqoslash, sotuv voronkasi va birinchi marta to\'lov qilganlar')}
+      return `${A.head('Statistika', "Oyma-oy taqqoslash, sotuv voronkasi, birinchi marta to'lov qilganlar va kurs yo'nalishi")}${profitTop('stats')}
         ${A.tabs([['month', 'Oylik statistika'], ['funnel', 'Sotuv voronkasi'], ['first', "Birinchi to'lovchilar"], ['paths', "Yo'nalish (KS → mutaxassislik)"]], tab, 'stats')}${body}`;
     },
   });
 
+  /** «Foyda (oyma-oy)» va «Statistika» — bitta bo'lim: yuqori ikki tab */
+  const profitTop = (on) => (A.isOwner() ? `<nav class="tabs top-tabs"><a href="#/profit" class="${on === 'profit' ? 'on' : ''}">Foyda</a><a href="#/stats" class="${on === 'stats' ? 'on' : ''}">Statistika</a></nav>` : '');
   function monthStats(s) {
     const months = s.months || [];
     const labels = months.map(A.ymLabel);

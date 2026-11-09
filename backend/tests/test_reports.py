@@ -38,8 +38,7 @@ def test_stats_funnel_first_payers(api, make_user, fin):  # noqa: F811
     s = bm.get("/api/v1/reports/stats/?count=3").json()
     assert s["months"][-1] == YM and s["contracts_new"][-1] == 1 and s["money"][-1]["payments"] == 500_000
     assert sum(x["n"] for x in s["leads_by_source"]) == 1
-    fm_stats = api(make_user("FILIAL_MENEJERI")).get("/api/v1/reports/stats/").json()
-    assert fm_stats["money"] is None  # pul ko'rsatkichlari — faqat «Foyda» ruxsati bilan
+    assert api(make_user("FILIAL_MENEJERI")).get("/api/v1/reports/stats/").status_code == 403  # statistika — Foyda bilan bir doira (2026-11-09)
     f = bm.get("/api/v1/reports/funnel/").json()
     assert f["total"] == 1 and f["contracts"] == 1 and f["paid"] == 1 and f["pay_rate"] == 1
     assert bm.get(f"/api/v1/reports/funnel/?source={src.pk}&owner={fin['boss'].pk}").json()["total"] == 0
