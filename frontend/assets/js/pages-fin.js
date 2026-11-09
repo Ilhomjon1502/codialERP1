@@ -885,7 +885,7 @@
     const gl = d.groups || [];
     return `<div class="filters">${mSel('from', 'Bitirgan oy: dan')}${mSel('to', 'gacha')}
         <select class="f-input" data-filter="cp:group"><option value="">Barcha guruhlar</option>${gl.map((g) => `<option value="${g.group}" ${gSel === g.group ? 'selected' : ''}>${esc(g.group_name)}</option>`).join('')}</select></div>
-      <div class="stats">${A.stat('Bitiruvchilar', d.total || 0, "Kompyuter savodxonligi — kursi tugaganlar")}${A.stat("Mutaxassislikka o'tdi", pct(d.moved, d.total), `${d.moved || 0} ta`)}${A.stat("Hali o'tmagan", (d.total || 0) - (d.moved || 0), "boshqa kursda shartnomasi yo'q", ((d.total || 0) - (d.moved || 0)) ? 'warn' : '')}${A.stat("To'xtatganlar", d.dropped || 0, 'boshqa sabab bilan — bitiruvchi emas')}</div>
+      <div class="stats">${A.stat('Bitiruvchilar', d.total || 0, "Kompyuter savodxonligi #194 dan boshlab — kursi tugaganlar")}${A.stat("Mutaxassislikka o'tdi", pct(d.moved, d.total), `${d.moved || 0} ta`)}${A.stat("Hali o'tmagan", (d.total || 0) - (d.moved || 0), "boshqa kursda shartnomasi yo'q", ((d.total || 0) - (d.moved || 0)) ? 'warn' : '')}${A.stat("To'xtatganlar", d.dropped || 0, 'boshqa sabab bilan — bitiruvchi emas')}</div>
       <div class="grid-2"><section class="card"><h2>Qaysi kursga o'tdi</h2>${courses.length ? A.chart({ type: 'doughnut', data: { labels: courses, datasets: [{ data: courses.map((c) => d.by_course[c]), backgroundColor: A.PALETTE }] } }, 240) : `<div class="muted">Hali hech kim o'tmagan</div>`}
         ${A.table([{ h: 'Kurs', f: (r) => esc(r[0]) }, { h: 'Soni', f: (r) => r[1], cls: 'num' }, { h: 'Bitiruvchilardan', f: (r) => pct(r[1], d.total), cls: 'num' }], kv(d.by_course))}</section>
       <section class="card"><h2>Guruhlar bo'yicha</h2>${A.table(

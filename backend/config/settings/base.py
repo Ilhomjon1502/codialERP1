@@ -118,6 +118,9 @@ TIME_ZONE = "Asia/Tashkent"
 
 # Kelmagan talabalar bilan bog'lanish (bosh sahifa, 08:30 reja) shu sanadan boshlab hisoblanadi; eskilari faqat Davomatlar → Kelmaganlar sahifasida (2026-11-09, buyurtmachi qarori)
 ABSENT_CONTACT_FROM = "2026-11-09"
+
+# Statistika «Yo'nalish»: boshlang'ich kurs guruhlari shu raqamdan boshlab hisoblanadi (Kompyuter savodxonligi #194 dan; 2026-11-09)
+COURSE_PATHS_FROM_GROUP = 194
 USE_I18N = True
 USE_TZ = True
 

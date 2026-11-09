@@ -1,3 +1,4 @@
+from django.conf import settings
 from rest_framework.decorators import api_view
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
@@ -72,7 +73,8 @@ def course_paths(request):
         ids = list(Course.objects.filter(name__istartswith="Kompyuter savodxonligi").values_list("pk", flat=True))
     start = month_start(p["from"]) if p.get("from") else None
     end = month_start(p["to"]) if p.get("to") else None
-    return Response(services.course_paths(request.user, ids, start, end, today()))
+    min_group = int(p.get("from_group") or settings.COURSE_PATHS_FROM_GROUP)
+    return Response(services.course_paths(request.user, ids, start, end, today(), min_group))
 
 
 def _top(user):

@@ -494,7 +494,8 @@ def test_course_paths_report(api, make_user, world):
     Contract.objects.create(branch=w["branch"], student=w["students"][0], course=back, group=g2, number=10, start_date=TODAY)
     Contract.objects.filter(pk=w["contracts"][1].pk).update(end_date=TODAY - datetime.timedelta(days=2), stop_reason="Moliyaviy qiyinchilik")
     bm = api(make_user("BOSH_MENEJER"))
-    d = bm.get(f"/api/v1/reports/course-paths/?course={w['course'].pk}").json()
+    assert bm.get(f"/api/v1/reports/course-paths/?course={w['course'].pk}").json()["total"] == 0  # standart: #194 dan boshlab
+    d = bm.get(f"/api/v1/reports/course-paths/?course={w['course'].pk}&from_group=1").json()
     assert d["total"] == 2 and d["moved"] == 1 and d["dropped"] == 1
     assert d["by_course"] == {"Backend": 1} and d["groups"][0]["graduates"] == 2
     moved = [r for r in d["rows"] if r["moved_course"]]

@@ -157,7 +157,7 @@ def first_payers(user, month):
 
 # ------------------------------------------------------------------ yo'nalish: boshlang'ich kurs → mutaxassislik
 
-def course_paths(user, course_ids, start=None, end=None, on=None):
+def course_paths(user, course_ids, start=None, end=None, on=None, min_group=0):
     """Boshlang'ich kurs (masalan Kompyuter savodxonligi) bitiruvchilari qaysi boshqa kurslarga o'tgan.
 
     Bitiruvchi: shu kurs(lar)dagi shartnoma, kursi tugagan — guruhi tugagan yoki «Kursni tamomladi» sababi bilan to'xtatilgan.
@@ -168,7 +168,7 @@ def course_paths(user, course_ids, start=None, end=None, on=None):
 
     on = on or datetime.date.today()
     course_ids = list(course_ids)
-    cs = (scope_branch(Contract.objects.filter(course__in=course_ids), user)
+    cs = (scope_branch(Contract.objects.filter(course__in=course_ids, group__number__gte=min_group), user)
           .select_related("student", "group", "course").order_by("group__start_date", "group_id", "student__first_name", "student__last_name"))
     done_reason = Contract.StopReason.FINISHED
     graduates, dropped = [], defaultdict(int)
