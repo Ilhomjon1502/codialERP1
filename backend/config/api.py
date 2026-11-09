@@ -96,6 +96,7 @@ urlpatterns = [
     path("kpi/", pay.kpi_tree),
     path("export/contracts/", edu.export_contracts),
     path("schedule/", edu.schedule),
+    path("dashboard/work/", edu.dashboard_work),
     path("notifications/me/", notif.me),
     path("notifications/extra/", notif.extra),
     path("ai/", ai.info),

@@ -619,23 +619,80 @@
 
   /* ===================================================== Bosh sahifa (M1) */
   let dash = {};
+  // «Bugungi ish» ko'rinishi (hozircha Administrator+Hisobchi): topshiriqlar, qayta bog'lanish lidlari, kelmaganlar
+  const isWorkRole = () => A.me().role === 'ADMINISTRATOR_HISOBCHI';
+  function workHTML(w) {
+    const tel = (p) => (p ? `<a href="tel:+998${esc(p)}">${esc(p)}</a>` : '');
+    const hm = (iso) => (iso ? new Date(iso).toLocaleTimeString('uz', { hour: '2-digit', minute: '2-digit', hour12: false }) : '');
+    const dm = (iso) => { const d = new Date(iso); return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}`; };
+    const card = (title, link, sec, rows, empty) => `<section class="card work-card"><div class="work-h"><h3>${title} ${sec.total ? `<span class="badge orange">${sec.total}</span>` : ''}</h3><a href="${link}">Hammasi →</a></div>
+      ${rows.length ? `<ul class="work-list">${rows.join('')}</ul>${sec.total > rows.length ? `<div class="muted small">… yana ${sec.total - rows.length} ta</div>` : ''}` : `<div class="muted">${empty}</div>`}</section>`;
+    const btn = (act, id, label, cls = '') => `<button type="button" class="btn sm ${cls}" data-act="${act}" data-id="${id}">${label}</button>`;
+    const canL = A.can('leads', 'e');
+    const canA = A.can('attendance', 'e');
+    const tasks = w.tasks.items.map((t) => `<li><a href="#/tasks"><b>${esc(t.title)}</b></a><span class="${t.overdue ? 't-red' : 'muted'}">${t.overdue ? `muddati o'tgan · ${dm(t.due_at)} ` : 'bugun '}${hm(t.due_at)}</span>
+      <div class="work-act">${btn('work-task-done', t.id, '✅ Bajarildi')}</div></li>`);
+    const leads = w.leads.items.map((l) => `<li><a href="#/leads"><b>${esc(l.name)}</b></a><span>${esc(l.course)} · ${tel(l.phone)}</span>
+      <span class="${l.overdue ? 't-red' : 'muted'}">${l.callback_at ? `${l.overdue ? `muddati o'tgan · ${dm(l.callback_at)} ` : 'bugun '}${hm(l.callback_at)}` : 'vaqti belgilanmagan'}${l.talked ? ' · gaplashilgan, izoh yozing' : ''}</span>
+      ${canL ? `<div class="work-act">${btn('work-lead-note', l.id, '📝 Izoh yozish')}${btn('work-lead-time', l.id, '⏰ Vaqtni belgilash', 'ghost')}</div>` : ''}</li>`);
+    const absent = w.absent.items.map((a) => `<li><a href="#/contracts/${a.contract}"><b>${esc(a.name)}</b></a><span>${esc(a.group)} · ${tel(a.phone)}</span><span class="muted">${dm(a.date)} · ${a.status === 'X' ? 'besabab' : 'sababli'}</span>
+      ${canA ? `<div class="work-act"><button type="button" class="btn sm" data-act="work-abs" data-id="${a.id}" data-val="Gaplashildi">✅ Gaplashildi</button><button type="button" class="btn sm ghost" data-act="work-abs" data-id="${a.id}" data-val="Tushib bo'lmadi">Tushib bo'lmadi</button><button type="button" class="btn sm ghost" data-act="work-abs" data-id="${a.id}" data-val="Noto'g'ri raqam">Noto'g'ri raqam</button></div>` : ''}</li>`);
+    return `<div class="work-grid">
+      ${card('📌 Bugungi topshiriqlar', '#/tasks', w.tasks, tasks, "Bugun topshiriq yo'q ✨")}
+      ${card("🔁 Qayta bog'lanish lidlari", '#/leads', w.leads, leads, "Qayta bog'lanish kerak lid yo'q ✨")}
+      ${card("📞 Kelmaganlar — bog'lanilmagan", '#/attendance?tab=absent', w.absent, absent, "Bog'lanmagan kelmagan talaba yo'q ✨")}
+    </div>`;
+  }
+  // «Bugungi ish» ichidan to'g'ridan-to'g'ri amal: bajarildi / izoh / vaqt / bog'lanish holati. Saqlangach ro'yxat yangilanadi.
+  const workDone = (msg) => { A.toast(msg); A.refresh(); };
+  A.act['work-task-done'] = (el) => {
+    const t = ((dash.work && dash.work.tasks.items) || []).find((x) => x.id === el.dataset.id);
+    A.form({
+      title: `Bajarildi: ${t ? t.title : ''}`,
+      fields: [{ name: 'comment', label: 'Natija haqida izoh (ixtiyoriy)', type: 'textarea' }],
+      submit: '✅ Bajarildi',
+      async onSubmit(x) {
+        await A.http.post(`/tasks/${el.dataset.id}/done/`, { comment: x.comment || '' });
+        workDone('Bajarildi');
+      },
+    });
+  };
+  const openLead = async (id, fn) => { try { fn(await A.http.get(`/leads/${id}/`)); } catch (e) { A.toast(e.message || 'Xatolik', 'warn'); } };
+  A.act['work-lead-note'] = (el) => openLead(el.dataset.id, (l) => A.callNoteForm(l, () => workDone('Izoh saqlandi')));
+  A.act['work-lead-time'] = (el) => openLead(el.dataset.id, (l) => A.callbackForm(l, '', () => workDone('Vaqt saqlandi')));
+  A.act['work-abs'] = (el) => {
+    const id = el.dataset.id, val = el.dataset.val;
+    const save = (body) => A.http.patch(`/attendance/${id}/`, body).then(() => workDone('Saqlandi'), (e) => A.toast(e.message || 'Xatolik', 'warn'));
+    if (val === 'Gaplashildi') {
+      A.form({
+        title: 'Gaplashildi — izoh majburiy',
+        fields: [{ name: 'comment', label: 'Nima deyildi?', type: 'textarea', required: true }],
+        submit: 'Saqlash',
+        onSubmit: (v) => A.http.patch(`/attendance/${id}/`, { contact: val, comment: v.comment }).then(() => workDone('Saqlandi')),
+      });
+      return;
+    }
+    save({ contact: val });
+  };
   A.page('dashboard', {
     title: 'Bosh sahifa',
     section: 'dashboard',
     async load() {
       const get = (ok, path) => (ok ? A.http.get(path) : Promise.resolve(null));
-      const [, debt, contracts, summary, pays, , , sched] = await Promise.all([
+      const ah = isWorkRole();
+      const [, debt, contracts, summary, pays, , , sched, , work] = await Promise.all([
         A.reloadGroups(),
-        get(A.can('debtors'), '/debtors/'),
-        get(A.can('contracts'), '/contracts/?page_size=1'),
+        get(!ah && A.can('debtors'), '/debtors/'),
+        get(!ah && A.can('contracts'), '/contracts/?page_size=1'),
         get(A.isTeacherRole(), '/attendance/summary/'),
-        get(A.can('payments'), '/payments/summary/'),
+        get(!ah && A.can('payments'), '/payments/summary/'),
         A.can('accounts') ? A.reloadMoney() : null,
         A.reloadPending(),
         A.http.get('/schedule/'),
         A.reloadTaskSummary ? A.reloadTaskSummary() : null,
+        get(ah, '/dashboard/work/'),
       ]);
-      dash = { debt, counts: contracts ? contracts.counts : null, summary, pays, sched };
+      dash = { debt, counts: contracts ? contracts.counts : null, summary, pays, sched, work };
     },
     render() {
       const me = A.me();
@@ -649,7 +706,7 @@
       return `${A.head(`Assalomu alaykum, ${esc(me.full_name.split(' ')[0])}!`, `${A.WD_FULL[A.isoWeekday(A.today())]}, ${A.fdate(A.today())} · ${esc(A.ROLES[me.role])}`)}
         ${unapproved.length && A.can('settings') ? `<div class="alert warn">${A.icon('alert')}<div><b>${A.ymLabel(ym)} uchun oydagi dars soni tasdiqlanmagan:</b> ${unapproved.map((p) => esc(p.name)).join(', ')}. <a href="#/settings?tab=freq">Tekshirish va tasdiqlash →</a></div></div>` : ''}
         ${(() => { const ts = A.S.taskSummary; return ts && ts.in_open ? `<div class="alert ${ts.in_overdue ? 'danger' : 'info'}">${A.icon('task')}<div><b>Sizda ${ts.in_open} ta ochiq topshiriq${ts.in_overdue ? `, ${ts.in_overdue} tasining muddati o'tgan` : ''}.</b> <a href="#/tasks">Topshiriqlarni ochish →</a></div></div>` : ''; })()}
-        <div class="stats">
+        ${dash.work ? workHTML(dash.work) : `<div class="stats">
           ${dash.pays ? A.stat("Bugungi to'lovlar", A.money(Number(dash.pays.cash) + Number(dash.pays.noncash)), `Naqd: ${A.num(dash.pays.cash)} · Naqdsiz: ${A.num(dash.pays.noncash)}`, '', '#/payments') : ''}
           ${dash.pays ? A.stat('Shu oy tushum', A.money(dash.pays.month), A.ymLabel(A.ym(today)), '', '#/payments') : ''}
           ${A.can('approvals') ? A.stat('Tasdiq kutmoqda', A.pendingCount(), A.pendingCount() ? 'sizning tasdiqingiz kerak' : 'hammasi tasdiqlangan', A.pendingCount() ? 'warn' : '', '#/approvals') : ''}
@@ -657,7 +714,7 @@
           ${dash.debt ? A.stat('Jami qarzdorlik', A.money(dash.debt.total), `${dash.debt.count} ta qarzdor`, 'danger', '#/debtors') : ''}
           ${sm ? A.stat('Shu oy KPI (hisoblangan)', A.money(sm.kpi), `${sm.rows} ta dars qatori${sm.no_freq ? ` · ${sm.no_freq} tasi hisoblanmagan` : ''}`) : ''}
           ${sm ? A.stat('Besabab kelmaganlar', sm.absent, "shu oyda · «Darsni yetkazdim» so'rovi", sm.absent ? 'warn' : '', '#/attendance?tab=absent') : ''}
-        </div>
+        </div>`}
         ${schedHTML(dash.sched)}
 `;
     },
