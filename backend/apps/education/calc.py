@@ -21,6 +21,10 @@ NOTE_NO_RATE = "KPI stavkasi belgilanmagan"
 CALC_FIELDS = ["student_debt", "teacher_kpi", "supporter_kpi", "calc_note"]
 
 
+# Yaxlitlash qoldig'i (masalan 500 000 ÷ 12 = 41 667 × 12 = 500 004): shundan kichik qoldiq qarz hisoblanmaydi (buyurtmachi qarori 2026-11-09)
+DEBT_MIN = Decimal(10)
+
+
 def rnd(x):
     return Decimal(x).quantize(Decimal(1), rounding=ROUND_HALF_UP)
 

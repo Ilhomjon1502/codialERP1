@@ -132,7 +132,7 @@
       values: p ? { ...p, amount: Number(p.amount), discount: Number(p.discount) || '' } : { contract: contractId || '', date: A.today(), cash_type: 'CASH', discount_type: '' },
       fields: [
         { name: 'contract', label: 'Shartnoma', type: 'combo', placeholder: 'Talaba ismi yoki shartnoma raqamini yozing…', required: true, readonly: () => !isNew || !!contractId, search: searchContracts, options: () => (cur ? [[cur.id, cLabel(cur)]] : []) },
-        { name: 'bal', type: 'note', tone: 'info', show: (x) => x.contract, text: (x) => { const c = cById(x.contract); return c ? `Joriy balans: <b class="${c.balance > 0 ? 't-red' : 't-green'}">${A.money(c.balance)}</b> · ${esc(A.courseName(c.course))}` : ''; } },
+        { name: 'bal', type: 'note', tone: 'info', show: (x) => x.contract, text: (x) => { const c = cById(x.contract); return c ? `Joriy balans: <b class="${A.isDebt(c.balance) ? 't-red' : 't-green'}">${A.money(c.balance)}</b> · ${esc(A.courseName(c.course))}` : ''; } },
         { name: 'amount', label: "To'lov miqdori", type: 'money', show: (x) => x.contract, min: 0, validate: (n) => (n < 0 ? "Manfiy summa kiritib bo'lmaydi" : '') },
         { name: 'cash_type', label: "To'lov shakli", type: 'seg', options: cashOpts, show: (x) => x.amount > 0, resets: ['cashbox', 'accountant'] },
         noAccount('cashbox', (x) => x.amount > 0 && x.cash_type === 'CASH' && !cashboxOpts(x).length),

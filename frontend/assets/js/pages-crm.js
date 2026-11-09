@@ -694,11 +694,11 @@
     const byGroup = A.groupBy(rows, (c) => c.group);
     return [...byGroup]
       .map(([gid, list]) => {
-        const debt = A.sum(list, (c) => Math.max(0, c.balance));
+        const debt = A.sum(list, (c) => (A.isDebt(c.balance) ? Number(c.balance) : 0));
         return `<section class="group-block"><h3>${esc(A.groupName(gid))} <span class="muted">· ${list.length} ta${debt ? ` · qarz ${A.money(debt)}` : ''}</span></h3>
           ${A.table(
             [
-              { h: 'Shartnoma', f: (c) => `<a href="#/contracts/${c.id}" class="${c.balance > 0 ? 't-red' : ''}">${esc(c.name)}</a>` },
+              { h: 'Shartnoma', f: (c) => `<a href="#/contracts/${c.id}" class="${A.isDebt(c.balance) ? 't-red' : ''}">${esc(c.name)}</a>` },
               { h: 'Turi', f: (c) => (c.type === 'Grant' ? A.badge('Grant', 'blue') : 'Pullik') },
               { h: 'Boshlanish', f: (c) => A.fdate(c.start) },
               { h: 'Tugash', f: (c) => (c.end ? `${A.fdate(c.end)} <span class="muted small">${esc(c.stop_reason)}</span>` : '—') },
@@ -810,7 +810,7 @@
           `${paymentsReady() ? A.btn("To'lov qilish", 'pay-new', { id: c.id, icon: 'cash' }) : ''}
            ${A.can('contracts', 'e') ? (stopOnly ? A.btn("To'xtatish", 'contract-stop', { id: c.id, cls: 'ghost', title: `${edit.why}. Faqat to'xtatish mumkin` }) : A.btn('Tahrirlash', 'contract-edit', { id: c.id, cls: 'ghost' })) : ''}`)}
         <div class="stats">
-          ${A.stat('Balans (qarz)', `<span class="${c.balance > 0 ? 't-red' : 't-green'}">${A.money(c.balance)}</span>`, c.balance > 0 ? 'talaba qarzdor' : c.balance < 0 ? "oldindan to'langan" : "qarz yo'q", c.balance > 0 ? 'danger' : '')}
+          ${A.stat('Balans (qarz)', `<span class="${A.isDebt(c.balance) ? 't-red' : 't-green'}">${A.money(c.balance)}</span>`, A.isDebt(c.balance) ? 'talaba qarzdor' : c.balance < 0 ? "oldindan to'langan" : "qarz yo'q", A.isDebt(c.balance) ? 'danger' : '')}
           ${A.stat('Hisoblangan (darslar)', A.money(c.charged), `${att.filter((a) => a.debt).length} ta dars uchun`)}
           ${A.stat("To'langan", A.money(c.paid), `${pays.length} ta to'lov`)}
           ${A.stat('Chegirmalar', A.money(c.discount))}

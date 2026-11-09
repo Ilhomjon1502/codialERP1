@@ -521,7 +521,7 @@
         </div>
         <div class="row between" style="margin:14px 0 6px"><h3 style="margin:0">O'quvchilar (${active.length})</h3>${canC && g.status !== 'Nofaol' ? '<button class="btn primary sm" data-m="add">＋ O\'quvchi qo\'shish</button>' : ''}</div>
         ${active.length ? A.table([
-          { h: "O'quvchi", f: (c) => `<a href="#/contracts/${c.id}" data-close class="${Number(c.balance) > 0 ? 't-red' : ''}">${esc((c.student_data || {}).full_name || c.name)}</a>` },
+          { h: "O'quvchi", f: (c) => `<a href="#/contracts/${c.id}" data-close class="${A.isDebt(c.balance) ? 't-red' : ''}">${esc((c.student_data || {}).full_name || c.name)}</a>` },
           { h: 'Telefon', f: (c) => ((c.student_data || {}).phone1 ? `<a href="tel:+998${c.student_data.phone1}">${c.student_data.phone1}</a>` : '') },
           { h: 'Holat', f: (c) => A.contractStatusBadge(c.status) },
           { h: 'Balans', f: (c) => A.num(c.balance), cls: 'num' },

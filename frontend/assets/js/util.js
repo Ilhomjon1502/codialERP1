@@ -11,6 +11,9 @@ window.App = window.App || {};
     const s = String(Math.abs(v)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
     return (v < 0 ? '−' : '') + s;
   };
+  // Yaxlitlash qoldig'i (10 so'mdan kam) qarz hisoblanmaydi — backend calc.DEBT_MIN bilan bir xil
+  A.DEBT_MIN = 10;
+  A.isDebt = (b) => Number(b) >= A.DEBT_MIN;
   A.money = (n) => A.num(n) + " so'm";
   A.pct = (x) => Math.round((x || 0) * 100) + '%';
 

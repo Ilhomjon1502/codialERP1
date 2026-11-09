@@ -472,3 +472,13 @@ def test_prior_literacy_study_lookup(api, make_user, world):
     w["course"].name = "Frontend"
     w["course"].save()
     assert c.get(f"/api/v1/students/prior/?student={st.pk}").json() == {"found": False}
+
+
+def test_rounding_remainder_is_not_debt(api, make_user, world):
+    """500 000 ÷ 12 = 41 667 × 12 = 500 004: 4 so'mlik yaxlitlash qoldig'i qarzdorlar ro'yxatiga kirmaydi (10 so'mdan kam)."""
+    w = world
+    Contract.objects.filter(pk=w["contracts"][0].pk).update(opening_balance=4)
+    Contract.objects.filter(pk=w["contracts"][1].pk).update(opening_balance=10)
+    bm = api(make_user("BOSH_MENEJER"))
+    ids = {r["id"] for r in bm.get("/api/v1/debtors/").json()["results"]}
+    assert str(w["contracts"][0].pk) not in ids and str(w["contracts"][1].pk) in ids

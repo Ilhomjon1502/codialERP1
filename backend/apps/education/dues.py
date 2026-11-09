@@ -18,7 +18,7 @@ from django.db.models import Q, Sum
 
 from apps.core.permissions import today as today_fn
 
-from .calc import Calculator, rnd
+from .calc import DEBT_MIN, Calculator, rnd
 from .models import Attendance, Contract, DueDismissal
 
 
@@ -76,7 +76,7 @@ def month_dues(contracts_qs, month=None, on=None, dismissed="hide"):
             - (pay_before.get(c.pk, {}).get("a") or zero) - (pay_before.get(c.pk, {}).get("d") or zero)
         paid_m = (pay_month.get(c.pk, {}).get("a") or zero) + (pay_month.get(c.pk, {}).get("d") or zero)
         to_pay = max(zero, before + month_price - paid_m)
-        if to_pay <= 0 or (c.pk in gone) != (dismissed == "only"):
+        if to_pay < DEBT_MIN or (c.pk in gone) != (dismissed == "only"):
             continue
         gd = gone.get(c.pk)
         due_day = min(c.branch.payment_due_day or 10, last)

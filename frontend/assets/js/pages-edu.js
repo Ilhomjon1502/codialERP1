@@ -215,7 +215,7 @@
           <select class="f-input" onchange="location.hash='#/groups/${id}?m='+this.value">${A.monthOptions().map(([k, l]) => `<option value="${k}" ${k === ym ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
           <div class="tbl-wrap"><table class="journal"><thead><tr><th>Talaba</th>${j.days.map((d) => `<th>${d.slice(8)}<br><small>${A.WD[A.isoWeekday(d)]}</small></th>`).join('')}<th>Qarz</th></tr></thead>
           <tbody>${active
-            .map((c) => `<tr><td><a href="#/contracts/${c.id}" class="${c.balance > 0 ? 't-red' : ''}">${esc(c.student_data.full_name)}</a></td>${j.days.map((d) => `<td>${cell(c.id, d)}</td>`).join('')}<td class="num">${A.num(c.balance)}</td></tr>`)
+            .map((c) => `<tr><td><a href="#/contracts/${c.id}" class="${A.isDebt(c.balance) ? 't-red' : ''}">${esc(c.student_data.full_name)}</a></td>${j.days.map((d) => `<td>${cell(c.id, d)}</td>`).join('')}<td class="num">${A.num(c.balance)}</td></tr>`)
             .join('')}</tbody></table></div>
           <p class="muted small">1 — keldi, 0 — sababli, X — besabab, – — nofaol, · — davomat olinmagan</p>
         </section>
@@ -413,8 +413,8 @@
           const btn = (code, label, cls) =>
             allowed.includes(code) ? `<button class="abtn ${cls} ${a && a.status === code ? 'on' : ''}" data-act="att-mark" data-id="${c.id}" data-s="${code}" ${!ed.ok ? `disabled title="${esc(ed.why)}"` : ''}>${label}</button>` : '';
           return `<li class="${a ? 'done' : ''}">
-            <div class="att-name"><b class="${c.balance > 0 ? 't-red' : ''}">${esc(c.student_data.full_name)}</b>
-              <small class="muted">${c.balance > 0 ? 'qarz ' + A.num(c.balance) : ''}${a && a.comment ? ' · ' + esc(a.comment) : ''}</small></div>
+            <div class="att-name"><b class="${A.isDebt(c.balance) ? 't-red' : ''}">${esc(c.student_data.full_name)}</b>
+              <small class="muted">${A.isDebt(c.balance) ? 'qarz ' + A.num(c.balance) : ''}${a && a.comment ? ' · ' + esc(a.comment) : ''}</small></div>
             <div class="att-btns">${btn('1', 'Keldi', 'g')}${btn('0', 'Sababli', 'y')}${btn('X', 'Besabab', 'r')}${btn('-', '–', 'n')}</div>
           </li>`;
         })

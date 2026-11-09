@@ -298,7 +298,7 @@ class DebtorViewSet(AuditedModelViewSet):
         return super().get_queryset()
 
     def get_queryset(self):
-        qs = services.with_balance(super().get_queryset()).filter(balance__gt=0)
+        qs = services.with_balance(super().get_queryset()).filter(balance__gte=calc.DEBT_MIN)
         p = self.request.query_params
         if p.get("status"):
             qs = qs.filter(services.status_q(p["status"]))
