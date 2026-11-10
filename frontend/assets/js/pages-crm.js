@@ -837,7 +837,6 @@
             <p class="muted small">Bir dars narxi = kurs narxi ÷ oydagi dars soni. Talaba kelmasa ham dars uchun qarz yoziladi ("Nofaol" va Grant bundan mustasno).</p>
           </section>
         </div>
-        ${A.can('calls', 'v') || A.can('sms', 'v') ? '<section class="card" id="stu-calls"></section>' : ''}
         ${A.tabs([['att', 'Davomat', att.length], ...(A.can('payments') ? [['pay', "To'lovlar", pays.length]] : [])], tab, 'contracts/' + id)}
         ${tab === 'pay'
           ? A.table(
@@ -862,7 +861,8 @@
               ],
               att,
               { empty: "Davomat yo'q" },
-            )}`;
+            )}
+        ${A.can('calls', 'v') || A.can('sms', 'v') ? '<section class="card" id="stu-calls"></section>' : ''}`;
     },
   });
   A.act['contract-edit'] = () => A.contractForm(cDetail);
