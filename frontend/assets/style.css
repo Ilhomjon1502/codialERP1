@@ -625,3 +625,5 @@ select.att-inline.st-\- { background: #eef0f3; color: #5b6472; }
 @media (max-width:900px){.work-card{max-height:300px}.work-act .btn{padding:7px 12px;font-size:13px}}
 .top-tabs { margin-bottom: 8px; }
 .top-tabs a { font-weight: 700; }
+
+.due-note{display:flex;align-items:center;gap:6px;max-width:260px}.due-note span{overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;font-size:13px}

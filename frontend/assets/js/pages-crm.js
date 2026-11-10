@@ -913,6 +913,27 @@
   const phoneCol = { h: 'Telefon', f: (c) => [c.student_data.phone1, c.student_data.phone2].filter(Boolean).map((t) => `<a href="tel:+998${t}">${t}</a>`).join('<br>') };
   const payCol = { h: '', f: (c) => (paymentsReady() ? `<button class="btn sm" data-act="pay-new" data-id="${c.id}">To'lov</button>` : '') };
   const groupCol = { h: 'Guruh', f: (c) => esc(A.groupName(c.group)) };
+  /* Izoh (shartnomaning «Qo'shimcha izoh»i): to'lov bo'yicha kelishilgan sanalar shu yerda yoziladi va ro'yxatda ko'rinib turadi */
+  const noteCol = { h: 'Izoh', f: (c) => {
+    const edit = A.can('contracts', 'e');
+    const btn = edit ? `<button class="btn sm ghost" data-act="due-note" data-id="${c.id}" title="Izohni tahrirlash">${c.comment ? '✎' : "＋ izoh"}</button>` : '';
+    return `<div class="due-note">${c.comment ? `<span title="${esc(c.comment)}">${esc(c.comment)}</span>` : ''} ${btn}</div>`;
+  } };
+  A.act['due-note'] = (el) => {
+    const c = [...mData.results, ...dData.results].find((x) => String(x.id) === el.dataset.id);
+    if (!c) return;
+    A.form({
+      title: `Izoh: ${c.name}`,
+      values: { comment: c.comment || '' },
+      fields: [{ name: 'comment', label: "Izoh (masalan: kelishilgan to'lov sanasi)", type: 'textarea', placeholder: "Masalan: 25.11 da to'laydi" }],
+      submit: 'Saqlash',
+      async onSubmit(x) {
+        await A.http.patch(`/contracts/${c.id}/`, { comment: (x.comment || '').trim() });
+        A.toast('Izoh saqlandi');
+        A.refresh();
+      },
+    });
+  };
   const dismissCol = (restore) => ({ h: '', f: (c) => (A.can('payments', 'a') ? `<button class="btn sm ${restore ? 'ghost' : 'success'}" data-act="${restore ? 'due-restore' : 'due-dismiss'}" data-id="${c.id}">${restore ? 'Qaytarish' : "✓ To'lov qilgan"}</button>` : '') });
   const dueMonth = () => (mData.month || '');
   const dueCall = async (el, what, msg) => {
@@ -941,7 +962,7 @@
     const gone = /dismissed=1/.test(location.hash) || A.q('debtors:dismissed', '') === '1';
     const prev = (c) => (c.prev_balance > 0 ? `<span class="t-red">${A.num(c.prev_balance)} qarz</span>` : c.prev_balance < 0 ? `<span class="t-green">${A.num(-c.prev_balance)} oldindan</span>` : '—');
     const cols = [
-      contractCol, phoneCol, groupCol,
+      contractCol, phoneCol, groupCol, noteCol,
       { h: 'Oy narxi', f: (c) => `${A.num(c.month_price)}${c.lessons < c.lessons_total ? ` <span class="muted" title="Oyning ${c.lessons}/${c.lessons_total} darsi">(${c.lessons}/${c.lessons_total})</span>` : ''}${c.no_price ? ' ' + A.badge("narx yo'q", 'orange') : ''}`, cls: 'num' },
       { h: 'Oldingi balans', f: prev, cls: 'num' },
       { h: "Shu oy to'langan", f: (c) => A.num(c.paid_month), cls: 'num' },
@@ -960,7 +981,7 @@
   }
   function debtorGroups(d) {
     const cols = [
-      contractCol, phoneCol, groupCol,
+      contractCol, phoneCol, groupCol, noteCol,
       { h: 'Status', f: (c) => A.contractStatusBadge(c.status) },
       { h: 'Qarz', f: (c) => `<b class="t-red">${A.num(c.balance)}</b>`, cls: 'num', sum: (r) => A.num(A.sum(r, 'balance')) },
       payCol,
