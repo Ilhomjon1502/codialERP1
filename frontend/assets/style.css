@@ -609,7 +609,7 @@ select.att-inline.st-\- { background: #eef0f3; color: #5b6472; }
 .tabs.sub a { font-size: 13px; padding: 6px 10px; }
 
 /* Bosh sahifa «Bugungi ish» */
-.work-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-bottom:20px}
+.work-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin-bottom:20px}
 .work-card{padding:16px 18px}
 .work-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
 .work-h h3{margin:0;font-size:16px}

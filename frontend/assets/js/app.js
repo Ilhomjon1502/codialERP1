@@ -59,7 +59,7 @@
 
   /* ================= Menyu (AppSheet tartibida) ================= */
   A.NAV = [
-    ['dashboard', 'Bosh sahifa', 'home'], ['staffTasks', 'Topshiriqlar', 'task', 'tasks'], ['leads', 'Lidlar', 'userplus'], ['contracts', 'Shartnomalar', 'filesign'],
+    ['dashboard', 'Bosh sahifa', 'home'], ['staffTasks', 'Topshiriqlar', 'task', 'tasks'], ['leads', 'Lidlar', 'userplus'], ['inbox', 'Instagram/sayt lidlari', 'phone'], ['contracts', 'Shartnomalar', 'filesign'],
     ['payments', "To'lovlar", 'sack'], ['debtors', 'Qarzdorlar', 'dollarc'], ['attendance', 'Davomatlar', 'usercheck'],
     ['profit', 'Foyda (oyma-oy)', 'handusd'], ['expenses', 'Xarajatlar', 'arrows'],
     ['export', 'Shartnoma yuklash', 'filedl'], ['groups', 'Guruhlar', 'classgrp'],
@@ -224,7 +224,7 @@
   /** API'ga ulangan bo'limlar. Qolganlari o'z bosqichida ulanadi (docs/architecture.md, 5-bo'lim) */
   A.CONNECTED = new Set(['dashboard', 'settings', 'audit', 'leads', 'contracts', 'debtors', 'attendance', 'groups', 'groupAnalysis',
     'payments', 'approvals', 'accounts', 'transfers', 'creditors', 'exchange', 'expenses', 'salaries',
-    'evaluations', 'parentCalls', 'export', 'profit', 'ai', 'staffTasks', 'calls']);
+    'evaluations', 'parentCalls', 'export', 'profit', 'ai', 'staffTasks', 'calls', 'inbox']);
   A.MILESTONE = {};
   const PUBLIC = new Set(['set-password']);
 
@@ -329,7 +329,7 @@
   /* ================= Layout ================= */
   function navHTML() {
     const pc = A.pendingCount();
-    return A.NAV.filter(([sec]) => A.can(sec))
+    return A.NAV.filter(([sec]) => (sec === 'inbox' ? A.canInbox && A.canInbox() : A.can(sec)))
       .map(([sec, label, icon, route]) => {
         const dot = sec === 'approvals' ? pc : sec === 'staffTasks' ? (A.S.taskSummary || {}).in_open : 0;
         return `<a href="#/${route || sec}" data-nav="${sec}" title="${esc(label)}" class="${A.CONNECTED.has(sec) ? '' : 'soon'}">${A.icon(icon)}<span>${esc(label)}</span>${dot ? `<em class="dot">${dot}</em>` : ''}</a>`;

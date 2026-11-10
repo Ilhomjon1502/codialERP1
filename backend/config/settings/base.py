@@ -192,6 +192,7 @@ GOOGLE_SERVICE_ACCOUNT_B64 = env("GOOGLE_SERVICE_ACCOUNT_B64", "")  # service ac
 GOOGLE_SHEET_ID = env("GOOGLE_SHEET_ID", "")
 IG_LEADS_CHAT_ID = int(env("IG_LEADS_CHAT_ID", "-1001530659909") or 0)  # Codial (ichki guruh): Instagram lidlari shu yerga
 IG_LEADS_SHEET_URL = env("IG_LEADS_SHEET_URL", "")  # Instagram target lidlari jadvali (havola — maxfiy, faqat deploy/.env da)
+INBOX_SITE_KEY = env("INBOX_SITE_KEY", "")  # saytdagi forma serveri shu kalit bilan lidni ERP navbatiga yuboradi (deploy/.env)
 # Foyda taqsimoti: (hisobotdagi nom, kreditor nomida qatnashadigan so'z, foiz)
 PROFIT_SHARE_HOLDERS = [("MNSH", "mnsh", 75), ("Ilhomjon", "ilhomjon", 25)]
 AI_THINKING = env("AI_THINKING", "low")  # Gemini thinkingLevel: low | high; bo'sh — model standarti

@@ -57,6 +57,7 @@ class Command(BaseCommand):
                     reminders.demo_before_lessons()
                     tasks.due_reminders()
                     reminders.lead_callbacks()
+                    reminders.inbox_callbacks()
                     auto_sms.tick()  # avtomatik SMS jadvali (oy boshi, bonus, kelmagan) va muammo haqida Bosh menejerga
                     auto_sms.check_problems()
                     ig_leads.tick()  # Instagram target lidlari jadvali (har 5 daqiqada o'zi tekshiradi)

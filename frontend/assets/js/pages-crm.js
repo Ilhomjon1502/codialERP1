@@ -473,6 +473,7 @@
           saved = await A.http.post('/leads/', { ...rec, ...who, comment: x.comment || '' });
         } else saved = await A.http.patch(`/leads/${lead.id}/`, rec);
         keepStudent(saved);
+        if (preset && preset.onSaved) await preset.onSaved(saved); // masalan Instagram lidini shu lidga bog'lash
         A.toast(isNew ? "Lid qo'shildi" : 'Saqlandi');
         A.refresh();
         if (saved.status === '5') setTimeout(() => A.openLead(saved.id), 50);

@@ -125,3 +125,50 @@ class LeadComment(BaseModel):
 
     def __str__(self):
         return self.comment[:60]
+
+
+class InboxLead(BaseModel):
+    """Instagram/Facebook target va saytdan kelgan «xom» lidlar navbati (2026-11-10). Haqiqiy `Lead` emas: statistika va marketolog KPI'siga
+    kirmaydi — administrator gaplashib, kerak bo'lsa haqiqiy lidga qo'shadi (`lead` FK) yoki qayta bog'lanish vaqtini belgilaydi."""
+
+    class Kind(models.TextChoices):
+        INSTAGRAM = "Instagram", "Instagram"
+        FACEBOOK = "Facebook", "Facebook"
+        SITE = "Sayt", "Sayt"
+
+    class Status(models.TextChoices):
+        NEW = "new", "Yangi"
+        CALLBACK = "callback", "Qayta aloqa"
+        LINKED = "linked", "Lidga qo'shildi"
+        REJECTED = "rejected", "Yopildi"
+
+    branch = models.ForeignKey("references.Branch", on_delete=models.PROTECT, related_name="inbox_leads")
+    kind = models.CharField("Manba", max_length=10, choices=Kind.choices)
+    external_id = models.CharField("Tashqi ID", max_length=64, null=True, blank=True, unique=True)
+    name = models.CharField("Ism", max_length=100, blank=True)
+    phone = models.CharField("Telefon", max_length=9, db_index=True)
+    course_name = models.CharField("Kurs", max_length=60, blank=True)
+    info = models.CharField("Reklama / xabar", max_length=300, blank=True)
+    received_at = models.DateTimeField("Tushgan vaqt", db_index=True)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.NEW, db_index=True)
+    callback_at = models.DateTimeField("Qayta aloqa vaqti", null=True, blank=True, db_index=True)
+    callback_reminded_at = models.DateTimeField(null=True, blank=True)
+    lead = models.ForeignKey(Lead, null=True, blank=True, on_delete=models.SET_NULL, related_name="inbox_leads", verbose_name="Haqiqiy lid")
+
+    class Meta:
+        verbose_name = "Kiruvchi lid (Instagram/sayt)"
+        verbose_name_plural = "Kiruvchi lidlar (Instagram/sayt)"
+        ordering = ["-received_at"]
+        indexes = [models.Index(fields=["branch", "status"])]
+
+    def __str__(self):
+        return f"{self.name} {self.phone}".strip()
+
+
+class InboxNote(BaseModel):
+    inbox = models.ForeignKey(InboxLead, on_delete=models.CASCADE, related_name="notes")
+    comment = models.TextField("Izoh")
+
+    class Meta:
+        verbose_name = "Kiruvchi lid izohi"
+        ordering = ["created_at"]

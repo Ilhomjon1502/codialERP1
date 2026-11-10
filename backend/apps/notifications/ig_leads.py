@@ -1,7 +1,7 @@
 """Instagram/Facebook target orqali tushgan lidlar (Meta Lead Ads → Google Sheets) → Codial ichki guruhiga Telegram xabari (to'xtash va xato haqidagi ogohlantirishlar — Bosh menejerga).
 
 Jadval havola bo'yicha ochiq: CSV sifatida o'qiladi (`IG_LEADS_SHEET_URL`, deploy/.env). Ustunlar o'rniga qarab olinadi — jadvaldagi
-sarlavha qatori buzuq, shuning uchun nomga tayanilmaydi. ERP'da lid ochilmaydi, faqat xabar.
+sarlavha qatori buzuq, shuning uchun nomga tayanilmaydi. Xabardan tashqari lid ERP'dagi «kiruvchi lidlar» navbatiga ham tushadi (`crm.inbox`) — haqiqiy lid emas.
 Kuzatuv: har 5 daqiqada; 10 kun yangi lid tushmasa to'xtaydi (Bosh menejerga xabar), botda `/instagram` qayta yoqadi.
 """
 
@@ -112,6 +112,17 @@ def send_group(text, key):
         Outbox.objects.create(user=None, chat_id=chat, event="ig_lead", key=key, text=text)
 
 
+def to_inbox(lead):
+    """ERP'dagi kiruvchi lidlar navbatiga (haqiqiy lid emas — statistika/KPI'ga kirmaydi). Xato guruhga xabar yuborishni buzmasin."""
+    from apps.crm import inbox
+
+    try:
+        inbox.add(lead["platform"], phone=lead["phone"], name=lead["name"] if lead["name"] != "—" else "", course_name=course_of(lead["hint"]).replace("—", ""),
+                  info=lead["adset"], received_at=lead["at"], external_id=lead["id"])
+    except Exception:  # noqa: BLE001
+        log.exception("Kiruvchi lidlar navbatiga yozilmadi: %s", lead.get("id"))
+
+
 def _watch():
     return IgWatch.objects.get_or_create(pk=1)[0]
 
@@ -152,8 +163,11 @@ def tick(now=None, rows=None):
         if created:
             send_group(message(x), f"ig:{x['id']}")
             sent += 1
+            to_inbox(x)
     for x in fresh[MAX_PER_TICK:]:  # qolganlari keyingi safar yuborilmasin deb belgilanadi, lekin bir xabarda aytiladi
-        IgLead.objects.get_or_create(lead_id=x["id"], defaults={"notified": False})
+        _, created = IgLead.objects.get_or_create(lead_id=x["id"], defaults={"notified": False})
+        if created:
+            to_inbox(x)
     if len(fresh) > MAX_PER_TICK:
         send_group(f"ℹ️ Jadvalga yana {len(fresh) - MAX_PER_TICK} ta lid tushgan — jadvaldan ko'ring.", f"igmore:{now:%Y%m%d%H%M}")
     if fresh:

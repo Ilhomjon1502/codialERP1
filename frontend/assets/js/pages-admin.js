@@ -622,7 +622,7 @@
   // «Bugungi ish» ko'rinishi (hozircha Administrator+Hisobchi): topshiriqlar, qayta bog'lanish lidlari, kelmaganlar
   const isWorkRole = () => A.me().role === 'ADMINISTRATOR_HISOBCHI'; // faqat «Bugungi ish» (statistika kartalarisiz)
   const showsWork = () => isWorkRole() || A.me().role === 'BOSH_MENEJER'; // Bosh menejerda statistika kartalari ham qoladi
-  function workHTML(w) {
+  function workHTML(w, ib) {
     const tel = (p) => (p ? `<a href="tel:+998${esc(p)}">${esc(p)}</a>` : '');
     const hm = (iso) => (iso ? new Date(iso).toLocaleTimeString('uz', { hour: '2-digit', minute: '2-digit', hour12: false }) : '');
     const dm = (iso) => { const d = new Date(iso); return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}`; };
@@ -644,8 +644,18 @@
     });
     const absent = w.absent.items.map((a) => `<li><a href="#/contracts/${a.contract}"><b>${esc(a.name)}</b></a><span>${esc(a.group)} · ${tel(a.phone)}</span><span class="muted">${dm(a.date)} · ${a.status === 'X' ? 'besabab' : 'sababli'}</span>
       ${canA ? `<div class="work-act"><button type="button" class="btn sm" data-act="work-abs" data-id="${a.id}" data-val="Gaplashildi">✅ Gaplashildi</button><button type="button" class="btn sm ghost" data-act="work-abs" data-id="${a.id}" data-val="Tushib bo'lmadi">Tushib bo'lmadi</button><button type="button" class="btn sm ghost" data-act="work-abs" data-id="${a.id}" data-val="Noto'g'ri raqam">Noto'g'ri raqam</button></div>` : ''}</li>`);
+    // Instagram/sayt lidlari (xom navbat): avval qayta aloqa vaqti kelganlar, keyin yangilar. Haqiqiy lid emas — statistikaga kirmaydi.
+    const ibRows = ib ? [...ib.due, ...ib.new].slice(0, 8).map((o) => {
+      const late = o.status === 'callback';
+      return `<li><a href="#/inbox?tab=${late ? 'callback' : 'new'}"><b>${esc(o.name || '—')}</b></a><span>${esc(o.course_name || '')} · ${tel(o.phone)} · ${esc(o.kind)}</span>
+        <span class="${late ? 't-red' : 'muted'}">${late ? `⏰ qayta aloqa vaqti keldi · ${dm(o.callback_at)} ${hm(o.callback_at)}` : `yangi · ${dm(o.received_at)} ${hm(o.received_at)}`}${o.known ? ' · ⚠️ bazada bor' : ''}</span>
+        ${late && o.notes.length ? `<span class="muted small">💬 ${esc(o.notes[o.notes.length - 1].comment.slice(0, 100))}</span>` : ''}
+        ${canL ? `<div class="work-act">${btn('ib-talk', o.id, '💬 Gaplashdim')}${btn('ib-link', o.id, o.known && o.known.lead ? "🔗 Lidga bog'lash" : "＋ Lidga qo'shish", 'ghost')}</div>` : ''}</li>`;
+    }) : [];
+    const ibCard = ib ? card('📷 Instagram/sayt lidlari', '#/inbox', { total: ib.summary.new + ib.summary.due }, ibRows, "Yangi lid yo'q ✨") : '';
     return `<div class="work-grid">
       ${card('📌 Bugungi topshiriqlar', '#/tasks', w.tasks, tasks, "Bugun topshiriq yo'q ✨")}
+      ${ibCard}
       ${card('⏰ Lidlar vaqti', '#/leads', w.leads, leads, "Muddati kelgan lid yo'q ✨")}
       ${card("📞 Kelmaganlar — bog'lanilmagan", '#/attendance?tab=absent', w.absent, absent, "Bog'lanmagan kelmagan talaba yo'q ✨")}
     </div>`;
@@ -687,7 +697,7 @@
     async load() {
       const get = (ok, path) => (ok ? A.http.get(path) : Promise.resolve(null));
       const ah = isWorkRole();
-      const [, debt, contracts, summary, pays, , , sched, , work] = await Promise.all([
+      const [, debt, contracts, summary, pays, , , sched, , work, inbox] = await Promise.all([
         A.reloadGroups(),
         get(!ah && A.can('debtors'), '/debtors/'),
         get(!ah && A.can('contracts'), '/contracts/?page_size=1'),
@@ -698,8 +708,9 @@
         A.http.get('/schedule/'),
         A.reloadTaskSummary ? A.reloadTaskSummary() : null,
         get(showsWork(), '/dashboard/work/'),
+        get(showsWork() && A.canInbox && A.canInbox(), '/inbox-leads/due/'),
       ]);
-      dash = { debt, counts: contracts ? contracts.counts : null, summary, pays, sched, work };
+      dash = { debt, counts: contracts ? contracts.counts : null, summary, pays, sched, work, inbox };
     },
     render() {
       const me = A.me();
@@ -713,7 +724,7 @@
       return `${A.head(`Assalomu alaykum, ${esc(me.full_name.split(' ')[0])}!`, `${A.WD_FULL[A.isoWeekday(A.today())]}, ${A.fdate(A.today())} · ${esc(A.ROLES[me.role])}`)}
         ${unapproved.length && A.can('settings') ? `<div class="alert warn">${A.icon('alert')}<div><b>${A.ymLabel(ym)} uchun oydagi dars soni tasdiqlanmagan:</b> ${unapproved.map((p) => esc(p.name)).join(', ')}. <a href="#/settings?tab=freq">Tekshirish va tasdiqlash →</a></div></div>` : ''}
         ${(() => { const ts = A.S.taskSummary; return ts && ts.in_open ? `<div class="alert ${ts.in_overdue ? 'danger' : 'info'}">${A.icon('task')}<div><b>Sizda ${ts.in_open} ta ochiq topshiriq${ts.in_overdue ? `, ${ts.in_overdue} tasining muddati o'tgan` : ''}.</b> <a href="#/tasks">Topshiriqlarni ochish →</a></div></div>` : ''; })()}
-        ${dash.work ? workHTML(dash.work) : ''}
+        ${dash.work ? workHTML(dash.work, dash.inbox) : ''}
         ${isWorkRole() ? '' : `<div class="stats">
           ${dash.pays ? A.stat("Bugungi to'lovlar", A.money(Number(dash.pays.cash) + Number(dash.pays.noncash)), `Naqd: ${A.num(dash.pays.cash)} · Naqdsiz: ${A.num(dash.pays.noncash)}`, '', '#/payments') : ''}
           ${dash.pays ? A.stat('Shu oy tushum', A.money(dash.pays.month), A.ymLabel(A.ym(today)), '', '#/payments') : ''}

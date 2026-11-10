@@ -14,7 +14,7 @@ from django.utils import timezone
 
 from apps.core.permissions import role_code
 from apps.core.roles import TEACHER_ROLES
-from apps.crm.models import Lead
+from apps.crm.models import InboxLead, Lead
 from apps.education.dues import due_map_by_group, month_dues
 from apps.education.models import Attendance, Contract, Group
 from apps.education.services import FAOL, active_on, has_lesson, status_q
@@ -156,6 +156,25 @@ def _note_text(lead, head):
 def lead_call_note(lead, rec):
     """Gaplashilgan qo'ng'iroqdan keyin darhol: «izoh yozing» (eslatma allaqachon yuborilgan yoki vaqt belgilanmagan bo'lsa)."""
     services.notify("lead_callback", _note_text(lead, "📞 <b>Suhbat bo'ldi — izoh yozing</b>"), branch=lead.branch, key=f"cnote:{lead.pk}:{rec.pk}", markup=_note_markup(lead))
+
+
+def inbox_callbacks(now=None):
+    """Instagram/sayt «kiruvchi lid»ning qayta aloqa vaqti kelganda — Administrator+Hisobchilarga bir marta (bosh sahifada ham chiqadi)."""
+    now = now or timezone.localtime()
+    items = InboxLead.objects.filter(status=InboxLead.Status.CALLBACK, callback_at__lte=now, callback_reminded_at__isnull=True,
+                                     callback_at__gte=now - datetime.timedelta(hours=CALLBACK_WINDOW_H)).select_related("branch")
+    n = 0
+    for it in items:
+        last = it.notes.order_by("-created_at").first()
+        L = [f"⏰ <b>Qayta aloqa ({e(it.kind)} lidi)</b> · {timezone.localtime(it.callback_at):%H:%M}",
+             f"{e(it.name)} · {phone(it.phone)}", f"{e(it.course_name)}"]
+        if last:
+            L.append(f"💬 {e(last.comment[:150])}")
+        L.append("ERP bosh sahifasidagi «Instagram/sayt lidlari» bo'limida ko'ring.")
+        services.notify("lead_callback", "\n".join(L), branch=it.branch, key=f"icb:{it.pk}:{int(it.callback_at.timestamp())}")
+        InboxLead.objects.filter(pk=it.pk).update(callback_reminded_at=now)
+        n += 1
+    return n
 
 
 def lead_callbacks(now=None):

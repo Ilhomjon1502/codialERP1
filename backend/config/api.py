@@ -9,6 +9,7 @@ from apps.calls import views as calls
 from apps.clientbot import miniapp
 from apps.clientbot import views as clientbot
 from apps.core import views as core
+from apps.crm import inbox_views as crm_inbox
 from apps.crm import views as crm
 from apps.education import views as edu
 from apps.finance import views as fin
@@ -36,6 +37,7 @@ router.register("attendance-statuses", ref.AttendanceStatusViewSet, basename="at
 router.register("accounts", ref.AccountViewSet, basename="account")
 router.register("audit-log", ref.AuditLogViewSet, basename="audit-log")
 router.register("leads", crm.LeadViewSet, basename="lead")
+router.register("inbox-leads", crm_inbox.InboxLeadViewSet, basename="inbox-lead")
 router.register("students", crm.StudentViewSet, basename="student")
 router.register("parents", crm.ParentViewSet, basename="parent")
 router.register("groups", edu.GroupViewSet, basename="group")
@@ -110,6 +112,7 @@ urlpatterns = [
     path("reports/first-payers/", rep.first_payers),
     path("reports/course-paths/", rep.course_paths),
     path("kpi/rows/", pay.kpi_rows),
+    path("inbox/site/", crm_inbox.SiteIngestView.as_view()),
     path("calls/pair/", calls.PairView.as_view()),
     path("calls/ingest/", calls.IngestView.as_view()),
     path("calls/ping/", calls.PingView.as_view()),
