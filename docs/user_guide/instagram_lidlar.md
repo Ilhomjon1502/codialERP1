@@ -14,6 +14,11 @@ Kim ko'radi: **Bosh menejer, Admin, Administrator+Hisobchi** (menyu «Instagram/
    - Yopilganini «↩️ Qayta ochish» mumkin.
 3. Tablar: Yangi · Qayta aloqa · Lidga qo'shilgan · Yopilgan.
 
+## Qo'ng'iroqlar bilan bog'lanish
+- Qabul telefonidagi qo'ng'iroq raqami navbatdagi lidniki bo'lsa, **Qo'ng'iroqlar** jurnalida «Noma'lum» o'rniga «Instagram lidi» belgisi, ism va kurs chiqadi; shu qatorning o'zidan «💬 Gaplashdim» va «＋ Lidga qo'shish» bosiladi (raqam bazada bo'lmasa).
+- Navbat sahifasida va bosh sahifadagi kartochkada «Qo'ng'iroqlar» ustuni: lid tushgandan keyingi oxirgi qo'ng'iroq (yo'nalish, vaqt, suhbat), jami soni. Gaplashilgan qo'ng'iroq bo'lib, undan keyin izoh yozilmagan bo'lsa — «📞 gaplashilgan — izoh yozing».
+- Lid tushishidan oldingi qo'ng'iroqlar hisobga olinmaydi.
+
 ## Qaysi lidlar tushadi
 - Instagram/Facebook: Google Sheets jadvalidan (`ig_leads.py`, har 5 daqiqada) — **faqat yangi tushganlar** (eski qatorlar ko'chirilmaydi).
 - Sayt: saytning forma serveri `POST /api/v1/inbox/site/` ga yuboradi, sarlavha `X-Inbox-Key: <INBOX_SITE_KEY>`, tana JSON: `name`, `phone`, `course`, `message`.

@@ -649,6 +649,7 @@
       const late = o.status === 'callback';
       return `<li><a href="#/inbox?tab=${late ? 'callback' : 'new'}"><b>${esc(o.name || '—')}</b></a><span>${esc(o.course_name || '')} · ${tel(o.phone)} · ${esc(o.kind)}</span>
         <span class="${late ? 't-red' : 'muted'}">${late ? `⏰ qayta aloqa vaqti keldi · ${dm(o.callback_at)} ${hm(o.callback_at)}` : `yangi · ${dm(o.received_at)} ${hm(o.received_at)}`}${o.known ? ' · ⚠️ bazada bor' : ''}</span>
+        ${o.calls ? `<span class="muted small">📞 ${esc(o.calls.last_direction)} · ${hm(o.calls.last_at)}${o.calls.note_due ? ' · <b class="t-red">gaplashilgan, izoh yozing</b>' : ''}</span>` : ''}
         ${late && o.notes.length ? `<span class="muted small">💬 ${esc(o.notes[o.notes.length - 1].comment.slice(0, 100))}</span>` : ''}
         ${canL ? `<div class="work-act">${btn('ib-talk', o.id, '💬 Gaplashdim')}${btn('ib-link', o.id, o.known && o.known.lead ? "🔗 Lidga bog'lash" : "＋ Lidga qo'shish", 'ghost')}</div>` : ''}</li>`;
     }) : [];

@@ -33,10 +33,14 @@ class InboxSerializer(serializers.ModelSerializer):
     notes = serializers.SerializerMethodField()
     known = serializers.SerializerMethodField()
     lead_name = serializers.SerializerMethodField()
+    calls = serializers.SerializerMethodField()
 
     class Meta:
         model = InboxLead
-        fields = ["id", "kind", "name", "phone", "course_name", "info", "received_at", "status", "status_label", "callback_at", "lead", "lead_name", "notes", "known"]
+        fields = ["id", "kind", "name", "phone", "course_name", "info", "received_at", "status", "status_label", "callback_at", "lead", "lead_name", "notes", "known", "calls"]
+
+    def get_calls(self, o):
+        return (self.context.get("calls") or {}).get(o.pk)
 
     def get_notes(self, o):
         return [{"id": str(n.pk), "comment": n.comment, "by": str(n.created_by) if n.created_by else "", "at": n.created_at} for n in o.notes.all()]
@@ -59,7 +63,12 @@ class InboxLeadViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, Generic
     def get_serializer_context(self):
         ctx = super().get_serializer_context()
         ctx["known"] = getattr(self, "_known", {})
+        ctx["calls"] = getattr(self, "_calls", {})
         return ctx
+
+    def _prepare(self, rows):
+        self._known = inbox.known_map({o.phone for o in rows})
+        self._calls = inbox.calls_map(rows)
 
     def list(self, request, *args, **kwargs):
         p, qs = request.query_params, self.get_queryset()
@@ -74,7 +83,7 @@ class InboxLeadViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, Generic
             qs = qs.filter(Q(name__icontains=word) | Q(phone__contains=word) | Q(course_name__icontains=word))
         qs = qs.order_by("callback_at", "-received_at") if st == InboxLead.Status.CALLBACK else qs.order_by("-received_at")
         page = self.paginate_queryset(qs)
-        self._known = inbox.known_map({o.phone for o in page})
+        self._prepare(page)
         return self.get_paginated_response(self.get_serializer(page, many=True).data)
 
     @action(detail=False, methods=["get"])
@@ -88,13 +97,13 @@ class InboxLeadViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, Generic
         qs = self.get_queryset()
         due = list(qs.filter(status=InboxLead.Status.CALLBACK, callback_at__lte=now).order_by("callback_at")[:30])
         new = list(qs.filter(status=InboxLead.Status.NEW).order_by("-received_at")[:30])
-        self._known = inbox.known_map({o.phone for o in due + new})
+        self._prepare(due + new)
         ser = lambda rows: self.get_serializer(rows, many=True).data  # noqa: E731
         return Response({"summary": inbox.summary(now), "due": ser(due), "new": ser(new)})
 
     def _item_response(self, item):
         item = self.get_queryset().get(pk=item.pk)
-        self._known = inbox.known_map({item.phone})
+        self._prepare([item])
         return Response(self.get_serializer(item).data)
 
     @action(detail=True, methods=["post"])

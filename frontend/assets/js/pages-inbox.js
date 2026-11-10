@@ -31,6 +31,15 @@
     const last = n[n.length - 1];
     return `<small>${esc(last.comment.slice(0, 120))}</small><br><small class="muted">${esc(last.by)} · ${A.fdt(last.at)}${n.length > 1 ? ` · ${n.length} ta izoh` : ''}</small>`;
   };
+  // Telefondagi qo'ng'iroqlar bilan bog'lanish: lid tushgandan keyin shu raqamga/raqamdan bo'lgan qo'ng'iroqlar
+  const DIR = { Kiruvchi: '↙', Chiquvchi: '↗', Javobsiz: '✕', 'Rad etilgan': '⊘', Bloklangan: '⊘' };
+  const callsCell = (o) => {
+    const c = o.calls;
+    if (!c) return '<span class="muted">—</span>';
+    const d = c.last_duration ? ` · ${Math.floor(c.last_duration / 60)}:${String(c.last_duration % 60).padStart(2, '0')}` : '';
+    return `<small>${DIR[c.last_direction] || ''} ${esc(c.last_direction)} · ${A.fdt(c.last_at)}${d}${c.count > 1 ? ` · jami ${c.count} ta` : ''}</small>${c.note_due ? `<br>${A.badge('📞 gaplashilgan — izoh yozing', 'orange')}` : ''}`;
+  };
+  A.inboxCallsCell = callsCell;
   const actions = (o) => {
     if (!A.canInbox()) return '';
     const b = (act, label, cls = 'ghost') => `<button type="button" class="btn sm ${cls}" data-act="${act}" data-id="${o.id}">${label}</button>`;
@@ -64,6 +73,7 @@
         { h: 'Kurs', f: (o) => esc(o.course_name || '—') },
         { h: 'Reklama / xabar', f: (o) => `<small class="muted">${esc(o.info || '—')}</small>` },
         { h: 'Bazada', f: knownCell },
+        { h: "Qo'ng'iroqlar", f: callsCell },
         { h: 'Holat', f: statusCell },
         { h: 'Oxirgi izoh', f: notesCell },
         { h: '', f: actions },

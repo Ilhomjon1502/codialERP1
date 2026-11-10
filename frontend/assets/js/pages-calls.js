@@ -102,6 +102,11 @@
       return `${name}${absent}${c.parent_name ? `<br><small class="muted">vasiy: ${esc(c.parent_name)}</small>` : ''}`;
     }
     if (c.parent) return `${esc(c.parent_name)} <small class="muted">(vasiy)</small>`;
+    if (c.inbox && A.canInbox && A.canInbox()) { // Instagram/sayt lidi (haqiqiy lid emas): gaplashish yoki lidga qo'shish shu yerdan
+      const b = (act, label, cls = 'ghost') => `<button class="btn sm ${cls}" data-act="${act}" data-id="${c.inbox.id}">${label}</button>`;
+      return `${A.badge(`${c.inbox.kind} lidi`, 'red')} <b>${esc(c.inbox.name || '')}</b><br><small class="muted">${esc(c.inbox.course || '')}${c.inbox.status === 'callback' ? ' · qayta aloqa' : ' · yangi'}</small>
+        <br>${b('ib-talk', '💬 Gaplashdim', 'primary')} ${b('ib-link', "＋ Lidga qo'shish")}`;
+    }
     const btn = c.phone && A.can('leads', 'a') ? `<br><button class="btn sm ghost" data-act="call-lead" data-id="${c.id}">＋ Lid yaratish</button>` : '';
     return `<span class="muted">Noma'lum</span> ${c.is_first ? A.badge('Yangi raqam', 'orange') : ''}${btn}`;
   }

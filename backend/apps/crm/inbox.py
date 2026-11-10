@@ -137,3 +137,39 @@ def summary(now=None):
     cb = live.filter(status=InboxLead.Status.CALLBACK)
     return {"new": live.filter(status=InboxLead.Status.NEW).count(), "due": cb.filter(callback_at__lte=now).count(),
             "callback": cb.count()}
+
+
+# ---------- Qo'ng'iroqlar bilan bog'lash (2026-11-10) ----------
+
+def calls_map(items):
+    """{inbox_id: {count, last_at, last_direction, last_duration, talked_at, note_due}} — lid tushgandan keyin shu raqam bilan bo'lgan qo'ng'iroqlar
+    (telefondan kelgan `calls.CallRecord`). `note_due` — gaplashilgan qo'ng'iroq bor, lekin undan keyin izoh yozilmagan."""
+    from apps.calls.models import CallRecord
+
+    items = list(items)
+    if not items:
+        return {}
+    recs = list(CallRecord.objects.filter(phone__in={i.phone for i in items}, started_at__gte=min(i.received_at for i in items)).order_by("started_at"))
+    out = {}
+    for it in items:
+        mine = [r for r in recs if r.phone == it.phone and r.started_at >= it.received_at]
+        if not mine:
+            continue
+        talked = [r for r in mine if r.duration > 0 and r.direction in ("Kiruvchi", "Chiquvchi")]
+        last_note = max((n.created_at for n in it.notes.all()), default=None)
+        talked_at = talked[-1].started_at if talked else None
+        out[it.pk] = {"count": len(mine), "last_at": mine[-1].started_at, "last_direction": mine[-1].direction, "last_duration": mine[-1].duration,
+                      "talked_at": talked_at,
+                      "note_due": bool(talked_at and it.status in (InboxLead.Status.NEW, InboxLead.Status.CALLBACK) and (not last_note or talked_at > last_note))}
+    return out
+
+
+def open_by_phone(phones):
+    """{telefon: {id, kind, name, course, status}} — shu raqamli ochiq (Yangi/Qayta aloqa) kiruvchi lid; qo'ng'iroqlar jurnalida ko'rsatish uchun."""
+    phones = {p for p in phones if p}
+    if not phones:
+        return {}
+    out = {}
+    for it in InboxLead.objects.filter(phone__in=phones, status__in=[InboxLead.Status.NEW, InboxLead.Status.CALLBACK]).order_by("received_at"):
+        out[it.phone] = {"id": str(it.pk), "kind": it.kind, "name": it.name, "course": it.course_name, "status": it.status}
+    return out

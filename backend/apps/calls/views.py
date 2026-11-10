@@ -127,14 +127,19 @@ class CallRecordSerializer(serializers.ModelSerializer):
     lead_note_due = serializers.SerializerMethodField()
     missed = serializers.BooleanField(source="is_missed", read_only=True)
     callback_by_name = serializers.CharField(source="callback_by.full_name", read_only=True, default="")
+    inbox = serializers.SerializerMethodField()
 
     class Meta:
         model = CallRecord
         fields = ["id", "started_at", "direction", "number", "phone", "duration", "contact_name", "sim", "is_first", "device", "device_name",
                   "student", "student_name", "parent", "parent_name", "lead", "lead_status", "lead_source", "lead_course", "has_contract", "contract_id",
                   "open_absences", "lead_note_due",
-                  "missed", "callback_at", "callback_by_name", "comment"]
+                  "missed", "callback_at", "callback_by_name", "comment", "inbox"]
         read_only_fields = [f for f in fields if f != "comment"]
+
+    def get_inbox(self, r):
+        """Instagram/sayt «kiruvchi lid» (haqiqiy lid emas) — raqam bazada yo'q bo'lsa, qaysi reklama lidi ekani ko'rinadi."""
+        return (self.context.get("inbox") or {}).get(r.phone) if not (r.student_id or r.parent_id) else None
 
     def get_lead_note_due(self, r):
         return bool(r.lead_id and r.lead.callback_talked_at)
@@ -212,7 +217,11 @@ class CallRecordViewSet(AuditedModelViewSet):
     def list(self, request, *args, **kwargs):
         page = self.paginate_queryset(self.filter_queryset(self.get_queryset()))
         services.rematch(page)
-        return self.get_paginated_response(self.get_serializer(page, many=True).data)
+        from apps.crm import inbox
+
+        ser = self.get_serializer(page, many=True)
+        ser.child.context["inbox"] = inbox.open_by_phone({r.phone for r in page if not (r.student_id or r.parent_id)})
+        return self.get_paginated_response(ser.data)
 
     def create(self, request, *args, **kwargs):
         raise MethodNotAllowed("POST")

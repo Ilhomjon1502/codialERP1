@@ -128,3 +128,52 @@ def test_backfill_adds_only_missing_unique_leads(branch):
     assert InboxLead.objects.get(external_id="l:4").status == "new"
     assert ig_leads.backfill(rows, commit=True)["added"] == 0  # qayta ishga tushirsa takror yo'q
     assert not Outbox.objects.filter(event="ig_lead").exists()
+
+
+def _call(device, phone, minutes, direction="Chiquvchi", duration=40):
+    from apps.calls.models import CallRecord
+
+    return CallRecord.objects.create(device=device, branch=device.branch, external_id=f"x{minutes}{phone}", direction=direction, number=phone, phone=phone,
+                                     started_at=timezone.now() + datetime.timedelta(minutes=minutes), duration=duration)
+
+
+def test_inbox_row_shows_calls_and_note_due(api, make_user, branch):
+    from apps.calls.models import CallDevice
+
+    dev = CallDevice.objects.create(name="Qabul", branch=branch)
+    u = make_user("ADMINISTRATOR_HISOBCHI")
+    it, _ = inbox.add("Instagram", phone="901112233", name="Ali", external_id="l:1", received_at=timezone.now() - datetime.timedelta(hours=1))
+    _call(dev, "901112233", -30, "Javobsiz", 0)
+    row = api(u).get("/api/v1/inbox-leads/").json()["results"][0]
+    assert row["calls"]["count"] == 1 and row["calls"]["note_due"] is False  # javobsiz — gaplashilmagan
+    _call(dev, "901112233", -10, "Chiquvchi", 55)
+    row = api(u).get("/api/v1/inbox-leads/").json()["results"][0]
+    assert row["calls"]["count"] == 2 and row["calls"]["note_due"] is True  # gaplashildi, izoh yo'q
+    inbox.talk(u, it, "Ertaga", callback_at=timezone.now() + datetime.timedelta(days=1))
+    row = api(u).get("/api/v1/inbox-leads/").json()["results"][0]
+    assert row["calls"]["note_due"] is False  # izoh yozildi
+    _call(dev, "999999999", -5)  # boshqa raqam — hisobga olinmaydi
+    assert api(u).get("/api/v1/inbox-leads/").json()["results"][0]["calls"]["count"] == 2
+
+
+def test_calls_before_lead_arrived_are_ignored(api, make_user, branch):
+    from apps.calls.models import CallDevice
+
+    dev = CallDevice.objects.create(name="Qabul", branch=branch)
+    u = make_user("BOSH_MENEJER")
+    inbox.add("Sayt", phone="901112233", name="Ali")
+    _call(dev, "901112233", -600)
+    assert api(u).get("/api/v1/inbox-leads/").json()["results"][0]["calls"] is None
+
+
+def test_calls_list_marks_unknown_number_as_inbox_lead(api, make_user, branch):
+    from apps.calls.models import CallDevice
+
+    dev = CallDevice.objects.create(name="Qabul", branch=branch)
+    u = make_user("ADMINISTRATOR_HISOBCHI")
+    inbox.add("Instagram", phone="901112233", name="Ali", course_name="Frontend", external_id="l:1")
+    _call(dev, "901112233", 1, "Kiruvchi", 20)
+    _call(dev, "905550000", 2, "Kiruvchi", 20)
+    rows = {r["phone"]: r for r in api(u).get("/api/v1/calls/").json()["results"]}
+    assert rows["901112233"]["inbox"]["kind"] == "Instagram" and rows["901112233"]["inbox"]["course"] == "Frontend"
+    assert rows["905550000"]["inbox"] is None
