@@ -112,3 +112,19 @@ def test_bot_reminder_once(branch, make_user, now_commit):
     assert reminders.inbox_callbacks() == 1
     assert reminders.inbox_callbacks() == 0
     assert Outbox.objects.filter(chat_id=555, event="lead_callback").count() == 1
+
+
+def test_backfill_adds_only_missing_unique_leads(branch):
+    from apps.crm.models import Student
+
+    Student.objects.create(branch=branch, first_name="Ali", last_name="Valiyev", phone1="901112233")
+    inbox.add("Instagram", phone="903635800", external_id="l:9")  # navbatda bor
+    rows = [row("l:1", phone="901112233"), row("l:2", phone="903635800"), row("l:3", phone="911110000", at="2026-11-01T10:00:00-05:00"),
+            row("l:4", phone="911110000", at="2026-11-02T10:00:00-05:00"), row("l:5", phone="922220000")]
+    rep = ig_leads.backfill(rows)  # sinov — hech narsa yozilmaydi
+    assert rep == {"rows": 5, "in_erp": 1, "in_queue": 1, "duplicate": 1, "added": 2} and InboxLead.objects.count() == 1
+    ig_leads.backfill(rows, commit=True)
+    assert sorted(InboxLead.objects.values_list("external_id", flat=True)) == ["l:4", "l:5", "l:9"]
+    assert InboxLead.objects.get(external_id="l:4").status == "new"
+    assert ig_leads.backfill(rows, commit=True)["added"] == 0  # qayta ishga tushirsa takror yo'q
+    assert not Outbox.objects.filter(event="ig_lead").exists()

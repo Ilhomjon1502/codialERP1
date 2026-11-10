@@ -123,6 +123,36 @@ def to_inbox(lead):
         log.exception("Kiruvchi lidlar navbatiga yozilmadi: %s", lead.get("id"))
 
 
+def backfill(rows, commit=False):
+    """Jadvaldagi hamma lidni qayta ko'rib chiqadi: ERP'da (talaba yoki vasiy raqami, yoki navbatda) yo'qlarini «Yangi» qilib
+    kiruvchi lidlar navbatiga qo'shadi. Bir raqam bir marta (eng oxirgi tushgani). Telegram xabari yuborilmaydi. Hisobot (dict)."""
+    from apps.crm.models import InboxLead, Parent, Student
+
+    leads = [x for x in (parse(r) for r in rows) if x]
+    in_erp = set(Student.objects.values_list("phone1", flat=True)) | set(Student.objects.values_list("phone2", flat=True))
+    in_erp |= set(Parent.objects.values_list("phone", flat=True))
+    queued = set(InboxLead.all_objects.values_list("external_id", flat=True))
+    queued_phones = set(InboxLead.all_objects.values_list("phone", flat=True))
+    rep = {"rows": len(leads), "in_erp": 0, "in_queue": 0, "duplicate": 0, "added": 0}
+    latest = {}
+    for x in sorted(leads, key=lambda x: x["at"]):
+        latest[x["phone"]] = x
+    for x in leads:
+        if x["id"] in queued or x["phone"] in queued_phones:
+            rep["in_queue"] += 1
+        elif x["phone"] in in_erp:
+            rep["in_erp"] += 1
+        elif latest[x["phone"]]["id"] != x["id"]:
+            rep["duplicate"] += 1
+        else:
+            rep["added"] += 1
+            if commit:
+                to_inbox(x)
+        if commit:  # keyingi tick bularga Telegram xabari yubormasin
+            IgLead.objects.get_or_create(lead_id=x["id"], defaults={"notified": False})
+    return rep
+
+
 def _watch():
     return IgWatch.objects.get_or_create(pk=1)[0]
 
