@@ -4,7 +4,7 @@
 (function (A) {
   const esc = A.esc;
   const K = 'inbox';
-  const KIND = { Instagram: 'pink', Facebook: 'blue', Sayt: 'green' };
+  const KIND = { Instagram: 'red', Facebook: 'blue', Sayt: 'green' };
   const pad = (n) => String(n).padStart(2, '0');
   const tomorrow = () => { const d = new Date(Date.now() + 864e5); d.setHours(10, 0, 0, 0); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T10:00`; };
   const fphone = (p) => (p ? `+998 ${p.slice(0, 2)} ${p.slice(2, 5)}-${p.slice(5, 7)}-${p.slice(7)}` : '');
@@ -44,6 +44,7 @@
   A.page('inbox', {
     title: 'Instagram/sayt lidlari',
     section: 'leads',
+    nav: 'inbox', // menyuda shu band yoqiladi (ruxsat — «leads» bo'limi bo'yicha, rol esa A.canInbox)
     async load(p, q) {
       const tab = q.tab || 'new';
       const qs = new URLSearchParams({ page: A.q(`${K}:page`, 1), status: tab });
@@ -127,4 +128,4 @@
   A.act['ib-reopen'] = async (el) => {
     try { await A.http.post(`/inbox-leads/${el.dataset.id}/reopen/`, {}); done('Qayta ochildi'); } catch (e) { fail(e); }
   };
-})(window.A);
+})(window.App);

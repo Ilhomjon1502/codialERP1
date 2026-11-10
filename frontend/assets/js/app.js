@@ -378,7 +378,7 @@
     document.getElementById('nav').innerHTML = navHTML();
     document.getElementById('bottomnav').innerHTML = bottomHTML();
     document.getElementById('branch-label').textContent = branchLabel();
-    const sec = page && page.section;
+    const sec = page && (page.nav || page.section);
     document.querySelectorAll('[data-nav]').forEach((a) => a.classList.toggle('on', a.dataset.nav === sec));
     document.getElementById('top-title').textContent = page ? page.title || '' : '';
     const t = A.today();
