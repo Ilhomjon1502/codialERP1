@@ -72,7 +72,7 @@ def test_api_flow_summary_due_and_link(api, make_user, branch):
     u = make_user("ADMINISTRATOR_HISOBCHI")
     c = api(u)
     it, _ = inbox.add("Instagram", phone="901112233", name="Ali", external_id="l:1")
-    assert c.get("/api/v1/inbox-leads/summary/").json() == {"new": 1, "due": 0, "callback": 0}
+    assert c.get("/api/v1/inbox-leads/summary/").json() == {"new": 1, "due": 0, "callback": 0, "linked": 0, "rejected": 0}
     at = (timezone.now() + datetime.timedelta(hours=1)).isoformat()
     r = c.post(f"/api/v1/inbox-leads/{it.pk}/talk/", {"comment": "Keyinroq", "callback_at": at}, format="json")
     assert r.status_code == 200 and r.json()["status"] == "callback" and r.json()["notes"][0]["comment"] == "Keyinroq"

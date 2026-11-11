@@ -64,7 +64,7 @@
     render(p, q) {
       if (!A.canInbox()) return A.head("Ruxsat yo'q") + `<div class="empty">Bu bo'lim faqat Bosh menejer va Administrator+Hisobchi uchun.</div>`;
       const tab = q.tab || 'new';
-      const tabs = [['new', 'Yangi', sum.new], ['callback', 'Qayta aloqa', sum.callback], ['linked', "Lidga qo'shilgan"], ['rejected', 'Yopilgan']];
+      const tabs = [['new', 'Yangi', sum.new], ['callback', 'Qayta aloqa', sum.callback], ['linked', "Lidga qo'shilgan", sum.linked], ['rejected', 'Yopilgan', sum.rejected]];
       const filters = A.filterBar(K, [A.fSearch(K, 'Ism, telefon yoki kurs…'), A.fSelect(K, 'kind', [['Instagram', 'Instagram'], ['Facebook', 'Facebook'], ['Sayt', 'Sayt']], 'Hamma manbalar')]);
       const cols = [
         { h: 'Tushgan', f: (o) => `<small>${A.fdt(o.received_at)}</small>` },

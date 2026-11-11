@@ -136,7 +136,8 @@ def summary(now=None):
     live = InboxLead.objects
     cb = live.filter(status=InboxLead.Status.CALLBACK)
     return {"new": live.filter(status=InboxLead.Status.NEW).count(), "due": cb.filter(callback_at__lte=now).count(),
-            "callback": cb.count()}
+            "callback": cb.count(), "linked": live.filter(status=InboxLead.Status.LINKED).count(),
+            "rejected": live.filter(status=InboxLead.Status.REJECTED).count()}
 
 
 # ---------- Qo'ng'iroqlar bilan bog'lash (2026-11-10) ----------
