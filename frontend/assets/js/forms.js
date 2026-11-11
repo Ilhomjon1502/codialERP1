@@ -184,7 +184,15 @@
         if (!w.dataset.init || (dynamic && w.dataset.sig !== sig)) {
           const errEl = w.querySelector('.err');
           const errText = errEl && !errEl.hidden ? errEl.textContent : '';
+          // yozayotgan maydon qayta chizilsa (masalan, qiymatga bog'liq izoh yangilansa) fokus va kursor yo'qolmasin
+          const ae = document.activeElement;
+          const keep = ae && w.contains(ae) && /^(INPUT|TEXTAREA)$/.test(ae.tagName) && !ae.classList.contains('combo-in') ? ae : null;
+          const caret = keep ? [keep.selectionStart, keep.selectionEnd] : null;
           w.innerHTML = controlHTML(f);
+          if (keep) {
+            const n = w.querySelector('input:not([type=checkbox]),textarea');
+            if (n) { n.focus(); try { if (caret && caret[0] != null) n.setSelectionRange(caret[0], caret[1]); } catch (_) { /* number/date turida kursor yo'q */ } }
+          }
           if (errText) { const e2 = w.querySelector('.err'); if (e2) { e2.textContent = errText; e2.hidden = false; } }
           w.dataset.init = '1';
           w.dataset.sig = sig;
