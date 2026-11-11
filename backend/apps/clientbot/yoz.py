@@ -10,8 +10,9 @@
 import datetime
 
 from django.core import signing
+from django.core.cache import cache
 from django.db import IntegrityError, transaction
-from django.db.models import Max, Sum
+from django.db.models import Count, Max, Sum
 from django.utils import timezone
 
 from .models import TypingSession, YozPairing
@@ -25,14 +26,21 @@ MAX_SESSION_MS = 60 * 60 * 1000
 MAX_WPM = 250
 GOOD_ACCURACY = 90  # eng yaxshi tezlik: aniqligi shundan past mashqlar hisobga olinmaydi (Yoz o'tish sharti bilan bir xil)
 ORIGINS = ("https://yoz.codialinfo.uz", "http://localhost:5520")  # CORS: faqat Yoz sayti
+LOGIN_FAILS = 5  # shartnoma raqamiga shuncha xato urinishdan keyin LOGIN_LOCK bloklanadi (parol — 4 raqam, 10 000 variant)
+LOGIN_LOCK = 15 * 60
 
 
 def make_token(student, account):
     return signing.dumps({"s": str(student.pk), "a": account.pk}, salt=SALT)
 
 
+def make_contract_token(student, contract):
+    """Shartnoma raqami + parol bilan kirganlar uchun token (bot akkaunti shart emas); har so'rovda shartnoma hali tugamaganligi tekshiriladi."""
+    return signing.dumps({"s": str(student.pk), "c": str(contract.pk)}, salt=SALT)
+
+
 def read_token(token):
-    """Token → (Student, BotAccount) yoki None (imzo noto'g'ri, eskirgan, o'quvchi o'chirilgan yoki akkaunt endi ulanmagan)."""
+    """Token → (Student, BotAccount yoki None) yoki None (imzo noto'g'ri, eskirgan, o'quvchi o'chirilgan, akkaunt/shartnoma endi yaroqsiz)."""
     from apps.crm.models import Student
 
     from .models import BotAccount, BotInvite
@@ -42,10 +50,60 @@ def read_token(token):
     except signing.BadSignature:
         return None
     st = Student.objects.filter(pk=data.get("s"), is_deleted=False).first()
+    if data.get("c"):
+        return (st, None) if st and _contract_ok(st, data["c"]) else None
     acc = BotAccount.objects.filter(pk=data.get("a")).first()
     if not st or not acc or not acc.links.filter(student=st, role=BotInvite.Role.STUDENT, is_active=True).exists():
         return None
     return st, acc
+
+
+def _contract_ok(student, contract_id):
+    from apps.education.models import Contract
+    from apps.education.services import NOFAOL, period_status
+
+    c = Contract.objects.filter(pk=contract_id, student=student, is_deleted=False).first()
+    return bool(c and period_status(c.start_date, c.end_date) != NOFAOL)
+
+
+def _last4(number):
+    return "".join(ch for ch in str(number or "") if ch.isdigit())[-4:]
+
+
+class Locked(Exception):
+    """Shartnoma raqamiga juda ko'p xato urinish."""
+
+
+def login(number, password):
+    """Shartnoma raqami + parol (talaba, 2-telefon yoki vasiy telefonining oxirgi 4 raqami) → (token, Student) yoki None.
+    Faqat faol/rejadagi shartnoma. Xato urinishlar shartnoma raqami bo'yicha sanaladi (mavjud bo'lmagan raqam ham) — `Locked`."""
+    from apps.education.models import Contract
+    from apps.education.services import NOFAOL, period_status
+
+    num = "".join(ch for ch in str(number or "") if ch.isdigit())[:9]
+    pw = "".join(ch for ch in str(password or "") if ch.isdigit())
+    if not num or len(pw) != 4:
+        return None
+    key = f"yoz-fail:{num}"
+    if cache.get(key, 0) >= LOGIN_FAILS:
+        raise Locked
+    for c in Contract.objects.filter(number=int(num), is_deleted=False).select_related("student__parent"):
+        st = c.student
+        if st.is_deleted or period_status(c.start_date, c.end_date) == NOFAOL:
+            continue
+        phones = [st.phone1, st.phone2, st.parent.phone if st.parent_id else ""]
+        if any(p and _last4(p) == pw for p in phones):
+            cache.delete(key)
+            return make_contract_token(st, c), st
+    cache.set(key, cache.get(key, 0) + 1, LOGIN_LOCK)
+    return None
+
+
+def progress(student):
+    """Dars bo'yicha eng yaxshi natijalar {dars_id: {stars, wpm, acc, n}} — boshqa qurilmada qayerdan davom etishni tiklash uchun."""
+    rows = TypingSession.objects.filter(student=student).exclude(lesson_key="").values("lesson_key").annotate(
+        stars=Max("stars"), wpm=Max("wpm"), acc=Max("accuracy"), n=Count("id"))
+    return {r["lesson_key"]: {"stars": r["stars"], "wpm": r["wpm"], "acc": r["acc"], "n": r["n"]} for r in rows}
 
 
 def new_pairing(student, account, now=None):

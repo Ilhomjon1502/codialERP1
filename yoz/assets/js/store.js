@@ -94,6 +94,25 @@
       return out;
     },
 
+    // Serverdagi natijalarni (dars → eng yaxshi) mahalliy profilga qo'shadi: boshqa qurilmadan kirsa ham qayerdan davom etishi ko'rinadi.
+    // Ma'lumot darslari (slaydlar) serverga yuborilmaydi — ulardan keyingi dars o'tilgan bo'lsa, ular ham o'tilgan hisoblanadi.
+    merge(p, prog) {
+      if (!p || !prog) return;
+      let last = -1;
+      Y.LESSONS.forEach((l, i) => {
+        const s = prog[l.id];
+        if (!s) return;
+        const r = p.lessons[l.id] || (p.lessons[l.id] = { stars: 0, wpm: 0, acc: 0, n: 0 });
+        r.stars = Math.max(r.stars || 0, s.stars || 0); r.wpm = Math.max(r.wpm || 0, s.wpm || 0);
+        r.acc = Math.max(r.acc || 0, s.acc || 0); r.n = Math.max(r.n || 0, s.n || 0);
+        if (s.stars >= 1) last = i;
+      });
+      Y.LESSONS.forEach((l, i) => {
+        if (i < last && l.kind === 'info') (p.lessons[l.id] || (p.lessons[l.id] = { stars: 0, wpm: 0, acc: 0, n: 0 })).done = true;
+      });
+      save();
+    },
+
     summary(p) {
       const days = Object.keys(p.days);
       const totalMs = days.reduce((a, d) => a + p.days[d].ms, 0);

@@ -90,6 +90,7 @@ urlpatterns = [
     path("learn/submit/", miniapp.SubmitView.as_view()),
     path("learn/yoz-code/", miniapp.YozCodeView.as_view()),
     path("learn/yoz/exchange/", miniapp.YozExchangeView.as_view()),
+    path("learn/yoz/login/", miniapp.YozLoginView.as_view()),
     path("learn/yoz/sessions/", miniapp.YozSessionsView.as_view()),
     path("learn/submission/<uuid:pk>/", miniapp.SubmissionView.as_view()),
     path("health/", core.health),

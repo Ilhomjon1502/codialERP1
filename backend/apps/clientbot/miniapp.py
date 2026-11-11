@@ -379,14 +379,33 @@ class YozExchangeView(YozView):
         if got is None:
             return Response({"detail": "Kod noto'g'ri yoki eskirgan. Darslik ilovasidan yangi kod oling."}, status=400)
         token, st = got
-        return Response({"token": token, "name": st.first_name, "full_name": st.full_name, "summary": yoz.summary(st)})
+        return Response({"token": token, "name": st.first_name, "full_name": st.full_name, "summary": yoz.summary(st), "progress": yoz.progress(st)})
+
+
+class YozLoginView(YozView):
+    """POST {number, password} → {token, name, summary, progress}: shartnoma raqami + telefon oxirgi 4 raqami. Xato sababi aytilmaydi;
+    IP bo'yicha `login` limiti va shartnoma raqami bo'yicha 5 xatodan keyin 15 daqiqa blok."""
+
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "login"
+
+    def post(self, request):
+        try:
+            got = yoz.login(request.data.get("number"), request.data.get("password"))
+        except yoz.Locked:
+            return Response({"detail": "Juda ko'p xato urinish. 15 daqiqadan keyin qayta urinib ko'ring."}, status=429)
+        if got is None:
+            return Response({"detail": "Shartnoma raqami yoki parol noto'g'ri"}, status=400)
+        token, st = got
+        return Response({"token": token, "name": st.first_name, "full_name": st.full_name, "summary": yoz.summary(st), "progress": yoz.progress(st)})
 
 
 class YozSessionsView(YozView):
     """POST {sessions: [{id, at(ms), ms, wpm, acc, stars, l}]} → saqlanganlar soni va yangi statistika. GET — faqat statistika."""
 
     def get(self, request):
-        return Response({"summary": yoz.summary(self._student(request))})
+        st = self._student(request)
+        return Response({"summary": yoz.summary(st), "progress": yoz.progress(st)})
 
     def post(self, request):
         st = self._student(request)

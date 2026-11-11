@@ -155,3 +155,60 @@ def test_erp_typing_list_and_detail(setup, api, make_user):  # noqa: F811
     assert bm.get(f"/api/v1/bot-typing/{row['id']}/").json()["sessions"] == 2
     assert bm.get("/api/v1/bot-typing/?q=zzz").json()["count"] == 0
     assert api(make_user("USTOZ")).get("/api/v1/bot-typing/").status_code == 403
+
+
+# ---- shartnoma raqami + telefon oxirgi 4 raqami bilan kirish (2026-11-11)
+
+def yoz_login(number, password, ip="1.1.1.1"):
+    return APIClient().post("/api/v1/learn/yoz/login/", {"number": number, "password": password}, format="json", HTTP_ORIGIN=ORIGIN, REMOTE_ADDR=ip)
+
+
+@pytest.fixture
+def lc(env):  # noqa: F811
+    from django.core.cache import cache
+
+    cache.clear()
+    st = env["student"](1)
+    c = env["contract"](st)
+    return st, c
+
+
+def test_login_by_contract_and_phone_tail_returns_progress(lc):
+    st, c = lc
+    r = yoz_login(str(c.number), "2231")  # talabaning 1-telefoni; 2-telefon va vasiy ham mos
+    assert r.status_code == 200 and r.json()["name"] == "Muhsinjon" and "phone" not in str(r.json())
+    token = r.json()["token"]
+    assert yoz_login(f" {c.number} ", "6671").status_code == 200  # vasiy telefoni
+    sess = [{"id": "a", "at": int(time.time() * 1000), "ms": 5000, "wpm": 20, "acc": 95, "stars": 2, "l": "0-3"},
+            {"id": "b", "at": int(time.time() * 1000), "ms": 5000, "wpm": 25, "acc": 91, "stars": 1, "l": "0-3"},
+            {"id": "c", "at": int(time.time() * 1000), "ms": 5000, "wpm": 10, "acc": 80, "stars": 0, "l": "1-1"}]
+    assert send(token, sess).status_code == 201  # contract tokeni bilan natija yoziladi
+    # boshqa qurilmadan qayta kirsa — qayerda to'xtagani qaytadi
+    p = yoz_login(str(c.number), "2231").json()["progress"]
+    assert p["0-3"] == {"stars": 2, "wpm": 25, "acc": 95, "n": 2} and p["1-1"]["stars"] == 0
+    assert send(token, None, "get").json()["progress"].keys() == p.keys()
+
+
+def test_login_rejects_wrong_ended_and_locks(lc):
+    st, c = lc
+    assert yoz_login(str(c.number), "0000").status_code == 400
+    assert yoz_login("999999", "2231").status_code == 400  # mavjud emas — xuddi shu xabar
+    assert yoz_login(str(c.number), "22").status_code == 400
+    for _ in range(4):
+        yoz_login(str(c.number), "0000")
+    assert yoz_login(str(c.number), "2231").status_code == 429  # 5 xatodan keyin to'g'ri parol ham o'tmaydi
+    from django.core.cache import cache
+
+    cache.clear()
+    c.end_date = timezone.localdate() - timedelta(days=1)
+    c.save()
+    assert yoz_login(str(c.number), "2231").status_code == 400  # tugagan shartnoma
+
+
+def test_contract_token_dies_when_contract_ends(lc):
+    st, c = lc
+    token = yoz_login(str(c.number), "2231").json()["token"]
+    assert send(token, None, "get").status_code == 200
+    c.end_date = timezone.localdate() - timedelta(days=1)
+    c.save()
+    assert send(token, None, "get").status_code == 401
