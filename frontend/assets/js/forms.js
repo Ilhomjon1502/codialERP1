@@ -187,12 +187,18 @@
           // yozayotgan maydon qayta chizilsa (masalan, qiymatga bog'liq izoh yangilansa) fokus va kursor yo'qolmasin
           const ae = document.activeElement;
           const keep = ae && w.contains(ae) && /^(INPUT|TEXTAREA)$/.test(ae.tagName) && !ae.classList.contains('combo-in') ? ae : null;
-          const caret = keep ? [keep.selectionStart, keep.selectionEnd] : null;
-          w.innerHTML = controlHTML(f);
-          if (keep) {
-            const n = w.querySelector('input:not([type=checkbox]),textarea');
-            if (n) { n.focus(); try { if (caret && caret[0] != null) n.setSelectionRange(caret[0], caret[1]); } catch (_) { /* number/date turida kursor yo'q */ } }
-          }
+          if (keep && keep.parentNode === w) {
+            // yozilayotgan maydonning o'zi tegilmaydi (kursor joyida qoladi) — atrofidagi yorliq/izoh/xato yangilanadi
+            const tmp = document.createElement('div');
+            tmp.innerHTML = controlHTML(f);
+            const kids = [...tmp.childNodes];
+            const at = kids.findIndex((n) => n.nodeType === 1 && /^(INPUT|TEXTAREA)$/.test(n.tagName));
+            if (at >= 0) {
+              [...w.childNodes].forEach((n) => { if (n !== keep) n.remove(); });
+              kids.slice(0, at).forEach((n) => w.insertBefore(n, keep));
+              kids.slice(at + 1).forEach((n) => w.appendChild(n));
+            } else w.innerHTML = tmp.innerHTML;
+          } else w.innerHTML = controlHTML(f);
           if (errText) { const e2 = w.querySelector('.err'); if (e2) { e2.textContent = errText; e2.hidden = false; } }
           w.dataset.init = '1';
           w.dataset.sig = sig;
