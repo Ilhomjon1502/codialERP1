@@ -33,9 +33,10 @@ def lesson_days_in_month(year, month, weekdays):
 
 
 @transaction.atomic
-def set_course_price(user, branch, course, effective_from, price):
-    """Narx faqat o'zgarganda yangi yozuv; shu oy uchun yozuv bo'lsa — yangilanadi. Qaytaradi: (yozuv, yangimi)."""
-    obj = CoursePrice.objects.filter(branch=branch, course=course, effective_from=effective_from).first()
+def set_course_price(user, branch, course, effective_from, price, min_age=0):
+    """Narx faqat o'zgarganda yangi yozuv; shu oy (va yosh pog'onasi) uchun yozuv bo'lsa — yangilanadi. Qaytaradi: (yozuv, yangimi).
+    min_age=0 — hamma uchun; min_age=25 — yosh guruhi 25 va undan katta talabalar uchun alohida narx."""
+    obj = CoursePrice.objects.filter(branch=branch, course=course, effective_from=effective_from, min_age=min_age).first()
     if obj:
         before = audit.snapshot(obj)
         obj.price = price
@@ -44,7 +45,7 @@ def set_course_price(user, branch, course, effective_from, price):
         audit.log_update(user, obj, before)
         created = False
     else:
-        obj = CoursePrice.objects.create(branch=branch, course=course, effective_from=effective_from, price=price, created_by=user, updated_by=user)
+        obj = CoursePrice.objects.create(branch=branch, course=course, effective_from=effective_from, min_age=min_age, price=price, created_by=user, updated_by=user)
         audit.log_create(user, obj)
         created = True
     recalc_price(branch, course, effective_from)

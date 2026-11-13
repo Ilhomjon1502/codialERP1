@@ -109,12 +109,14 @@ class CoursePrice(BaseModel):
     course = models.ForeignKey(Course, on_delete=models.PROTECT, related_name="prices")
     effective_from = models.DateField("Amal qilish oyi (1-kun)")
     price = models.DecimalField("Narx (oyiga)", validators=[MinValueValidator(0)], **Money)
+    # 0 — hamma uchun oddiy narx; masalan 25 — lidning yosh guruhi 25 va undan katta bo'lgan talabalar uchun alohida narx (2026-11-13)
+    min_age = models.PositiveSmallIntegerField("Eng kichik yosh (0 — hamma uchun)", default=0)
 
     class Meta:
         verbose_name = "Kurs narxi"
         verbose_name_plural = "Kurs narxlari"
-        ordering = ["course__name", "-effective_from"]
-        constraints = [models.UniqueConstraint(fields=["branch", "course", "effective_from"], condition=ALIVE, name="uniq_course_price")]
+        ordering = ["course__name", "min_age", "-effective_from"]
+        constraints = [models.UniqueConstraint(fields=["branch", "course", "min_age", "effective_from"], condition=ALIVE, name="uniq_course_price_age")]
 
     def __str__(self):
         return f"{self.course}: {self.price:,.0f} ({self.effective_from:%Y-%m})".replace(",", " ")

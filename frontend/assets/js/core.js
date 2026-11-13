@@ -149,7 +149,7 @@
 
   /* ================= Hisob-kitob servislari ================= */
   A.priceFor = (branch, course, ym) => {
-    const list = A.rows('coursePrices').filter((p) => p.branch === branch && p.course === course && p.effective_from <= ym);
+    const list = A.rows('coursePrices').filter((p) => p.branch === branch && p.course === course && !p.min_age && p.effective_from <= ym);
     const p = A.sortBy(list, (x) => x.effective_from, true)[0];
     return p ? p.price : null;
   };

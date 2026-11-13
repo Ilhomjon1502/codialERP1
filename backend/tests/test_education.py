@@ -501,3 +501,32 @@ def test_course_paths_report(api, make_user, world):
     moved = [r for r in d["rows"] if r["moved_course"]]
     assert len(moved) == 1 and moved[0]["student"].startswith("Talaba0")
     assert api(make_user("USTOZ")).get("/api/v1/reports/course-paths/").status_code == 403
+
+
+# ------------------------------------------------------------------ yosh bo'yicha narx (2026-11-13)
+
+def test_adult_price_by_lead_age_group(api, make_user, world):
+    w = world
+    src = LeadSource.objects.create(name="Instagram")
+    adult, teen, unknown = w["students"]
+    Lead.objects.create(branch=w["branch"], student=adult, source=src, course=w["course"], status="5", age_group="25-27")
+    Lead.objects.create(branch=w["branch"], student=teen, source=src, course=w["course"], status="5", age_group="16-18")
+    bm = api(make_user("BOSH_MENEJER"))
+    r = bm.post("/api/v1/course-prices/", {"branch": str(w["branch"].pk), "course": str(w["course"].pk), "effective_from": f"{PREV:%Y-%m}", "price": 780000, "min_age": 25}, format="json")
+    assert r.status_code == 201 and r.json()["min_age"] == 25
+    take(api(w["teacher"]), w, [(c, "1", "") for c in w["contracts"]])
+    debt = {c.student_id: Attendance.objects.get(contract=c).student_debt for c in w["contracts"]}
+    assert debt[adult.pk] == Decimal(65000)    # 780 000 / 12
+    assert debt[teen.pk] == Decimal(50000)     # 600 000 / 12
+    assert debt[unknown.pk] == Decimal(50000)  # yosh guruhi noma'lum — oddiy narx
+    # yosh guruhi tuzatilsa — qarz o'zi qayta hisoblanadi
+    ld = Lead.objects.get(student=teen)
+    ld.age_group = "28-30"
+    ld.save()
+    assert Attendance.objects.get(contract__student=teen).student_debt == Decimal(65000)
+    # oddiy narxni o'zgartirish kattalar narxiga tegmaydi
+    body = {"branch": str(w["branch"].pk), "course": str(w["course"].pk), "effective_from": f"{PREV:%Y-%m}", "price": 720000}
+    assert bm.post("/api/v1/course-prices/", body, format="json").status_code == 200
+    assert Attendance.objects.get(contract__student=adult).student_debt == Decimal(65000)
+    assert Attendance.objects.get(contract__student=unknown).student_debt == Decimal(60000)
+    assert CoursePrice.objects.filter(course=w["course"]).count() == 2

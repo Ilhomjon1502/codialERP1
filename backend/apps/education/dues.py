@@ -68,7 +68,7 @@ def month_dues(contracts_qs, month=None, on=None, dismissed="hide"):
         frm = max(month, c.start_date, g.start_date)
         to = min(month_end, c.end_date or month_end, g.end_date or month_end)
         mine = min(_lessons(weekdays, frm, to), total_lessons)
-        price = calc.price(c.branch_id, c.course_id, month)
+        price = calc.price(c.branch_id, c.course_id, month, c.student_id)
         no_price = price is None
         price = Decimal(price or 0)
         month_price = rnd(price * mine / total_lessons) if total_lessons else zero

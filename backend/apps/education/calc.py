@@ -29,6 +29,14 @@ def rnd(x):
     return Decimal(x).quantize(Decimal(1), rounding=ROUND_HALF_UP)
 
 
+def age_of(age_group):
+    """Lidning yosh guruhidan («25-27») eng kichik yoshni oladi → 25; bo'sh yoki noma'lum bo'lsa None."""
+    try:
+        return int(str(age_group).split("-")[0])
+    except (TypeError, ValueError):
+        return None
+
+
 def month_of(d):
     return d.replace(day=1)
 
@@ -37,15 +45,40 @@ class Calculator:
     """Bitta hisob davomida narx, dars soni va stavkalarni keshlaydi."""
 
     def __init__(self):
-        self._price, self._freq, self._rate = {}, {}, {}
+        self._price, self._freq, self._rate, self._age = {}, {}, {}, {}
 
-    def price(self, branch_id, course_id, month):
+    def tiers(self, branch_id, course_id, month):
+        """{min_age: narx} — har bir yosh pog'onasi uchun shu oyda amalda bo'lgan oxirgi narx (0 — hamma uchun)."""
         key = (branch_id, course_id, month)
         if key not in self._price:
-            p = (CoursePrice.objects.filter(branch_id=branch_id, course_id=course_id, effective_from__lte=month)
-                 .order_by("-effective_from").values_list("price", flat=True).first())
-            self._price[key] = p
+            out = {}
+            for age, price in (CoursePrice.objects.filter(branch_id=branch_id, course_id=course_id, effective_from__lte=month)
+                               .order_by("-effective_from").values_list("min_age", "price")):
+                out.setdefault(age, price)
+            self._price[key] = out
         return self._price[key]
+
+    def age(self, branch_id, student_id):
+        """Talabaning yoshi — shu filialdagi lidning yosh guruhidan (bo'lmasa None)."""
+        from apps.crm.models import Lead
+
+        key = (branch_id, student_id)
+        if key not in self._age:
+            g = Lead.objects.filter(branch_id=branch_id, student_id=student_id).values_list("age_group", flat=True).first()
+            self._age[key] = age_of(g)
+        return self._age[key]
+
+    def price(self, branch_id, course_id, month, student_id=None):
+        """Oy narxi. Kursda yosh bo'yicha alohida narx bo'lsa va talabaning yoshi (lid yosh guruhi) ma'lum bo'lsa — mos pog'ona narxi,
+        aks holda hamma uchun oddiy narx (min_age=0)."""
+        tiers = self.tiers(branch_id, course_id, month)
+        if student_id and len(tiers) > 1:
+            age = self.age(branch_id, student_id)
+            if age is not None:
+                fit = [m for m in tiers if m and m <= age]
+                if fit:
+                    return tiers[max(fit)]
+        return tiers.get(0)
 
     def frequency(self, branch_id, pattern_id, course_id, month):
         """8.1: faqat «Tasdiqlangan» yozuv — aynan shu filial + dars kunlari + kurs + oy."""
@@ -63,11 +96,11 @@ class Calculator:
                                .order_by("-effective_from").first())
         return self._rate[key]
 
-    def apply(self, a, contract_type):
-        """Qatorning hisoblangan maydonlarini to'ldiradi (saqlamaydi)."""
+    def apply(self, a, contract_type, student_id=None):
+        """Qatorning hisoblangan maydonlarini to'ldiradi (saqlamaydi). student_id — yosh bo'yicha narx uchun."""
         month = month_of(a.date)
         grant = contract_type == Contract.Type.GRANT
-        price = self.price(a.branch_id, a.course_id, month)
+        price = self.price(a.branch_id, a.course_id, month, student_id)
         freq = self.frequency(a.branch_id, a.day_pattern_id, a.course_id, month)
         notes = []
         # 8.2 — dars bo'ldimi, qarz yoziladi (talaba kelmagan bo'lsa ham)
@@ -112,7 +145,7 @@ class Calculator:
 
 def calculate(a, calc=None):
     """Bitta qator (contract yuklangan bo'lsa qo'shimcha so'rovsiz)."""
-    return (calc or Calculator()).apply(a, a.contract.type)
+    return (calc or Calculator()).apply(a, a.contract.type, a.contract.student_id)
 
 
 @transaction.atomic
@@ -121,10 +154,10 @@ def recalculate(qs, batch=500):
     calc = Calculator()
     changed = []
     for a in qs.select_related("contract").only(
-        "id", "branch_id", "course_id", "day_pattern_id", "date", "status", "teacher_id", "supporter_id", *CALC_FIELDS, "contract__type",
+        "id", "branch_id", "course_id", "day_pattern_id", "date", "status", "teacher_id", "supporter_id", *CALC_FIELDS, "contract__type", "contract__student_id",
     ).iterator(chunk_size=batch):
         before = tuple(getattr(a, f) for f in CALC_FIELDS)
-        calc.apply(a, a.contract.type)
+        calc.apply(a, a.contract.type, a.contract.student_id)
         if tuple(getattr(a, f) for f in CALC_FIELDS) != before:
             changed.append(a)
     Attendance.objects.bulk_update(changed, CALC_FIELDS, batch_size=batch)

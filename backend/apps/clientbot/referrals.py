@@ -39,7 +39,7 @@ def real_payments(student):
 
 def _threshold(payment, percent):
     c = payment.contract
-    price = Calculator().price(c.branch_id, c.course_id, payment.date.replace(day=1))
+    price = Calculator().price(c.branch_id, c.course_id, payment.date.replace(day=1), c.student_id)
     return None if price is None else Decimal(price) * percent / 100
 
 

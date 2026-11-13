@@ -274,28 +274,36 @@
     const b = B();
     const cur = A.ym(A.today());
     return `<div class="row between"><h2>Kurs narxlari</h2>${A.can('settings', 'a') ? A.btn("Narxni o'zgartirish", 'price-new', { icon: 'plus' }) : ''}</div>
-      <p class="muted small">Narx «amal qilish oyi» bilan saqlanadi. Narx faqat o'zgarganda yangi yozuv qo'shiladi — har oy qayta kiritish shart emas. Oy uchun shu oyda amalda bo'lgan oxirgi narx olinadi.</p>
+      <p class="muted small">Narx «amal qilish oyi» bilan saqlanadi. Narx faqat o'zgarganda yangi yozuv qo'shiladi — har oy qayta kiritish shart emas. Oy uchun shu oyda amalda bo'lgan oxirgi narx olinadi. Kattalar uchun alohida narx ham qo'yish mumkin: talabaning yoshi lidning «Yosh guruhi»dan olinadi (yosh guruhi aniq bo'lmasa — oddiy narx).</p>
       ${A.rows('courses')
         .map((c) => {
-          const hist = A.sortBy(A.rows('coursePrices').filter((p) => p.course === c.id && p.branch === b), (p) => p.effective_from, true);
+          const all = A.rows('coursePrices').filter((p) => p.course === c.id && p.branch === b);
+          const hist = A.sortBy(all.filter((p) => !p.min_age), (p) => p.effective_from, true);
           const active = A.priceFor(b, c.id, cur);
-          return `<div class="price-row"><div><b>${esc(c.name)}</b><div class="muted small">${hist.map((h) => `${A.ymLabel(h.effective_from)} dan: ${A.num(h.price)}`).join(' · ') || 'narx kiritilmagan'}</div></div><div class="big-num sm">${active === null ? '—' : A.money(active)}</div></div>`;
+          const ages = [...new Set(all.filter((p) => p.min_age).map((p) => p.min_age))].sort((x, y) => x - y);
+          const extra = ages.map((age) => {
+            const h = A.sortBy(all.filter((p) => p.min_age === age), (p) => p.effective_from, true);
+            const now = h.find((x) => x.effective_from <= cur);
+            return `<div class="muted small">👤 ${age} yosh va undan kattalar: <b>${now ? A.money(now.price) : '—'}</b> (${h.map((x) => `${A.ymLabel(x.effective_from)} dan: ${A.num(x.price)}`).join(' · ')})</div>`;
+          }).join('');
+          return `<div class="price-row"><div><b>${esc(c.name)}</b><div class="muted small">${hist.map((h) => `${A.ymLabel(h.effective_from)} dan: ${A.num(h.price)}`).join(' · ') || 'narx kiritilmagan'}</div>${extra}</div><div class="big-num sm">${active === null ? '—' : A.money(active)}</div></div>`;
         })
         .join('')}`;
   }
   A.act['price-new'] = () =>
     A.form({
       title: "Kurs narxini o'zgartirish",
-      values: { effective_from: A.ym(A.today()) },
+      values: { effective_from: A.ym(A.today()), min_age: '0' },
       fields: [
         { name: 'course', label: 'Kurs', type: 'select', required: true, options: () => A.optList('courses', 'name', (c) => c.status === 'Faol') },
-        { name: 'cur', type: 'note', tone: 'info', show: (x) => x.course, text: (x) => `Hozirgi narx: <b>${A.money(A.priceFor(B(), x.course, A.ym(A.today())))}</b>` },
+        { name: 'min_age', label: 'Kimlar uchun', type: 'select', required: true, show: (x) => x.course, options: () => [['0', 'Hamma uchun (oddiy narx)'], ['25', '25 yosh va undan kattalar (yosh guruhi 25-27 va yuqori)']] },
+        { name: 'cur', type: 'note', tone: 'info', show: (x) => x.course, text: (x) => `Hozirgi oddiy narx: <b>${A.money(A.priceFor(B(), x.course, A.ym(A.today())))}</b>` },
         { name: 'effective_from', label: 'Qaysi oydan amal qiladi', type: 'month', required: true, show: (x) => x.course },
         { name: 'price', label: 'Yangi narx (oyiga)', type: 'money', required: true, show: (x) => x.course },
         { name: 'w', type: 'note', tone: 'warn', show: (x) => x.effective_from && x.effective_from <= A.ym(A.today()), text: "Joriy yoki o'tgan oy tanlandi — shu oydan boshlab davomat qatorlaridagi talaba qarzi va Foiz-KPI qayta hisoblanadi (M3 dan boshlab)." },
       ],
       async onSubmit(x) {
-        A.putLocal('coursePrices', await A.http.post('/course-prices/', { branch: B(), course: x.course, effective_from: x.effective_from, price: x.price }));
+        A.putLocal('coursePrices', await A.http.post('/course-prices/', { branch: B(), course: x.course, effective_from: x.effective_from, price: x.price, min_age: Number(x.min_age || 0) }));
         A.toast('Saqlandi');
         A.refresh();
       },

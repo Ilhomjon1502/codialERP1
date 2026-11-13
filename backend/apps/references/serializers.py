@@ -106,10 +106,11 @@ class LessonTimeSerializer(BranchScopedSerializerMixin, serializers.ModelSeriali
 class CoursePriceSerializer(BranchScopedSerializerMixin, serializers.ModelSerializer):
     effective_from = YearMonthField()
     price = serializers.DecimalField(max_digits=14, decimal_places=0, min_value=0)
+    min_age = serializers.IntegerField(min_value=0, max_value=99, required=False, default=0)
 
     class Meta:
         model = CoursePrice
-        fields = ["id", "branch", "course", "effective_from", "price"]
+        fields = ["id", "branch", "course", "effective_from", "price", "min_age"]
 
 
 class LessonFrequencySerializer(BranchScopedSerializerMixin, serializers.ModelSerializer):

@@ -363,7 +363,7 @@ def mark(user, group, d, marks, sub_teacher=None, sub_supporter=None):
             a = Attendance(branch=group.branch, group=group, course=group.course, contract=contract, day_pattern=group.day_pattern, date=d, status=st,
                            teacher=sub_teacher or group.teacher, supporter=sub_supporter or group.supporter, comment=comment,
                            contact_status=_contact_for(st, ""), created_by=user, updated_by=user)
-            c_calc.apply(a, contract.type)
+            c_calc.apply(a, contract.type, contract.student_id)
             a.save()
             audit.log_create(user, a)
         else:
@@ -377,7 +377,7 @@ def mark(user, group, d, marks, sub_teacher=None, sub_supporter=None):
             if sub_supporter:
                 a.supporter = sub_supporter
             a.updated_by = user
-            c_calc.apply(a, contract.type)
+            c_calc.apply(a, contract.type, contract.student_id)
             a.save()
             audit.log_update(user, a, before)
         out.append(a)

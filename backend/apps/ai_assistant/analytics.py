@@ -404,8 +404,9 @@ WHERE NOT cr.is_deleted"""),
 
         ("analytics_course_prices", "Kurs narxlari tarixi: oy uchun narx — shu oygacha bo'lgan eng oxirgi effective_from.", [
             ("branch", "filial", False), ("course", "kurs", False), ("effective_from", "amal qila boshlagan oy (1-kun)", False), ("price", "oylik narx, so'm", False),
+            ("min_age", "0 — hamma uchun oddiy narx; 25 — yosh guruhi 25 va undan katta (kattalar) talabalar uchun alohida narx", False),
         ], """
-SELECT b.name AS branch, co.name AS course, p.effective_from, p.price
+SELECT b.name AS branch, co.name AS course, p.effective_from, p.price, p.min_age
 FROM references_courseprice p
 JOIN references_branch b ON b.id = p.branch_id
 JOIN references_course co ON co.id = p.course_id

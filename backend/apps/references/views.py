@@ -76,7 +76,7 @@ class CoursePriceViewSet(AuditedModelViewSet):
         ser = self.get_serializer(data=request.data)
         ser.is_valid(raise_exception=True)
         d = ser.validated_data
-        obj, created = services.set_course_price(request.user, d["branch"], d["course"], d["effective_from"], d["price"])
+        obj, created = services.set_course_price(request.user, d["branch"], d["course"], d["effective_from"], d["price"], d.get("min_age", 0))
         return Response(self.get_serializer(obj).data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
 
 

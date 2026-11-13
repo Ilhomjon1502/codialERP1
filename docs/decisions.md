@@ -140,3 +140,11 @@
 - **Qanday:** `POST /api/v1/learn/yoz/login/` (`clientbot/yoz.py: login`) — mavjud Yoz tokenining shartnoma varianti (`make_contract_token`, har so'rovda shartnoma tugamaganligi tekshiriladi). Javobda ism, statistika va `progress` (dars → eng yaxshi yulduz/tezlik/aniqlik, `TypingSession`dan); Yoz buni mahalliy profilga qo'shadi (`store.merge`), o'tilgan darslardan oldingi ma'lumot slaydlari ham «ko'rildi» bo'ladi.
 - **Himoya:** parol 10 000 variant, raqamlar ketma-ket → IP bo'yicha `login` limiti + shartnoma raqami bo'yicha 5 xato → 15 daqiqa blok (mavjud bo'lmagan raqam ham sanaladi); xato xabari bitta; faqat faol/rejadagi shartnoma; javobda telefon va qarz ma'lumoti yo'q. Chiqishda mahalliy profil tanlovi bekor bo'ladi (umumiy kompyuter).
 - Kod bilan ulash (darslik ilovasi) o'zgarishsiz qoladi.
+
+## 2026-11-13 — Yosh bo'yicha kurs narxi (Kompyuter savodxonligi, kattalar 650 000)
+
+- **Qaror (buyurtmachi):** kattalar (25 yosh va undan katta) uchun alohida narx; yosh — lidning «Yosh guruhi»dan (25-27 va yuqori); hozircha faqat Kompyuter savodxonligi uchun.
+- **Amalda:** `CoursePrice.min_age` (0 — hamma uchun oddiy narx, 25 — kattalar). Har pog'ona o'z «amal qilish oyi» bilan alohida tarixga ega. Hisobda (`education.calc.Calculator.price(..., student_id)`) talabaning yoshi (shu filialdagi lid yosh guruhining boshlanish yoshi) pog'onaga mos kelsa — shu narx; yosh guruhi bo'sh yoki kursda yosh narxi bo'lmasa — oddiy narx. Qarz, KPI (Foiz), «To'lovga tavsiya», tavsiya bonusi chegarasi shu narxdan hisoblanadi.
+- Lidning yosh guruhi o'zgarsa, shu talabaning yosh narxi bor kurslardagi davomat qatorlari avtomatik qayta hisoblanadi (`crm/signals.py`).
+- **Kiritish:** Sozlamalar → Kurs narxlari → «Narxni o'zgartirish» → «Kimlar uchun: 25 yosh va undan kattalar».
+- **Eslatma:** kattalar guruhidagi talabaning lidida yosh guruhi tanlanmagan bo'lsa, unga oddiy narx hisoblanadi.
