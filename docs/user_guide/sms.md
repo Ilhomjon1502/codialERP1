@@ -37,6 +37,14 @@ Yoqish tartibi: **✎** bilan matnni tekshiring (kerak bo'lsa o'zgartiring), **�
 - Jurnalda har SMS'ning turi ko'rinadi (Yangi lid, Shartnoma, Oy boshi, Oldindan to'lov, Kelmadi).
 - **SMS bormay qolsa Bosh menejerga botdan xabar keladi:** navbatda 15 daqiqadan ortiq turgan SMS (telefon aloqasiz yoki ilova to'xtagan), xato yoki operator «yetkazilmadi» degan SMS, telefon ulanmagan filial. Har SMS haqida bir marta.
 
+## Reklama lidiga darhol SMS (Kompyuter savodxonligi)
+
+Instagram, Facebook yoki saytdan lid tushishi bilan (Instagram/sayt lidlari ro'yxatiga qo'shilgan zahoti), reklamasi **Kompyuter savodxonligi** bo'lsa, shu raqamga SMS ketadi: «{Ism}, siz Kompyuter savodxonligida (havola) darslarini o'rganasiz.» Ism — formada yozilgan ism (kirill lotinga o'giriladi); ism bo'lmasa «Assalomu alaykum».
+
+- Qoida **Qo'ng'iroqlar va SMS → SMS → Avtomatik SMS → «Reklama lidi»** da, boshidan yoniq. Matnni shu yerda o'zgartirish yoki o'chirish mumkin.
+- Raqam bazada (talaba, vasiy) bo'lsa yoki unga avval shu SMS ketgan bo'lsa — yuborilmaydi (har raqamga bir marta).
+- Telefon ulanmagan bo'lsa, Bosh menejerga Telegram'da ogohlantirish keladi.
+
 ## Qoliplar
 
 **Qo'ng'iroqlar va SMS → SMS → «Qolip qo'shish»**. Matnni administratorlarning o'zi yozadi. Matnga o'rinbosarlar qo'yiladi, ular har talaba uchun almashtiriladi:

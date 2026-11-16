@@ -148,3 +148,9 @@
 - Lidning yosh guruhi o'zgarsa, shu talabaning yosh narxi bor kurslardagi davomat qatorlari avtomatik qayta hisoblanadi (`crm/signals.py`).
 - **Kiritish:** Sozlamalar → Kurs narxlari → «Narxni o'zgartirish» → «Kimlar uchun: 25 yosh va undan kattalar».
 - **Eslatma:** kattalar guruhidagi talabaning lidida yosh guruhi tanlanmagan bo'lsa, unga oddiy narx hisoblanadi.
+
+## 2026-11-16 — Reklama/sayt lidiga darhol SMS (Kompyuter savodxonligi)
+
+- **Qaror (buyurtmachi):** Instagram, Facebook va saytdan lid tushishi bilan, kursi «Kompyuter savodxonligi» bo'lsa, shu raqamga SMS: «{Ism}, siz Kompyuter savodxonligida https://ilhomjon1502.github.io/Ks-darsi/ darslarini o'rganasiz.» Darhol yuboriladi (kechasi ham). Qoida **boshidan yoniq**. Navbatdagi barcha lidlarga bir marta yuboriladi, keyin faqat yangilarga.
+- **Amalda:** yangi avtomatik SMS qoidasi `inbox_lead` (`calls/auto_sms.py`, hook — `crm/signals.py`, `InboxLead` yaratilganda). Ism — formadagi ismning birinchi so'zi, kirill lotinga o'giriladi, bosh harf; ism yaroqsiz bo'lsa «Assalomu alaykum». Raqam talaba/vasiy bazasida bo'lsa, yoki shu raqamga avval shu SMS ketgan bo'lsa (`key = inbox:<raqam>`) — yuborilmaydi. 12 soatdan eski lidga «darhol» SMS ketmaydi; eski lidlar uchun `python manage.py sms_inbox_backfill [--commit] [--closed]` (yangi va «Qayta aloqa» lidlari; «Yopilgan» va «Lidga qo'shilgan» — o'tkazib yuboriladi).
+- Bot havolasi qo'shilmaydi (SMS qisqa va spam filtriga tushmasligi uchun).

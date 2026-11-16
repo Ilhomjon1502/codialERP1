@@ -6,6 +6,8 @@
 - **prepay_bonus** — oyning 25-sanasi 10:00: kelasi oy uchun hali to'lamaganlarga, «Avvaldan to'lov» chegirmasi bonusi;
 - **absence** — har kuni 08:00: oxirgi 3 kunda sababsiz («Besabab») kelmagan, «Gaplashildi» deb belgilanmagan talabalarga; bir talabaga 3 kunda bittadan;
 - **demo** — lid «Sinov darsga qatnashdi» holatiga o'tganda (hook: `notifications.services.lead_changed`);
+- **inbox_lead** — Instagram/Facebook/saytdan kiruvchi lid tushishi bilan, reklamasi «Kompyuter savodxonligi» bo'lsa, shu raqamga ism bilan SMS
+  (2026-11-16; boshidan yoniq; raqam bazada bo'lsa yoki avval olgan bo'lsa — ketmaydi; hook: `crm/signals.py`);
 - **bot_reminder** — har kuni 10:00: faol shartnomasi yoki ochiq lidi (1–4) bor, lekin mijozlar botiga ulanmagan raqamlarga ulanish eslatmasi
   (har `reminder_days` kunda, jami `reminder_max` marta — Telegram bot sozlamasi).
 
@@ -66,6 +68,12 @@ DEFAULTS = {
         "text": "Assalomu alaykum! Sinov darsimizga qatnashganingiz uchun rahmat. Savollaringiz bo'lsa, 998204432 ga murojaat qiling.",
         "when": "Lid «Sinov darsga qatnashdi» holatiga o'tganda — talabaning hamma raqamiga (har lidga bir marta)",
     },
+    R.INBOX_LEAD: {
+        "kind": K.INBOX, "time": None, "day": None, "ph": ["ism", "kurs"], "enabled": True,
+        "text": "{ism}, siz Kompyuter savodxonligida https://ilhomjon1502.github.io/Ks-darsi/ darslarini o'rganasiz.",
+        "when": "Instagram/Facebook/saytdan lid tushishi bilan — reklamasi «Kompyuter savodxonligi» bo'lsa, shu raqamga (ism formada yozilgan ismdan; ism bo'lmasa «Assalomu alaykum»). "
+                "Raqam bazada (talaba, vasiy) bo'lsa yoki avval SMS olgan bo'lsa — ketmaydi",
+    },
     R.BOT_REMINDER: {
         "kind": K.BOT, "time": T(10, 0), "day": None, "ph": ["ism", "talaba"],
         "text": "Codial o'quv markazi xabarlari Telegram botda ham keladi, ulanib qo'ying.",
@@ -95,7 +103,9 @@ def ensure_rules(branches):
         have = {r.key: r for r in SmsRule.objects.filter(branch=b, is_deleted=False)}
         for key, d in DEFAULTS.items():
             if key not in have:
-                have[key] = SmsRule.objects.create(branch=b, key=key, text=d["text"], send_time=d["time"], day=d["day"])
+                on = d.get("enabled", False)
+                have[key] = SmsRule.objects.create(branch=b, key=key, text=d["text"], send_time=d["time"], day=d["day"], enabled=on,
+                                                   enabled_at=timezone.now() if on else None)
         out.extend(have[k] for k in DEFAULTS)
     return out
 
@@ -191,6 +201,67 @@ def _enabled_rule(branch_id, key):
 
 
 # ---------- voqeali qoidalar (hook'lar) ----------
+
+
+# ---------- kiruvchi (reklama/sayt) lidlar (2026-11-16) ----------
+
+_CYR = {"а": "a", "б": "b", "в": "v", "г": "g", "д": "d", "е": "e", "ё": "yo", "ж": "j", "з": "z", "и": "i", "й": "y", "к": "k", "л": "l", "м": "m",
+        "н": "n", "о": "o", "п": "p", "р": "r", "с": "s", "т": "t", "у": "u", "ф": "f", "х": "x", "ц": "s", "ч": "ch", "ш": "sh", "щ": "sh",
+        "ъ": "'", "ы": "i", "ь": "", "э": "e", "ю": "yu", "я": "ya", "ў": "o'", "қ": "q", "ғ": "g'", "ҳ": "h"}
+INBOX_FRESH = datetime.timedelta(hours=12)  # shundan eski lidga «darhol» SMS ketmaydi (eski lidlar — alohida buyruq bilan)
+
+
+def clean_name(raw):
+    """Formada yozilgan ismdan SMS uchun ism: birinchi so'z, lotinga o'girilgan, bosh harfli. Yaroqsiz bo'lsa — bo'sh."""
+    first = (str(raw or "").split() or [""])[0]
+    lat = "".join(_CYR.get(ch, ch) for ch in first.lower())
+    lat = "".join("'" if ch in "‘’`ʻʼ" else ch for ch in lat)
+    lat = "".join(ch for ch in lat if (ch.isascii() and ch.isalpha()) or ch == "'").strip("'")
+    return lat[0].upper() + lat[1:] if len(lat) >= 2 else ""
+
+
+def is_ks(course_name):
+    c = (course_name or "").lower()
+    return "kompyuter" in c or "savodxon" in c
+
+
+def in_base(phone):
+    """Raqam talaba (1-, 2-telefon) yoki vasiyniki bo'lsa — bazadagi mijoz."""
+    from apps.crm.models import Parent, Student
+
+    return Student.objects.filter(Q(phone1=phone) | Q(phone2=phone)).exists() or Parent.objects.filter(phone=phone).exists()
+
+
+def enqueue_inbox(item, rule):
+    """Kiruvchi lidning raqamiga SMS. Qaytaradi: navbatga qo'yildimi (True) yoki sababi (str)."""
+    if not is_ks(item.course_name):
+        return "kurs"
+    if in_base(item.phone):
+        return "bazada"
+    key = f"inbox:{item.phone}"  # har raqamga umrida bir marta
+    if SmsMessage.all_objects.filter(key=key).exists():
+        return "yuborilgan"
+    device = sms.branch_device(rule.branch_id)
+    if not device:
+        alert_no_device(rule.branch)
+        return "qurilma"
+    ctx = {"ism": clean_name(item.name) or "Assalomu alaykum", "kurs": "Kompyuter savodxonligi"}
+    msg = sms.plain(sms.render(sms.plain(rule.text), ctx))
+    SmsMessage.objects.create(branch_id=rule.branch_id, device=device, kind=K.INBOX, phone=item.phone, recipient=f"Lid ({item.kind})"[:20],
+                              text=msg, parts=sms.segments(msg), key=key)
+    return True
+
+
+def inbox_created(item):
+    """Yangi kiruvchi lid (hook: crm/signals.py) — darhol SMS, qoida yoqilgan bo'lsa."""
+    def run():
+        if timezone.now() - item.received_at > INBOX_FRESH:
+            return
+        rule = _enabled_rule(item.branch_id, R.INBOX_LEAD)
+        if rule:
+            enqueue_inbox(item, rule)
+
+    _safe(run)
 
 
 def lead_created(lead):

@@ -1,9 +1,9 @@
-"""Lidning yosh guruhi o'zgarsa — yosh bo'yicha alohida narxli kurslardagi qarz qayta hisoblanadi (2026-11-13)."""
+"""Lid signallari: yosh guruhi o'zgarsa yosh narxli kurslardagi qarz qayta hisoblanadi (2026-11-13); yangi kiruvchi lidga avtomatik SMS (2026-11-16)."""
 
 from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 
-from .models import Lead
+from .models import InboxLead, Lead
 
 
 @receiver(pre_save, sender=Lead, dispatch_uid="lead_age_before")
@@ -26,3 +26,12 @@ def _recalc_age(sender, instance, created, **kw):
         qs = Attendance.objects.filter(branch_id=instance.branch_id, course_id=course_id, contract__student_id=instance.student_id, date__gte=eff)
         if qs.exists():
             calc.recalculate(qs)
+
+
+@receiver(post_save, sender=InboxLead, dispatch_uid="inbox_lead_sms")
+def _inbox_sms(sender, instance, created, **kw):
+    """Instagram/Facebook/saytdan yangi lid — Kompyuter savodxonligi bo'lsa, darhol SMS (avtomatik SMS qoidasi `inbox_lead`)."""
+    if created:
+        from apps.calls import auto_sms
+
+        auto_sms.inbox_created(instance)

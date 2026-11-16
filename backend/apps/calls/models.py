@@ -115,6 +115,7 @@ class SmsMessage(BaseModel):
         ABSENCE = "Kelmadi", "Kelmadi"
         DEMO = "Sinov darsi", "Sinov darsi"
         BOT = "Bot taklifi", "Bot taklifi"
+        INBOX = "Reklama lidi", "Reklama lidi"
 
     branch = models.ForeignKey("references.Branch", on_delete=models.PROTECT, related_name="sms_messages")
     direction = models.CharField("Yo'nalish", max_length=10, choices=Direction.choices, default=Direction.OUT, db_index=True)
@@ -166,6 +167,7 @@ class SmsRule(BaseModel):
         ABSENCE = "absence", "Sababsiz kelmagan"
         DEMO = "demo", "Sinov darsga qatnashdi"
         BOT_REMINDER = "bot_reminder", "Botga ulanish eslatmasi"
+        INBOX_LEAD = "inbox_lead", "Reklama lidi (Kompyuter savodxonligi)"
 
     branch = models.ForeignKey("references.Branch", on_delete=models.PROTECT, related_name="sms_rules", verbose_name="Filial")
     key = models.CharField("Qoida", max_length=16, choices=Key.choices)
