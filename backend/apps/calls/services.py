@@ -262,6 +262,11 @@ def attach_recording(device, upload, ended_ms, duration, sig="", number=""):
         return {"status": "duplicate"}
     rec = find_call_for_audio(device, ended, duration, normalize(number))
     if not rec:
+        near = list(CallRecord.objects.filter(device=device, phone=normalize(number), started_at__gte=ended - datetime.timedelta(hours=1),
+                                              started_at__lte=ended + datetime.timedelta(minutes=5)).values_list("started_at", "duration")[:4]) if number else []
+        log.warning("Yozuv mos qo'ng'iroqsiz (pending): fayl=%s tugadi=%s davomiylik=%ss raqam=...%s yaqin qo'ng'iroqlar=%s",
+                    upload.name, ended.isoformat(timespec="seconds"), duration, normalize(number)[-4:] or "yo'q",
+                    [(a.isoformat(timespec="seconds"), d) for a, d in near])
         return {"status": "pending"}
     rec = CallRecord.objects.select_for_update().get(pk=rec.pk)
     if rec.audio and rec.audio_duration >= duration:  # bitta qo'ng'iroqqa ikki fayl (ushlab turish) — uzunrog'i qoladi
