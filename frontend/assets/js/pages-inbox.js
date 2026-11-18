@@ -99,7 +99,9 @@
       fields: [
         { name: 'note', type: 'note', text: () => 'Nima gaplashganingizni yozing. Lidga qo\'shmasangiz — qayta aloqa vaqtini belgilang: shu vaqtda bosh sahifada va botda yana chiqadi.' },
         { name: 'comment', label: 'Suhbat haqida izoh', type: 'textarea', required: true, placeholder: 'Masalan: ertaga javob beradi, ota-onasi bilan maslahatlashadi' },
-        { name: 'result', label: 'Keyingi qadam', type: 'seg', options: [['cb', 'Qayta aloqa vaqti'], ['close', 'Yopish (qiziqmadi / noto\'g\'ri raqam)']] },
+        { name: 'result', label: 'Keyingi qadam', type: 'seg', options: [['cb', 'Qayta aloqa vaqti'], ['close', 'Yopish (qiziqmadi / noto\'g\'ri raqam)']], resets: ['outcome'] },
+        // Kunlik Instagram hisoboti (Google Sheets) shu holatlar bo'yicha sanaladi
+        { name: 'outcome', label: 'Lid holati (hisobot uchun)', type: 'select', required: true, options: (x) => (x.result === 'close' ? oc.close : oc.callback), placeholder: 'Holatni tanlang' },
         { name: 'callback_at', label: 'Qayta aloqa sana va vaqti', type: 'datetime-local', show: (x) => x.result === 'cb', required: (x) => x.result === 'cb',
           validate: (t) => (t && new Date(t) < new Date(Date.now() - 6e5) ? "Bu vaqt o'tib ketgan" : '') },
       ],
