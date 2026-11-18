@@ -166,7 +166,7 @@ def test_write_sheet_duplicates_template_once_and_writes_counts(branch, fake):
     title = f"{day:%d.%m.%y}"
     assert res["created"] and res["title"] == title and not res["mismatch"] and "gid=" in res["url"]
     assert fake.calls[0][0]["duplicateSheet"]["sourceSheetId"] == 1
-    assert fake.cells[f"'{title}'!D2"] == [[(day - datetime.date(1899, 12, 30)).days]]
+    assert fake.cells[f"'{title}'!D2"] == [[f"'{day:%d.%m.%y}"]]
     f_col = [r[0] for r in fake.cells[f"'{title}'!F3:F24"]]
     assert len(f_col) == 22 and f_col[outcomes.CODES.index("spam")] == 1 and sum(f_col) == 1
     again = lead_report.write_sheet(data)  # qayta — yangi varaq ochilmaydi

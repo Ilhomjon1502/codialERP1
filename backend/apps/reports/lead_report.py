@@ -22,7 +22,6 @@ from . import gsheets as gs
 log = logging.getLogger(__name__)
 
 FIRST_ROW = 3  # F3 — birinchi holat (outcomes.OUTCOMES[0])
-EPOCH = datetime.date(1899, 12, 30)  # Google Sheets sana boshi
 TOTAL_CELL, NEUTRAL_CELL, QUALITY_CELL, BAD_CELL = "F2", "I3", "I6", "I9"
 
 
@@ -84,7 +83,8 @@ def write_sheet(data):
         found = r["replies"][0]["duplicateSheet"]["properties"]
     q = "'" + title.replace("'", "''") + "'"
     rows = [[data["counts"][c]] for c in outcomes.CODES]
-    gs.values_update([{"range": f"{q}!D2", "values": [[(day - EPOCH).days]]},
+    # D2 shablonda sana formatida emas — raqam bo'lib qolmasligi uchun matn sifatida (')
+    gs.values_update([{"range": f"{q}!D2", "values": [["'" + day.strftime("%d.%m.%y")]]},
                       {"range": f"{q}!F{FIRST_ROW}:F{FIRST_ROW + len(rows) - 1}", "values": rows}], sid)
     got = gs.values_get([f"{q}!{a}" for a in (TOTAL_CELL, NEUTRAL_CELL, QUALITY_CELL, BAD_CELL)], sid)
     read = [(v[0][0] if v and v[0] else None) for v in got]
