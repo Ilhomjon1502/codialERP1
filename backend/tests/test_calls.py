@@ -398,3 +398,11 @@ def test_ig_audio_send_uses_voice_for_ogg_and_multipart(api, paired, media, sett
     ig_audio.send(c, it, -100777)
     assert seen["url"].endswith("/botTEST/sendVoice")
     assert b'name="voice"' in seen["body"] and b"Ali Valiyev" in seen["body"] and b'name="chat_id"' in seen["body"]
+
+
+def test_recording_pending_logs_reason(api, paired, media, caplog):
+    ingest(api, paired, [call(1, "+998901234567", kind=2, duration=40)])
+    with caplog.at_level("WARNING"):
+        r = _upload(api, paired, ended_min=30, number="+998909999999", sig="far")  # mos qo'ng'iroq yo'q
+    assert r.data["status"] == "pending"
+    assert "Yozuv mos qo'ng'iroqsiz" in caplog.text

@@ -3,6 +3,7 @@ javobsiz qo'ng'iroqqa qayta qo'ng'iroqni belgilash, qurilmani ulash (kod → tok
 
 import datetime
 import hashlib
+import logging
 import re
 import secrets
 
@@ -19,6 +20,7 @@ from apps.education.models import Attendance, Contract
 
 from .models import CallDevice, CallRecord
 
+log = logging.getLogger(__name__)
 D = CallRecord.Direction
 # android.provider.CallLog.Calls.TYPE: 1 kiruvchi, 2 chiquvchi, 3 javobsiz, 4 ovozli pochta, 5 rad etilgan, 6 bloklangan,
 # 7 boshqa qurilmada javob berilgan
