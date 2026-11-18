@@ -45,6 +45,12 @@ Ishlangan lidlar soni (Instagram / Facebook, shundan eski lidlar), uch guruh va 
 Varaqqa yozib bo'lmasa — xabar baribir ketadi va sababi yoziladi. Varaqdagi formulalar bizning hisobdan farq qilsa, xabarda ogohlantirish chiqadi
 (qolipdagi formulani kimdir o'zgartirgan bo'lishi mumkin).
 
+## Telegram guruhiga (Mardon aka)
+
+Xuddi shu 19:00 da «Mardon aka ustoz Codialda» guruhiga **qisqa matn** boradi (havola va ogohlantirishlarsiz): ishlangan lidlar soni va Neytral / Sifatli / Sifatsiz
+bo'yicha nolga teng bo'lmagan holatlar. Guruh `IG_REPORT_CHAT_ID` (standart — shu guruh, `0` — o'chiq). Bir kunga bitta xabar.
+Keyingi kun hisobotining boshlanishi — oldingi kun 19:00 (19:00 dan keyingi ish keyingi kun hisobotiga tushadi).
+
 ## Sozlash (bir marta)
 
 1. Google Sheets fayli **«havola bilan hamma tahrirlaydi»** ochiq bo'lishi kerak (hozir shunday) yoki service account unga Muharrir qilib qo'shiladi (`gsheets_check` pochtasini ko'rsatadi).

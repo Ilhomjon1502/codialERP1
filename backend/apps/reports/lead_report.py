@@ -104,6 +104,29 @@ def message(data, url=None, sheet_error=None):
     return "\n".join(L)
 
 
+def group_message(data):
+    """Guruh (Mardon aka) uchun qisqa va lo'nda matn: sana, ishlangan lidlar soni, uch guruh va nolga teng bo'lmagan holatlar (havola va ogohlantirishlarsiz)."""
+    c, e = data["counts"], html.escape
+    L = [f"📸 <b>Instagram/Facebook lidlari</b> · {data['day']:%d.%m.%Y}"]
+    if not data["total"]:
+        return chr(10).join(L + ["Bugun ishlangan lid yo'q"])
+    L.append(f"Ishlangan: <b>{data['total']}</b>" + (f" (shundan eski: {data['old_total']})" if data.get("old_total") else ""))
+    for g, icon in ((outcomes.NEUTRAL, "⚪"), (outcomes.QUALITY, "🟢"), (outcomes.BAD, "🔴")):
+        if data["groups"][g]:
+            parts = " · ".join(f"{e(outcomes.LABEL[k])} {c[k]}" for k in outcomes.CODES if outcomes.GROUP[k] == g and c[k])
+            L.append(f"{icon} <b>{outcomes.GROUP_LABELS[g]} {data['groups'][g]}</b> — {parts}")
+    return chr(10).join(L)
+
+
+def send_group(data, day):
+    """Qisqa hisobotni Telegram guruhiga navbatga qo'yadi (bir kunga bitta)."""
+    from apps.notifications.models import Outbox
+
+    chat, key = settings.IG_REPORT_CHAT_ID, f"igreport:{day}"
+    if chat and not Outbox.objects.filter(chat_id=chat, key=key).exists():
+        Outbox.objects.create(user=None, chat_id=chat, event="ig_lead", key=key, text=group_message(data))
+
+
 def configured():
     return bool(settings.GOOGLE_SERVICE_ACCOUNT_B64 and settings.LEAD_REPORT_SHEET_ID)
 
@@ -163,4 +186,5 @@ def run(day=None, send=True):
         text += "\n⚠️ Varaq formulalari bizning hisobdan farq qildi: " + ", ".join(f"{m['cell']}={m['sheet']} (bizda {m['ours']})" for m in res["mismatch"])
     if send:
         notif.notify("ig_lead", text, force=True, key=f"igreport:{day}")
+        send_group(data, day)
     return text, res

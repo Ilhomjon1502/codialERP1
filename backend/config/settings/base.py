@@ -194,6 +194,7 @@ LEAD_REPORT_SHEET_ID = env("LEAD_REPORT_SHEET_ID", "")  # Instagram/Facebook lid
 LEAD_REPORT_TEMPLATE_TAB = env("LEAD_REPORT_TEMPLATE_TAB", "Lid hisoboti")  # shu varaq nusxalanadi
 IG_LEADS_CHAT_ID = int(env("IG_LEADS_CHAT_ID", "-1001530659909") or 0)  # Codial (ichki guruh): Instagram lidlari shu yerga
 IG_CALLS_CHAT_ID = int(env("IG_CALLS_CHAT_ID", "-1004452073346") or 0)  # «Mardon aka ustoz Codialda» guruhi: Instagram/Facebook lidlari bilan suhbat audiolari (0 — o'chiq)
+IG_REPORT_CHAT_ID = int(env("IG_REPORT_CHAT_ID", "-1004452073346") or 0)  # Instagram/Facebook lidlari kunlik hisoboti (19:00, qisqa matn) shu guruhga ham boradi (0 — o'chiq)
 IG_LEADS_SHEET_URL = env("IG_LEADS_SHEET_URL", "")  # Instagram target lidlari jadvali (havola — maxfiy, faqat deploy/.env da)
 SITE_SYNC_URL = env("SITE_SYNC_URL", "")  # sayt manzili (https://www.codialinfo.uz/api/erp/lead-status): sayt arizasi holati shu yerga yuboriladi
 SITE_SYNC_KEY = env("SITE_SYNC_KEY", "")  # HMAC imzo kaliti (saytdagi ERP_SYNC_KEY bilan bir xil), deploy/.env

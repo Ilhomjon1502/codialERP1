@@ -217,7 +217,7 @@ def test_write_sheet_reports_formula_mismatch(branch, monkeypatch):
     assert [m["cell"] for m in res["mismatch"]] == ["I9"]
 
 
-@override_settings(LEAD_REPORT_SHEET_ID="SID", GOOGLE_SERVICE_ACCOUNT_B64="x", LEAD_REPORT_TEMPLATE_TAB="Boshqa nom")
+@override_settings(LEAD_REPORT_SHEET_ID="SID", GOOGLE_SERVICE_ACCOUNT_B64="x", LEAD_REPORT_TEMPLATE_TAB="Boshqa nom", IG_REPORT_CHAT_ID=0)
 def test_run_sends_telegram_even_if_sheet_fails(branch, make_user, now_commit, fake):
     TelegramLink.objects.create(user=make_user("BOSH_MENEJER"), chat_id=777)
     _item()
@@ -229,6 +229,33 @@ def test_run_sends_telegram_even_if_sheet_fails(branch, make_user, now_commit, f
     assert Outbox.objects.filter(event="ig_lead").count() == 1
 
 
+def test_group_message_is_short():
+    d = {"day": datetime.date(2026, 11, 18), "total": 5, "groups": {"neytral": 3, "sifatli": 2, "sifatsiz": 0}, "old_total": 2, "kinds": {},
+         "counts": {c: 0 for c in outcomes.CODES}, "old": {}}
+    d["counts"].update(new=2, hesitate=1, demo=2)
+    text = lead_report.group_message(d)
+    assert text.splitlines() == ["📸 <b>Instagram/Facebook lidlari</b> · 18.11.2026", "Ishlangan: <b>5</b> (shundan eski: 2)",
+                                 "⚪ <b>Neytral 3</b> — Yangi lid 2 · Ajidaniya 1", "🟢 <b>Sifatli 2</b> — Demoga yozildi 2"]
+    d["total"] = 0
+    assert "ishlangan lid yo'q" in lead_report.group_message(d)
+
+
+@override_settings(IG_REPORT_CHAT_ID=-100123)
+def test_run_sends_short_report_to_group_once(branch, make_user, now_commit):
+    _item()
+    lead_report.run()
+    lead_report.run()
+    msg = Outbox.objects.get(chat_id=-100123)
+    assert "Ishlangan: <b>1</b>" in msg.text and "href" not in msg.text  # havolasiz, qisqa
+
+
+@override_settings(IG_REPORT_CHAT_ID=0)
+def test_group_off_when_chat_not_set(branch, now_commit):
+    lead_report.run()
+    assert not Outbox.objects.filter(event="ig_lead", chat_id=0).exists() and not Outbox.objects.filter(chat_id__lt=0).exists()
+
+
+@override_settings(IG_REPORT_CHAT_ID=0)
 def test_run_without_google_still_sends_summary(branch, make_user, now_commit):
     TelegramLink.objects.create(user=make_user("BOSH_MENEJER"), chat_id=777)
     text, res = lead_report.run()
