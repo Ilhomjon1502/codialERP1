@@ -59,7 +59,8 @@ class IngestView(DeviceAPIView):
 
 
 class RecordingView(DeviceAPIView):
-    """POST multipart {file, ended_at (ms), duration (s), sig}: telefondagi yozuvchi ilova saqlagan suhbat yozuvi.
+    """POST multipart {file, ended_at (ms), duration (s), sig, number}: telefondagi yozuvchi ilova saqlagan suhbat yozuvi.
+    `number` — fayl nomidagi raqam (ixtiyoriy, lekin tavsiya): berilsa faqat shu raqamning qo'ng'irog'iga biriktiriladi.
     Javob: {status: ok | duplicate | pending}. `pending` — mos qo'ng'iroq hali jurnaldan kelmagan, ilova keyinroq qayta yuboradi."""
 
     parser_classes = [MultiPartParser]
@@ -69,7 +70,7 @@ class RecordingView(DeviceAPIView):
         if not device:
             return Response({"detail": "Qurilma ulanmagan", "code": "device_unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
         d = request.data
-        return Response(services.attach_recording(device, request.FILES.get("file"), d.get("ended_at"), d.get("duration"), d.get("sig")))
+        return Response(services.attach_recording(device, request.FILES.get("file"), d.get("ended_at"), d.get("duration"), d.get("sig"), d.get("number")))
 
 
 class PingView(DeviceAPIView):

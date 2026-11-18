@@ -201,13 +201,14 @@ def test_calls_section_in_roles_matrix(api, make_user):
 # ---------- Suhbat yozuvlari (2026-11-18) ----------
 
 
-def _upload(api, token, name="r.m4a", data=b"x" * 2048, ended_min=0, ended_sec=40, duration=40, sig="s1"):
+def _upload(api, token, name="r.m4a", data=b"x" * 2048, ended_min=0, ended_sec=40, duration=40, sig="s1", number=None):
     from django.core.files.uploadedfile import SimpleUploadedFile
 
     ended = T0 + ended_min * 60_000 + ended_sec * 1000
-    return api().post("/api/v1/calls/recordings/", {"file": SimpleUploadedFile(name, data, content_type="audio/mp4"),
-                                                      "ended_at": ended, "duration": duration, "sig": sig},
-                      format="multipart", HTTP_AUTHORIZATION=f"Device {token}")
+    body = {"file": SimpleUploadedFile(name, data, content_type="audio/mp4"), "ended_at": ended, "duration": duration, "sig": sig}
+    if number is not None:
+        body["number"] = number
+    return api().post("/api/v1/calls/recordings/", body, format="multipart", HTTP_AUTHORIZATION=f"Device {token}")
 
 
 @pytest.fixture
@@ -272,3 +273,25 @@ def test_purge_audio(api, paired, media):
     assert services.purge_audio(7) == 1  # qo'ng'iroq 2026-10-19 da — 7 kundan eski
     rec = CallRecord.objects.get()
     assert not rec.audio and rec.audio_sig == ""
+
+
+def test_recording_goes_to_the_call_with_the_same_number(api, paired, media):
+    """2026-11-18: Robiya qo'ng'irog'i jurnalda hali yo'q paytda uning yozuvi eng yaqin boshqa qo'ng'iroqqa (Ilhom) yopishib qolgan edi."""
+    # 1: 09:00:00 (6 s) — Ilhom. Yozuv 27 s, 09:02:07 da tugagan (Robiya: 09:01:40 da terilgan, 8 s suhbat + jiringlash)
+    ingest(api, paired, [call(1, "+998901111502", kind=2, minutes=0, duration=6)])
+    late = dict(ended_min=2, ended_sec=7, duration=27)
+    assert _upload(api, paired, sig="a", **late).data["status"] == "pending"            # raqamsiz: 121 s farq — yopishmaydi
+    assert _upload(api, paired, sig="b", number="+998 90 333-34-31", **late).data["status"] == "pending"
+    ingest(api, paired, [call(2, "+998903333431", kind=2, minutes=1, duration=8)])
+    assert _upload(api, paired, sig="b", number="+998 90 333-34-31", **late).data["status"] == "ok"
+    assert CallRecord.objects.get(phone="903333431").audio and not CallRecord.objects.get(phone="901111502").audio
+
+
+def test_recording_with_number_waits_for_its_call(api, paired, media):
+    """Mos raqamli qo'ng'iroq hali jurnalda yo'q: boshqa raqamning yaqin qo'ng'irog'iga yopishmaydi, 'pending' qoladi."""
+    ingest(api, paired, [call(1, "+998901111502", kind=2, minutes=0, duration=40)])
+    assert _upload(api, paired, number="+998903333431").data["status"] == "pending"
+    assert not CallRecord.objects.get().audio
+    ingest(api, paired, [call(2, "+998903333431", kind=2, minutes=0, duration=40)])
+    assert _upload(api, paired, number="+998903333431").data["status"] == "ok"
+    assert CallRecord.objects.get(phone="903333431").audio and not CallRecord.objects.get(phone="901111502").audio

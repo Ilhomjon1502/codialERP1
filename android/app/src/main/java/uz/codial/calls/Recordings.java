@@ -16,6 +16,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Suhbat yozuvlari (1.4). Ilovaning o'zi suhbatni yozmaydi: telefondagi yozuvchi ilova (masalan ShizuCallRecorder)
@@ -31,7 +33,22 @@ final class Recordings {
     private static final int MAX_DEPTH = 3;
     private static final String[] EXT = {".m4a", ".aac", ".mp3", ".ogg", ".opus", ".oga", ".wav", ".amr", ".3gp", ".flac", ".mp4", ".webm"};
 
+    // Yozuvchi ilova fayl nomiga qo'ng'iroq raqamini yozadi: 20261118_115420.745+0500_out_+998901234567.ogg
+    // Vaqt zonasi (+0500) raqam emas: raqamni «_out_» / «_in_» dan keyingi qismdan olamiz, bo'lmasa — oxirgi 9–15 raqamli guruhdan
+    private static final Pattern NUMBER_AFTER_DIR = Pattern.compile("_(?:out|in|incoming|outgoing)_(\\+?\\d{7,15})", Pattern.CASE_INSENSITIVE);
+    private static final Pattern ANY_NUMBER = Pattern.compile("(\\+?\\d{9,15})");
+
     private Recordings() {}
+
+    /** Fayl nomidagi telefon raqami yoki "" (yashirin raqam, nomda raqam yo'q). */
+    static String numberFromName(String name) {
+        Matcher m = NUMBER_AFTER_DIR.matcher(name);
+        if (m.find()) return m.group(1);
+        String last = "";
+        Matcher a = ANY_NUMBER.matcher(name.replaceFirst("^\\d{8}_\\d{6}(?:\\.\\d+)?[+-]\\d{4}", ""));
+        while (a.find()) last = a.group(1);
+        return last;
+    }
 
     static boolean enabled(Context ctx) {
         return new Prefs(ctx).paired() && new Prefs(ctx).recTree() != null;
@@ -125,7 +142,8 @@ final class Recordings {
         try (InputStream in = ctx.getContentResolver().openInputStream(it.uri)) {
             if (in == null) throw new IOException("Faylni ochib bo'lmadi");
             res = Api.upload(p.server(), "recordings/", p.token(), in, it.name,
-                    new String[][]{{"ended_at", String.valueOf(it.modified)}, {"duration", String.valueOf(Math.round(durMs / 1000.0))}, {"sig", sig}});
+                    new String[][]{{"ended_at", String.valueOf(it.modified)}, {"duration", String.valueOf(Math.round(durMs / 1000.0))}, {"sig", sig},
+                            {"number", numberFromName(it.name)}});
         }
         return res.optString("status");
     }

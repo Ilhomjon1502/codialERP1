@@ -210,7 +210,8 @@ MAX_AUDIO_BYTES = 80 * 1024 * 1024
 # Yozuv oxiri (fayl o'zgargan vaqt) qo'ng'iroq jurnalidagi oxiridan qancha farq qilishi mumkin: jurnalda suhbat vaqti (javobdan
 # keyin) turadi, yozuvda esa jiringlash ham bo'lishi mumkin; yozuvchi ilova faylni yopguncha ham biroz o'tadi
 AUDIO_END_BEFORE = 20       # yozuv qo'ng'iroq oxiridan oldin tugagan bo'lsa (soniya)
-AUDIO_END_AFTER = 200       # yozuv qo'ng'iroq oxiridan keyin tugagan bo'lsa (soniya)
+AUDIO_END_AFTER = 150       # yozuv qo'ng'iroq oxiridan keyin tugagan bo'lsa (soniya); raqam ma'lum bo'lsa
+AUDIO_END_AFTER_NO_NUMBER = 90  # raqam ma'lum bo'lmasa qattiqroq: boshqa raqamning yaqin qo'ng'irog'iga yopishib qolmasin
 AUDIO_START_RING = 150      # qo'ng'iroq jurnaldagi vaqtidan yozuv boshlanishigacha (jiringlash)
 
 
@@ -223,21 +224,26 @@ def audio_content_type(rec):
     return AUDIO_TYPES.get(audio_ext(rec.audio.name), "application/octet-stream")
 
 
-def find_call_for_audio(device, ended, duration):
-    """Yozuvga mos qo'ng'iroq: boshlanishi yozuv boshlanishidan oldin (jiringlash bilan), tugashi yozuv tugashiga yaqin. Topilmasa None."""
+def find_call_for_audio(device, ended, duration, phone=""):
+    """Yozuvga mos qo'ng'iroq: boshlanishi yozuv boshlanishidan oldin (jiringlash bilan), tugashi yozuv tugashiga yaqin.
+    `phone` (9 xona) berilsa — faqat shu raqamning qo'ng'iroqlari (yozuv fayl nomidagi raqam): boshqa raqamning vaqtga yaqin qo'ng'irog'iga
+    hech qachon biriktirilmaydi; mos qo'ng'iroq hali jurnaldan kelmagan bo'lsa None (ilova keyinroq qayta yuboradi). Topilmasa None."""
     started = ended - datetime.timedelta(seconds=max(0, duration))
+    limit = AUDIO_END_AFTER if phone else AUDIO_END_AFTER_NO_NUMBER
     best, best_diff = None, None
     qs = CallRecord.objects.filter(device=device, started_at__gte=started - datetime.timedelta(seconds=AUDIO_START_RING),
                                    started_at__lte=started + datetime.timedelta(seconds=15))
+    if phone:
+        qs = qs.filter(phone=phone)
     for c in qs:
         diff = (ended - (c.started_at + datetime.timedelta(seconds=c.duration))).total_seconds()
-        if -AUDIO_END_BEFORE <= diff <= AUDIO_END_AFTER and (best is None or abs(diff) < best_diff):
+        if -AUDIO_END_BEFORE <= diff <= limit and (best is None or abs(diff) < best_diff):
             best, best_diff = c, abs(diff)
     return best
 
 
 @transaction.atomic
-def attach_recording(device, upload, ended_ms, duration, sig=""):
+def attach_recording(device, upload, ended_ms, duration, sig="", number=""):
     """Telefondagi yozuvchi ilova saqlagan faylni mos qo'ng'iroqqa biriktiradi. Natija: {status: ok|duplicate|pending, call}.
     `pending` — mos qo'ng'iroq hali jurnaldan kelmagan (ilova keyinroq qayta yuboradi)."""
     if not upload:
@@ -254,7 +260,7 @@ def attach_recording(device, upload, ended_ms, duration, sig=""):
     sig = str(sig or "")[:64]
     if sig and CallRecord.objects.filter(device=device, audio_sig=sig).exists():
         return {"status": "duplicate"}
-    rec = find_call_for_audio(device, ended, duration)
+    rec = find_call_for_audio(device, ended, duration, normalize(number))
     if not rec:
         return {"status": "pending"}
     rec = CallRecord.objects.select_for_update().get(pk=rec.pk)
