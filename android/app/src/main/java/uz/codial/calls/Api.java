@@ -15,10 +15,17 @@ import java.nio.charset.StandardCharsets;
 final class Api {
     static final class HttpError extends IOException {
         final int code;
+        final String errCode;  // serverning {"code": "..."} maydoni
 
-        HttpError(int code, String message) {
+        HttpError(int code, String message, String errCode) {
             super(message);
             this.code = code;
+            this.errCode = errCode == null ? "" : errCode;
+        }
+
+        /** Faqat serverning aniq «qurilma ulanmagan» javobi ulanishni bekor qiladi. Oddiy 401 (eski server, boshqa yo'nalish, proksi) emas. */
+        boolean deviceRevoked() {
+            return code == 401 && "device_unauthorized".equals(errCode);
         }
     }
 
@@ -49,7 +56,7 @@ final class Api {
         } catch (JSONException e) {
             json = new JSONObject();
         }
-        if (code >= 400) throw new HttpError(code, message(json, code));
+        if (code >= 400) throw new HttpError(code, message(json, code), json.optString("code"));
         return json;
     }
 
@@ -92,7 +99,7 @@ final class Api {
         if (code >= 400) {
             String msg = message(json, code);
             if (json.optJSONArray("file") != null) msg = json.optJSONArray("file").optString(0);
-            throw new HttpError(code, msg);
+            throw new HttpError(code, msg, json.optString("code"));
         }
         return json;
     }

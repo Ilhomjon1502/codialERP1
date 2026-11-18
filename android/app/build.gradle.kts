@@ -10,8 +10,8 @@ android {
         applicationId = "uz.codial.calls"
         minSdk = 26
         targetSdk = 36
-        versionCode = 5
-        versionName = "1.4"
+        versionCode = 6
+        versionName = "1.4.1"
     }
 
     buildTypes {

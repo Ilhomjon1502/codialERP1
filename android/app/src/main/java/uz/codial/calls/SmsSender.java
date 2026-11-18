@@ -84,7 +84,7 @@ final class SmsSender {
             if (total > 0) p.smsQueued(total);
             return total;
         } catch (Api.HttpError e) {
-            if (e.code == 401) p.unpair("Ulanish bekor qilingan — ERP'dan yangi kod olib qayta ulang");
+            if (e.deviceRevoked()) p.unpair("Ulanish bekor qilingan — ERP'dan yangi kod olib qayta ulang");
             else p.smsError(e.getMessage());
             return -1;
         } catch (IOException | JSONException e) {

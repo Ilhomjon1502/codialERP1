@@ -97,7 +97,7 @@ final class Recordings {
                 p.recDone(sig, true);
                 sent++;
             } catch (Api.HttpError e) {
-                if (e.code == 401) {
+                if (e.deviceRevoked()) {
                     p.unpair("Ulanish bekor qilingan — ERP'dan yangi kod olib qayta ulang");
                     return -1;
                 }
