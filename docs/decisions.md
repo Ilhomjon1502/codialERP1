@@ -154,3 +154,12 @@
 - **Qaror (buyurtmachi):** Instagram, Facebook va saytdan lid tushishi bilan, kursi «Kompyuter savodxonligi» bo'lsa, shu raqamga SMS: «{Ism}, siz Kompyuter savodxonligida https://ilhomjon1502.github.io/Ks-darsi/ darslarini o'rganasiz.» Darhol yuboriladi (kechasi ham). Qoida **boshidan yoniq**. Navbatdagi barcha lidlarga bir marta yuboriladi, keyin faqat yangilarga.
 - **Amalda:** yangi avtomatik SMS qoidasi `inbox_lead` (`calls/auto_sms.py`, hook — `crm/signals.py`, `InboxLead` yaratilganda). Ism — formadagi ismning birinchi so'zi, kirill lotinga o'giriladi, bosh harf; ism yaroqsiz bo'lsa «Assalomu alaykum». Raqam talaba/vasiy bazasida bo'lsa, yoki shu raqamga avval shu SMS ketgan bo'lsa (`key = inbox:<raqam>`) — yuborilmaydi. 12 soatdan eski lidga «darhol» SMS ketmaydi; eski lidlar uchun `python manage.py sms_inbox_backfill [--commit] [--closed]` (yangi va «Qayta aloqa» lidlari; «Yopilgan» va «Lidga qo'shilgan» — o'tkazib yuboriladi).
 - Bot havolasi qo'shilmaydi (SMS qisqa va spam filtriga tushmasligi uchun).
+
+## 2026-11-18 — Suhbat yozuvlari qaytarildi (2026-10-21 qarori o'zgardi)
+
+- **Qaror (buyurtmachi):** «nima qilib bo'lsa ham» qabul telefonidagi suhbat audiosi ERP'ga tushsin. 2026-10-21 dagi «audio kerak emas» qarori bekor.
+- **Tanlangan usul:** Shizuku orqali ikki tomonlama yozish (virtual ATS va «Accessibility + karnay» o'rniga). Android 11 da Shizuku usuli cheklangan (ekran qulfsiz, yashirin API'lar, telefon o'chib yonganda qayta ishga tushirish) — shuning uchun yozish tayyor yozuvchi ilovaga (ShizuCallRecorder, GPLv3, alohida ilova) topshirilgan, bizning ilova esa faqat saqlangan fayllarni yuklaydi. Shu tufayli yozuvchi keyin almashtirilishi mumkin (boshqa ilova, boshqa telefon, virtual ATS) — yuklash va ERP qismi o'zgarmaydi.
+- **Amalda:** `CallRecord.audio*`, `POST /calls/recordings/` (qurilma tokeni), `GET /calls/{id}/audio/` (Range, faqat `call_audio` ruxsati), bo'lim `call_audio` (Admin, BM, asoschi), `purge_call_audio`, ilova 1.4 (`Recordings.java`, SAF papka). Qo'llanma: `docs/user_guide/suhbat_yozuvi.md`.
+- **Ruxsat sababi:** suhbat yozuvi shaxsiy ma'lumot — qo'ng'iroqlar ro'yxatini ko'ra oladiganlarning hammasiga emas, alohida bo'lim.
+- **Ochiq:** ShizuCallRecorder'ning Redmi Note 8 / MIUI 12.5.2 da ishlashi telefonda sinalmagan; ishlamasa — boshqa yozuvchi yoki virtual ATS.
+

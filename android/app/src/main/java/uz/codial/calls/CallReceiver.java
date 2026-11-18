@@ -14,10 +14,17 @@ public class CallReceiver extends BroadcastReceiver {
         if (!TelephonyManager.EXTRA_STATE_IDLE.equals(intent.getStringExtra(TelephonyManager.EXTRA_STATE))) return;
         Context app = ctx.getApplicationContext();
         PendingResult pending = goAsync();
-        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+        Handler h = new Handler(Looper.getMainLooper());
+        h.postDelayed(() -> {
             CallService.start(app);
             CallSync.request(app);
             pending.finish();
         }, 3000);
+        // yozuvchi ilova faylni suhbat tugagach biroz kechikib yopadi: yozuvlar papkasi 30 s va 2 daqiqadan keyin tekshiriladi
+        // (kafolat — CallService'ning har 10 daqiqalik tekshiruvi)
+        if (Recordings.enabled(app)) {
+            h.postDelayed(() -> Recordings.request(app), 30_000);
+            h.postDelayed(() -> Recordings.request(app), 120_000);
+        }
     }
 }

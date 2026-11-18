@@ -146,4 +146,61 @@ final class Prefs {
             sp.edit().putString("sms_reports", rest.toString()).commit();
         }
     }
+
+    // ---------- Suhbat yozuvlari (1.4) ----------
+    private static final int REC_DONE_MAX = 1500;
+
+    /** Yozuvchi ilova fayl saqlaydigan papka (Android «Papka tanlash» natijasi) yoki null. */
+    android.net.Uri recTree() {
+        String s = sp.getString("rec_tree", "");
+        return s.isEmpty() ? null : android.net.Uri.parse(s);
+    }
+
+    /** Papka tanlangan paytdan keyingi yozuvlargina yuklanadi (eski fayllar ERP'ga to'kilmasin). */
+    long recSince() { return sp.getLong("rec_since", 0); }
+    int recUploaded() { return sp.getInt("rec_uploaded", 0); }
+    long recLastAt() { return sp.getLong("rec_last_at", 0); }
+    String recLastError() { return sp.getString("rec_error", ""); }
+
+    void recSetTree(android.net.Uri tree) {
+        sp.edit().putString("rec_tree", tree == null ? "" : tree.toString()).putLong("rec_since", System.currentTimeMillis())
+                .putString("rec_error", "").apply();
+    }
+
+    void recError(String why) {
+        sp.edit().putString("rec_error", why == null ? "" : why).apply();
+    }
+
+    boolean recIsDone(String sig) {
+        synchronized (LOCK) {
+            return sp.getString("rec_done", "").contains(sig);
+        }
+    }
+
+    /** Yuklangan (ok) yoki tashlangan faylni eslab qoladi — qayta yuborilmaydi. */
+    void recDone(String sig, boolean uploaded) {
+        synchronized (LOCK) {
+            String[] all = sp.getString("rec_done", "").isEmpty() ? new String[0] : sp.getString("rec_done", "").split(",");
+            StringBuilder sb = new StringBuilder();
+            int from = Math.max(0, all.length - REC_DONE_MAX + 1);
+            for (int i = from; i < all.length; i++) sb.append(all[i]).append(',');
+            sb.append(sig);
+            SharedPreferences.Editor e = sp.edit().putString("rec_done", sb.toString());
+            if (uploaded) e.putInt("rec_uploaded", recUploaded() + 1).putLong("rec_last_at", System.currentTimeMillis());
+            e.apply();
+        }
+    }
+
+    /** Fayl birinchi marta qachon yuborilib, mos qo'ng'iroq topilmagani (kutish muddati hisobi uchun). */
+    long recFirstTry(String sig, long now) {
+        synchronized (LOCK) {
+            String key = "rec_try_" + sig;
+            long v = sp.getLong(key, 0);
+            if (v == 0) {
+                sp.edit().putLong(key, now).apply();
+                v = now;
+            }
+            return v;
+        }
+    }
 }

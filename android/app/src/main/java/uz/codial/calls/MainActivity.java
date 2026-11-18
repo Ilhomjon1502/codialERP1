@@ -6,6 +6,7 @@ import android.content.ActivityNotFoundException;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.provider.DocumentsContract;
 import android.graphics.Typeface;
 import android.net.Uri;
 import android.os.Build;
@@ -36,6 +37,7 @@ import java.util.concurrent.Executors;
 /** Bitta ekran: ulash (server + 8 belgili kod), holat, ruxsatlar va MIUI sozlamalari. */
 public class MainActivity extends Activity {
     private static final java.util.concurrent.ExecutorService BG = Executors.newSingleThreadExecutor();  // har bosishda yangi oqim ochilmasin
+    private static final char LF = (char) 10;
     private final Handler ui = new Handler(Looper.getMainLooper());
     private Prefs prefs;
     private LinearLayout root;
@@ -71,8 +73,8 @@ public class MainActivity extends Activity {
         TextView title = text("Codial ERP — qo'ng'iroqlar", 20);
         title.setTypeface(Typeface.DEFAULT_BOLD);
         root.addView(title);
-        root.addView(text("Bu telefondagi qo'ng'iroqlar tugashi bilan ERP tizimidagi «Qo'ng'iroqlar» bo'limiga yuboriladi. "
-                + "Suhbat yozib olinmaydi — faqat raqam, vaqt va davomiylik. "
+        root.addView(text("Bu telefondagi qo'ng'iroqlar tugashi bilan ERP tizimidagi «Qo'ng'iroqlar» bo'limiga yuboriladi: raqam, vaqt va davomiylik. "
+                + "Suhbat yozuvini bu ilovaning o'zi yozmaydi — telefondagi yozuvchi ilova saqlagan fayllar ERP'ga yuklanadi (4-band). "
                 + "ERP'da administrator «SMS yuborish»ni bossa, to'lov eslatmalari shu telefonning SIM kartasidan yuboriladi. "
                 + "Mijozlardan (oddiy raqamlardan) kelgan SMS'lar ERP'ga tushadi; bank va xizmat SMS'lari yuborilmaydi.", 14));
 
@@ -103,6 +105,17 @@ public class MainActivity extends Activity {
         root.addView(header("3. Tekshirish"));
         root.addView(button("Hozir yuborish", v -> syncNow()));
         root.addView(text("SMS ko'p yuborilganda Android «Ilova ko'p SMS yuboryapti» deb so'rashi mumkin — «Doim ruxsat berish» ni belgilab, «Yuborish»ni bosing.", 13));
+
+        root.addView(header("4. Suhbat yozuvlari"));
+        root.addView(text("Yozuvchi ilova (masalan ShizuCallRecorder) suhbatlarni shu telefonda alohida papkaga saqlasin. "
+                + "Papkani shu yerda tanlang — undagi yangi audio fayllar har qo'ng'iroqdan keyin ERP'ga yuklanadi va mos qo'ng'iroqqa biriktiriladi. "
+                + "Papka tanlashda «Yangi papka» yarating (masalan «Yozuvlar»); Download yoki xotira ildizini Android ruxsat bermaydi.", 13));
+        root.addView(button("Yozuvlar papkasini tanlash", v -> pickRecordingsFolder()));
+        root.addView(button("Yozuvlarni hozir yuklash", v -> uploadRecordingsNow()));
+        root.addView(button("Papkani uzish", v -> {
+            prefs.recSetTree(null);
+            refresh();
+        }));
     }
 
     private void refresh() {
@@ -120,7 +133,13 @@ public class MainActivity extends Activity {
         }
         s.append(SmsInbox.allowed(this) ? "✅ Kelgan SMS'larni o'qishga ruxsat bor" : "⚠️ SMS o'qishga ruxsat yo'q — mijozlardan kelgan SMS ERP'ga tushmaydi").append('\n');
         if (prefs.smsInTotal() > 0) s.append("Kelgan SMS: jami ").append(prefs.smsInTotal()).append(" ta ERP'ga yuborildi\n");
-        if (!prefs.smsLastError().isEmpty()) s.append("❗ SMS: ").append(prefs.smsLastError());
+        if (!prefs.smsLastError().isEmpty()) s.append("❗ SMS: ").append(prefs.smsLastError()).append(LF);
+        if (prefs.recTree() == null) s.append("Yozuvlar papkasi tanlanmagan — suhbat yozuvlari ERP'ga yuklanmaydi");
+        else {
+            s.append("✅ Yozuvlar papkasi: ").append(folderName(prefs.recTree())).append(" · yuklandi ").append(prefs.recUploaded()).append(" ta");
+            if (prefs.recLastAt() > 0) s.append(" · oxirgi ").append(fmt(prefs.recLastAt()));
+            if (!prefs.recLastError().isEmpty()) s.append(LF).append("❗ Yozuv: ").append(prefs.recLastError());
+        }
         status.setText(s.toString().trim());
     }
 
@@ -148,6 +167,57 @@ public class MainActivity extends Activity {
         }
         if (prefs.paired() && SmsSender.allowed(this)) SmsSender.request(this);
         if (prefs.paired() && SmsInbox.allowed(this)) SmsInbox.request(this);
+    }
+
+    private static String folderName(Uri tree) {
+        String id = DocumentsContract.getTreeDocumentId(tree);
+        int i = id.indexOf(':');
+        return i >= 0 && i < id.length() - 1 ? id.substring(i + 1) : id;
+    }
+
+    private void pickRecordingsFolder() {
+        if (!prefs.paired()) {
+            toast("Avval ERP'ga ulang");
+            return;
+        }
+        Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+        i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION);
+        try {
+            startActivityForResult(i, 2);
+        } catch (ActivityNotFoundException e) {
+            toast("Telefonda papka tanlash oynasi topilmadi");
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != 2 || resultCode != RESULT_OK || data == null || data.getData() == null) return;
+        Uri tree = data.getData();
+        try {
+            getContentResolver().takePersistableUriPermission(tree, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        } catch (SecurityException e) {
+            toast("Bu papkaga ruxsat olib bo'lmadi — boshqa papka tanlang");
+            return;
+        }
+        prefs.recSetTree(tree);
+        toast("Papka tanlandi. Bundan keyingi yozuvlar yuklanadi");
+        CallService.start(this);
+        refresh();
+    }
+
+    private void uploadRecordingsNow() {
+        if (prefs.recTree() == null) {
+            toast("Avval yozuvlar papkasini tanlang");
+            return;
+        }
+        BG.execute(() -> {
+            int n = Recordings.run(this);
+            ui.post(() -> {
+                toast(n < 0 ? "Yuklanmadi: " + prefs.recLastError() : "Yuklandi: " + n + " ta yozuv");
+                refresh();
+            });
+        });
     }
 
     private void batteryExemption() {

@@ -54,7 +54,8 @@
         ? A.filterBar(K, [A.fSearch(K, 'Raqam yoki ism…'), ...period,
           A.fSelect(K, 'dir', [['missed_open', "Javobsiz — qayta qo'ng'iroq qilinmagan"], ['missed', 'Javobsiz (hammasi)'], ['Kiruvchi', 'Kiruvchi'], ['Chiquvchi', 'Chiquvchi']], 'Barcha yo\'nalishlar'),
           A.fSelect(K, 'known', [['1', 'Bazada bor'], ['0', "Noma'lum raqamlar"]], 'Hamma raqamlar'),
-          A.fSelect(K, 'first', [['1', 'Faqat birinchi marta']], 'Yangi va eski')])
+          A.fSelect(K, 'first', [['1', 'Faqat birinchi marta']], 'Yangi va eski'),
+          ...(A.can('call_audio') ? [A.fSelect(K, 'audio', [['1', 'Suhbat yozuvi bor']], "Yozuvi bor va yo'q")] : [])])
         : tab === 'stats' ? A.filterBar(K, period)
           : tab === 'smsstats' ? A.filterBar(SK, [date2('from', 'Dan'), date2('to', 'Gacha')])
           : tab === 'sms' ? A.filterBar(SK, [A.fSearch(SK, 'Talaba yoki raqam…'), date2('from', 'Dan'), date2('to', 'Gacha'),
@@ -81,7 +82,7 @@
         { h: 'Raqam', f: (c) => `<a href="tel:${esc(c.number)}" style="white-space:nowrap">${esc(c.phone ? fphone(c.phone) : c.number || 'Yashirin raqam')}</a>${c.contact_name ? `<br><small class="muted">📇 ${esc(c.contact_name)}</small>` : ''}` },
         { h: 'Kim', f: who },
         { h: 'Lid', f: (c) => (c.lead ? `${A.badge(`${c.lead_status}. ${LS[c.lead_status] || ''}`, c.lead_status === '5' ? 'green' : ['6', '7'].includes(c.lead_status) ? 'gray' : 'orange')}<br><small class="muted">${esc(c.lead_course)} · ${esc(c.lead_source)}</small>${c.lead_note_due && A.can('leads', 'a') ? `<br><button class="btn sm" data-act="call-lead-note" data-id="${c.lead}">📝 Izoh yozish</button>` : ''}` : c.has_contract ? A.badge('Shartnoma bor', 'green') : '—') },
-        { h: 'Suhbat', cls: 'num', f: (c) => dur(c.duration) },
+        { h: 'Suhbat', cls: 'num', f: (c) => `${dur(c.duration)}${audioBtn(c)}` },
         { h: 'Holat', f: (c) => (c.missed ? (c.callback_at
           ? `<span class="t-green">✓ Qayta bog'lanildi</span><br><small class="muted">${A.fdt(c.callback_at)}${c.callback_by_name ? ` · ${esc(c.callback_by_name)}` : ' · avtomatik'}</small>`
           : `<span class="t-red">Javob berilmagan</span>${canEdit ? `<br><button class="btn sm" data-act="call-cb" data-id="${c.id}">✓ Qo'ng'iroq qilindi</button>` : ''}`) : '') },
@@ -91,6 +92,12 @@
       { empty: "Qo'ng'iroq yo'q", rowAttr: (c) => (c.missed && !c.callback_at ? 'class="row-warn"' : '') },
     );
     return `${warn}${table}${A.pager(K, list)}`;
+  }
+
+  /* Suhbat yozuvi: faqat `call_audio` ruxsati bor xodimga (Bosh menejer beradi). Bosilganda o'ynatgich shu qatorda ochiladi */
+  function audioBtn(c) {
+    if (!c.has_audio || !A.can('call_audio')) return '';
+    return `<br><button class="btn sm ghost" data-act="call-play" data-id="${c.id}" title="Suhbat yozuvini eshitish">▶ Yozuv${c.audio_duration ? ` · ${dur(c.audio_duration)}` : ''}</button>`;
   }
 
   function who(c) {
@@ -114,6 +121,16 @@
   const find = (id) => list.results.find((c) => String(c.id) === String(id));
   const fail = (e) => A.toast(e.message, 'warn');
 
+  A.act['call-play'] = (el) => {
+    const au = document.createElement('audio');
+    au.controls = true;
+    au.autoplay = true;
+    au.preload = 'none';
+    au.style.cssText = 'width:100%;min-width:220px;margin-top:4px';
+    au.src = `/api/v1/calls/${el.dataset.id}/audio/`;
+    au.onerror = () => A.toast("Yozuvni ochib bo'lmadi (ruxsat yoki fayl yo'q)", 'warn');
+    el.replaceWith(au);
+  };
   A.act['call-cb'] = (el) => A.http.post(`/calls/${el.dataset.id}/callback/`, { done: true }).then(() => { A.toast('Belgilandi'); A.refresh(); }, fail);
   A.act['call-note'] = (el) => {
     const c = find(el.dataset.id);

@@ -27,6 +27,7 @@ public class SyncJob extends JobService {
             CallSync.run(this);
             SmsSender.run(this);
             SmsInbox.run(this);
+            Recordings.run(this);
             CallService.start(this);
             jobFinished(params, false);
         }).start();

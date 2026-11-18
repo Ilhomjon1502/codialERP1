@@ -39,6 +39,7 @@ public class CallService extends Service {
         public void run() {
             CallSync.request(CallService.this);
             SmsInbox.request(CallService.this);
+            Recordings.request(CallService.this);
             handler.postDelayed(this, PERIOD_MS);
         }
     };
@@ -105,6 +106,7 @@ public class CallService extends Service {
         }
         CallSync.request(this);
         SmsInbox.request(this);
+        Recordings.request(this);
         return START_STICKY;
     }
 
@@ -115,7 +117,7 @@ public class CallService extends Service {
         return new Notification.Builder(this, CHANNEL)
                 .setSmallIcon(android.R.drawable.sym_call_incoming)
                 .setContentTitle("Codial ERP")
-                .setContentText("Qo'ng'iroqlar va SMS — ERP bilan ulangan")
+                .setContentText("Qo'ng'iroqlar, SMS va yozuvlar — ERP bilan ulangan")
                 .setContentIntent(open)
                 .setOngoing(true)
                 .build();
