@@ -420,6 +420,34 @@ def send_document(chat_id, filename, content, caption=""):
     return res["result"]
 
 
+def send_media(method, field, chat_id, filename, content, caption="", content_type="application/octet-stream"):
+    """sendVoice / sendAudio / sendDocument: faylni izoh (HTML) bilan chatga yuboradi — multipart/form-data. content — baytlar."""
+    token = settings.TELEGRAM_BOT_TOKEN
+    if not token:
+        raise RuntimeError("TELEGRAM_BOT_TOKEN berilmagan")
+    boundary = f"codial{new_code()}"
+    parts = []
+    for name, value in (("chat_id", str(chat_id)), ("caption", caption), ("parse_mode", "HTML")):
+        parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n{value}\r\n'.encode())
+    parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="{field}"; filename="{filename}"\r\n'
+                 f"Content-Type: {content_type}\r\n\r\n".encode() + content + b"\r\n")
+    body = b"".join(parts) + f"--{boundary}--\r\n".encode()
+    req = urllib.request.Request(f"https://api.telegram.org/bot{token}/{method}", data=body,
+                                 headers={"Content-Type": f"multipart/form-data; boundary={boundary}"})
+    try:
+        with urllib.request.urlopen(req, timeout=120) as r:
+            res = json.loads(r.read().decode())
+    except urllib.error.HTTPError as e:  # Telegram sababni JSON'da yozadi
+        try:
+            detail = json.loads(e.read().decode()).get("description", f"HTTP {e.code}")
+        except ValueError:
+            detail = f"HTTP {e.code}"
+        raise RuntimeError(detail) from e
+    if not res.get("ok"):
+        raise RuntimeError(res.get("description", "Telegram xatosi"))
+    return res["result"]
+
+
 def download_file(file_id, max_bytes=20 * 1024 * 1024):
     """Botga yuborilgan fayl (masalan ovozli xabar) — baytlar. Bot API 20 MB gacha beradi."""
     path = api("getFile", file_id=file_id)["file_path"]

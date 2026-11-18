@@ -295,3 +295,106 @@ def test_recording_with_number_waits_for_its_call(api, paired, media):
     ingest(api, paired, [call(2, "+998903333431", kind=2, minutes=0, duration=40)])
     assert _upload(api, paired, number="+998903333431").data["status"] == "ok"
     assert CallRecord.objects.get(phone="903333431").audio and not CallRecord.objects.get(phone="901111502").audio
+
+
+# ---------- Instagram/Facebook lidlari bilan suhbat audiosi → Telegram guruhi ----------
+
+def _ig_setup(api, paired, media, kind="Instagram", received_min=-30, name="r.m4a"):
+    from apps.crm import inbox
+
+    ingest(api, paired, [call(1, "+998901234567", kind=2, duration=40)])
+    started = datetime.datetime.fromtimestamp(T0 / 1000, tz=datetime.UTC)
+    it, _ = inbox.add(kind, phone="901234567", name="Ali Valiyev", course_name="Frontend", info="reklama",
+                      received_at=started + datetime.timedelta(minutes=received_min), external_id="l:1")
+    assert _upload(api, paired, name=name).data["status"] == "ok"
+    return it
+
+
+def _ig_now():
+    return datetime.datetime.fromtimestamp(T0 / 1000, tz=datetime.UTC) + datetime.timedelta(hours=1)
+
+
+def test_ig_audio_sent_once_with_caption(api, paired, media, settings):
+    from apps.calls import ig_audio
+
+    settings.IG_CALLS_CHAT_ID = -100777
+    _ig_setup(api, paired, media)
+    # ilgari qo'ng'iroq: lid tushgandan keyin ikkita (biri javobsiz) — bu uchinchisi
+    CallRecord.objects.update(audio_at=_ig_now() - datetime.timedelta(minutes=5))
+    got = []
+    assert ig_audio.tick(_ig_now(), sender=lambda c, lead, chat: got.append((chat, ig_audio.caption(c, lead)))) == 1
+    chat, text = got[0]
+    assert chat == -100777
+    for part in ("Instagram lidi", "Ali Valiyev", "+998901234567", "Frontend", "1-marta", "Qo'ng'iroq:", "suhbat 0:40"):
+        assert part in text, part
+    assert ig_audio.tick(_ig_now(), sender=lambda *a: got.append(a)) == 0  # ikkinchi marta yuborilmaydi
+    assert len(got) == 1
+
+
+def test_ig_audio_counts_contacts_and_skips_other_leads(api, paired, media, settings):
+    from apps.calls import ig_audio
+    from apps.crm import inbox
+
+    settings.IG_CALLS_CHAT_ID = -100777
+    it = _ig_setup(api, paired, media, received_min=-30)
+    c = CallRecord.objects.get()
+    CallRecord.objects.update(audio_at=_ig_now() - datetime.timedelta(minutes=5))
+    # shu raqamga lid tushgandan keyin yana 2 ta urinish (avval) bo'lgan
+    for i, m in enumerate((-20, -10)):
+        CallRecord.objects.create(device=c.device, branch=c.branch, external_id=f"x{i}", direction=D.OUTGOING, number="+998901234567", phone="901234567",
+                                  started_at=c.started_at + datetime.timedelta(minutes=m), duration=0)
+    assert ig_audio.contact_number(c, it) == 3
+    # lid tushmagan raqam yoki «Sayt» lidi — yuborilmaydi
+    CallRecord.objects.filter(pk=c.pk).update(phone="907777777")
+    assert ig_audio.tick(_ig_now(), sender=lambda *a: pytest.fail("yuborilmasligi kerak")) == 0
+    CallRecord.objects.filter(pk=c.pk).update(phone="901234567")
+    inbox.InboxLead.objects.filter(pk=it.pk).update(kind="Sayt")
+    assert ig_audio.tick(_ig_now(), sender=lambda *a: pytest.fail("yuborilmasligi kerak")) == 0
+
+
+def test_ig_audio_retries_after_failure_and_waits_for_settle(api, paired, media, settings):
+    from apps.calls import ig_audio
+
+    settings.IG_CALLS_CHAT_ID = -100777
+    _ig_setup(api, paired, media)
+    CallRecord.objects.update(audio_at=_ig_now() - datetime.timedelta(seconds=10))
+    assert ig_audio.tick(_ig_now(), sender=lambda *a: pytest.fail("yuklangach 60 soniya kutiladi")) == 0
+    CallRecord.objects.update(audio_at=_ig_now() - datetime.timedelta(minutes=5))
+
+    def boom(*a):
+        raise RuntimeError("Telegram ishlamayapti")
+
+    assert ig_audio.tick(_ig_now(), sender=boom) == 0
+    assert CallRecord.objects.get().audio_tg_at is None  # qayta uriniladi
+    assert ig_audio.tick(_ig_now(), sender=lambda *a: None) == 1
+    settings.IG_CALLS_CHAT_ID = 0
+    CallRecord.objects.update(audio_tg_at=None)
+    assert ig_audio.tick(_ig_now(), sender=lambda *a: pytest.fail("guruh o'chiq")) == 0
+
+
+def test_ig_audio_send_uses_voice_for_ogg_and_multipart(api, paired, media, settings, monkeypatch):
+    import io
+    import json as _json
+
+    from apps.calls import ig_audio
+
+    settings.TELEGRAM_BOT_TOKEN = "TEST"
+    it = _ig_setup(api, paired, media, name="r.ogg")  # ShizuCallRecorder .ogg (Opus) yozadi
+    seen = {}
+
+    class Resp(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    def fake_open(req, timeout=0):
+        seen["url"], seen["body"] = req.full_url, req.data
+        return Resp(_json.dumps({"ok": True, "result": {}}).encode())
+
+    monkeypatch.setattr("apps.notifications.services.urllib.request.urlopen", fake_open)
+    c = CallRecord.objects.get()
+    ig_audio.send(c, it, -100777)
+    assert seen["url"].endswith("/botTEST/sendVoice")
+    assert b'name="voice"' in seen["body"] and b"Ali Valiyev" in seen["body"] and b'name="chat_id"' in seen["body"]

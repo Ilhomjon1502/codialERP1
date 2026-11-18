@@ -11,7 +11,7 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db import close_old_connections
 
-from apps.calls import auto_sms
+from apps.calls import auto_sms, ig_audio
 from apps.notifications import ig_leads, reminders, services, webapp
 from apps.notifications.models import TelegramLink
 from apps.tasks import services as tasks
@@ -60,6 +60,7 @@ class Command(BaseCommand):
                     reminders.inbox_callbacks()
                     auto_sms.tick()  # avtomatik SMS jadvali (oy boshi, bonus, kelmagan) va muammo haqida Bosh menejerga
                     auto_sms.check_problems()
+                    ig_audio.tick()  # Instagram/Facebook lidlari bilan suhbat audiolari — Mardon aka guruhiga
                     ig_leads.tick()  # Instagram target lidlari jadvali (har 5 daqiqada o'zi tekshiradi)
                     services.stuck_alert()  # navbat uzoq yuborilmasa — Bosh menejerga pochta
                 services.send_pending()

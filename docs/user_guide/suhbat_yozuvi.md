@@ -27,6 +27,18 @@ Yozuvni eshitish alohida bo'lim — **«Suhbat yozuvlarini eshitish»** (`call_a
 - Fayllar `media` Docker hajmida (`call_audio/YYYY/MM/`), bazadan alohida; zaxira nusxaga kirishini tekshiring.
 - Eski fayllarni tozalash: `python manage.py purge_call_audio --days 180` (qo'ng'iroq yozuvi qoladi, faqat audio o'chadi). Tavsiya cron: har oy 1-kuni 04:00.
 
+## Instagram/Facebook lidlari audiosi — Telegram guruhiga
+
+Instagram yoki Facebook lidi (Instagram/sayt lidlari navbatidagi) bilan **gaplashilgan** qo'ng'iroq yozuvi ERP'ga tushgach, bot uni **«Mardon aka ustoz Codialda»** guruhiga yuboradi (ovozli xabar sifatida, shu yerning o'zida tinglanadi). Audio tagidagi izohda:
+
+- 👤 **Kim** — lidning ismi va telefoni;
+- 📚 **Kurs**;
+- 🔁 **Bog'lanish** — lid tushgandan beri shu raqam bilan nechanchi bog'lanish (javobsiz urinishlar ham sanaladi);
+- 🆕 **Lid tushgan** sana va vaqt;
+- 📞 **Qo'ng'iroq** vaqti, yo'nalishi va suhbat davomiyligi.
+
+Qoidalar: faqat suhbat davomiyligi 0 dan katta qo'ng'iroqlar; lid qo'ng'irodan oldin tushgan bo'lishi kerak; har yozuv bir marta; yozuv yuklangach ~1 daqiqada yuboriladi. Sayt lidlari (Instagram/Facebook emas) va bazadagi oddiy lidlar guruhga bormaydi. Guruh manzili — `IG_CALLS_CHAT_ID` (`deploy/.env`; `0` — o'chiq). Kod: `apps/calls/ig_audio.py`, bot har daqiqada tekshiradi.
+
 ## Eslatma
 
 Suhbatni yozish haqida mijozga xabar berish yoki roziligini olish masalasi markaz zimmasida (masalan, qabul telefoniga javobda «suhbat sifat nazorati uchun yozib olinadi» deyish).

@@ -163,3 +163,9 @@
 - **Ruxsat sababi:** suhbat yozuvi shaxsiy ma'lumot — qo'ng'iroqlar ro'yxatini ko'ra oladiganlarning hammasiga emas, alohida bo'lim.
 - **Ochiq:** ShizuCallRecorder'ning Redmi Note 8 / MIUI 12.5.2 da ishlashi telefonda sinalmagan; ishlamasa — boshqa yozuvchi yoki virtual ATS.
 
+## 2026-11-18 — Instagram lidlari audiosi Telegram guruhiga
+
+- **Qaror (buyurtmachi):** Instagram'dan tushgan lidlar bilan gaplashilganda qo'ng'iroq audiosi bot orqali «Mardon aka ustoz Codialda» guruhiga (`-1004452073346`, bot allaqachon a'zo) boradi; audio tagida matnli izoh: kim, kurs, nechanchi marta bog'lanish, lid tushgan sana va vaqt.
+- **Qabul qilingan taxminlar:** «Instagram» = Instagram va Facebook (kiruvchi lidlar navbatida ikkalasi bir xil manba); «gaplashilganda» = suhbat davomiyligi > 0; «kim» = lidning ismi va telefoni; «nechanchi marta bog'lanish» = lid tushgandan beri shu raqam bilan barcha qo'ng'iroqlar (javobsiz urinishlar ham). Sayt lidlari yuborilmaydi.
+- **Amalda:** `apps/calls/ig_audio.py` (`tick()` — `run_bot` har daqiqada), `CallRecord.audio_tg_at` (bir marta yuborish belgisi), `notifications.services.send_media`. Telegram xatosida yozuv keyingi daqiqada qayta yuboriladi (2 kungacha).
+
