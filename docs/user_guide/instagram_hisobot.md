@@ -6,9 +6,13 @@ lid soni (F3:F24) tizim tomonidan yoziladi, jami va guruhlar (Neytral / Sifatli 
 
 ## Nima sanaladi
 
-- **Shu kuni tushgan** Instagram va Facebook lidlari. **Sayt lidlari kirmaydi.**
-- Har bir lid **hisobot paytidagi holati** bo'yicha sanaladi (19:00 da ko'rib chiqilmagani — «Yangi lid»).
-- Eski kun hisobotini qayta olish: `python manage.py lead_report --date 2026-11-18` (varaq yangilanadi, Telegram'ga takror ketmaydi).
+Hisobotlar **2026-11-18 dan** boshlanadi (eski kunlar uchun varaq yo'q). **Sayt lidlari kirmaydi.**
+
+- **Shu kuni ishlangan** lidlar sanaladi: yangi tushgani («Yangi lid») ham, **eski lid** shu kuni gaplashilgan/yopilgan/lidga qo'shilgan bo'lsa u ham.
+- Kun ichida lid necha marta ishlansa ham, **oxirgi holati bilan bir marta** sanaladi. Ertasi kuni holati o'zgarsa, u ertangi varaqda yangi holati bilan chiqadi; kechagi varaq o'zgarmaydi.
+- **Hisobot kuni 19:00 da yopiladi**: `18.11.26` varag'i = 17.11 19:00 dan 18.11 19:00 gacha. 19:00 dan keyingi ish keyingi kun varag'iga tushadi (hech narsa yo'qolmaydi).
+- **Eski lidlar izohi:** katakka sichqoncha olib borilsa izoh chiqadi: «2 tasi 14.11.26 dan, 5 tasi 15.11.26 dan» — ya'ni shu holatdagi eski lidlar qaysi kunlarda tushgan. Eski lid bo'lmagan katakda izoh yo'q.
+- Qo'lda qayta olish: `python manage.py lead_report --date 2026-11-18` (shu kun varag'i yangilanadi, Telegram'ga takror ketmaydi).
 
 ## Holatlar (qolipdagi 22 ta)
 
@@ -30,16 +34,14 @@ Qolganlari avtomatik:
 
 | Holat | Qachon |
 |---|---|
-| **Yangi lid** | hali hech kim ko'rib chiqmagan |
-| **Kiruvchi qo'ng'iroq** | lid tushgandan keyin shu raqamdan telefonga o'zi qo'ng'iroq qilgan (qabul telefoni jurnalidan; javobsiz ham hisoblanadi) va holat tanlanmagan |
-| **Kachestvni lead** | «Lidga qo'shish» bosilib haqiqiy lid ochilgan |
-| **Demoga yozildi** | bog'langan haqiqiy lid 3–5-holatga (sinov darsiga yozilgan / qatnashgan / o'qishni boshlagan) o'tgan |
-
-> Eski (bu o'zgarishdan oldin gaplashilgan) yozuvlarda holat tanlanmagan: «Qayta aloqa» → *Ajidaniya*, «Yopilgan» → *Sifatsiz lead* deb sanaladi.
+| **Yangi lid** | lid tushgan (yoki «Qayta ochish» bosilgan) kunda |
+| **Kiruvchi qo'ng'iroq** | ochiq lid (yangi yoki qayta aloqada) tushgandan keyin shu raqamdan telefonga o'zi qo'ng'iroq qilgan (qabul telefoni jurnalidan; javobsiz ham); kuniga bir marta |
+| **Kachestvni lead** | «Lidga qo'shish» bosilib haqiqiy lid ochilgan kunda |
+| **Demoga yozildi** | bog'langan haqiqiy lid 3–5-holatga (sinov darsiga yozilgan / qatnashgan / o'qishni boshlagan) o'tgani hisobot paytida aniqlangan kunda |
 
 ## Telegram xabari
 
-Jami (Instagram / Facebook), uch guruh va ichidagi nolga teng bo'lmagan holatlar, ko'rib chiqilmagan lidlar soni, Google Sheets havolasi.
+Ishlangan lidlar soni (Instagram / Facebook, shundan eski lidlar), uch guruh va ichidagi nolga teng bo'lmagan holatlar, Google Sheets havolasi.
 Varaqqa yozib bo'lmasa — xabar baribir ketadi va sababi yoziladi. Varaqdagi formulalar bizning hisobdan farq qilsa, xabarda ogohlantirish chiqadi
 (qolipdagi formulani kimdir o'zgartirgan bo'lishi mumkin).
 

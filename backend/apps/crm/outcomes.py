@@ -5,7 +5,9 @@ Qolipda 22 ta status, tartibi shu yerdagi `OUTCOMES` bilan bir xil (varaqdagi F3
   sifatli  — F6:F11  (Maslahat … Markaz o'quvchisi)
   sifatsiz — F12:F24 (qizil qatorlar)
 Administrator «Gaplashdim» bosganda shulardan birini tanlaydi: qayta aloqa belgilasa — `CALLBACK_OUTCOMES`, yopsa — `CLOSE_OUTCOMES`.
-Hisobotda «haqiqiy» holat `effective()` bilan aniqlanadi (tanlanmagan eski yozuvlar uchun ham)."""
+Hisobot holat o'zgarishlari tarixidan (`InboxEvent`) tuziladi: kun ichida ishlangan har bir lid oxirgi holati bilan bir marta sanaladi."""
+
+import datetime
 
 NEUTRAL, QUALITY, BAD = "neytral", "sifatli", "sifatsiz"
 GROUP_LABELS = {NEUTRAL: "Neytral", QUALITY: "Sifatli", BAD: "Sifatsiz"}
@@ -41,9 +43,8 @@ GROUP = {c: g for c, _, g in OUTCOMES}
 
 CALLBACK_OUTCOMES = ["hesitate", "unreachable", "consult"]  # qayta aloqa belgilanganda
 CLOSE_OUTCOMES = CODES[CODES.index("schedule"):]  # «Yopilgan Leadlar» blokidagi 15 ta sabab (varaqdagi 10–24-qatorlar)
-LEGACY_CLOSED = "bad"  # sabab saqlanmagan eski yopilgan yozuvlar
-LEGACY_CALLBACK = "hesitate"  # holat tanlanmagan eski «qayta aloqa» yozuvlari
 
+REPORT_CUTOFF = datetime.time(19, 0)  # hisobot kuni shu soatda yopiladi: «18-kun» = 17-kun 19:00 dan 18-kun 19:00 gacha
 REPORT_KINDS = ("Instagram", "Facebook")  # hisobotga faqat reklama lidlari; sayt kirmaydi
 CALLED_US = ("Kiruvchi", "Javobsiz", "Rad etilgan")  # lid o'zi qo'ng'iroq qilgan (CallRecord.direction)
 DEMO_LEAD_STATUSES = ("3", "4", "5")  # bog'langan haqiqiy lid sinov darsiga yozilgan/qatnashgan/o'qishni boshlagan
@@ -51,19 +52,3 @@ DEMO_LEAD_STATUSES = ("3", "4", "5")  # bog'langan haqiqiy lid sinov darsiga yoz
 
 def options(codes):
     return [[c, LABEL[c]] for c in codes]
-
-
-def effective(item, called=False):
-    """Kiruvchi lidning hisobotdagi holat kodi.
-    Tanlangan holat (`outcome`) birinchi; bo'lmasa — yozuv holatidan: bog'langan lid sinov darsiga yozilgan bo'lsa «demo», aks holda «quality»;
-    yangi, lekin lid o'zi qo'ng'iroq qilgan bo'lsa «incoming»."""
-    st = item.status
-    if st == "linked":
-        return "demo" if item.lead_id and item.lead.status in DEMO_LEAD_STATUSES else "quality"
-    if item.outcome in LABEL:
-        return item.outcome
-    if st == "rejected":
-        return LEGACY_CLOSED
-    if st == "callback":
-        return LEGACY_CALLBACK
-    return "incoming" if called else "new"

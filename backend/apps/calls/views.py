@@ -1,15 +1,19 @@
 import datetime
+import re
 
 from django.db.models import Count, Exists, OuterRef, Q, Subquery
+from django.http import Http404, HttpResponse, StreamingHttpResponse
 from django.utils import timezone
 from rest_framework import serializers, status
 from rest_framework.decorators import action
 from rest_framework.exceptions import MethodNotAllowed
+from rest_framework.parsers import MultiPartParser
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
+from apps.core import permissions as perms
 from apps.core.pagination import Pagination
 from apps.core.viewsets import AuditedModelViewSet, BranchScopedSerializerMixin
 from apps.education.models import Attendance, Contract
@@ -52,6 +56,20 @@ class IngestView(DeviceAPIView):
         if not device:
             return Response({"detail": "Qurilma ulanmagan", "code": "device_unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
         return Response(services.ingest(device, request.data.get("calls"), request.data.get("app_version")))
+
+
+class RecordingView(DeviceAPIView):
+    """POST multipart {file, ended_at (ms), duration (s), sig}: telefondagi yozuvchi ilova saqlagan suhbat yozuvi.
+    Javob: {status: ok | duplicate | pending}. `pending` — mos qo'ng'iroq hali jurnaldan kelmagan, ilova keyinroq qayta yuboradi."""
+
+    parser_classes = [MultiPartParser]
+
+    def post(self, request):
+        device = _device(request)
+        if not device:
+            return Response({"detail": "Qurilma ulanmagan", "code": "device_unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
+        d = request.data
+        return Response(services.attach_recording(device, request.FILES.get("file"), d.get("ended_at"), d.get("duration"), d.get("sig")))
 
 
 class PingView(DeviceAPIView):
@@ -128,14 +146,18 @@ class CallRecordSerializer(serializers.ModelSerializer):
     missed = serializers.BooleanField(source="is_missed", read_only=True)
     callback_by_name = serializers.CharField(source="callback_by.full_name", read_only=True, default="")
     inbox = serializers.SerializerMethodField()
+    has_audio = serializers.SerializerMethodField()
 
     class Meta:
         model = CallRecord
-        fields = ["id", "started_at", "direction", "number", "phone", "duration", "contact_name", "sim", "is_first", "device", "device_name",
+        fields = ["id", "has_audio", "audio_duration", "started_at", "direction", "number", "phone", "duration", "contact_name", "sim", "is_first", "device", "device_name",
                   "student", "student_name", "parent", "parent_name", "lead", "lead_status", "lead_source", "lead_course", "has_contract", "contract_id",
                   "open_absences", "lead_note_due",
                   "missed", "callback_at", "callback_by_name", "comment", "inbox"]
         read_only_fields = [f for f in fields if f != "comment"]
+
+    def get_has_audio(self, r):
+        return bool(r.audio)
 
     def get_inbox(self, r):
         """Instagram/sayt «kiruvchi lid» (haqiqiy lid emas) — raqam bazada yo'q bo'lsa, qaysi reklama lidi ekani ko'rinadi."""
@@ -158,6 +180,44 @@ def _date(v):
         return None
 
 
+def _ranged(request, rec, content_type):
+    """Faylni `Range: bytes=a-b` bilan beradi (audio elementi uchun)."""
+    f = rec.audio
+    size = f.size
+    start, end = 0, size - 1
+    m = re.match(r"bytes=(\d*)-(\d*)$", request.headers.get("Range", "").strip())
+    partial = False
+    if m and (m.group(1) or m.group(2)):
+        if m.group(1):
+            start = int(m.group(1))
+            end = min(int(m.group(2)), size - 1) if m.group(2) else size - 1
+        else:  # bytes=-N — oxirgi N bayt
+            start = max(0, size - int(m.group(2)))
+        if start > end or start >= size:
+            resp = HttpResponse(status=416)
+            resp["Content-Range"] = f"bytes */{size}"
+            return resp
+        partial = start > 0 or end < size - 1
+
+    def chunks(fh, left, step=64 * 1024):
+        with fh:
+            fh.seek(start)
+            while left > 0:
+                data = fh.read(min(step, left))
+                if not data:
+                    break
+                left -= len(data)
+                yield data
+
+    resp = StreamingHttpResponse(chunks(f.open("rb"), end - start + 1), status=206 if partial else 200, content_type=content_type)
+    resp["Content-Length"] = str(end - start + 1)
+    resp["Accept-Ranges"] = "bytes"
+    resp["Cache-Control"] = "private, no-store"
+    if partial:
+        resp["Content-Range"] = f"bytes {start}-{end}/{size}"
+    return resp
+
+
 class CallRecordViewSet(AuditedModelViewSet):
     """?from=&to= (sana), ?dir=Kiruvchi|Chiquvchi|missed|missed_open, ?known=0|1, ?first=1, ?q=raqam yoki ism, ?device=."""
 
@@ -166,7 +226,7 @@ class CallRecordViewSet(AuditedModelViewSet):
     serializer_class = CallRecordSerializer
     pagination_class = Pagination
     http_method_names = ["get", "post", "patch", "head", "options"]
-    action_ops = {"callback": "e", "stats": "v", "absence_contact": "e"}
+    action_ops = {"callback": "e", "stats": "v", "absence_contact": "e", "audio": "v"}
     queryset = CallRecord.objects.select_related("device", "student", "parent", "lead__source", "lead__course", "callback_by")
 
     def get_queryset(self):
@@ -206,6 +266,8 @@ class CallRecordViewSet(AuditedModelViewSet):
             qs = qs.filter(is_first=True)
         if p.get("device"):
             qs = qs.filter(device_id=p["device"])
+        if p.get("audio") == "1":
+            qs = qs.exclude(audio="")
         if q := (p.get("q") or "").strip():
             digits = "".join(c for c in q if c.isdigit())
             cond = Q(contact_name__icontains=q) | Q(student__first_name__icontains=q) | Q(student__last_name__icontains=q)
@@ -225,6 +287,16 @@ class CallRecordViewSet(AuditedModelViewSet):
 
     def create(self, request, *args, **kwargs):
         raise MethodNotAllowed("POST")
+
+    @action(detail=True, methods=["get"])
+    def audio(self, request, pk=None):
+        """Suhbat yozuvi (Range bilan — brauzer o'ynatgichi oldinga o'tkazadi). Alohida ruxsat: bo'lim `call_audio`."""
+        if not perms.can(request.user, "call_audio", "v"):
+            raise perms.PermissionDenied(perms.NO_PERMISSION)
+        rec = self.get_object()
+        if not rec.audio:
+            raise Http404
+        return _ranged(request, rec, services.audio_content_type(rec))
 
     @action(detail=True, methods=["post"])
     def callback(self, request, pk=None):

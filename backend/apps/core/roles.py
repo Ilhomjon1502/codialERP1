@@ -40,7 +40,7 @@ SECTIONS = [
     ("parentCalls", "Ota-onalar bilan aloqa"), ("settings", "Sozlamalar"),
     ("ai", "AI yordamchi"), ("audit", "Audit tarixi"), ("staffTasks", "Topshiriqlar"),
     ("calls", "Qo'ng'iroqlar"), ("sms", "SMS"), ("clientbot", "Telegram bot (mijozlar)"),
-    ("founderReport", "Kunlik hisobot (asoschi)"),
+    ("founderReport", "Kunlik hisobot (asoschi)"), ("call_audio", "Suhbat yozuvlarini eshitish"),
 ]
 SECTION_KEYS = [k for k, _ in SECTIONS]
 
@@ -73,6 +73,7 @@ _MATRIX = {
     "calls": {"AD": "vaed", "BM": "vaed", "FM": "ve", "A": "ve", "AH": "ve", "M": "v", "AS": "v"},
     "sms": {"AD": "vaed", "BM": "vaed", "FM": "vaed", "A": "vae", "AH": "vae", "H": "v", "AS": "v"},
     "clientbot": {"AD": "vaed", "BM": "vaed", "FM": "ve", "A": "ve", "AH": "ve", "M": "v", "AS": "v"},
+    "call_audio": {"AD": "v", "BM": "v", "AS": "v"},  # suhbat yozuvi shaxsiy ma'lumot: boshqa rolga Bosh menejer o'zi beradi (2026-11-18)
     "founderReport": {"AS": "v"},  # asoschi: tizimda hamma narsani ko'radi (faqat ko'rish), botga esa faqat kunlik hisobot keladi (2026-10-25)
 }
 DEFAULT_PERMISSIONS = {

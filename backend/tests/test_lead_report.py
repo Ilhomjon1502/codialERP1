@@ -1,7 +1,6 @@
 """Instagram/Facebook lidlarining kunlik hisoboti (crm/outcomes.py, reports/lead_report.py, daily_report ulanishi)."""
 
 import datetime
-from types import SimpleNamespace
 
 import pytest
 from django.test import override_settings
@@ -10,7 +9,7 @@ from rest_framework.exceptions import ValidationError
 
 from apps.calls.models import CallDevice, CallRecord
 from apps.crm import inbox, outcomes
-from apps.crm.models import InboxLead
+from apps.crm.models import InboxLead  # noqa: F401
 from apps.notifications.models import Outbox, TelegramLink
 from apps.reports import gsheets, lead_report
 
@@ -63,61 +62,92 @@ def test_talk_requires_outcome_matching_action(branch, make_user):
     assert (it.status, it.outcome) == ("new", "")
 
 
-def test_effective_outcome():
-    mk = lambda **kw: SimpleNamespace(**{"status": "new", "outcome": "", "lead_id": None, "lead": None, **kw})  # noqa: E731
-    assert outcomes.effective(mk()) == "new"
-    assert outcomes.effective(mk(), called=True) == "incoming"
-    assert outcomes.effective(mk(status="callback", outcome="unreachable"), called=True) == "unreachable"
-    assert outcomes.effective(mk(status="callback")) == "hesitate"  # eski yozuv
-    assert outcomes.effective(mk(status="rejected", outcome="spam")) == "spam"
-    assert outcomes.effective(mk(status="rejected")) == "bad"  # eski yozuv, sabab yo'q
-    assert outcomes.effective(mk(status="linked", lead_id=1, lead=SimpleNamespace(status="3"))) == "demo"
-    assert outcomes.effective(mk(status="linked", lead_id=1, lead=SimpleNamespace(status="2"))) == "quality"
+def at_(day, hour, minute=0):
+    return timezone.make_aware(datetime.datetime.combine(day, datetime.time(hour, minute)))
 
 
-def test_collect_counts_only_that_day_and_ad_sources(branch):
-    today = timezone.localdate()
-    start = timezone.make_aware(datetime.datetime.combine(today, datetime.time(9, 0)))
-    _item("Instagram", "901000001", start)
-    _item("Instagram", "901000002", start + datetime.timedelta(hours=1), status="rejected", outcome="spam")
-    _item("Facebook", "901000003", start + datetime.timedelta(hours=2), status="callback", outcome="unreachable")
-    _item("Facebook", "901000004", start + datetime.timedelta(hours=3), status="linked")
-    _item("Sayt", "901000005", start)  # sayt hisobotga kirmaydi
-    _item("Instagram", "901000006", start - datetime.timedelta(days=1))  # boshqa kun
-    d = lead_report.collect(today)
-    assert d["total"] == 4 and d["kinds"] == {"Instagram": 2, "Facebook": 2}
-    c = d["counts"]
-    assert (c["new"], c["spam"], c["unreachable"], c["quality"]) == (1, 1, 1, 1) and sum(c.values()) == 4
-    assert d["groups"] == {"neytral": 2, "sifatli": 1, "sifatsiz": 1}
+def test_events_are_recorded(branch, make_user):
+    u = make_user("ADMINISTRATOR_HISOBCHI")
+    it = _item()
+    assert list(it.events.values_list("outcome", flat=True)) == ["new"]
+    inbox.talk(u, it, "x", callback_at=NOW_ISO(days=1), outcome="consult")
+    inbox.talk(u, it, "y", close=True, outcome="spam")
+    inbox.reopen(u, it)
+    assert list(it.events.order_by("at", "id").values_list("outcome", flat=True)) == ["new", "consult", "spam", "new"]
 
 
-def test_incoming_call_after_lead_counts_as_incoming(branch):
+def test_collect_counts_worked_leads_once_with_last_outcome(branch):
+    day = timezone.localdate()
+    lo, hi = lead_report.window(day)
+    a = _item("Instagram", "901000001", lo + datetime.timedelta(hours=1))  # yangi, ishlanmagan
+    b = _item("Instagram", "901000002", lo + datetime.timedelta(hours=2))
+    c = _item("Facebook", "901000003", lo + datetime.timedelta(hours=3))
+    _item("Sayt", "901000004", lo + datetime.timedelta(hours=3))  # sayt kirmaydi
+    e = _item("Instagram", "901000005", lo - datetime.timedelta(days=3))  # eski lid
+    inbox.event(b, "hesitate", lo + datetime.timedelta(hours=5))
+    inbox.event(b, "consult", lo + datetime.timedelta(hours=6))  # b: kun ichida ikki marta, oxirgisi sanaladi
+    inbox.event(c, "spam", lo + datetime.timedelta(hours=7))
+    inbox.event(e, "unreachable", lo + datetime.timedelta(hours=8))  # eski lid ishlandi
+    inbox.event(a, "demo", hi + datetime.timedelta(hours=1))  # 19:00 dan keyin — keyingi kun hisobotiga
+    data = lead_report.collect(day)
+    cnt = data["counts"]
+    assert data["total"] == 4 and data["kinds"] == {"Instagram": 3, "Facebook": 1}
+    assert (cnt["new"], cnt["consult"], cnt["spam"], cnt["unreachable"], cnt["demo"]) == (1, 1, 1, 1, 0) and sum(cnt.values()) == 4
+    assert data["groups"] == {"neytral": 2, "sifatli": 1, "sifatsiz": 1}
+    nxt = lead_report.collect(day + datetime.timedelta(days=1))
+    assert nxt["counts"]["demo"] == 1 and nxt["total"] == 1
+
+
+def test_old_leads_note_by_received_date(branch):
+    day = timezone.localdate()
+    lo, _ = lead_report.window(day)
+    d1, d2 = lo - datetime.timedelta(days=4), lo - datetime.timedelta(days=3)
+    for i, d in enumerate((d1, d1, d2, d2, d2, d2, d2)):
+        it = _item("Instagram", f"90100001{i}", d, external_id=f"l:old{i}")
+        inbox.event(it, "hesitate", lo + datetime.timedelta(hours=2))
+    new = _item("Instagram", "901000099", lo + datetime.timedelta(hours=1))  # yangi lid — izohda yo'q
+    inbox.event(new, "hesitate", lo + datetime.timedelta(hours=3))
+    data = lead_report.collect(day)
+    assert data["counts"]["hesitate"] == 8 and data["old_total"] == 7
+    note = lead_report.old_note(data["old"]["hesitate"])
+    assert note == f"2 tasi {timezone.localtime(d1):%d.%m.%y} dan, 5 tasi {timezone.localtime(d2):%d.%m.%y} dan"
+    reqs = lead_report.note_requests(7, data)[0]["updateCells"]
+    assert reqs["start"] == {"sheetId": 7, "rowIndex": 2, "columnIndex": 5} and reqs["fields"] == "note" and len(reqs["rows"]) == 22
+    assert reqs["rows"][outcomes.CODES.index("hesitate")]["values"][0]["note"] == note
+    assert reqs["rows"][0]["values"] == [{}]  # eski lid yo'q — izoh bo'sh (eskisi o'chadi)
+
+
+def test_sync_events_incoming_call_and_demo(branch):
     dev = CallDevice.objects.create(name="Qabul", branch=branch)
-    today = timezone.localdate()
-    start = timezone.make_aware(datetime.datetime.combine(today, datetime.time(9, 0)))
-    _item("Instagram", "901000001", start)
-    _item("Instagram", "901000002", start)
-    _item("Instagram", "901000003", start)
+    day = timezone.localdate()
+    lo, hi = lead_report.window(day)
+    a = _item("Instagram", "901000001", lo + datetime.timedelta(hours=1))
+    b = _item("Instagram", "901000002", lo + datetime.timedelta(hours=1))
+    c = _item("Instagram", "901000003", lo + datetime.timedelta(hours=1))
 
-    def call(phone, minutes, direction):
-        CallRecord.objects.create(device=dev, branch=branch, external_id=f"{phone}{minutes}", direction=direction, number=phone, phone=phone,
-                                  started_at=start + datetime.timedelta(minutes=minutes), duration=30)
+    def call(phone, hours, direction):
+        CallRecord.objects.create(device=dev, branch=branch, external_id=f"{phone}{hours}", direction=direction, number=phone, phone=phone,
+                                  started_at=lo + datetime.timedelta(hours=hours), duration=30)
 
-    call("901000001", 30, "Kiruvchi")  # lid keyin o'zi qo'ng'iroq qildi
-    call("901000002", -30, "Kiruvchi")  # lid tushishidan oldin — hisobga olinmaydi
-    call("901000003", 30, "Chiquvchi")  # biz qo'ng'iroq qildik — «kiruvchi» emas
-    c = lead_report.collect(today)["counts"]
-    assert (c["incoming"], c["new"]) == (1, 2)
+    call("901000001", 3, "Kiruvchi")  # lid keyin o'zi qo'ng'iroq qildi
+    call("901000002", 0, "Kiruvchi")  # lid tushishidan oldin — hisobga olinmaydi
+    call("901000003", 3, "Chiquvchi")  # biz qo'ng'iroq qildik — kiruvchi emas
+    lead_report.sync_events(day)
+    lead_report.sync_events(day)  # takror ishga tushirish dublikat yozmaydi
+    assert a.events.filter(outcome="incoming").count() == 1
+    assert not b.events.filter(outcome="incoming").exists() and not c.events.filter(outcome="incoming").exists()
+    cnt = lead_report.collect(day)["counts"]
+    assert (cnt["incoming"], cnt["new"]) == (1, 2)
 
 
 def test_message_text():
     d = {"day": datetime.date(2026, 11, 18), "total": 3, "kinds": {"Instagram": 2, "Facebook": 1}, "groups": {"neytral": 1, "sifatli": 1, "sifatsiz": 1},
-         "counts": {c: 0 for c in outcomes.CODES}}
+         "counts": {c: 0 for c in outcomes.CODES}, "old": {}, "old_total": 2}
     d["counts"].update(new=1, demo=1, spam=1)
     text = lead_report.message(d, url="https://x/y")
-    assert "18.11.2026" in text and "Jami: <b>3</b> (Instagram 2 · Facebook 1)" in text
+    assert "18.11.2026" in text and "Ishlangan lidlar: <b>3</b> (Instagram 2 · Facebook 1), shundan eski lidlar: 2" in text
     assert "Sifatli: 1</b> — Demoga yozildi 1" in text and "Sifatsiz: 1</b> — Spam 1" in text
-    assert "hali ko'rib chiqilmagan" in text and 'href="https://x/y"' in text
+    assert 'href="https://x/y"' in text
     assert "yozilmadi: xato" in lead_report.message(d, sheet_error="xato")
 
 
@@ -132,6 +162,8 @@ class FakeSheets:
 
     def batch_update(self, requests, sid=None):
         self.calls.append(requests)
+        if "updateCells" in requests[0]:
+            return {}
         r = requests[0]["duplicateSheet"]
         props = {"sheetId": 2 + len(self.tabs_), "title": r["newSheetName"]}
         self.tabs_.append(props)
@@ -160,7 +192,9 @@ def fake(monkeypatch):
 @override_settings(LEAD_REPORT_SHEET_ID="SID", GOOGLE_SERVICE_ACCOUNT_B64="x", LEAD_REPORT_TEMPLATE_TAB="Lid hisoboti")
 def test_write_sheet_duplicates_template_once_and_writes_counts(branch, fake):
     day = timezone.localdate()
-    _item("Instagram", "901000001", timezone.make_aware(datetime.datetime.combine(day, datetime.time(9, 0))), status="rejected", outcome="spam")
+    lo, _ = lead_report.window(day)
+    it = _item("Instagram", "901000001", lo + datetime.timedelta(hours=1))
+    inbox.event(it, "spam", lo + datetime.timedelta(hours=2))
     data = lead_report.collect(day)
     res = lead_report.write_sheet(data)
     title = f"{day:%d.%m.%y}"
@@ -169,8 +203,9 @@ def test_write_sheet_duplicates_template_once_and_writes_counts(branch, fake):
     assert fake.cells[f"'{title}'!D2"] == [[f"'{day:%d.%m.%y}"]]
     f_col = [r[0] for r in fake.cells[f"'{title}'!F3:F24"]]
     assert len(f_col) == 22 and f_col[outcomes.CODES.index("spam")] == 1 and sum(f_col) == 1
-    again = lead_report.write_sheet(data)  # qayta — yangi varaq ochilmaydi
-    assert not again["created"] and len(fake.calls) == 1
+    assert "updateCells" in fake.calls[1][0]  # katak izohlari
+    again = lead_report.write_sheet(data)  # qayta — yangi varaq ochilmaydi, faqat qiymat va izohlar yangilanadi
+    assert not again["created"] and sum("duplicateSheet" in c[0] for c in fake.calls) == 1
 
 
 @override_settings(LEAD_REPORT_SHEET_ID="SID", GOOGLE_SERVICE_ACCOUNT_B64="x")

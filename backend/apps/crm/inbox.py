@@ -18,7 +18,7 @@ from apps.core.roles import RoleCode
 from apps.references.models import Branch
 
 from . import outcomes, site_sync
-from .models import InboxLead, InboxNote, Lead, Student
+from .models import InboxEvent, InboxLead, InboxNote, Lead, Student
 
 ROLES = (RoleCode.ADMIN, RoleCode.BOSH_MENEJER, RoleCode.ADMINISTRATOR_HISOBCHI)
 LEEWAY_MIN = 10
@@ -53,7 +53,13 @@ def add(kind, *, phone, name="", course_name="", info="", received_at=None, exte
         return None, False
     item = InboxLead.objects.create(branch=branch, kind=kind, external_id=external_id or None, name=(name or "")[:100], phone=phone,
                                     course_name=(course_name or "")[:60], info=(info or "")[:300], received_at=now)
+    event(item, "new", now)
     return item, True
+
+
+def event(item, code, at=None):
+    """Lid holati tarixiga qator (kunlik hisobot shundan sanaydi)."""
+    return InboxEvent.objects.create(inbox=item, outcome=code, at=at or timezone.now())
 
 
 def _note(user, item, text):
@@ -87,6 +93,7 @@ def talk(user, item, comment, *, callback_at=None, close=False, outcome=""):
     item.callback_reminded_at = None
     item.updated_by = user
     item.save()
+    event(item, outcome)
     _note(user, item, text)
     audit.log_update(user, item, before)
     site_sync.notify(item, text)  # sayt admin paneli «Arizalar» da ham «Bog'lanildi» + izoh
@@ -104,6 +111,7 @@ def link(user, item, lead):
     before = audit.snapshot(item)
     item.status, item.lead, item.callback_at, item.updated_by = InboxLead.Status.LINKED, lead, None, user
     item.save()
+    event(item, "quality")
     _note(user, item, f"✅ Haqiqiy lidga qo'shildi: {lead.student.full_name}")
     audit.log_update(user, item, before)
     site_sync.notify(item, "Kursga yozilish uchun lidga qo'shildi")
@@ -118,6 +126,7 @@ def reopen(user, item):
     before = audit.snapshot(item)
     item.status, item.updated_by, item.callback_at, item.outcome = InboxLead.Status.NEW, user, None, ""
     item.save()
+    event(item, "new")
     _note(user, item, "↩️ Qayta ochildi")
     audit.log_update(user, item, before)
     site_sync.notify(item)

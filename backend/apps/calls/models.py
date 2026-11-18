@@ -6,6 +6,12 @@ from django.db import models
 from apps.core.models import BaseModel, Status
 
 
+def call_audio_path(instance, filename):
+    """Suhbat yozuvi: call_audio/YYYY/MM/<qo'ng'iroq id>.<kengaytma> (asl nom saqlanmaydi — raqam yoki ism bo'lishi mumkin)."""
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "m4a"
+    return f"call_audio/{instance.started_at:%Y/%m}/{instance.pk}.{ext}"
+
+
 class CallDevice(BaseModel):
     """Qo'ng'iroqlarni yuboradigan telefon. Ilova bir martalik ulash kodi bilan doimiy token oladi (token — faqat xeshi saqlanadi)."""
 
@@ -54,6 +60,12 @@ class CallRecord(BaseModel):
     comment = models.TextField("Izoh", blank=True)
     callback_at = models.DateTimeField("Qayta qo'ng'iroq vaqti", null=True, blank=True)
     callback_by = models.ForeignKey("accounts.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    # Suhbat yozuvi (2026-11-18): telefondagi yozuvchi ilova saqlagan fayl, «Codial qo'ng'iroqlar» ilovasi yuklaydi
+    audio = models.FileField("Suhbat yozuvi", upload_to=call_audio_path, blank=True)
+    audio_duration = models.PositiveIntegerField("Yozuv (soniya)", default=0)
+    audio_size = models.PositiveIntegerField("Yozuv hajmi (bayt)", default=0)
+    audio_sig = models.CharField("Yozuv imzosi", max_length=64, blank=True, db_index=True)
+    audio_at = models.DateTimeField("Yozuv yuklangan vaqt", null=True, blank=True)
 
     class Meta:
         verbose_name = "Qo'ng'iroq"

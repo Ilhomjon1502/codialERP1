@@ -202,6 +202,84 @@ def ingest(device, items, app_version=""):
     return {"accepted": created, "duplicates": len(rows) - created, "errors": errors}
 
 
+# ---------- Suhbat yozuvlari (2026-11-18) ----------
+
+AUDIO_TYPES = {"m4a": "audio/mp4", "mp4": "audio/mp4", "aac": "audio/aac", "mp3": "audio/mpeg", "ogg": "audio/ogg", "opus": "audio/ogg",
+               "oga": "audio/ogg", "wav": "audio/wav", "amr": "audio/amr", "3gp": "audio/3gpp", "flac": "audio/flac", "webm": "audio/webm"}
+MAX_AUDIO_BYTES = 80 * 1024 * 1024
+# Yozuv oxiri (fayl o'zgargan vaqt) qo'ng'iroq jurnalidagi oxiridan qancha farq qilishi mumkin: jurnalda suhbat vaqti (javobdan
+# keyin) turadi, yozuvda esa jiringlash ham bo'lishi mumkin; yozuvchi ilova faylni yopguncha ham biroz o'tadi
+AUDIO_END_BEFORE = 20       # yozuv qo'ng'iroq oxiridan oldin tugagan bo'lsa (soniya)
+AUDIO_END_AFTER = 200       # yozuv qo'ng'iroq oxiridan keyin tugagan bo'lsa (soniya)
+AUDIO_START_RING = 150      # qo'ng'iroq jurnaldagi vaqtidan yozuv boshlanishigacha (jiringlash)
+
+
+def audio_ext(name):
+    ext = (name or "").rsplit(".", 1)[-1].lower() if "." in (name or "") else ""
+    return ext if ext in AUDIO_TYPES else ""
+
+
+def audio_content_type(rec):
+    return AUDIO_TYPES.get(audio_ext(rec.audio.name), "application/octet-stream")
+
+
+def find_call_for_audio(device, ended, duration):
+    """Yozuvga mos qo'ng'iroq: boshlanishi yozuv boshlanishidan oldin (jiringlash bilan), tugashi yozuv tugashiga yaqin. Topilmasa None."""
+    started = ended - datetime.timedelta(seconds=max(0, duration))
+    best, best_diff = None, None
+    qs = CallRecord.objects.filter(device=device, started_at__gte=started - datetime.timedelta(seconds=AUDIO_START_RING),
+                                   started_at__lte=started + datetime.timedelta(seconds=15))
+    for c in qs:
+        diff = (ended - (c.started_at + datetime.timedelta(seconds=c.duration))).total_seconds()
+        if -AUDIO_END_BEFORE <= diff <= AUDIO_END_AFTER and (best is None or abs(diff) < best_diff):
+            best, best_diff = c, abs(diff)
+    return best
+
+
+@transaction.atomic
+def attach_recording(device, upload, ended_ms, duration, sig=""):
+    """Telefondagi yozuvchi ilova saqlagan faylni mos qo'ng'iroqqa biriktiradi. Natija: {status: ok|duplicate|pending, call}.
+    `pending` — mos qo'ng'iroq hali jurnaldan kelmagan (ilova keyinroq qayta yuboradi)."""
+    if not upload:
+        raise ValidationError({"file": "Fayl yuborilmagan"})
+    if not audio_ext(upload.name):
+        raise ValidationError({"file": "Audio fayl turi qo'llab-quvvatlanmaydi"})
+    if upload.size > MAX_AUDIO_BYTES:
+        raise ValidationError({"file": f"Fayl juda katta (ko'pi {MAX_AUDIO_BYTES // 1024 // 1024} MB)"})
+    try:
+        ended = datetime.datetime.fromtimestamp(int(ended_ms) / 1000, tz=datetime.UTC)
+        duration = max(0, int(duration or 0))
+    except (TypeError, ValueError, OverflowError, OSError) as e:
+        raise ValidationError({"ended_at": "Yaroqsiz vaqt"}) from e
+    sig = str(sig or "")[:64]
+    if sig and CallRecord.objects.filter(device=device, audio_sig=sig).exists():
+        return {"status": "duplicate"}
+    rec = find_call_for_audio(device, ended, duration)
+    if not rec:
+        return {"status": "pending"}
+    rec = CallRecord.objects.select_for_update().get(pk=rec.pk)
+    if rec.audio and rec.audio_duration >= duration:  # bitta qo'ng'iroqqa ikki fayl (ushlab turish) — uzunrog'i qoladi
+        return {"status": "duplicate", "call": str(rec.pk)}
+    old = rec.audio.name if rec.audio else ""
+    rec.audio.save(upload.name, upload, save=False)
+    rec.audio_duration, rec.audio_size, rec.audio_sig, rec.audio_at = duration, upload.size, sig, timezone.now()
+    rec.save(update_fields=["audio", "audio_duration", "audio_size", "audio_sig", "audio_at", "updated_at"])
+    if old and old != rec.audio.name:
+        rec.audio.storage.delete(old)
+    return {"status": "ok", "call": str(rec.pk)}
+
+
+def purge_audio(days):
+    """`days` kundan eski suhbat yozuv fayllarini o'chiradi (qo'ng'iroq yozuvi qoladi). Qaytaradi: o'chirilgan fayllar soni."""
+    cutoff = timezone.now() - datetime.timedelta(days=days)
+    n = 0
+    for rec in CallRecord.objects.filter(started_at__lt=cutoff).exclude(audio=""):
+        rec.audio.storage.delete(rec.audio.name)
+        CallRecord.objects.filter(pk=rec.pk).update(audio="", audio_sig="")
+        n += 1
+    return n
+
+
 def student_phones(student):
     """Talabaning 1-, 2-telefoni va vasiyning telefoni (9 xona)."""
     phones = {student.phone1, student.phone2}

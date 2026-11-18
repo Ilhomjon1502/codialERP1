@@ -173,3 +173,20 @@ class InboxNote(BaseModel):
     class Meta:
         verbose_name = "Kiruvchi lid izohi"
         ordering = ["created_at"]
+
+
+class InboxEvent(models.Model):
+    """Kiruvchi lid holati o'zgarishlari tarixi (2026-11-18): kunlik Google Sheets hisoboti shu kuni ishlangan lidlarni shu yozuvlardan sanaydi.
+    Holat kodlari — crm/outcomes.py. Yozuvlar faqat qo'shiladi (o'zgartirilmaydi)."""
+
+    inbox = models.ForeignKey(InboxLead, on_delete=models.CASCADE, related_name="events")
+    outcome = models.CharField("Holat", max_length=20)
+    at = models.DateTimeField("Vaqti", db_index=True)
+
+    class Meta:
+        verbose_name = "Kiruvchi lid holati tarixi"
+        ordering = ["at"]
+        indexes = [models.Index(fields=["outcome", "at"])]
+
+    def __str__(self):
+        return f"{self.inbox_id} · {self.outcome} · {self.at:%d.%m.%Y %H:%M}"

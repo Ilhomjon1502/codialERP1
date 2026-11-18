@@ -196,3 +196,79 @@ def test_calls_section_in_roles_matrix(api, make_user):
     assert api(hisobchi).get("/api/v1/calls/").status_code == 200
     api(bm).post("/api/v1/roles/HISOBCHI/toggle/", {"section": "calls", "op": "v"}, format="json")
     assert api(make_user("HISOBCHI")).get("/api/v1/calls/").status_code == 403
+
+
+# ---------- Suhbat yozuvlari (2026-11-18) ----------
+
+
+def _upload(api, token, name="r.m4a", data=b"x" * 2048, ended_min=0, ended_sec=40, duration=40, sig="s1"):
+    from django.core.files.uploadedfile import SimpleUploadedFile
+
+    ended = T0 + ended_min * 60_000 + ended_sec * 1000
+    return api().post("/api/v1/calls/recordings/", {"file": SimpleUploadedFile(name, data, content_type="audio/mp4"),
+                                                      "ended_at": ended, "duration": duration, "sig": sig},
+                      format="multipart", HTTP_AUTHORIZATION=f"Device {token}")
+
+
+@pytest.fixture
+def media(settings, tmp_path):
+    settings.MEDIA_ROOT = tmp_path
+    return tmp_path
+
+
+def test_recording_matches_call_by_time(api, paired, media):
+    ingest(api, paired, [call(1, "+998901234567", kind=2, minutes=0, duration=40), call(2, "+998907654321", kind=1, minutes=10, duration=30)])
+    r = _upload(api, paired, ended_min=0, ended_sec=45, duration=45)  # birinchi qo'ng'iroq: boshlanishi 09:00, 40 s suhbat
+    assert r.status_code == 200 and r.data["status"] == "ok", r.data
+    first = CallRecord.objects.get(external_id__startswith="1-")
+    assert first.audio and first.audio_duration == 45 and first.audio_size == 2048
+    assert not CallRecord.objects.get(external_id__startswith="2-").audio
+    # shu fayl qayta kelsa — takror
+    assert _upload(api, paired, ended_min=0, ended_sec=45, duration=45).data["status"] == "duplicate"
+
+
+def test_recording_pending_until_call_arrives(api, paired, media):
+    assert _upload(api, paired).data["status"] == "pending"
+    ingest(api, paired, [call(1, "+998901234567", kind=2, duration=40)])
+    assert _upload(api, paired).data["status"] == "ok"
+
+
+def test_recording_validates(api, paired, media):
+    ingest(api, paired, [call(1, "+998901234567", kind=2, duration=40)])
+    assert _upload(api, paired, name="x.exe").status_code == 400
+    assert api().post("/api/v1/calls/recordings/", {"ended_at": T0}, format="multipart").status_code == 401
+
+
+def test_recording_keeps_longer_file(api, paired, media):
+    ingest(api, paired, [call(1, "+998901234567", kind=2, duration=40)])
+    assert _upload(api, paired, ended_sec=60, duration=60, sig="a").data["status"] == "ok"
+    assert _upload(api, paired, ended_sec=40, duration=30, sig="b").data["status"] == "duplicate"
+    assert CallRecord.objects.get().audio_duration == 60
+
+
+def test_audio_playback_permissions_and_range(api, paired, make_user, media):
+    ingest(api, paired, [call(1, "+998901234567", kind=2, duration=40)])
+    _upload(api, paired, data=bytes(range(200)) * 10)
+    rec = CallRecord.objects.get()
+    url = f"/api/v1/calls/{rec.pk}/audio/"
+    boss = make_user("BOSH_MENEJER")
+    r = api(boss).get(url)
+    assert r.status_code == 200 and b"".join(r.streaming_content) == bytes(range(200)) * 10
+    assert r["Content-Type"] == "audio/mp4" and r["Accept-Ranges"] == "bytes"
+    p = api(boss).get(url, HTTP_RANGE="bytes=10-19")
+    assert p.status_code == 206 and p["Content-Range"] == "bytes 10-19/2000" and b"".join(p.streaming_content) == bytes(range(10, 20))
+    assert api(boss).get(url, HTTP_RANGE="bytes=5000-").status_code == 416
+    # Administrator qo'ng'iroqlarni ko'radi, lekin yozuvni eshita olmaydi (call_audio berilmagan)
+    admin = make_user("ADMINISTRATOR")
+    assert api(admin).get(url).status_code == 403
+    assert api(admin).get("/api/v1/calls/").data["results"][0]["has_audio"] is True
+    # audio=1 filtri
+    assert api(boss).get("/api/v1/calls/?audio=1").data["count"] == 1
+
+
+def test_purge_audio(api, paired, media):
+    ingest(api, paired, [call(1, "+998901234567", kind=2, duration=40)])
+    _upload(api, paired)
+    assert services.purge_audio(7) == 1  # qo'ng'iroq 2026-10-19 da — 7 kundan eski
+    rec = CallRecord.objects.get()
+    assert not rec.audio and rec.audio_sig == ""
