@@ -52,8 +52,8 @@ def sheet_id():
     return settings.GOOGLE_SHEET_ID
 
 
-def sheet_url(gid=None):
-    return f"https://docs.google.com/spreadsheets/d/{sheet_id()}/edit" + (f"#gid={gid}" if gid is not None else "")
+def sheet_url(gid=None, sid=None):
+    return f"https://docs.google.com/spreadsheets/d/{sid or sheet_id()}/edit" + (f"#gid={gid}" if gid is not None else "")
 
 
 # ------------------------------------------------------------------ HTTP
@@ -123,8 +123,9 @@ def access_token():
         return _token["value"]
 
 
-def _call(method, path="", body=None, params=None):
-    url = f"{API}/{sheet_id()}{path}"
+def _call(method, path="", body=None, params=None, sid=None):
+    """`sid` — boshqa fayl (bo'lmasa `GOOGLE_SHEET_ID`, foyda hisoboti fayli)."""
+    url = f"{API}/{sid or sheet_id()}{path}"
     if params:
         url += "?" + urllib.parse.urlencode(params, doseq=True)
     return _http(method, url, body, {"Authorization": f"Bearer {access_token()}", "Content-Type": "application/json"})
@@ -132,22 +133,22 @@ def _call(method, path="", body=None, params=None):
 
 # ------------------------------------------------------------------ amallar
 
-def tabs():
+def tabs(sid=None):
     """[{sheetId, title}] — fayldagi varaqlar."""
-    r = _call("GET", params={"fields": "properties.title,sheets.properties(sheetId,title,gridProperties)"})
+    r = _call("GET", params={"fields": "properties.title,sheets.properties(sheetId,title,gridProperties)"}, sid=sid)
     return {"title": r["properties"]["title"], "sheets": [s["properties"] for s in r.get("sheets", [])]}
 
 
-def batch_update(requests):
-    return _call("POST", ":batchUpdate", {"requests": requests})
+def batch_update(requests, sid=None):
+    return _call("POST", ":batchUpdate", {"requests": requests}, sid=sid)
 
 
-def values_get(ranges):
+def values_get(ranges, sid=None):
     """[[...], ...] har bir diapazon uchun (UNFORMATTED_VALUE)."""
-    r = _call("GET", "/values:batchGet", params={"ranges": ranges, "valueRenderOption": "UNFORMATTED_VALUE"})
+    r = _call("GET", "/values:batchGet", params={"ranges": ranges, "valueRenderOption": "UNFORMATTED_VALUE"}, sid=sid)
     return [vr.get("values", []) for vr in r.get("valueRanges", [])]
 
 
-def values_update(data):
+def values_update(data, sid=None):
     """data = [{range: "'oktabr 2026'!C5", values: [[...]]}] — formulalar ham (USER_ENTERED)."""
-    return _call("POST", "/values:batchUpdate", {"valueInputOption": "USER_ENTERED", "data": data})
+    return _call("POST", "/values:batchUpdate", {"valueInputOption": "USER_ENTERED", "data": data}, sid=sid)

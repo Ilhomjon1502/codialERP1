@@ -46,15 +46,15 @@ def test_talk_requires_comment_and_time_or_close(branch, make_user):
     from rest_framework.exceptions import ValidationError
 
     with pytest.raises(ValidationError):
-        inbox.talk(u, it, "", callback_at=timezone.now() + datetime.timedelta(hours=1))
+        inbox.talk(u, it, "", callback_at=timezone.now() + datetime.timedelta(hours=1), outcome="hesitate")
     with pytest.raises(ValidationError):
-        inbox.talk(u, it, "gaplashdik")  # vaqt ham yopish ham yo'q
+        inbox.talk(u, it, "gaplashdik", outcome="hesitate")  # vaqt ham yopish ham yo'q
     with pytest.raises(ValidationError):
-        inbox.talk(u, it, "gaplashdik", callback_at=timezone.now() - datetime.timedelta(days=1))
-    inbox.talk(u, it, "Ertaga qo'ng'iroq qiling", callback_at=timezone.now() + datetime.timedelta(days=1))
+        inbox.talk(u, it, "gaplashdik", callback_at=timezone.now() - datetime.timedelta(days=1), outcome="hesitate")
+    inbox.talk(u, it, "Ertaga qo'ng'iroq qiling", callback_at=timezone.now() + datetime.timedelta(days=1), outcome="hesitate")
     it.refresh_from_db()
     assert it.status == "callback" and it.notes.count() == 1
-    inbox.talk(u, it, "Qiziqmadi", close=True)
+    inbox.talk(u, it, "Qiziqmadi", close=True, outcome="bad")
     it.refresh_from_db()
     assert it.status == "rejected" and it.callback_at is None
     inbox.reopen(u, it)
@@ -74,7 +74,7 @@ def test_api_flow_summary_due_and_link(api, make_user, branch):
     it, _ = inbox.add("Instagram", phone="901112233", name="Ali", external_id="l:1")
     assert c.get("/api/v1/inbox-leads/summary/").json() == {"new": 1, "due": 0, "callback": 0, "linked": 0, "rejected": 0}
     at = (timezone.now() + datetime.timedelta(hours=1)).isoformat()
-    r = c.post(f"/api/v1/inbox-leads/{it.pk}/talk/", {"comment": "Keyinroq", "callback_at": at}, format="json")
+    r = c.post(f"/api/v1/inbox-leads/{it.pk}/talk/", {"comment": "Keyinroq", "callback_at": at, "outcome": "consult"}, format="json")
     assert r.status_code == 200 and r.json()["status"] == "callback" and r.json()["notes"][0]["comment"] == "Keyinroq"
     InboxLead.objects.filter(pk=it.pk).update(callback_at=timezone.now() - datetime.timedelta(minutes=1))
     d = c.get("/api/v1/inbox-leads/due/").json()
@@ -149,7 +149,7 @@ def test_inbox_row_shows_calls_and_note_due(api, make_user, branch):
     _call(dev, "901112233", -10, "Chiquvchi", 55)
     row = api(u).get("/api/v1/inbox-leads/").json()["results"][0]
     assert row["calls"]["count"] == 2 and row["calls"]["note_due"] is True  # gaplashildi, izoh yo'q
-    inbox.talk(u, it, "Ertaga", callback_at=timezone.now() + datetime.timedelta(days=1))
+    inbox.talk(u, it, "Ertaga", callback_at=timezone.now() + datetime.timedelta(days=1), outcome="hesitate")
     row = api(u).get("/api/v1/inbox-leads/").json()["results"][0]
     assert row["calls"]["note_due"] is False  # izoh yozildi
     _call(dev, "999999999", -5)  # boshqa raqam — hisobga olinmaydi

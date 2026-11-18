@@ -17,7 +17,7 @@ from rest_framework.viewsets import GenericViewSet
 from apps.calls.services import normalize
 from apps.core.pagination import Pagination
 
-from . import inbox
+from . import inbox, outcomes, site_sync
 from .models import InboxLead, Lead
 
 
@@ -34,10 +34,16 @@ class InboxSerializer(serializers.ModelSerializer):
     known = serializers.SerializerMethodField()
     lead_name = serializers.SerializerMethodField()
     calls = serializers.SerializerMethodField()
+    outcome_label = serializers.SerializerMethodField()
 
     class Meta:
         model = InboxLead
-        fields = ["id", "kind", "name", "phone", "course_name", "info", "received_at", "status", "status_label", "callback_at", "lead", "lead_name", "notes", "known", "calls"]
+        fields = ["id", "kind", "name", "phone", "course_name", "info", "received_at", "status", "status_label", "outcome", "outcome_label", "callback_at", "lead", "lead_name",
+                  "notes", "known", "calls"]
+
+    def get_outcome_label(self, o):
+        """Faqat gaplashib tanlangan holat (yangi/bog'langan lidlarda bo'sh — ular holati yozuv holatidan ma'lum)."""
+        return outcomes.LABEL.get(o.outcome, "") if o.status in (InboxLead.Status.CALLBACK, InboxLead.Status.REJECTED) else ""
 
     def get_calls(self, o):
         return (self.context.get("calls") or {}).get(o.pk)
@@ -117,8 +123,14 @@ class InboxLeadViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, Generic
                 at = f.to_internal_value(request.data["callback_at"])
             except serializers.ValidationError:
                 raise ValidationError({"callback_at": "Sana va vaqt noto'g'ri"}) from None
-        inbox.talk(request.user, item, request.data.get("comment"), callback_at=at, close=bool(request.data.get("close")))
+        inbox.talk(request.user, item, request.data.get("comment"), callback_at=at, close=bool(request.data.get("close")),
+                   outcome=str(request.data.get("outcome") or ""))
         return self._item_response(item)
+
+    @action(detail=False, methods=["get"])
+    def outcomes(self, request):
+        """«Gaplashdim» formasi uchun hisobot holatlari: qayta aloqada va yopishda tanlanadiganlar."""
+        return Response({"callback": outcomes.options(outcomes.CALLBACK_OUTCOMES), "close": outcomes.options(outcomes.CLOSE_OUTCOMES)})
 
     @action(detail=True, methods=["post"])
     def link(self, request, pk=None):
@@ -150,6 +162,9 @@ class SiteIngestView(APIView):
         phone = normalize(str(request.data.get("phone", "")))
         if not phone:
             return Response({"phone": ["Telefon 9 raqamdan iborat bo'lsin"]}, status=http.HTTP_400_BAD_REQUEST)
+        # Saytning ariza ID'si («site:<id>») — holat o'zgarganda sayt shu ID bo'yicha topadi (idempotent: qayta yuborilsa takror yozuv ochilmaydi)
+        ext = str(request.data.get("id", ""))
+        ext = ext if site_sync.EXTERNAL_ID.match(ext) else None
         item, created = inbox.add(InboxLead.Kind.SITE, phone=phone, name=str(request.data.get("name", "")), course_name=str(request.data.get("course", "")),
-                                  info=str(request.data.get("message", "")))
+                                  info=str(request.data.get("message", "")), external_id=ext)
         return Response({"ok": True, "created": created}, status=http.HTTP_201_CREATED if created else http.HTTP_200_OK)

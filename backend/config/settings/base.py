@@ -190,8 +190,12 @@ AI_MODEL_STRONG = env_list("AI_MODEL_STRONG")  # bo'sh — provayder standarti (
 # Google Sheets hisobot (Foyda → «Hisobot olish»): kalit va fayl ID'si deploy/set-google.sh bilan
 GOOGLE_SERVICE_ACCOUNT_B64 = env("GOOGLE_SERVICE_ACCOUNT_B64", "")  # service account JSON, base64
 GOOGLE_SHEET_ID = env("GOOGLE_SHEET_ID", "")
+LEAD_REPORT_SHEET_ID = env("LEAD_REPORT_SHEET_ID", "")  # Instagram/Facebook lidlarining kunlik hisoboti (Lid_hisoboti_shablon), har kuni yangi varaq
+LEAD_REPORT_TEMPLATE_TAB = env("LEAD_REPORT_TEMPLATE_TAB", "Lid hisoboti")  # shu varaq nusxalanadi
 IG_LEADS_CHAT_ID = int(env("IG_LEADS_CHAT_ID", "-1001530659909") or 0)  # Codial (ichki guruh): Instagram lidlari shu yerga
 IG_LEADS_SHEET_URL = env("IG_LEADS_SHEET_URL", "")  # Instagram target lidlari jadvali (havola — maxfiy, faqat deploy/.env da)
+SITE_SYNC_URL = env("SITE_SYNC_URL", "")  # sayt manzili (https://www.codialinfo.uz/api/erp/lead-status): sayt arizasi holati shu yerga yuboriladi
+SITE_SYNC_KEY = env("SITE_SYNC_KEY", "")  # HMAC imzo kaliti (saytdagi ERP_SYNC_KEY bilan bir xil), deploy/.env
 INBOX_SITE_KEY = env("INBOX_SITE_KEY", "")  # saytdagi forma serveri shu kalit bilan lidni ERP navbatiga yuboradi (deploy/.env)
 # Foyda taqsimoti: (hisobotdagi nom, kreditor nomida qatnashadigan so'z, foiz)
 PROFIT_SHARE_HOLDERS = [("MNSH", "mnsh", 75), ("Ilhomjon", "ilhomjon", 25)]

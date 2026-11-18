@@ -17,12 +17,13 @@
 
   const statusCell = (o) => {
     if (o.status === 'new') return A.badge('Yangi', 'orange');
+    const why = o.outcome_label ? `<br><small>${esc(o.outcome_label)}</small>` : '';
     if (o.status === 'callback') {
       const late = o.callback_at && new Date(o.callback_at) <= new Date();
-      return `${A.badge(late ? 'Vaqti keldi' : 'Qayta aloqa', late ? 'red' : 'blue')}<br><small class="muted">${o.callback_at ? A.fdt(o.callback_at) : ''}</small>`;
+      return `${A.badge(late ? 'Vaqti keldi' : 'Qayta aloqa', late ? 'red' : 'blue')}${why}<br><small class="muted">${o.callback_at ? A.fdt(o.callback_at) : ''}</small>`;
     }
     if (o.status === 'linked') return `${A.badge("Lidga qo'shildi", 'green')}<br><small class="muted">${esc(o.lead_name)}</small>`;
-    return A.badge('Yopildi', 'gray');
+    return `${A.badge('Yopildi', 'gray')}${why}`;
   };
   const knownCell = (o) => (o.known ? `<span class="t-red small">⚠️ Bazada bor: ${esc(o.known.name)}</span>` : '<span class="muted">—</span>');
   const notesCell = (o) => {
@@ -90,8 +91,8 @@
   const done = (msg) => { A.toast(msg); A.refresh(); };
 
   A.act['ib-talk'] = async (el) => {
-    let o;
-    try { o = await getItem(el.dataset.id); } catch (e) { return fail(e); }
+    let o, oc;
+    try { [o, oc] = await Promise.all([getItem(el.dataset.id), A.http.get('/inbox-leads/outcomes/')]); } catch (e) { return fail(e); }
     A.form({
       title: `Gaplashildi: ${o.name || fphone(o.phone)}`,
       values: { result: 'cb', callback_at: tomorrow() },
@@ -104,7 +105,7 @@
       ],
       submit: 'Saqlash',
       async onSubmit(x) {
-        const body = { comment: x.comment };
+        const body = { comment: x.comment, outcome: x.outcome };
         if (x.result === 'close') body.close = true; else body.callback_at = x.callback_at;
         await A.http.post(`/inbox-leads/${o.id}/talk/`, body);
         done(x.result === 'close' ? 'Yopildi' : 'Qayta aloqa vaqti saqlandi');

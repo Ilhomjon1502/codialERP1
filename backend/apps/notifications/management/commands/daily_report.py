@@ -8,6 +8,7 @@ Cron: 0 19 * * *
 
 import datetime
 import html
+import logging
 from collections import Counter, defaultdict
 
 from django.core.management.base import BaseCommand
@@ -238,3 +239,10 @@ class Command(BaseCommand):
         services.daily_report(build(day), key=f"daily:{day}")
         services.notify("founder_report", build(day, short=True), key=f"founder:{day}")  # asoschiga — faqat shu, qisqa ko'rinishda
         self.stdout.write("Kunlik hisobot navbatga qo'yildi (Bosh menejer va hisobotni tanlagan xodimlarga; asoschiga qisqa ko'rinishda)")
+        try:  # Instagram/Facebook lidlari hisoboti (Google Sheets + Telegram); xato kunlik hisobotni buzmasin
+            from apps.reports import lead_report
+
+            lead_report.run(day)
+            self.stdout.write("Instagram/Facebook lidlari hisoboti yuborildi")
+        except Exception:  # noqa: BLE001
+            logging.getLogger(__name__).exception("Instagram/Facebook lidlari hisoboti bajarilmadi")

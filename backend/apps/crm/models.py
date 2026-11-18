@@ -151,6 +151,7 @@ class InboxLead(BaseModel):
     info = models.CharField("Reklama / xabar", max_length=300, blank=True)
     received_at = models.DateTimeField("Tushgan vaqt", db_index=True)
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.NEW, db_index=True)
+    outcome = models.CharField("Hisobot holati", max_length=20, blank=True, default="")  # crm/outcomes.py kodlari (kunlik Google Sheets hisoboti)
     callback_at = models.DateTimeField("Qayta aloqa vaqti", null=True, blank=True, db_index=True)
     callback_reminded_at = models.DateTimeField(null=True, blank=True)
     lead = models.ForeignKey(Lead, null=True, blank=True, on_delete=models.SET_NULL, related_name="inbox_leads", verbose_name="Haqiqiy lid")

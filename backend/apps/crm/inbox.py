@@ -17,6 +17,7 @@ from apps.core.permissions import NO_PERMISSION, role_code
 from apps.core.roles import RoleCode
 from apps.references.models import Branch
 
+from . import outcomes, site_sync
 from .models import InboxLead, InboxNote, Lead, Student
 
 ROLES = (RoleCode.ADMIN, RoleCode.BOSH_MENEJER, RoleCode.ADMINISTRATOR_HISOBCHI)
@@ -62,14 +63,17 @@ def _note(user, item, text):
 
 
 @transaction.atomic
-def talk(user, item, comment, *, callback_at=None, close=False):
-    """Gaplashildi: izoh majburiy. Yoki qayta aloqa vaqti (kelajakda), yoki «yopish» (qiziqmadi / noto'g'ri raqam) — biri majburiy."""
+def talk(user, item, comment, *, callback_at=None, close=False, outcome=""):
+    """Gaplashildi: izoh majburiy. Yoki qayta aloqa vaqti (kelajakda), yoki «yopish» (qiziqmadi / noto'g'ri raqam) — biri majburiy.
+    `outcome` — kunlik hisobot holati (crm/outcomes.py): qayta aloqada `CALLBACK_OUTCOMES`, yopishda `CLOSE_OUTCOMES` dan biri majburiy."""
     require(user)
     if item.status in (InboxLead.Status.LINKED, InboxLead.Status.REJECTED):
         raise ValidationError({"detail": "Bu lid allaqachon yopilgan"})
     text = str(comment or "").strip()
     if not text:
         raise ValidationError({"comment": "Izoh majburiy"})
+    if outcome not in (outcomes.CLOSE_OUTCOMES if close else outcomes.CALLBACK_OUTCOMES):
+        raise ValidationError({"outcome": "Lid holatini tanlang" if not outcome else "Bu holat tanlangan amalga mos emas"})
     before = audit.snapshot(item)
     if close:
         item.status, item.callback_at = InboxLead.Status.REJECTED, None
@@ -79,11 +83,13 @@ def talk(user, item, comment, *, callback_at=None, close=False):
         if callback_at < timezone.now() - datetime.timedelta(minutes=LEEWAY_MIN):
             raise ValidationError({"callback_at": "Bu vaqt o'tib ketgan — kelajakdagi sana va vaqtni kiriting"})
         item.status, item.callback_at = InboxLead.Status.CALLBACK, callback_at
+    item.outcome = outcome
     item.callback_reminded_at = None
     item.updated_by = user
     item.save()
     _note(user, item, text)
     audit.log_update(user, item, before)
+    site_sync.notify(item, text)  # sayt admin paneli «Arizalar» da ham «Bog'lanildi» + izoh
     return item
 
 
@@ -100,6 +106,7 @@ def link(user, item, lead):
     item.save()
     _note(user, item, f"✅ Haqiqiy lidga qo'shildi: {lead.student.full_name}")
     audit.log_update(user, item, before)
+    site_sync.notify(item, "Kursga yozilish uchun lidga qo'shildi")
     return item
 
 
@@ -109,10 +116,11 @@ def reopen(user, item):
     if item.status != InboxLead.Status.REJECTED:
         raise ValidationError({"detail": "Faqat yopilgan lidni qayta ochish mumkin"})
     before = audit.snapshot(item)
-    item.status, item.updated_by, item.callback_at = InboxLead.Status.NEW, user, None
+    item.status, item.updated_by, item.callback_at, item.outcome = InboxLead.Status.NEW, user, None, ""
     item.save()
     _note(user, item, "↩️ Qayta ochildi")
     audit.log_update(user, item, before)
+    site_sync.notify(item)
     return item
 
 
