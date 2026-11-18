@@ -23,7 +23,7 @@ Yozuvni eshitish alohida bo'lim — **«Suhbat yozuvlarini eshitish»** (`call_a
 
 ## Hajm va saqlash
 
-- Fayl ko'pi bilan 80 MB. Nginx `client_max_body_size 80m` (serverda `/etc/nginx/sites-available/codial-test` ni yangilab, `nginx -s reload`).
+- Fayl ko'pi bilan 80 MB. Nginx `client_max_body_size 80m`. Haqiqiy `erp.codialinfo.uz` ni **`/etc/nginx/sites-enabled/codial-erp`** xizmat qiladi (`codial-test` — zaxira domen, repodagi `deploy/nginx/codial-test.conf` shunga namuna). O'zgartirgach `nginx -t && nginx -s reload`. 2026-11-18 da ikkalasi 80m qilingan.
 - Fayllar `media` Docker hajmida (`call_audio/YYYY/MM/`), bazadan alohida; zaxira nusxaga kirishini tekshiring.
 - Eski fayllarni tozalash: `python manage.py purge_call_audio --days 180` (qo'ng'iroq yozuvi qoladi, faqat audio o'chadi). Tavsiya cron: har oy 1-kuni 04:00.
 
