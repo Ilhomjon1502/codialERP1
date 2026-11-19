@@ -4,10 +4,10 @@
 
 1. Admin yoki menejer sizni **Sozlamalar → Foydalanuvchilar**da qo'shadi.
 2. Pochtangizga **"Codial ERP: tizimga kirish uchun parol o'rnating"** xati keladi.
-3. Xatdagi havolani oching, parolni ikki marta yozing va saqlang. Havola 3 kun amal qiladi va bir marta ishlaydi.
+3. Xatdagi havolani oching, parolni ikki marta yozing va saqlang. Havola 24 soat amal qiladi va bir marta ishlaydi.
 4. Kirish sahifasida pochtangiz va yangi parolingiz bilan kiring.
 
-Parol kamida 4 belgidan iborat bo'lsin (oson parol ham mumkin).
+Parol kamida 8 belgidan iborat bo'lsin; faqat raqamdan iborat bo'lmasin va oson parol (12345678, password…) bo'lmasin. Eski parollar ishlayveradi, qoida faqat yangi parol qo'yilganda qo'llanadi.
 
 ## Parolni unutsangiz
 

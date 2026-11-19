@@ -51,14 +51,33 @@ def test_password_link_and_set(api, make_user):
     assert link.startswith("https://test.example.uz/#/set-password?uid=")
     uid, token = re.search(r"uid=([^&]+)&token=(\S+)", link).groups()
     c = api()
-    weak = c.post("/api/v1/auth/password/set/", {"uid": uid, "token": token, "password": "123"}, format="json")
-    assert weak.status_code == 400 and "password" in weak.json()
-    ok = c.post("/api/v1/auth/password/set/", {"uid": uid, "token": token, "password": "1234"}, format="json")  # oddiy parol ham mumkin
+    for bad in ("123", "1234", "12345678", "password", "qwerty123"):  # qisqa, raqamli yoki keng tarqalgan parol qabul qilinmaydi
+        weak = c.post("/api/v1/auth/password/set/", {"uid": uid, "token": token, "password": bad}, format="json")
+        assert weak.status_code == 400 and "password" in weak.json(), bad
+    ok = c.post("/api/v1/auth/password/set/", {"uid": uid, "token": token, "password": "Yaxshi-parol-77"}, format="json")
     assert ok.status_code == 200
     # Havola bir marta ishlaydi
     again = c.post("/api/v1/auth/password/set/", {"uid": uid, "token": token, "password": "Boshqa-Parol-88"}, format="json")
     assert again.status_code == 400
-    assert c.post("/api/v1/auth/login/", {"email": "yangi@codial.test", "password": "1234"}, format="json").status_code == 200
+    assert c.post("/api/v1/auth/login/", {"email": "yangi@codial.test", "password": "Yaxshi-parol-77"}, format="json").status_code == 200
+
+
+def test_password_link_lives_24_hours(settings, make_user):
+    assert settings.PASSWORD_RESET_TIMEOUT == 24 * 3600
+    u = make_user(email="muddat@codial.test", password=None)
+    services.send_password_link(u)
+    assert "24 soat amal qiladi" in mail.outbox[0].body
+
+
+def test_password_link_dies_after_login(api, make_user):
+    """Havola ochiq tushib qolsa ham: egasi kirgach (yoki parol o'zgargach) u ishlamaydi."""
+    u = make_user(email="kirgan@codial.test")
+    services.send_password_link(u)
+    uid, token = re.search(r"uid=([^&]+)&token=(\S+)", mail.outbox[0].body).groups()
+    c = api()
+    assert c.post("/api/v1/auth/login/", {"email": "kirgan@codial.test", "password": PASSWORD}, format="json").status_code == 200
+    r = api().post("/api/v1/auth/password/set/", {"uid": uid, "token": token, "password": "Yaxshi-parol-77"}, format="json")
+    assert r.status_code == 400
 
 
 def test_password_reset_does_not_reveal_email(api, make_user):

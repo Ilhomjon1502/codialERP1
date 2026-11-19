@@ -37,8 +37,8 @@ class LoginSerializer(serializers.Serializer):
     password = serializers.CharField(trim_whitespace=False)
 
 
-# Bitta pochtaga ketma-ket noto'g'ri urinishlar: IP'dan qat'i nazar (tarqoq hujum ham to'xtaydi). Parol faqat 4 belgi
-# bo'lishi mumkin (buyurtmachi qarori), shuning uchun bu qulf asosiy himoya.
+# Bitta pochtaga ketma-ket noto'g'ri urinishlar: IP'dan qat'i nazar (tarqoq hujum ham to'xtaydi). Eski (2026-11-19 gacha
+# qo'yilgan) parollar qisqa bo'lishi mumkin, shuning uchun bu qulf asosiy himoya bo'lib qoladi.
 LOCK_FAILS = 8
 LOCK_SECONDS = 15 * 60
 

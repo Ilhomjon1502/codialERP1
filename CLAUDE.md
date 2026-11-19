@@ -228,7 +228,7 @@ Bajarildi: `apps/ai_assistant/` — `analytics.py` (14 ta view, ustun tavsiflari
 
 **Oxirgi holat (M4 dan keyin):** M1–M4 `main` da va https://erp.codialinfo.uz da ishlayapti (2026-10-13). Sinov ma'lumotlariga to'lovlar, xarajatlar, o'tkazmalar, kreditor qo'shildi; 84 test yashil.
 
-**M3 dagi holat:** M1, M2 va M3 `main` da, https://erp.codialinfo.uz da ishlayapti (sinov ma'lumotlari: 13 demo xodim + buyurtmachi akkaunti `ilhomjon.office@gmail.com` (Bosh menejer), ~80 lid, 7 guruh, ~58 shartnoma, o'tgan va joriy oy davomati, 8 ta KPI stavkasi). 70 test yashil, ruff toza. Pochta (Gmail SMTP) ishlayapti — parol o'rnatish xatlari haqiqatan yetib boradi. **Parol siyosati: faqat kamida 4 belgi** (buyurtmachi qarori, `docs/decisions.md`).
+**M3 dagi holat:** M1, M2 va M3 `main` da, https://erp.codialinfo.uz da ishlayapti (sinov ma'lumotlari: 13 demo xodim + buyurtmachi akkaunti `ilhomjon.office@gmail.com` (Bosh menejer), ~80 lid, 7 guruh, ~58 shartnoma, o'tgan va joriy oy davomati, 8 ta KPI stavkasi). 70 test yashil, ruff toza. Pochta (Gmail SMTP) ishlayapti — parol o'rnatish xatlari haqiqatan yetib boradi. **Parol siyosati: kamida 8 belgi, faqat raqam va keng tarqalgan parol emas** (2026-11-19 dan; avval 4 belgi edi — `docs/decisions.md`).
 
 **M3 rejasi (bajarildi, tarix uchun):**
 1. `apps/education/`: `Group`, `Contract`, `Attendance`, `MakeupRequest` (7.4, 9-bo'lim). Pul `DecimalField(14,0)`, bo'lish `ROUND_HALF_UP` (5-bo'lim).
@@ -506,7 +506,7 @@ Diqqat: AppSheet'da `Exchange`, `CommentToCreditors`, `Parent_Comment`, `Discoun
   - `teams` (ko'p tanlov: Qabul, Marketing, Moliya, HR, Ta'lim, Boshqa, Qurilish va ta'mirlash, IT, Ta'minot);
   - `employment_status` (Faol / Ishdan ketgan). Ishdan ketgan xodim kira olmaydi, tarixi saqlanadi;
   - `BOSHQA` rolida email va login bo'lmaydi;
-  - **parol talabi (2026-10-13, buyurtmachi qarori):** faqat kamida 4 belgi, oson parol ham mumkin; login urinishlari limiti (10/daqiqa) saqlanadi;
+  - **parol talabi (2026-11-19 dan):** kamida 8 belgi, faqat raqam emas, keng tarqalgan parol emas (avval 4 belgi edi); havola 24 soat; login urinishlari limiti (10/daqiqa) saqlanadi;
   - **parol (tasdiqlangan, 2026-10-12):** admin xodimga parol bermaydi. Xodim qo'shilganda uning pochtasiga bir martalik "parol o'rnatish" havolasi yuboriladi (Django `PasswordResetTokenGenerator`, muddatli). Xodim parolini o'zi qo'yadi. Admin "Havolani qayta yuborish" tugmasi bilan yangisini jo'nata oladi. Buning uchun SMTP pochta sozlanadi (`.env`).
 - **Course:** `name` (unique), `branches` (M2M), `status` (Faol/Nofaol, standart Faol).
 - **Room:** `branch`, `name`, `capacity`, `status` (standart Faol).
@@ -818,7 +818,7 @@ Hisobot so'rovlari aggregatsiya bilan bajariladi. Og'ir hisobotlar uchun kesh (1
 - Indekslar: filial, sana, (yil, oy), guruh, shartnoma, status, `created_by`, `legacy_id`.
 - Hisoblangan qiymatlar (qarz, KPI, balans) saqlanadi yoki indeksli aggregatsiya bilan olinadi. Butun jadvalni Python'da aylanib chiqish taqiqlanadi.
 - Statik fayllar siqiladi va keshlanadi (WhiteNoise yoki Nginx).
-- CSRF, HTTPS, xavfsiz cookie'lar, login urinishlariga limit, parol kamida 4 belgi (buyurtmachi qarori 2026-10-13; kuchaytirish kerak bo'lsa — `config/settings/base.py` `AUTH_PASSWORD_VALIDATORS`), sirlar `.env` da, prod'da `DEBUG=False`.
+- CSRF, HTTPS, xavfsiz cookie'lar, login urinishlariga limit, parol kamida 8 belgi, raqamli va keng tarqalgan emas (2026-11-19; `config/settings/base.py` `AUTH_PASSWORD_VALIDATORS`), sirlar `.env` da, prod'da `DEBUG=False`.
 - Kodga hech qanday ID, email yoki parol qattiq yozilmaydi.
 
 ## 15. Deploy

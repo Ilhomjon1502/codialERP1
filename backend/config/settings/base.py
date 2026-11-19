@@ -107,11 +107,15 @@ DATABASES = {"default": parse_database_url(env("DATABASE_URL", f"sqlite:///{BASE
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "accounts.User"
 
-# Buyurtmachi qarori (2026-10-13): xodim istalgan parolni qo'ya oladi, faqat kamida 4 belgi (docs/decisions.md)
+# Parol siyosati (2026-11-19, tashqi pentestdan keyin; 2026-10-13 dagi «faqat 4 belgi» qarori almashtirildi, docs/decisions.md):
+# kamida 8 belgi, faqat raqamdan iborat bo'lmasin, keng tarqalgan parol (1234, password…) bo'lmasin.
+# Qoida faqat YANGI parol qo'yilganda qo'llanadi — mavjud parollar bilan kirish o'zgarmaydi.
 AUTH_PASSWORD_VALIDATORS = [
-    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator", "OPTIONS": {"min_length": 4}},
+    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator", "OPTIONS": {"min_length": 8}},
+    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
-PASSWORD_RESET_TIMEOUT = 60 * 60 * 72  # parol o'rnatish havolasi 3 kun amal qiladi
+PASSWORD_RESET_TIMEOUT = 60 * 60 * 24  # parol o'rnatish havolasi 24 soat amal qiladi (2026-11-19: 72 soatdan qisqartirildi)
 
 LANGUAGE_CODE = "uz"
 TIME_ZONE = "Asia/Tashkent"
