@@ -18,7 +18,7 @@ from apps.crm.models import Lead, Parent, Student
 from apps.crm.services import CALLBACK_STATUSES
 from apps.education.models import Attendance, Contract
 
-from .models import CallDevice, CallRecord
+from .models import CallDevice, CallRecord, CallRecording
 
 log = logging.getLogger(__name__)
 D = CallRecord.Direction
@@ -197,6 +197,8 @@ def ingest(device, items, app_version=""):
         _mark_callbacks(rec)
         _note_prompt(rec)
         created += 1
+    if created:
+        rematch_recordings(device)
     device.last_seen_at = timezone.now()
     if app_version:
         device.app_version = str(app_version)[:20]
@@ -282,10 +284,55 @@ def find_call_for_audio(device, ended, duration, phone="", rec_start=None):
     return best
 
 
+def _name_direction(name):
+    m = re.search(r"_(out|in)_", name or "")
+    return {"out": "Chiquvchi", "in": "Kiruvchi"}.get(m.group(1), "") if m else ""
+
+
+def _rec_start(r):
+    """Yozuv boshlanishi: fayl nomidagi vaqt (ishonchli), bo'lmasa — None."""
+    s = started_from_name(r.filename)
+    if s is not None and r.ended_at is not None and abs((s - r.ended_at).total_seconds()) > 6 * 3600:
+        return None  # nomdagi vaqt ishonchsiz
+    return s
+
+
+def link_recording(r):
+    """Yozuvni mos qo'ng'iroqqa biriktiradi (topilsa). Qo'ng'iroqning asosiy yozuvi — eng uzuni. Qaytaradi: qo'ng'iroq yoki None."""
+    if r.call_id:
+        return r.call
+    ended = r.ended_at or (r.started_at + datetime.timedelta(seconds=r.duration))
+    call = find_call_for_audio(r.device, ended, r.duration, r.number, _rec_start(r))
+    if not call:
+        return None
+    call = CallRecord.objects.select_for_update().get(pk=call.pk)
+    r.call = call
+    r.save(update_fields=["call", "updated_at"])
+    if not call.audio or call.audio_duration < r.duration:  # bitta qo'ng'iroqqa ikki fayl — uzunrog'i asosiy; qisqasi ham ro'yxatda qoladi
+        call.audio.name = r.file.name  # fayl nusxalanmaydi — ikkalasi bir faylga ishora qiladi
+        call.audio_duration, call.audio_size, call.audio_sig, call.audio_at = r.duration, r.size, r.sig, r.created_at
+        call.save(update_fields=["audio", "audio_duration", "audio_size", "audio_sig", "audio_at", "updated_at"])
+    return call
+
+
+def rematch_recordings(device=None, days=3):
+    """Biriktirilmagan yozuvlarni qayta moslaydi (yangi qo'ng'iroqlar jurnalga kelgach). Qaytaradi: biriktirilganlar soni."""
+    qs = CallRecording.objects.filter(call__isnull=True, created_at__gte=timezone.now() - datetime.timedelta(days=days)).select_related("device")
+    if device is not None:
+        qs = qs.filter(device=device)
+    n = 0
+    for r in qs[:200]:
+        with transaction.atomic():
+            if link_recording(r):
+                n += 1
+    return n
+
+
 @transaction.atomic
 def attach_recording(device, upload, ended_ms, duration, sig="", number=""):
-    """Telefondagi yozuvchi ilova saqlagan faylni mos qo'ng'iroqqa biriktiradi. Natija: {status: ok|duplicate|pending, call}.
-    `pending` — mos qo'ng'iroq hali jurnaldan kelmagan (ilova keyinroq qayta yuboradi)."""
+    """Telefondagi yozuvchi ilova saqlagan faylni qabul qiladi: HAR doim saqlanadi (`CallRecording`), mos qo'ng'iroq bo'lsa biriktiriladi.
+    Natija: {status: ok | stored | duplicate, call}. `stored` — saqlandi, lekin mos qo'ng'iroq hali jurnalda yo'q: server o'zi keyinroq biriktiradi
+    (ilova qayta yubormaydi)."""
     if not upload:
         raise ValidationError({"file": "Fayl yuborilmagan"})
     if not audio_ext(upload.name):
@@ -298,36 +345,35 @@ def attach_recording(device, upload, ended_ms, duration, sig="", number=""):
     except (TypeError, ValueError, OverflowError, OSError) as e:
         raise ValidationError({"ended_at": "Yaroqsiz vaqt"}) from e
     sig = str(sig or "")[:64]
-    if sig and CallRecord.objects.filter(device=device, audio_sig=sig).exists():
-        return {"status": "duplicate"}
-    rec_start = started_from_name(upload.name)
-    if rec_start is not None and abs((rec_start - ended).total_seconds()) > 6 * 3600:
-        rec_start = None  # nomdagi vaqt ishonchsiz
-    rec = find_call_for_audio(device, ended, duration, normalize(number), rec_start)
-    if not rec:
-        near = list(CallRecord.objects.filter(device=device, phone=normalize(number), started_at__gte=ended - datetime.timedelta(hours=1),
-                                              started_at__lte=ended + datetime.timedelta(minutes=5)).values_list("started_at", "duration")[:4]) if number else []
-        log.warning("Yozuv mos qo'ng'iroqsiz (pending): fayl=%s tugadi=%s davomiylik=%ss raqam=...%s yaqin qo'ng'iroqlar=%s",
-                    upload.name, ended.isoformat(timespec="seconds"), duration, normalize(number)[-4:] or "yo'q",
-                    [(a.isoformat(timespec="seconds"), d) for a, d in near])
-        return {"status": "pending"}
-    rec = CallRecord.objects.select_for_update().get(pk=rec.pk)
-    if rec.audio and rec.audio_duration >= duration:  # bitta qo'ng'iroqqa ikki fayl (ushlab turish) — uzunrog'i qoladi
-        return {"status": "duplicate", "call": str(rec.pk)}
-    old = rec.audio.name if rec.audio else ""
-    rec.audio.save(upload.name, upload, save=False)
-    rec.audio_duration, rec.audio_size, rec.audio_sig, rec.audio_at = duration, upload.size, sig, timezone.now()
-    rec.save(update_fields=["audio", "audio_duration", "audio_size", "audio_sig", "audio_at", "updated_at"])
-    if old and old != rec.audio.name:
-        rec.audio.storage.delete(old)
-    return {"status": "ok", "call": str(rec.pk)}
+    if sig:
+        old = CallRecording.objects.filter(device=device, sig=sig).first()
+        if old:
+            return {"status": "duplicate", "call": str(old.call_id) if old.call_id else None}
+    r = CallRecording(device=device, branch_id=device.branch_id, filename=(upload.name or "")[:200], number=normalize(number),
+                      direction=_name_direction(upload.name), ended_at=ended, duration=duration, size=upload.size, sig=sig,
+                      started_at=started_from_name(upload.name) or ended - datetime.timedelta(seconds=duration))
+    if abs((r.started_at - ended).total_seconds()) > 6 * 3600:
+        r.started_at = ended - datetime.timedelta(seconds=duration)
+    r.file.save(upload.name, upload, save=False)
+    r.save()
+    call = link_recording(r)
+    if call is None:
+        log.warning("Yozuv saqlandi, mos qo'ng'iroq hali yo'q: fayl=%s boshlandi=%s davomiylik=%ss raqam=...%s", r.filename, r.started_at.isoformat(timespec="seconds"),
+                    duration, r.number[-4:] or "yo'q")
+    return {"status": "ok" if call else "stored", "call": str(call.pk) if call else None}
 
 
 def purge_audio(days):
     """`days` kundan eski suhbat yozuv fayllarini o'chiradi (qo'ng'iroq yozuvi qoladi). Qaytaradi: o'chirilgan fayllar soni."""
     cutoff = timezone.now() - datetime.timedelta(days=days)
     n = 0
-    for rec in CallRecord.objects.filter(started_at__lt=cutoff).exclude(audio=""):
+    for r in CallRecording.objects.filter(started_at__lt=cutoff).exclude(file=""):
+        r.file.storage.delete(r.file.name)
+        CallRecording.objects.filter(pk=r.pk).update(file="")
+        if r.call_id:
+            CallRecord.objects.filter(pk=r.call_id, audio=r.file.name).update(audio="", audio_sig="")
+        n += 1
+    for rec in CallRecord.objects.filter(started_at__lt=cutoff).exclude(audio=""):  # yozuvlar jadvaliga o'tmagan eski qatorlar
         rec.audio.storage.delete(rec.audio.name)
         CallRecord.objects.filter(pk=rec.pk).update(audio="", audio_sig="")
         n += 1

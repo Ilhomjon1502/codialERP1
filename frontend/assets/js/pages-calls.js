@@ -13,6 +13,9 @@
   let list = { results: [] };
   let st = null;
   let devices = [];
+  let recs = { results: [] };
+  let recSum = { total: 0, linked: 0, unlinked: 0 };
+  const RK = 'callrecs';
 
   const qs = (extra = {}) => {
     const q = new URLSearchParams(extra);
@@ -37,6 +40,11 @@
       }
       if (tab === 'stats') st = await A.http.get('/calls/stats/?' + qs());
       else if (tab === 'devices') devices = await A.http.get('/call-devices/');
+      else if (tab === 'recs') {
+        const rq = new URLSearchParams();
+        for (const k of ['from', 'to', 'linked', 'search']) { const v = A.q(`${RK}:${k}`, ''); if (v) rq.set(k === 'search' ? 'q' : k, v); }
+        [recs, recSum] = await Promise.all([A.http.get('/call-recordings/?' + new URLSearchParams([...rq, ['page', A.q(`${RK}:page`, 1)]])), A.http.get('/call-recordings/summary/?' + rq)]);
+      }
       else if (tab === 'sms') await loadSms();
       else if (tab === 'smsstats') await loadSmsStats();
       else if (tab === 'bot') await A.botTab.load(q);
@@ -47,7 +55,7 @@
     },
     render(p, q) {
       const tab = q.tab || 'list';
-      const tabs = [['list', "Qo'ng'iroqlar"], ['stats', 'Statistika'], ...(A.can('sms') ? [['sms', 'SMS'], ['smsstats', 'SMS statistikasi']] : []), ...(A.can('clientbot') ? [['bot', 'Telegram bot']] : []), ...(A.can('calls', 'a') ? [['devices', 'Qurilmalar']] : [])];
+      const tabs = [['list', "Qo'ng'iroqlar"], ...(A.can('call_audio') ? [['recs', 'Yozuvlar']] : []), ['stats', 'Statistika'], ...(A.can('sms') ? [['sms', 'SMS'], ['smsstats', 'SMS statistikasi']] : []), ...(A.can('clientbot') ? [['bot', 'Telegram bot']] : []), ...(A.can('calls', 'a') ? [['devices', 'Qurilmalar']] : [])];
       const date = (k, ph) => `<input class="f-input" type="date" data-filter="${K}:${k}" title="${ph}" value="${esc(A.q(`${K}:${k}`, ''))}">`;
       const period = [date('from', 'Dan'), date('to', 'Gacha')];
       const filters = tab === 'list'
@@ -56,6 +64,8 @@
           A.fSelect(K, 'known', [['1', 'Bazada bor'], ['0', "Noma'lum raqamlar"]], 'Hamma raqamlar'),
           A.fSelect(K, 'first', [['1', 'Faqat birinchi marta']], 'Yangi va eski'),
           ...(A.can('call_audio') ? [A.fSelect(K, 'audio', [['1', 'Suhbat yozuvi bor']], "Yozuvi bor va yo'q")] : [])])
+        : tab === 'recs' ? A.filterBar(RK, [A.fSearch(RK, 'Raqam…'), rdate(RK, 'from', 'Dan'), rdate(RK, 'to', 'Gacha'),
+          A.fSelect(RK, 'linked', [['1', 'Biriktirilgan'], ['0', 'Biriktirilmagan']], 'Hammasi')])
         : tab === 'stats' ? A.filterBar(K, period)
           : tab === 'smsstats' ? A.filterBar(SK, [date2('from', 'Dan'), date2('to', 'Gacha')])
           : tab === 'sms' ? A.filterBar(SK, [A.fSearch(SK, 'Talaba yoki raqam…'), date2('from', 'Dan'), date2('to', 'Gacha'),
@@ -63,11 +73,44 @@
             A.fSelect(SK, 'delivery', [['Yetkazildi', '✓✓ Yetkazildi'], ['Yetkazilmadi', '✕ Yetkazilmadi'], ['unknown', "Yetkazilishi noma'lum"]], 'Barcha yetkazilishlar'),
             A.fSelect(SK, 'known', [['0', "Noma'lum raqamlardan"]], 'Hamma raqamlar'),
             A.fSelect(SK, 'status', SMS_STATES.map((s) => [s, s]), 'Barcha holatlar')]) : '';
-      const body = tab === 'bot' ? A.botTab.view(q) : tab === 'stats' ? statsView() : tab === 'devices' ? devicesView() : tab === 'sms' ? smsView() : tab === 'smsstats' ? smsStatsView() : listView();
+      const body = tab === 'bot' ? A.botTab.view(q) : tab === 'stats' ? statsView() : tab === 'devices' ? devicesView() : tab === 'recs' ? recsView() : tab === 'sms' ? smsView() : tab === 'smsstats' ? smsStatsView() : listView();
       return `${A.head("Qo'ng'iroqlar va SMS", "Qabul telefonidagi qo'ng'iroqlar — tugashi bilan shu yerga tushadi. Raqam bazada bo'lsa ism va lid ma'lumoti chiqadi. SMS shu telefon orqali yuboriladi. Telegram bot — o'quvchi va vasiylar uchun")}
         ${A.tabs(tabs, tab, 'calls')}${filters}${body}`;
     },
   });
+
+  /* ---------- Yozuvlar (2026-11-19): telefon yuborgan HAR BIR yozuv — qo'ng'iroqqa biriktirilgan ham, biriktirilmagan ham ---------- */
+  const rdate = (key, k, ph) => `<input class="f-input" type="date" data-filter="${key}:${k}" title="${ph}" value="${esc(A.q(`${key}:${k}`, ''))}">`;
+
+  function recsView() {
+    const s = recSum;
+    const head = `<div class="alert ${s.unlinked ? 'warn' : 'info'}">${A.icon('alert')}<div>Jami <b>${A.num(s.total)}</b> yozuv: <b>${A.num(s.linked)}</b> ta qo'ng'iroqqa biriktirilgan, <b>${A.num(s.unlinked)}</b> ta biriktirilmagan.
+      Biriktirilmagan yozuv yo'qolmaydi: mos qo'ng'iroq jurnalga kelganda server o'zi biriktiradi.${s.unlinked ? ' <button class="btn sm ghost" data-act="rec-rematch">↻ Qayta moslash</button>' : ''}</div></div>`;
+    const table = A.table([
+      { h: 'Yozuv boshlangan', f: (r) => `${A.fdt(r.started_at)}<br><small class="muted">yuklandi ${A.fdt(r.created_at)}</small>` },
+      { h: 'Raqam', f: (r) => (r.number ? `<a href="tel:+998${esc(r.number)}" style="white-space:nowrap">${esc(fphone(r.number))}</a>` : '<span class="muted">Yashirin raqam</span>') },
+      { h: "Yo'nalish", f: (r) => { const d = r.call_direction || r.direction; return d && DIR[d] ? A.badge(`${DIR[d][0]} ${d}`, DIR[d][1]) : '—'; } },
+      { h: 'Kim', f: (r) => esc(r.student_name || r.contact_name || '') || '<span class="muted">—</span>' },
+      { h: 'Davomiyligi', cls: 'num', f: (r) => `${dur(r.duration)}<br><small class="muted">${r.size ? Math.round(r.size / 1024) + ' KB' : ''}</small>` },
+      { h: 'Holat', f: (r) => (r.linked
+        ? `${A.badge('Biriktirilgan', 'green')}<br><small class="muted">qo'ng'iroq ${A.fdt(r.call_started_at)} · suhbat ${dur(r.call_duration)}${r.main ? '' : " · qisqaroq nusxa"}</small>`
+        : `${A.badge('Biriktirilmagan', 'orange')}<br><small class="muted">mos qo'ng'iroq topilmadi</small>`) },
+      { h: 'Yozuv', f: (r) => (r.has_file ? `<button class="btn sm ghost" data-act="rec-play" data-id="${r.id}">▶ Eshitish</button>` : '<span class="muted">fayl o\'chirilgan</span>') },
+    ], recs.results, { empty: "Yozuv yo'q", rowAttr: (r) => (r.linked ? '' : 'class="row-warn"') });
+    return `${head}${table}${A.pager(RK, recs)}`;
+  }
+
+  A.act['rec-play'] = (el) => {
+    const au = document.createElement('audio');
+    au.controls = true;
+    au.autoplay = true;
+    au.preload = 'none';
+    au.style.cssText = 'width:100%;min-width:220px';
+    au.src = `/api/v1/call-recordings/${el.dataset.id}/audio/`;
+    au.onerror = () => A.toast("Yozuvni ochib bo'lmadi (ruxsat yoki fayl yo'q)", 'warn');
+    el.replaceWith(au);
+  };
+  A.act['rec-rematch'] = () => A.http.post('/call-recordings/rematch/', {}).then((r) => { A.toast(r.linked ? `${r.linked} ta yozuv biriktirildi` : 'Yangi moslik topilmadi'); A.refresh(); }, (e) => A.toast(e.message, 'warn'));
 
   /* ---------- Ro'yxat ---------- */
   function listView() {

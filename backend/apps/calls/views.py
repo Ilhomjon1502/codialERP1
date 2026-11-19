@@ -19,7 +19,7 @@ from apps.core.viewsets import AuditedModelViewSet, BranchScopedSerializerMixin
 from apps.education.models import Attendance, Contract
 
 from . import auto_sms, services, sms
-from .models import CallDevice, CallRecord, SmsMessage, SmsRule, SmsTemplate
+from .models import CallDevice, CallRecord, CallRecording, SmsMessage, SmsRule, SmsTemplate
 
 D = CallRecord.Direction
 
@@ -183,7 +183,7 @@ def _date(v):
 
 def _ranged(request, rec, content_type):
     """Faylni `Range: bytes=a-b` bilan beradi (audio elementi uchun)."""
-    f = rec.audio
+    f = rec.file if isinstance(rec, CallRecording) else rec.audio
     size = f.size
     start, end = 0, size - 1
     m = re.match(r"bytes=(\d*)-(\d*)$", request.headers.get("Range", "").strip())
@@ -314,6 +314,100 @@ class CallRecordViewSet(AuditedModelViewSet):
     @action(detail=False)
     def stats(self, request):
         return Response(services.stats(self.get_queryset()))
+
+
+class CallRecordingSerializer(serializers.ModelSerializer):
+    """Telefon yuborgan yozuv. `linked` — qo'ng'iroqqa biriktirilgan; biriktirilmaganlari ham ro'yxatda (hech qachon yo'qolmaydi)."""
+
+    device_name = serializers.CharField(source="device.name", read_only=True)
+    linked = serializers.SerializerMethodField()
+    call_direction = serializers.CharField(source="call.direction", read_only=True, default="")
+    call_started_at = serializers.DateTimeField(source="call.started_at", read_only=True, default=None)
+    call_duration = serializers.IntegerField(source="call.duration", read_only=True, default=None)
+    contact_name = serializers.CharField(source="call.contact_name", read_only=True, default="")
+    student_name = serializers.SerializerMethodField()
+    has_file = serializers.SerializerMethodField()
+    main = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CallRecording
+        fields = ["id", "started_at", "created_at", "duration", "size", "number", "direction", "filename", "device_name", "linked", "call", "call_direction",
+                  "call_started_at", "call_duration", "contact_name", "student_name", "has_file", "main"]
+        read_only_fields = fields
+
+    def get_linked(self, r):
+        return bool(r.call_id)
+
+    def get_has_file(self, r):
+        return bool(r.file)
+
+    def get_main(self, r):
+        """Qo'ng'iroqning asosiy (ERP'dagi «▶ Yozuv» ko'rsatadigan) yozuvi shumi."""
+        return bool(r.call_id and r.call.audio and r.file and r.call.audio.name == r.file.name)
+
+    def get_student_name(self, r):
+        return r.call.student.full_name if r.call_id and r.call.student_id else ""
+
+
+class CallRecordingViewSet(AuditedModelViewSet):
+    """Telefon yuborgan barcha yozuvlar (2026-11-19). ?linked=1|0, ?from=&to= (sana), ?q=raqam, ?dir=Kiruvchi|Chiquvchi, ?device=.
+    Ko'rish — bo'lim `call_audio` (Admin, Bosh menejer, asoschi)."""
+
+    section = "call_audio"
+    branch_field = "branch"
+    serializer_class = CallRecordingSerializer
+    pagination_class = Pagination
+    http_method_names = ["get", "post", "head", "options"]
+    action_ops = {"audio": "v", "summary": "v", "rematch": "v"}
+    queryset = CallRecording.objects.select_related("device", "call__student")
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if self.action in ("list", "summary"):
+            qs = self._filter(qs)
+        return qs
+
+    def _filter(self, qs):
+        p = self.request.query_params
+        local = timezone.get_current_timezone()
+        if d := _date(p.get("from")):
+            qs = qs.filter(started_at__gte=datetime.datetime.combine(d, datetime.time.min, local))
+        if d := _date(p.get("to")):
+            qs = qs.filter(started_at__lt=datetime.datetime.combine(d + datetime.timedelta(days=1), datetime.time.min, local))
+        if p.get("linked") == "1":
+            qs = qs.filter(call__isnull=False)
+        elif p.get("linked") == "0":
+            qs = qs.filter(call__isnull=True)
+        if p.get("dir") in ("Kiruvchi", "Chiquvchi"):
+            qs = qs.filter(Q(call__direction=p["dir"]) | Q(call__isnull=True, direction=p["dir"]))
+        if p.get("device"):
+            qs = qs.filter(device_id=p["device"])
+        if q := "".join(c for c in (p.get("q") or "") if c.isdigit()):
+            qs = qs.filter(number__contains=q[-9:])
+        return qs
+
+    def create(self, request, *args, **kwargs):
+        raise MethodNotAllowed("POST")
+
+    @action(detail=False)
+    def summary(self, request):
+        qs = self.get_queryset()
+        return Response({"total": qs.count(), "linked": qs.filter(call__isnull=False).count(), "unlinked": qs.filter(call__isnull=True).count()})
+
+    @action(detail=False, methods=["post"])
+    def rematch(self, request):
+        """Biriktirilmagan yozuvlarni qayta moslaydi (odatda server o'zi qiladi: telefon yangi qo'ng'iroq yuborganda)."""
+        return Response({"linked": services.rematch_recordings(days=30)})
+
+    @action(detail=True, methods=["get"])
+    def audio(self, request, pk=None):
+        """Yozuvni eshitish (Range bilan). Alohida ruxsat: bo'lim `call_audio`."""
+        if not perms.can(request.user, "call_audio", "v"):
+            raise perms.PermissionDenied(perms.NO_PERMISSION)
+        r = self.get_object()
+        if not r.file:
+            raise Http404
+        return _ranged(request, r, services.AUDIO_TYPES.get(services.audio_ext(r.file.name), "application/octet-stream"))
 
 
 # ---------- SMS (2026-10-22): telefon navbatni oladi, natijani qaytaradi ----------

@@ -59,6 +59,7 @@ router.register("salary-payouts", pay.SalaryPayoutViewSet, basename="salary-payo
 router.register("tasks", tasks.StaffTaskViewSet, basename="task")
 router.register("calls", calls.CallRecordViewSet, basename="call")
 router.register("call-devices", calls.CallDeviceViewSet, basename="call-device")
+router.register("call-recordings", calls.CallRecordingViewSet, basename="call-recording")
 router.register("sms-templates", calls.SmsTemplateViewSet, basename="sms-template")
 router.register("sms-rules", calls.SmsRuleViewSet, basename="sms-rule")
 router.register("sms", calls.SmsMessageViewSet, basename="sms")

@@ -27,6 +27,12 @@ Yozuvni eshitish alohida bo'lim — **«Suhbat yozuvlarini eshitish»** (`call_a
 - Fayllar `media` Docker hajmida (`call_audio/YYYY/MM/`), bazadan alohida; zaxira nusxaga kirishini tekshiring.
 - Eski fayllarni tozalash: `python manage.py purge_call_audio --days 180` (qo'ng'iroq yozuvi qoladi, faqat audio o'chadi). Tavsiya cron: har oy 1-kuni 04:00.
 
+## Yozuvlar ro'yxati (Qo'ng'iroqlar → «Yozuvlar»)
+
+Telefon yuborgan **har bir** yozuv serverda saqlanadi va shu yerda ko'rinadi — qo'ng'iroqqa biriktirilgan ham, biriktirilmagan ham. Biriktirilmagan yozuv (mos qo'ng'iroq jurnalga hali kelmagan yoki vaqti mos kelmagan) yo'qolmaydi: telefon yangi qo'ng'iroqlarni yuborganda server o'zi qayta moslaydi, «↻ Qayta moslash» tugmasi ham bor. Ro'yxatda: yozuv boshlangan vaqt, raqam, yo'nalish, kim, davomiyligi, holat (Biriktirilgan / Biriktirilmagan), ▶ Eshitish. Filtr: sana, raqam, biriktirilgan/biriktirilmagan. Bitta qo'ng'iroqqa ikki fayl tushsa, asosiysi uzuni, qisqasi «qisqaroq nusxa» bo'lib qoladi. Ko'rish ruxsati — «Suhbat yozuvlarini eshitish» (`call_audio`).
+
+Moslash fayl nomidagi **yozuv boshlangan vaqt** bo'yicha (yozuvchi ilova uni yozadi): raqam ma'lum bo'lsa shu raqamning eng yaqin qo'ng'irog'iga; raqam yo'q (yashirin) kiruvchida javob berilgan kiruvchi qo'ng'iroqqa. Davomiylikka tayanilmaydi: jurnaldagi «suhbat» javobdan keyin hisoblanadi, yozuv esa jiringlashni ham o'z ichiga oladi.
+
 ## Instagram/Facebook lidlari audiosi — Telegram guruhiga
 
 Instagram yoki Facebook lidi (Instagram/sayt lidlari navbatidagi) bilan **gaplashilgan** qo'ng'iroq yozuvi ERP'ga tushgach, bot uni **«Mardon aka ustoz Codialda»** guruhiga yuboradi (ovozli xabar sifatida, shu yerning o'zida tinglanadi). Audio tagidagi izohda:

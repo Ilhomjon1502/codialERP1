@@ -228,10 +228,17 @@ def test_recording_matches_call_by_time(api, paired, media):
     assert _upload(api, paired, ended_min=0, ended_sec=45, duration=45).data["status"] == "duplicate"
 
 
-def test_recording_pending_until_call_arrives(api, paired, media):
-    assert _upload(api, paired).data["status"] == "pending"
+def test_recording_stored_until_call_arrives(api, paired, media):
+    """Mos qo'ng'iroq jurnalda yo'q: yozuv baribir saqlanadi (yo'qolmaydi); qo'ng'iroq kelganda server o'zi biriktiradi."""
+    from apps.calls.models import CallRecording
+
+    r = _upload(api, paired)
+    assert r.data["status"] == "stored" and CallRecording.objects.count() == 1
+    assert CallRecording.objects.get().call is None and CallRecording.objects.get().file
     ingest(api, paired, [call(1, "+998901234567", kind=2, duration=40)])
-    assert _upload(api, paired).data["status"] == "ok"
+    assert CallRecording.objects.get().call_id == CallRecord.objects.get().pk
+    assert CallRecord.objects.get().audio
+    assert _upload(api, paired).data["status"] == "duplicate"  # shu fayl qayta kelsa — takror
 
 
 def test_recording_validates(api, paired, media):
@@ -241,10 +248,14 @@ def test_recording_validates(api, paired, media):
 
 
 def test_recording_keeps_longer_file(api, paired, media):
+    """Bitta qo'ng'iroqqa ikki fayl: asosiysi uzuni, ikkalasi ham ro'yxatda qoladi."""
+    from apps.calls.models import CallRecording
+
     ingest(api, paired, [call(1, "+998901234567", kind=2, duration=40)])
     assert _upload(api, paired, ended_sec=60, duration=60, sig="a").data["status"] == "ok"
-    assert _upload(api, paired, ended_sec=40, duration=30, sig="b").data["status"] == "duplicate"
+    assert _upload(api, paired, ended_sec=40, duration=30, sig="b").data["status"] == "ok"
     assert CallRecord.objects.get().audio_duration == 60
+    assert CallRecording.objects.filter(call__isnull=False).count() == 2
 
 
 def test_audio_playback_permissions_and_range(api, paired, make_user, media):
@@ -277,24 +288,40 @@ def test_purge_audio(api, paired, media):
 
 def test_recording_goes_to_the_call_with_the_same_number(api, paired, media):
     """2026-11-18: Robiya qo'ng'irog'i jurnalda hali yo'q paytda uning yozuvi eng yaqin boshqa qo'ng'iroqqa (Ilhom) yopishib qolgan edi."""
-    # 1: 09:00:00 (6 s) — Ilhom. Yozuv 27 s, 09:02:07 da tugagan (Robiya: 09:01:40 da terilgan, 8 s suhbat + jiringlash)
     ingest(api, paired, [call(1, "+998901111502", kind=2, minutes=0, duration=6)])
     late = dict(ended_min=2, ended_sec=7, duration=27)
-    assert _upload(api, paired, sig="a", **late).data["status"] == "pending"            # raqamsiz: 121 s farq — yopishmaydi
-    assert _upload(api, paired, sig="b", number="+998 90 333-34-31", **late).data["status"] == "pending"
-    ingest(api, paired, [call(2, "+998903333431", kind=2, minutes=1, duration=8)])
-    assert _upload(api, paired, sig="b", number="+998 90 333-34-31", **late).data["status"] == "ok"
+    assert _upload(api, paired, sig="b", number="+998 90 333-34-31", **late).data["status"] == "stored"  # Ilhomga yopishmaydi
+    assert not CallRecord.objects.get().audio
+    ingest(api, paired, [call(2, "+998903333431", kind=2, minutes=1, duration=8)])  # Robiya qo'ng'irog'i keyin keldi
     assert CallRecord.objects.get(phone="903333431").audio and not CallRecord.objects.get(phone="901111502").audio
 
 
 def test_recording_with_number_waits_for_its_call(api, paired, media):
-    """Mos raqamli qo'ng'iroq hali jurnalda yo'q: boshqa raqamning yaqin qo'ng'irog'iga yopishmaydi, 'pending' qoladi."""
+    """Mos raqamli qo'ng'iroq hali jurnalda yo'q: boshqa raqamning yaqin qo'ng'irog'iga yopishmaydi, saqlanib turadi."""
+    from apps.calls.models import CallRecording
+
     ingest(api, paired, [call(1, "+998901111502", kind=2, minutes=0, duration=40)])
-    assert _upload(api, paired, number="+998903333431").data["status"] == "pending"
-    assert not CallRecord.objects.get().audio
+    assert _upload(api, paired, number="+998903333431").data["status"] == "stored"
+    assert not CallRecord.objects.get().audio and CallRecording.objects.get().call is None
     ingest(api, paired, [call(2, "+998903333431", kind=2, minutes=0, duration=40)])
-    assert _upload(api, paired, number="+998903333431").data["status"] == "ok"
     assert CallRecord.objects.get(phone="903333431").audio and not CallRecord.objects.get(phone="901111502").audio
+
+
+def test_recordings_list_shows_linked_and_unlinked_and_plays_both(api, paired, make_user, media):
+    ingest(api, paired, [call(1, "+998901234567", kind=2, duration=40)])
+    _upload(api, paired, sig="a", data=b"A" * 3000)                                      # biriktiriladi
+    _upload(api, paired, sig="b", number="+998909999999", data=b"B" * 3000, ended_min=30)  # biriktirilmaydi
+    boss, admin = make_user("BOSH_MENEJER"), make_user("ADMINISTRATOR")
+    allr = api(boss).get("/api/v1/call-recordings/").data
+    assert allr["count"] == 2
+    assert api(boss).get("/api/v1/call-recordings/?linked=1").data["count"] == 1
+    un = api(boss).get("/api/v1/call-recordings/?linked=0").data["results"][0]
+    assert un["linked"] is False and un["number"] == "909999999" and un["has_file"]
+    assert api(boss).get("/api/v1/call-recordings/?q=909999999").data["count"] == 1
+    assert api(boss).get("/api/v1/call-recordings/summary/").data == {"total": 2, "linked": 1, "unlinked": 1}
+    r = api(boss).get(f"/api/v1/call-recordings/{un['id']}/audio/")
+    assert r.status_code == 200 and b"".join(r.streaming_content) == b"B" * 3000
+    assert api(admin).get("/api/v1/call-recordings/").status_code == 403  # ruxsat: faqat call_audio egalari
 
 
 # ---------- Instagram/Facebook lidlari bilan suhbat audiosi → Telegram guruhi ----------
@@ -404,8 +431,8 @@ def test_recording_pending_logs_reason(api, paired, media, caplog):
     ingest(api, paired, [call(1, "+998901234567", kind=2, duration=40)])
     with caplog.at_level("WARNING"):
         r = _upload(api, paired, ended_min=30, number="+998909999999", sig="far")  # mos qo'ng'iroq yo'q
-    assert r.data["status"] == "pending"
-    assert "Yozuv mos qo'ng'iroqsiz" in caplog.text
+    assert r.data["status"] == "stored"
+    assert "Yozuv saqlandi, mos qo'ng'iroq hali yo'q" in caplog.text
 
 
 def test_recording_with_number_matches_by_end_not_file_duration(api, paired, media):

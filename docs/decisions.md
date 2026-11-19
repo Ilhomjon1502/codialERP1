@@ -169,3 +169,7 @@
 - **Qabul qilingan taxminlar:** «Instagram» = Instagram va Facebook (kiruvchi lidlar navbatida ikkalasi bir xil manba); «gaplashilganda» = suhbat davomiyligi > 0; «kim» = lidning ismi va telefoni; «nechanchi marta bog'lanish» = lid tushgandan beri shu raqam bilan barcha qo'ng'iroqlar (javobsiz urinishlar ham). Sayt lidlari yuborilmaydi.
 - **Amalda:** `apps/calls/ig_audio.py` (`tick()` — `run_bot` har daqiqada), `CallRecord.audio_tg_at` (bir marta yuborish belgisi), `notifications.services.send_media`. Telegram xatosida yozuv keyingi daqiqada qayta yuboriladi (2 kungacha).
 
+## 2026-11-19 — Telefon yuborgan hamma yozuv saqlanadi (CallRecording)
+
+- **Qaror (buyurtmachi):** telefon yuborgan barcha audio serverga tushsin, biriktirilgan va biriktirilmagan ro'yxati ko'rinsin (Qo'ng'iroqlar menyusida), yozuv yo'qolib ketmasin.
+- **Amalda:** `calls.CallRecording` (har yuklangan fayl; `call` bo'sh — biriktirilmagan), server yangi qo'ng'iroqlar kelganda o'zi qayta moslaydi (`services.rematch_recordings`); ilova `pending` o'rniga `stored` oladi va qayta yubormaydi; moslash fayl nomidagi boshlanish vaqti bo'yicha; `CallRecord.audio` — qo'ng'iroqning asosiy (eng uzun) yozuvi, bir faylga ishora (nusxa yo'q). API `/call-recordings/` (+`summary`, `rematch`, `{id}/audio/`), ruxsat `call_audio`. Migratsiya `0011` mavjud yozuvlarni ko'chiradi.

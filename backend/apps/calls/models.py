@@ -12,6 +12,12 @@ def call_audio_path(instance, filename):
     return f"call_audio/{instance.started_at:%Y/%m}/{instance.pk}.{ext}"
 
 
+def recording_path(instance, filename):
+    """Telefon yuborgan yozuv fayli: call_audio/rec/YYYY/MM/<yozuv id>.<kengaytma> (hech qachon o'chirilmaydi — qo'ng'iroqqa biriktirilmagan bo'lsa ham)."""
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "ogg"
+    return f"call_audio/rec/{instance.started_at:%Y/%m}/{instance.pk}.{ext}"
+
+
 class CallDevice(BaseModel):
     """Qo'ng'iroqlarni yuboradigan telefon. Ilova bir martalik ulash kodi bilan doimiy token oladi (token — faqat xeshi saqlanadi)."""
 
@@ -199,3 +205,30 @@ class SmsRule(BaseModel):
 
     def __str__(self):
         return f"{self.get_key_display()} ({self.branch})"
+
+
+class CallRecording(BaseModel):
+    """Telefon yuborgan HAR BIR suhbat yozuvi (2026-11-19): qo'ng'iroqqa biriktirilgan bo'lsa ham, biriktirilmagan bo'lsa ham saqlanadi va
+    «Qo'ng'iroqlar → Yozuvlar» ro'yxatida ko'rinadi. Mos qo'ng'iroq jurnalga keyinroq kelsa, o'zi biriktiriladi (`services.rematch_recordings`)."""
+
+    device = models.ForeignKey(CallDevice, on_delete=models.PROTECT, related_name="recordings", verbose_name="Qurilma")
+    branch = models.ForeignKey("references.Branch", on_delete=models.PROTECT, related_name="call_recordings")
+    file = models.FileField("Yozuv fayli", upload_to=recording_path, blank=True)
+    filename = models.CharField("Telefondagi fayl nomi", max_length=200, blank=True)
+    number = models.CharField("Raqam (9 xona)", max_length=9, blank=True, db_index=True)
+    direction = models.CharField("Yo'nalish (fayl nomidan)", max_length=12, blank=True)
+    started_at = models.DateTimeField("Yozuv boshlangan", db_index=True)
+    ended_at = models.DateTimeField("Fayl o'zgargan vaqt", null=True, blank=True)
+    duration = models.PositiveIntegerField("Davomiyligi (soniya)", default=0)
+    size = models.PositiveIntegerField("Hajmi (bayt)", default=0)
+    sig = models.CharField("Imzo", max_length=64, blank=True, db_index=True)
+    call = models.ForeignKey(CallRecord, null=True, blank=True, on_delete=models.SET_NULL, related_name="recordings", verbose_name="Qo'ng'iroq")
+
+    class Meta:
+        verbose_name = "Suhbat yozuvi"
+        verbose_name_plural = "Suhbat yozuvlari"
+        ordering = ["-started_at"]
+        constraints = [models.UniqueConstraint(fields=["device", "sig"], condition=~models.Q(sig=""), name="uniq_recording_sig_per_device")]
+
+    def __str__(self):
+        return f"{self.started_at:%Y-%m-%d %H:%M} {self.number or '—'} {self.duration}s"
