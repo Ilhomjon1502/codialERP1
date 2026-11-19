@@ -104,6 +104,8 @@ Front-end fayllari `git pull` bilan darhol yangilanadi (Nginx ularni papkadan be
 
 Tiklashni ishga tushirishdan oldin **bir marta test muhitida sinab ko'ring**.
 
+**Telegram zaxirasi va yangi serverda to'liq tiklash (2026-11-19):** har kuni 00:00 da Bosh menejerga shifrlangan zip keladi (`deploy/backup_telegram.sh`, sozlash — `deploy/set-backup.sh`); server yo'qolsa `deploy/restore_full.sh` bilan tiklanadi. To'liq yo'riqnoma: `docs/user_guide/zaxiradan_tiklash.md`.
+
 ## 8. Muammolar
 
 | Belgi | Tekshirish |
