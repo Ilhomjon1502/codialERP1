@@ -226,20 +226,58 @@ def audio_content_type(rec):
     return AUDIO_TYPES.get(audio_ext(rec.audio.name), "application/octet-stream")
 
 
-def find_call_for_audio(device, ended, duration, phone=""):
-    """Yozuvga mos qo'ng'iroq: boshlanishi yozuv boshlanishidan oldin (jiringlash bilan), tugashi yozuv tugashiga yaqin.
-    `phone` (9 xona) berilsa — faqat shu raqamning qo'ng'iroqlari (yozuv fayl nomidagi raqam): boshqa raqamning vaqtga yaqin qo'ng'irog'iga
-    hech qachon biriktirilmaydi; mos qo'ng'iroq hali jurnaldan kelmagan bo'lsa None (ilova keyinroq qayta yuboradi). Topilmasa None."""
+NAME_TIME = re.compile(r"^(\d{8})_(\d{6})(?:\.(\d+))?([+-]\d{4})")
+
+
+def started_from_name(name):
+    """Yozuvchi ilova fayl nomiga yozuv BOSHLANGAN vaqtni yozadi: 20261119_084646.894+0500_out_+998... (soat mintaqasi bilan).
+    Fayl o'zgargan vaqtidan ishonchliroq (u ba'zan yozuv boshlanishidagi qiymatda qotib qoladi). Nomda yo'q bo'lsa — None."""
+    m = NAME_TIME.match(name or "")
+    if not m:
+        return None
+    try:
+        dt = datetime.datetime.strptime(m.group(1) + m.group(2), "%Y%m%d%H%M%S")
+        off = m.group(4)
+        tz = datetime.timezone((1 if off[0] == "+" else -1) * datetime.timedelta(hours=int(off[1:3]), minutes=int(off[3:5])))
+        return dt.replace(microsecond=int((m.group(3) or "0").ljust(3, "0")[:3]) * 1000, tzinfo=tz)
+    except ValueError:
+        return None
+
+
+def find_call_for_audio(device, ended, duration, phone="", rec_start=None):
+    """Yozuvga mos qo'ng'iroq.
+    1) Yozuvning boshlanish vaqti fayl nomidan ma'lum (`rec_start`): yozuv chiquvchi qo'ng'iroqda raqam terilganda, kiruvchida javob berilganda
+       boshlanadi — qo'ng'iroq jurnalidagi boshlanishi shu vaqtga yaqin (kiruvchida jiringlash vaqti qadar oldin). Raqam ma'lum bo'lsa — shu
+       raqamning eng yaqin qo'ng'irog'i; raqam yo'q (yashirin) bo'lsa — faqat javob berilgan kiruvchi qo'ng'iroqlar. Davomiylikka tayanilmaydi:
+       jurnaldagi suhbat vaqti javobdan keyin hisoblanadi, yozuv esa jiringlashni ham o'z ichiga oladi.
+    2) Nomda vaqt bo'lmasa — fayl tugash vaqti va davomiyligi bo'yicha (eski usul).
+    Mos qo'ng'iroq hali jurnaldan kelmagan bo'lsa None (ilova keyinroq qayta yuboradi)."""
+    if rec_start is not None:
+        lo, hi = AUDIO_START_RING if phone else 90, 15
+        qs = CallRecord.objects.filter(device=device, started_at__gte=rec_start - datetime.timedelta(seconds=lo),
+                                       started_at__lte=rec_start + datetime.timedelta(seconds=hi))
+        if phone:
+            qs = qs.filter(phone=phone)
+        else:
+            qs = qs.filter(direction=CallRecord.Direction.INCOMING, duration__gt=0)
+        return min(qs, key=lambda c: abs((c.started_at - rec_start).total_seconds()), default=None)
+    if phone:
+        # Raqam ma'lum: faylning davomiyligiga tayanmaymiz; yozuv go'shak qo'yilganda tugaydi — shu raqamning fayl tugashidan oldin
+        # boshlangan eng oxirgi qo'ng'irog'i, uning jurnaldagi tugashi fayl tugashiga yaqin bo'lsa (farq = jiringlash vaqti).
+        qs = CallRecord.objects.filter(device=device, phone=phone, started_at__lte=ended + datetime.timedelta(seconds=15),
+                                       started_at__gte=ended - datetime.timedelta(hours=6)).order_by("-started_at")
+        for c in qs[:5]:
+            diff = (ended - (c.started_at + datetime.timedelta(seconds=c.duration))).total_seconds()
+            if -AUDIO_END_BEFORE <= diff <= AUDIO_END_AFTER:
+                return c
+        return None
     started = ended - datetime.timedelta(seconds=max(0, duration))
-    limit = AUDIO_END_AFTER if phone else AUDIO_END_AFTER_NO_NUMBER
     best, best_diff = None, None
     qs = CallRecord.objects.filter(device=device, started_at__gte=started - datetime.timedelta(seconds=AUDIO_START_RING),
                                    started_at__lte=started + datetime.timedelta(seconds=15))
-    if phone:
-        qs = qs.filter(phone=phone)
     for c in qs:
         diff = (ended - (c.started_at + datetime.timedelta(seconds=c.duration))).total_seconds()
-        if -AUDIO_END_BEFORE <= diff <= limit and (best is None or abs(diff) < best_diff):
+        if -AUDIO_END_BEFORE <= diff <= AUDIO_END_AFTER_NO_NUMBER and (best is None or abs(diff) < best_diff):
             best, best_diff = c, abs(diff)
     return best
 
@@ -262,7 +300,10 @@ def attach_recording(device, upload, ended_ms, duration, sig="", number=""):
     sig = str(sig or "")[:64]
     if sig and CallRecord.objects.filter(device=device, audio_sig=sig).exists():
         return {"status": "duplicate"}
-    rec = find_call_for_audio(device, ended, duration, normalize(number))
+    rec_start = started_from_name(upload.name)
+    if rec_start is not None and abs((rec_start - ended).total_seconds()) > 6 * 3600:
+        rec_start = None  # nomdagi vaqt ishonchsiz
+    rec = find_call_for_audio(device, ended, duration, normalize(number), rec_start)
     if not rec:
         near = list(CallRecord.objects.filter(device=device, phone=normalize(number), started_at__gte=ended - datetime.timedelta(hours=1),
                                               started_at__lte=ended + datetime.timedelta(minutes=5)).values_list("started_at", "duration")[:4]) if number else []

@@ -406,3 +406,55 @@ def test_recording_pending_logs_reason(api, paired, media, caplog):
         r = _upload(api, paired, ended_min=30, number="+998909999999", sig="far")  # mos qo'ng'iroq yo'q
     assert r.data["status"] == "pending"
     assert "Yozuv mos qo'ng'iroqsiz" in caplog.text
+
+
+def test_recording_with_number_matches_by_end_not_file_duration(api, paired, media):
+    # uzun suhbat: jurnalda 355 s (javobdan keyin), yozuv raqam terilganda boshlangan (+25 s jiringlash); fayl davomiyligi noto'g'ri o'qilgan (0)
+    ingest(api, paired, [call(1, "+998901234567", kind=2, duration=355)])
+    r = _upload(api, paired, ended_min=6, ended_sec=25 + 355 - 360 + 3, duration=0, number="+998901234567")
+    assert r.data["status"] == "ok"
+    assert CallRecord.objects.get().audio
+
+
+def test_recording_with_number_picks_latest_call_of_that_number(api, paired, media):
+    # bir raqamga ketma-ket ikki qo'ng'iroq: birinchisi 12 s, ikkinchisi javobsiz — har yozuv o'z qo'ng'irog'iga
+    ingest(api, paired, [call(1, "+998901234567", kind=2, minutes=0, duration=12), call(2, "+998901234567", kind=2, minutes=1, duration=0)])
+    first = _upload(api, paired, ended_min=0, ended_sec=30, duration=30, number="+998901234567", sig="a").data
+    second = _upload(api, paired, ended_min=1, ended_sec=20, duration=20, number="+998901234567", sig="b").data
+    assert first["status"] == second["status"] == "ok" and first["call"] != second["call"]
+    by_ext = {c.external_id.split("-")[0]: str(c.pk) for c in CallRecord.objects.all()}
+    assert first["call"] == by_ext["1"] and second["call"] == by_ext["2"]
+
+
+def test_started_from_name():
+    s = services.started_from_name("20261119_084646.894+0500_out_+998950619880.ogg")
+    assert s == datetime.datetime(2026, 11, 19, 3, 46, 46, 894000, tzinfo=datetime.UTC)
+    assert services.started_from_name("r.m4a") is None
+
+
+def _named(minute_offset=0, sec=0, direction="out", number="+998901234567"):
+    t = datetime.datetime.fromtimestamp(T0 / 1000, tz=datetime.UTC) + datetime.timedelta(minutes=minute_offset, seconds=sec)
+    return f"{t:%Y%m%d_%H%M%S}.000+0000_{direction}_{number}.ogg"
+
+
+def test_recording_matches_by_start_from_name_even_if_mtime_stale(api, paired, media):
+    # javobsiz chiquvchi: jurnalda 0 s, yozuv jiringlashni olgan (57 s); fayl o'zgargan vaqti yozuv BOSHIdagi qiymatda qotib qolgan (ended ≈ start)
+    ingest(api, paired, [call(1, "+998901234567", kind=2, minutes=0, duration=0)])
+    r = _upload(api, paired, name=_named(0, 1), ended_min=0, ended_sec=2, duration=57, number="+998901234567")
+    assert r.data["status"] == "ok" and CallRecord.objects.get().audio
+
+
+def test_recording_start_picks_closest_call_of_same_number(api, paired, media):
+    ingest(api, paired, [call(1, "+998901234567", kind=2, minutes=0, duration=12), call(2, "+998901234567", kind=2, minutes=5, duration=0)])
+    a = _upload(api, paired, name=_named(0, 1), ended_min=0, ended_sec=40, duration=40, sig="a", number="+998901234567").data
+    b = _upload(api, paired, name=_named(5, 1), ended_min=5, ended_sec=2, duration=30, sig="b", number="+998901234567").data
+    by = {c.external_id.split("-")[0]: str(c.pk) for c in CallRecord.objects.all()}
+    assert a["call"] == by["1"] and b["call"] == by["2"]
+
+
+def test_recording_without_number_matches_answered_incoming_only(api, paired, media):
+    # kiruvchi, raqam nomda yo'q (yashirin): yozuv javob berilganda boshlanadi — qo'ng'iroq jurnalda jiringlash boshidan (30 s oldin)
+    ingest(api, paired, [call(1, "+998901234567", kind=1, minutes=0, duration=46), call(2, "+998909999999", kind=2, minutes=0, duration=0)])
+    r = _upload(api, paired, name=_named(0, 32, "in", ""), ended_min=0, ended_sec=33, duration=46, number="")
+    assert r.data["status"] == "ok"
+    assert CallRecord.objects.get(audio__gt="").direction == D.INCOMING  # chiquvchi (boshqa raqam) ga yopishmadi
