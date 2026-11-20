@@ -180,3 +180,5 @@
 
 - **Sabab:** Shizuku telefonda vaqti-vaqti bilan o'chadi; uzun suhbatlar uzilib yoki bo'sh yozilib, ERP'ga tushmay qoladi (bugun 17 ta 20 s+ suhbatdan 11 tasida yozuv qisqa, bo'sh yoki yo'q). Server tomonida xato yo'q — yozuv telefonda to'liq tushmayapti. Aniq sabab (Wi-Fi uzilishi / simsiz nosozlikni tuzatish o'zi o'chishi) telefon jurnalisiz tasdiqlanmagan.
 - **Qaror (buyurtmachi: «avval ogohlantirish»):** gaplashilgan qo'ng'iroqdan 5 daqiqa o'tgach yozuv yo'q yoki qisqa bo'lsa — Administrator, Administrator+Hisobchi, Bosh menejerga Telegram. `calls/rec_watch.py`, hodisa `rec_problem`, `CallRecord.rec_alert_at`.
+
+- **Aniqlangan sabab (2026-11-20, telefon jurnali):** yozuv qo'ng'iroq paytida karnay yoqilsa/o'chirilsa uziladi (Telecom `USER_SWITCH_SPEAKER` / javobdan keyin `USER_SWITCH_EARPIECE` vaqtlari yozuv uzilgan vaqt bilan mos: 15:09, 14:55, 16:25, 15:04, 17:11, 17:13). Karnay boshida yoqilib tegilmasa — yozuv to'liq. Ogohlantirish matniga shu maslahat qo'shildi. Telefon region `IN` (Google Dialer, Xiaomi dialeri yo'q) — Xiaomi'ning o'z yozuvi mumkin emas.

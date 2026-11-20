@@ -58,8 +58,10 @@ def text(items):
     if len(items) > MAX_LINES:
         lines.append(f"… va yana {len(items) - MAX_LINES} ta")
     lines.append("")
-    lines.append("Qabul telefonida <b>Shizuku</b> ilovasini oching: «Shizuku is running» yozuvi bo'lishi kerak. O'chgan bo'lsa — "
-                 "«Start via Wireless debugging» (Simsiz nosozlikni tuzatish) orqali qayta ishga tushiring. Telefon Wi-Fi'ga ulangan bo'lsin.")
+    lines.append("🔈 Eng ko'p sabab: qo'ng'iroq paytida <b>karnay tugmasini bosish</b> (yoqish yoki o'chirish) — shunda yozuv uziladi. "
+                 "Karnayni faqat qo'ng'iroq boshlanishidan oldin tanlang va gaplashish paytida tegmang.")
+    lines.append("Agar karnayga tegilmagan bo'lsa: qabul telefonida <b>Shizuku</b> ilovasini oching — «Shizuku is running» yozuvi bo'lishi kerak. O'chgan bo'lsa — "
+                 "«Start via Wireless debugging» (Simsiz nosozlikni tuzatish) orqali qayta ishga tushiring.")
     return "\n".join(lines)
 
 
