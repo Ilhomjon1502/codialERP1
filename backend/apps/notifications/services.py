@@ -49,6 +49,7 @@ EVENT_PERM = {
     "founder_report": ("founderReport", "v"),
     "ig_lead": ("leads", "v"),
     "quiz": ("groups", "v"),
+    "rec_problem": ("calls", "v"),
 }
 # Xodim hali tanlamagan bo'lsa — kimga standart holda boradi
 DEFAULT_ROLES = {
@@ -73,6 +74,7 @@ DEFAULT_ROLES = {
     "founder_report": {R.ASOSCHI},  # asoschiga faqat shu xabar boradi (2026-10-25)
     "ig_lead": {R.BOSH_MENEJER},  # buyurtmachi qarori 2026-11-04: Instagram target lidlari faqat Bosh menejerga
     "quiz": set(),  # 2026-11-06: test natijasi — standart holda faqat guruh ustozi va yordamchisi (default_users)
+    "rec_problem": {R.ADMINISTRATOR, R.ADMINISTRATOR_HISOBCHI, R.BOSH_MENEJER},  # 2026-11-20: Shizuku o'chib, suhbat yozuvi uzilsa — qabul telefonidagi xodimlarga
 }
 
 

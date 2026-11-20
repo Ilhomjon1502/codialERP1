@@ -358,6 +358,23 @@ def test_ig_audio_sent_once_with_caption(api, paired, media, settings):
     assert len(got) == 1
 
 
+def test_ig_audio_unrelated_recordings_do_not_block_queue(api, paired, media, settings):
+    from apps.calls import ig_audio
+
+    settings.IG_CALLS_CHAT_ID = -100777
+    _ig_setup(api, paired, media)
+    mine = CallRecord.objects.get()
+    CallRecord.objects.filter(pk=mine.pk).update(audio_at=_ig_now() - datetime.timedelta(minutes=5))
+    # lidga aloqasiz 12 ta eski yozuv (oddiy qo'ng'iroqlar) — oldin ular navbatdagi 10 ta o'rinni egallab olardi
+    for i in range(12):
+        CallRecord.objects.create(device=mine.device, branch=mine.branch, external_id=f"other{i}", direction=D.OUTGOING, number="+998909990000", phone="909990000",
+                                  started_at=mine.started_at - datetime.timedelta(hours=2), duration=30, audio=f"call_audio/x{i}.ogg", audio_size=5000,
+                                  audio_at=_ig_now() - datetime.timedelta(hours=1, minutes=i))
+    got = []
+    assert ig_audio.tick(_ig_now(), sender=lambda c, lead, chat: got.append(c.pk)) == 1
+    assert got == [mine.pk]
+
+
 def test_ig_audio_counts_contacts_and_skips_other_leads(api, paired, media, settings):
     from apps.calls import ig_audio
     from apps.crm import inbox
@@ -485,3 +502,60 @@ def test_recording_without_number_matches_answered_incoming_only(api, paired, me
     r = _upload(api, paired, name=_named(0, 32, "in", ""), ended_min=0, ended_sec=33, duration=46, number="")
     assert r.data["status"] == "ok"
     assert CallRecord.objects.get(audio__gt="").direction == D.INCOMING  # chiquvchi (boshqa raqam) ga yopishmadi
+
+
+# ---------- Suhbat yozuvi to'liq emas → Telegram ogohlantirish (2026-11-20) ----------
+
+
+@pytest.fixture
+def watch(api, paired, make_user, django_capture_on_commit_callbacks, media):
+    from apps.calls import rec_watch
+    from apps.notifications.models import Outbox, TelegramLink
+
+    u = make_user("ADMINISTRATOR")
+    TelegramLink.objects.create(user=u, chat_id=4001)
+    start = datetime.datetime.fromtimestamp(T0 / 1000, tz=datetime.UTC)
+
+    def tick(minutes_after_start):
+        with django_capture_on_commit_callbacks(execute=True):
+            return rec_watch.tick(now=start + datetime.timedelta(minutes=minutes_after_start))
+
+    return {"tick": tick, "outbox": lambda: Outbox.objects.filter(event="rec_problem"), "api": api, "token": paired}
+
+
+def test_rec_watch_alerts_when_recording_missing_or_cut_short(watch):
+    ingest(watch["api"], watch["token"], [call(1, "+998901234567", kind=2, minutes=0, duration=300)])  # 5 daqiqa suhbat, yozuv yo'q
+    assert watch["tick"](8) == 0   # suhbat tugaganiga 5 daqiqa ham bo'lmadi: telefon yuklashga ulgurmagan bo'lishi mumkin
+    assert watch["tick"](11) == 1
+    m = watch["outbox"]().get()
+    assert "5:00" in m.text and "yozuv yo'q" in m.text and "Shizuku" in m.text and "4567" in m.text
+    assert watch["tick"](12) == 0 and watch["outbox"]().count() == 1  # har qo'ng'iroq haqida bir marta
+
+
+def test_rec_watch_cut_short_recording(watch):
+    ingest(watch["api"], watch["token"], [call(1, "+998901234567", kind=2, minutes=0, duration=300)])
+    name = "20261019_090000.000+0000_out_+998901234567.ogg"  # yozuv 22 s / suhbat 300 s
+    assert _upload(watch["api"], watch["token"], name=name, ended_sec=22, duration=22, sig="a", number="+998901234567").data["status"] == "ok"
+    assert watch["tick"](11) == 1
+    assert "yozuv 0:22" in watch["outbox"]().get().text
+
+
+def test_rec_watch_ok_cases_do_not_alert(watch):
+    ingest(watch["api"], watch["token"], [
+        call(1, "+998901234567", kind=2, minutes=0, duration=300),   # to'liq yozilgan
+        call(2, "+998907654321", kind=1, minutes=20, duration=60),   # kiruvchi: yozuv 1 s qisqa — normal
+        call(3, "+998909999999", kind=2, minutes=40, duration=10),   # juda qisqa suhbat — e'tiborga olinmaydi
+        call(4, "+998908888888", kind=3, minutes=60, duration=0),    # javobsiz
+    ])
+    _upload(watch["api"], watch["token"], ended_sec=305, duration=305, sig="a", number="+998901234567")
+    _upload(watch["api"], watch["token"], ended_min=20, ended_sec=59, duration=59, sig="b", number="+998907654321")
+    assert watch["tick"](90) == 0 and watch["outbox"]().count() == 0
+
+
+def test_rec_watch_batches_and_cools_down(watch):
+    ingest(watch["api"], watch["token"], [call(1, "+998901234567", kind=2, minutes=0, duration=120), call(2, "+998907654321", kind=1, minutes=3, duration=90)])
+    assert watch["tick"](10) == 2 and watch["outbox"]().count() == 1  # ikkalasi bitta xabarda
+    text = watch["outbox"]().get().text
+    assert "4567" in text and "4321" in text
+    ingest(watch["api"], watch["token"], [call(3, "+998906666666", kind=2, minutes=12, duration=100)])
+    assert watch["tick"](20) == 0  # oldingi xabardan 10 daqiqa o'tmagan (now - COOLDOWN)

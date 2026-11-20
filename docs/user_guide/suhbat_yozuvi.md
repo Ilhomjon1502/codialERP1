@@ -45,6 +45,10 @@ Instagram yoki Facebook lidi (Instagram/sayt lidlari navbatidagi) bilan **gaplas
 
 Qoidalar: faqat suhbat davomiyligi 0 dan katta qo'ng'iroqlar; lid qo'ng'irodan oldin tushgan bo'lishi kerak; har yozuv bir marta; yozuv yuklangach ~1 daqiqada yuboriladi. Sayt lidlari (Instagram/Facebook emas) va bazadagi oddiy lidlar guruhga bormaydi. Guruh manzili — `IG_CALLS_CHAT_ID` (`deploy/.env`; `0` — o'chiq). Kod: `apps/calls/ig_audio.py`, bot har daqiqada tekshiradi.
 
+## Yozuv uzilsa — avtomatik ogohlantirish (2026-11-20)
+
+Shizuku o'chib qolsa, yozuv suhbat o'rtasida uziladi yoki fayl bo'sh chiqadi. Gaplashilgan (15 soniyadan uzun) qo'ng'iroq tugaganidan 5 daqiqa o'tgach yozuv yo'q bo'lsa yoki suhbatdan sezilarli qisqa bo'lsa (15% yoki kamida 8 soniya), Administrator, Administrator+Hisobchi va Bosh menejerga Telegram xabari keladi: qaysi qo'ng'iroq, suhbat va yozuv davomiyligi, Shizuku'ni qayta yoqish ko'rsatmasi. Har qo'ng'iroq haqida bir marta; ketma-ket xatolar 10 daqiqada bitta xabarga jamlanadi. Xodim bu xabarni Telegram oynasida o'chira oladi («Suhbat yozuvi to'liq emas»). Kod: `apps/calls/rec_watch.py`.
+
 ## Eslatma
 
 Suhbatni yozish haqida mijozga xabar berish yoki roziligini olish masalasi markaz zimmasida (masalan, qabul telefoniga javobda «suhbat sifat nazorati uchun yozib olinadi» deyish).

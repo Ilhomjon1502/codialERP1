@@ -73,6 +73,7 @@ class CallRecord(BaseModel):
     audio_sig = models.CharField("Yozuv imzosi", max_length=64, blank=True, db_index=True)
     audio_at = models.DateTimeField("Yozuv yuklangan vaqt", null=True, blank=True)
     audio_tg_at = models.DateTimeField("Yozuv Telegram guruhiga yuborilgan vaqt", null=True, blank=True)  # Instagram lidlari bilan suhbat (ig_audio.py)
+    rec_alert_at = models.DateTimeField("Yozuv to'liq emasligi haqida xabar berilgan vaqt", null=True, blank=True)  # rec_watch.py
 
     class Meta:
         verbose_name = "Qo'ng'iroq"
