@@ -559,3 +559,18 @@ def test_rec_watch_batches_and_cools_down(watch):
     assert "4567" in text and "4321" in text
     ingest(watch["api"], watch["token"], [call(3, "+998906666666", kind=2, minutes=12, duration=100)])
     assert watch["tick"](20) == 0  # oldingi xabardan 10 daqiqa o'tmagan (now - COOLDOWN)
+
+
+def test_recordings_list_shows_one_row_per_file(api, paired, make_user, media):
+    """2026-11-20: telefon yozuv davom etayotganda uni bir necha marta yuklaydi — ro'yxatda eng uzun nusxa bitta qatorda (summary ham)."""
+    ingest(api, paired, [call(1, "+998901234567", kind=2, duration=60)])
+    name = "20261019_090000.000+0000_out_+998901234567.ogg"
+    for sig, sec in (("a", 15), ("b", 25), ("c", 60), ("d", 40)):
+        assert _upload(api, paired, name=name, ended_sec=sec, duration=sec, sig=sig, number="+998901234567", data=b"x" * (2000 + sec)).status_code == 200
+    boss = make_user("BOSH_MENEJER")
+    rows = api(boss).get("/api/v1/call-recordings/").data
+    assert rows["count"] == 1 and rows["results"][0]["duration"] == 60
+    assert api(boss).get("/api/v1/call-recordings/summary/").data == {"total": 1, "linked": 1, "unlinked": 0}
+    from apps.calls.models import CallRecording
+
+    assert CallRecording.objects.count() == 4  # bazada hammasi saqlangan

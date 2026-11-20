@@ -2,6 +2,10 @@
 
 Qabul telefonidagi suhbatlar audio yozuv sifatida ERP'ga tushadi va **Qo'ng'iroqlar** ro'yxatida mos qo'ng'iroq qatorida «▶ Yozuv» tugmasi bilan eshitiladi.
 
+## Yangi birlashgan ilova (2026-11-20)
+
+Telefonda endi **Shizuku** va **Codial qo'ng'iroqlar** (yozuvchi shu ilovaning ichida, «Yozuvchi sozlamalari» tugmasi) ishlaydi; alohida ShizuCallRecorder kerak emas. Sozlash va yangilash tartibi, MIUI ruxsatlari: `tools/shizucallrecorder/README.md`. Muhim: yangilagandan keyin MIUI «Fonda avtomatik ishga tushirish» ruxsatini o'chirib qo'yadi — qayta yoqing; ekran qulfi parolsiz (swipe) bo'lsin; audio manba «Qo'ng'iroq ovozi». «Yozuvlar» ro'yxatida bitta yozuv bir qator ko'rinadi (telefon uni yozuv davomida bir necha marta yuklasa ham).
+
 ## Qanday ishlaydi
 
 1. **Yozish** — telefondagi alohida yozuvchi ilova (tavsiya: ShizuCallRecorder, F-Droid) qiladi. «Codial qo'ng'iroqlar» ilovasi (1.4) o'zi yozmaydi.

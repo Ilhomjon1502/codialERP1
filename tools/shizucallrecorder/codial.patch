@@ -1,0 +1,2090 @@
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+index 989f531..eb5555e 100644
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -61,12 +61,12 @@ android {
+     compileSdk = 37
+ 
+     defaultConfig {
+-        applicationId = "com.kitsumed.shizucallrecorder"
++        applicationId = "uz.codial.calls"
+         minSdk = 30
+         targetSdk = 37
+         // Keep theses two values hard-coded here and update them per version. (To keep F-Droid compatibility since their parser is very basic)
+-        versionCode = 20
+-        versionName = "2.0.0"
++        versionCode = 33
++        versionName = "3.3-birlashgan"
+     }
+     signingConfigs {
+         // Signing config for CI environments.
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+index 18a8164..261c40c 100644
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -38,12 +38,22 @@
+     <!-- Android 11+ Onwards () -->
+     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+ 
++    <!-- Codial: ERP bilan aloqa, SMS, qo'ng'iroqlar jurnali -->
++    <uses-permission android:name="android.permission.INTERNET" />
++    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
++    <uses-permission android:name="android.permission.SEND_SMS" />
++    <uses-permission android:name="android.permission.READ_SMS" />
++    <uses-permission android:name="android.permission.RECEIVE_SMS" />
++    <uses-permission android:name="android.permission.WAKE_LOCK" />
++    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
++    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
++
+     <!-- Required so Android OS accepts our InCallService, we will later get the permission with AppOps -->
+     <uses-permission android:name="android.permission.MANAGE_ONGOING_CALLS" />
+ 
+     <application
+         android:name=".ShizuApplication"
+-        android:allowBackup="true"
++        android:allowBackup="false"
+         android:dataExtractionRules="@xml/data_extraction_rules"
+         android:fullBackupContent="@xml/backup_rules"
+         android:icon="@mipmap/ic_launcher"
+@@ -60,7 +70,6 @@
+                 <action android:name="android.intent.action.MAIN" />
+                 <action android:name="android.intent.action.APPLICATION_PREFERENCES" /> <!-- Show "Additional settings in the app" button in Settings App Info -->
+                 <category android:name="android.intent.category.NOTIFICATION_PREFERENCES" /> <!-- Show "Additional settings in the app" button in Settings App Info -> notifications -->
+-                <category android:name="android.intent.category.LAUNCHER" />
+             </intent-filter>
+         </activity>
+ 
+@@ -121,6 +130,76 @@
+             </intent-filter>
+         </receiver>
+ 
++
++        <!-- ================= Codial qo'ng'iroqlar (uz.codial.calls) ================= -->
++        <activity
++            android:name="uz.codial.calls.MainActivity"
++            android:exported="true"
++            android:label="Codial qo'ng'iroqlar"
++            android:theme="@android:style/Theme.Material.Light.DarkActionBar">
++            <intent-filter>
++                <action android:name="android.intent.action.MAIN" />
++                <category android:name="android.intent.category.LAUNCHER" />
++            </intent-filter>
++        </activity>
++
++        <activity
++            android:name="uz.codial.calls.UnlockActivity"
++            android:exported="false"
++            android:excludeFromRecents="true"
++            android:noHistory="true"
++            android:showWhenLocked="true"
++            android:turnScreenOn="true"
++            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
++
++        <service
++            android:name="uz.codial.calls.CallService"
++            android:exported="false"
++            android:foregroundServiceType="specialUse">
++            <property
++                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
++                android:value="Ish telefonidagi qo'ng'iroqlar jurnalini kompaniya CRM tizimiga yuborish, suhbatni yozish va CRM navbatidagi SMS eslatmalarni yuborish" />
++        </service>
++
++        <service
++            android:name="uz.codial.calls.SyncJob"
++            android:exported="false"
++            android:permission="android.permission.BIND_JOB_SERVICE" />
++
++        <receiver
++            android:name="uz.codial.calls.CallReceiver"
++            android:exported="true">
++            <intent-filter>
++                <action android:name="android.intent.action.PHONE_STATE" />
++            </intent-filter>
++        </receiver>
++
++        <receiver
++            android:name="uz.codial.calls.BootReceiver"
++            android:exported="true">
++            <intent-filter>
++                <action android:name="android.intent.action.BOOT_COMPLETED" />
++                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
++            </intent-filter>
++        </receiver>
++
++        <receiver
++            android:name="uz.codial.calls.SmsSentReceiver"
++            android:exported="false" />
++
++        <receiver
++            android:name="uz.codial.calls.SmsDeliveredReceiver"
++            android:exported="false" />
++
++        <receiver
++            android:name="uz.codial.calls.SmsReceivedReceiver"
++            android:exported="true"
++            android:permission="android.permission.BROADCAST_SMS">
++            <intent-filter>
++                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
++            </intent-filter>
++        </receiver>
++
+         <provider
+             android:name="rikka.shizuku.ShizukuProvider"
+             android:authorities="${applicationId}.shizuku"
+diff --git a/app/src/main/java/com/kitsumed/shizucallrecorder/services/shell/recording/ShellRecordingEngine.kt b/app/src/main/java/com/kitsumed/shizucallrecorder/services/shell/recording/ShellRecordingEngine.kt
+index a508bbb..308c81d 100644
+--- a/app/src/main/java/com/kitsumed/shizucallrecorder/services/shell/recording/ShellRecordingEngine.kt
++++ b/app/src/main/java/com/kitsumed/shizucallrecorder/services/shell/recording/ShellRecordingEngine.kt
+@@ -33,6 +33,9 @@ import kotlin.concurrent.thread
+ class ShellRecordingEngine {
+ 
+     companion object {
++        private const val RECOVER_ATTEMPTS = 15
++        private const val RECOVER_DELAY_MS = 400L
++
+         /**
+          * Translates native [AudioRecord.read] error codes into human-readable strings.
+          */
+@@ -166,8 +169,8 @@ class ShellRecordingEngine {
+     }
+ 
+     private fun captureLoop() {
+-        val primary = checkNotNull(primaryCapture)
+-        val secondary = secondaryCapture
++        var primary = checkNotNull(primaryCapture)
++        var secondary = secondaryCapture
+ 
+         // Trash buffers for shedding load when the encoder is backed up
+         // NOTE: WE MUST use allocateDirect() here because AudioRecord.read(ByteBuffer) requires a direct buffer. Else read() will always return 0.
+@@ -189,8 +192,17 @@ class ShellRecordingEngine {
+                 // [Primary Capture]
+                 // Clear the buffers before each read to ensure we don't have leftover data from previous reads.
+                 pBuffer.clear()
+-                val primaryRead = primary.read(pBuffer, AudioConfig.BLOCK_SIZE_BYTES)
+-                if (primaryRead < 0) throw IllegalStateException("Primary audio capture failed: ${parseAudioRecordError(primaryRead)}")
++                var primaryRead = primary.read(pBuffer, AudioConfig.BLOCK_SIZE_BYTES)
++                if (primaryRead < 0) {
++                    // CODIAL PATCH: ovoz yo'nalishi (karnay/quloq) o'zgarganda Android AudioRecord'ni uzadi va o'zi qayta ocholmaydi (Android 11).
++                    // Butun yozuvni tashlamaymiz: oqimni noldan qayta ochamiz.
++                    AppLogger.w("Primary audio capture failed (${parseAudioRecordError(primaryRead)}). Trying to recreate it...")
++                    primary = recoverCapture(primary = true)
++                        ?: throw IllegalStateException("Primary audio capture failed: ${parseAudioRecordError(primaryRead)}")
++                    secondary = secondaryCapture
++                    frame?.let { emptyQueue.put(it) }
++                    continue
++                }
+ 
+                 if (primaryRead == 0) {
+                     consecutivePrimaryZeroReads++
+@@ -211,7 +223,15 @@ class ShellRecordingEngine {
+                     sBuffer.clear()
+                     secondaryRead = secondary.read(sBuffer, AudioConfig.BLOCK_SIZE_BYTES)
+ 
+-                    if (secondaryRead < 0) throw IllegalStateException("Secondary audio capture failed: ${parseAudioRecordError(secondaryRead)}")
++                    if (secondaryRead < 0) {
++                        // CODIAL PATCH: yuqoridagi kabi — ikkilamchi oqimni (narigi tomon) qayta ochamiz.
++                        AppLogger.w("Secondary audio capture failed (${parseAudioRecordError(secondaryRead)}). Trying to recreate it...")
++                        secondary = recoverCapture(primary = false)
++                            ?: throw IllegalStateException("Secondary audio capture failed: ${parseAudioRecordError(secondaryRead)}")
++                        primary = checkNotNull(primaryCapture)
++                        frame?.let { emptyQueue.put(it) }
++                        continue
++                    }
+ 
+                     if (secondaryRead == 0) {
+                         consecutiveSecondaryZeroReads++
+@@ -250,6 +270,44 @@ class ShellRecordingEngine {
+         }
+     }
+ 
++    /**
++     * CODIAL PATCH. Uzilgan oqimni noldan qayta yaratadi (`createCapture()` + `start()`; Android 11 da `start()` foreground ish-aylanmasini ham bajaradi).
++     * Sabab: qo'ng'iroq paytida karnay/quloq almashganda AudioFlinger yozuv trekini yaroqsiz qiladi, AudioRecord'ning o'z qayta tiklashi esa
++     * `getInputForAttr -1` bilan yiqiladi. Yangi AudioRecord esa odatda ochiladi.
++     *
++     * @return yangi oqim yoki urinishlar tugasa null.
++     */
++    private fun recoverCapture(primary: Boolean): IAudioCapture<*>? {
++        val plan = currentPlan ?: return null
++        val capturePlan = (if (primary) plan.primary else plan.secondary) ?: return null
++        val started = System.nanoTime()
++        var attempt = 0
++        while (recordingActive.get() && attempt < RECOVER_ATTEMPTS) {
++            attempt++
++            runCatching { (if (primary) primaryCapture else secondaryCapture)?.stop() }
++            try {
++                val fresh = capturePlan.createCapture()
++                fresh.start()
++                if (primary) primaryCapture = fresh else secondaryCapture = fresh
++                // Yo'nalish o'zgarganda ikkala oqim ham o'ladi: Android ikkinchisini o'zi «tiklaydi», lekin tiklangani JIM (nol) qaytaradi
++                // (jurnalda: uzilgan oqimdan keyin restoreRecord_l, yozuvda 12-16 s sukunat). Shuning uchun ikkinchisini ham noldan ochamiz.
++                val otherPlan = if (primary) plan.secondary else plan.primary
++                if (otherPlan != null) {
++                    runCatching { (if (primary) secondaryCapture else primaryCapture)?.stop() }
++                    val other = otherPlan.createCapture()
++                    other.start()
++                    if (primary) secondaryCapture = other else primaryCapture = other
++                }
++                AppLogger.i("Audio capture recreated (primary=$primary) after $attempt attempt(s), ${(System.nanoTime() - started) / 1_000_000} ms.")
++                return fresh
++            } catch (t: Throwable) {
++                AppLogger.w("Recreating audio capture failed (primary=$primary, attempt $attempt/$RECOVER_ATTEMPTS).", t)
++                Thread.sleep(RECOVER_DELAY_MS)
++            }
++        }
++        return null
++    }
++
+     private fun encoderLoop() {
+         val plan = currentPlan ?: return
+         val processor = PcmProcessor(plan)
+diff --git a/app/src/main/java/com/kitsumed/shizucallrecorder/services/shell/recording/capture/AudioRecordCapture.kt b/app/src/main/java/com/kitsumed/shizucallrecorder/services/shell/recording/capture/AudioRecordCapture.kt
+index 4a25c5d..e6515a5 100644
+--- a/app/src/main/java/com/kitsumed/shizucallrecorder/services/shell/recording/capture/AudioRecordCapture.kt
++++ b/app/src/main/java/com/kitsumed/shizucallrecorder/services/shell/recording/capture/AudioRecordCapture.kt
+@@ -50,7 +50,7 @@ class AudioRecordCapture(override val plan: CapturePlan.AudioRecord) : IAudioCap
+             // Launching a pre-existing shell system activity tricks the OS into granting foreground status.
+             startWorkaroundAndroid11()
+             try {
+-                tryStartRecording(attempts = 5, delayMs = 100L)
++                tryStartRecording(attempts = 25, delayMs = 200L) // CODIAL: ekran o'chiq bo'lsa u yonguncha kutamiz (~5 s)
+             } finally {
+                 stopWorkaroundAndroid11()
+             }
+diff --git a/app/src/main/java/uz/codial/calls/Api.java b/app/src/main/java/uz/codial/calls/Api.java
+new file mode 100644
+index 0000000..9dc04b3
+--- /dev/null
++++ b/app/src/main/java/uz/codial/calls/Api.java
+@@ -0,0 +1,122 @@
++package uz.codial.calls;
++
++import org.json.JSONException;
++import org.json.JSONObject;
++
++import java.io.ByteArrayOutputStream;
++import java.io.IOException;
++import java.io.InputStream;
++import java.io.OutputStream;
++import java.net.HttpURLConnection;
++import java.net.URL;
++import java.nio.charset.StandardCharsets;
++
++/** ERP API: /api/v1/calls/pair/, /ingest/, /ping/, /sms/outbox/, /sms/report/ (qurilma tokeni bilan, sessiyasiz). */
++final class Api {
++    static final class HttpError extends IOException {
++        final int code;
++        final String errCode;  // serverning {"code": "..."} maydoni
++
++        HttpError(int code, String message, String errCode) {
++            super(message);
++            this.code = code;
++            this.errCode = errCode == null ? "" : errCode;
++        }
++
++        /** Faqat serverning aniq «qurilma ulanmagan» javobi ulanishni bekor qiladi. Oddiy 401 (eski server, boshqa yo'nalish, proksi) emas. */
++        boolean deviceRevoked() {
++            return code == 401 && "device_unauthorized".equals(errCode);
++        }
++    }
++
++    private Api() {}
++
++    static JSONObject request(String server, String path, String token, JSONObject body) throws IOException {
++        URL url = new URL(server.replaceAll("/+$", "") + "/api/v1/calls/" + path);
++        HttpURLConnection c = (HttpURLConnection) url.openConnection();
++        c.setConnectTimeout(15000);
++        c.setReadTimeout(30000);
++        c.setRequestProperty("Accept", "application/json");
++        if (token != null && !token.isEmpty()) c.setRequestProperty("Authorization", "Device " + token);
++        // disconnect() chaqirilmaydi: javob to'liq o'qilib yopilsa, ulanish (TLS) keyingi so'rov uchun qayta ishlatiladi —
++        // SMS navbati har 30 soniyada so'raladi, har safar yangi TLS ulanish batareya va internetni ko'p yeydi
++        if (body != null) {
++            c.setRequestMethod("POST");
++            c.setDoOutput(true);
++            c.setRequestProperty("Content-Type", "application/json; charset=utf-8");
++            try (OutputStream os = c.getOutputStream()) {
++                os.write(body.toString().getBytes(StandardCharsets.UTF_8));
++            }
++        }
++        int code = c.getResponseCode();
++        String text = read(code < 400 ? c.getInputStream() : c.getErrorStream());
++        JSONObject json;
++        try {
++            json = text.isEmpty() ? new JSONObject() : new JSONObject(text);
++        } catch (JSONException e) {
++            json = new JSONObject();
++        }
++        if (code >= 400) throw new HttpError(code, message(json, code), json.optString("code"));
++        return json;
++    }
++
++    /** Multipart yuklash (suhbat yozuvi): maydonlar + bitta fayl `file`. Katta fayl xotiraga to'liq olinmaydi (chunked). */
++    static JSONObject upload(String server, String path, String token, InputStream file, String filename, String[][] fields) throws IOException {
++        URL url = new URL(server.replaceAll("/+$", "") + "/api/v1/calls/" + path);
++        HttpURLConnection c = (HttpURLConnection) url.openConnection();
++        c.setConnectTimeout(15000);
++        c.setReadTimeout(120000);
++        c.setRequestProperty("Accept", "application/json");
++        c.setRequestProperty("Authorization", "Device " + token);
++        String boundary = "----codial" + System.currentTimeMillis();
++        c.setRequestMethod("POST");
++        c.setDoOutput(true);
++        c.setChunkedStreamingMode(64 * 1024);
++        c.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
++        final String crlf = "\r\n";
++        try (OutputStream os = c.getOutputStream()) {
++            for (String[] f : fields) {
++                String part = "--" + boundary + crlf + "Content-Disposition: form-data; name=\"" + f[0] + "\"" + crlf + crlf + f[1] + crlf;
++                os.write(part.getBytes(StandardCharsets.UTF_8));
++            }
++            String safe = filename.replaceAll("[\"\\r\\n]", "_");
++            String head = "--" + boundary + crlf + "Content-Disposition: form-data; name=\"file\"; filename=\"" + safe + "\"" + crlf
++                    + "Content-Type: application/octet-stream" + crlf + crlf;
++            os.write(head.getBytes(StandardCharsets.UTF_8));
++            byte[] buf = new byte[32 * 1024];
++            int n;
++            while ((n = file.read(buf)) > 0) os.write(buf, 0, n);
++            os.write((crlf + "--" + boundary + "--" + crlf).getBytes(StandardCharsets.UTF_8));
++        }
++        int code = c.getResponseCode();
++        String text = read(code < 400 ? c.getInputStream() : c.getErrorStream());
++        JSONObject json;
++        try {
++            json = text.isEmpty() ? new JSONObject() : new JSONObject(text);
++        } catch (JSONException e) {
++            json = new JSONObject();
++        }
++        if (code >= 400) {
++            String msg = message(json, code);
++            if (json.optJSONArray("file") != null) msg = json.optJSONArray("file").optString(0);
++            throw new HttpError(code, msg, json.optString("code"));
++        }
++        return json;
++    }
++
++    private static String message(JSONObject json, int code) {
++        if (json.has("detail")) return json.optString("detail");
++        if (json.has("code") && json.optJSONArray("code") != null) return json.optJSONArray("code").optString(0);
++        return "Server xatosi (" + code + ")";
++    }
++
++    private static String read(InputStream in) throws IOException {
++        if (in == null) return "";
++        try (InputStream is = in; ByteArrayOutputStream out = new ByteArrayOutputStream()) {
++            byte[] buf = new byte[8192];
++            int n;
++            while ((n = is.read(buf)) > 0) out.write(buf, 0, n);
++            return out.toString("UTF-8");
++        }
++    }
++}
+diff --git a/app/src/main/java/uz/codial/calls/BootReceiver.java b/app/src/main/java/uz/codial/calls/BootReceiver.java
+new file mode 100644
+index 0000000..c6c7a13
+--- /dev/null
++++ b/app/src/main/java/uz/codial/calls/BootReceiver.java
+@@ -0,0 +1,14 @@
++package uz.codial.calls;
++
++import android.content.BroadcastReceiver;
++import android.content.Context;
++import android.content.Intent;
++
++/** Telefon yoqilganda yoki ilova yangilanganda xizmatni qayta ishga tushiradi. */
++public class BootReceiver extends BroadcastReceiver {
++    @Override
++    public void onReceive(Context ctx, Intent intent) {
++        SyncJob.schedule(ctx);
++        CallService.start(ctx);
++    }
++}
+diff --git a/app/src/main/java/uz/codial/calls/CallReceiver.java b/app/src/main/java/uz/codial/calls/CallReceiver.java
+new file mode 100644
+index 0000000..cba1ce4
+--- /dev/null
++++ b/app/src/main/java/uz/codial/calls/CallReceiver.java
+@@ -0,0 +1,90 @@
++package uz.codial.calls;
++
++import android.app.KeyguardManager;
++import android.app.Notification;
++import android.app.NotificationChannel;
++import android.app.NotificationManager;
++import android.app.PendingIntent;
++import android.content.BroadcastReceiver;
++import android.content.Context;
++import android.content.Intent;
++import android.os.Handler;
++import android.os.Looper;
++import android.os.PowerManager;
++import android.telephony.TelephonyManager;
++
++/** Qo'ng'iroq tugaganda (IDLE) — jurnal yozilishini biroz kutib yuboradi; xizmat to'xtab qolgan bo'lsa qayta yoqadi. */
++public class CallReceiver extends BroadcastReceiver {
++    @Override
++    public void onReceive(Context ctx, Intent intent) {
++        String state = intent.getStringExtra(TelephonyManager.EXTRA_STATE);
++        if (TelephonyManager.EXTRA_STATE_OFFHOOK.equals(state) || TelephonyManager.EXTRA_STATE_RINGING.equals(state)) {
++            wakeScreen(ctx);
++            unlock(ctx);
++            return;
++        }
++        if (!TelephonyManager.EXTRA_STATE_IDLE.equals(state)) return;
++        Context app = ctx.getApplicationContext();
++        PendingResult pending = goAsync();
++        Handler h = new Handler(Looper.getMainLooper());
++        h.postDelayed(() -> {
++            CallService.start(app);
++            CallSync.request(app);
++            pending.finish();
++        }, 3000);
++        // yozuvchi ilova faylni suhbat tugagach biroz kechikib yopadi: yozuvlar papkasi 30 s va 2 daqiqadan keyin tekshiriladi
++        // (kafolat — CallService'ning har 10 daqiqalik tekshiruvi)
++        if (Recordings.enabled(app)) {
++            h.postDelayed(() -> Recordings.request(app), 30_000);
++            h.postDelayed(() -> Recordings.request(app), 120_000);
++        }
++    }
++
++    /**
++     * Android 11: yozuv uchun shell ilovasi «ko'rinadigan oyna»ga ega bo'lishi kerak (ekran o'chiq bo'lsa yozuv boshlanmaydi).
++     * Qo'ng'iroq javob berilganda ekran o'chiq bo'lsa, uni qisqa muddatga yoqamiz (ekran qulfi yo'q).
++     */
++    private static void wakeScreen(Context ctx) {
++        try {
++            PowerManager pm = (PowerManager) ctx.getSystemService(Context.POWER_SERVICE);
++            if (pm == null || pm.isInteractive()) return;
++            @SuppressWarnings("deprecation")
++            PowerManager.WakeLock wl = pm.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP | PowerManager.ON_AFTER_RELEASE, "codial:callwake");
++            wl.acquire(15_000);
++        } catch (RuntimeException ignored) {
++            // ekranni yoqib bo'lmasa — yozuv baribir urinib ko'riladi
++        }
++    }
++
++    /**
++     * Ekran qulfi (swipe) yopib turgan bo'lsa — shaffof UnlockActivity bilan yechamiz. Fondan oyna ochish cheklangani uchun
++     * ikkinchi yo'l: to'liq ekranli bildirishnoma (qo'ng'iroq turi) — Android uni qulf ustidan ochadi.
++     */
++    private static void unlock(Context ctx) {
++        try {
++            KeyguardManager km = (KeyguardManager) ctx.getSystemService(Context.KEYGUARD_SERVICE);
++            if (km == null || !km.isKeyguardLocked()) return;
++            Intent i = new Intent(ctx, UnlockActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_ANIMATION | Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS);
++            try {
++                ctx.startActivity(i);
++            } catch (RuntimeException ignored) {
++                // fondan ochish taqiqlangan bo'lishi mumkin — pastdagi bildirishnoma yo'li
++            }
++            NotificationManager nm = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
++            NotificationChannel ch = new NotificationChannel("unlock", "Qo'ng'iroq yozuvi", NotificationManager.IMPORTANCE_HIGH);
++            nm.createNotificationChannel(ch);
++            PendingIntent pi = PendingIntent.getActivity(ctx, 77, i, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
++            Notification n = new Notification.Builder(ctx, "unlock")
++                    .setSmallIcon(android.R.drawable.sym_call_incoming)
++                    .setContentTitle("Qo'ng'iroq yozilmoqda")
++                    .setCategory(Notification.CATEGORY_CALL)
++                    .setFullScreenIntent(pi, true)
++                    .setTimeoutAfter(8_000)
++                    .setAutoCancel(true)
++                    .build();
++            nm.notify(7701, n);
++        } catch (RuntimeException ignored) {
++            // qulfni yechib bo'lmasa — yozuv baribir urinib ko'riladi
++        }
++    }
++}
+diff --git a/app/src/main/java/uz/codial/calls/CallService.java b/app/src/main/java/uz/codial/calls/CallService.java
+new file mode 100644
+index 0000000..1f9b532
+--- /dev/null
++++ b/app/src/main/java/uz/codial/calls/CallService.java
+@@ -0,0 +1,138 @@
++package uz.codial.calls;
++
++import android.app.Notification;
++import android.app.NotificationChannel;
++import android.app.NotificationManager;
++import android.app.PendingIntent;
++import android.app.Service;
++import android.content.Context;
++import android.content.Intent;
++import android.content.pm.ServiceInfo;
++import android.database.ContentObserver;
++import android.os.Build;
++import android.os.Handler;
++import android.os.IBinder;
++import android.os.Looper;
++import android.provider.CallLog;
++
++/**
++ * Doimiy (foreground) xizmat: qo'ng'iroqlar jurnali o'zgarishini kuzatadi va qo'ng'iroq tugashi bilan yuboradi.
++ * MIUI xizmatni o'chirib qo'ymasligi uchun bildirishnoma doim turadi; qo'shimcha — har 10 daqiqada qayta urinish.
++ */
++public class CallService extends Service {
++    private static final String CHANNEL = "calls";
++    private static final long DEBOUNCE_MS = 2500;
++    private static final long PERIOD_MS = 10 * 60_000L;
++    // SMS navbati: ish vaqtida (8:00–21:00) har 30 soniyada — «Yuborish» bosilgach tez ketsin; tunda har 10 daqiqada (batareya)
++    private static final long SMS_POLL_DAY_MS = 30_000L;
++    private static final long SMS_POLL_NIGHT_MS = 10 * 60_000L;
++
++    static long smsPollDelay() {
++        int h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY);
++        return h >= 8 && h < 21 ? SMS_POLL_DAY_MS : SMS_POLL_NIGHT_MS;
++    }
++
++    private final Handler handler = new Handler(Looper.getMainLooper());
++    private final Runnable sync = () -> CallSync.request(this);
++    private final Runnable periodic = new Runnable() {
++        @Override
++        public void run() {
++            CallSync.request(CallService.this);
++            SmsInbox.request(CallService.this);
++            Recordings.request(CallService.this);
++            handler.postDelayed(this, PERIOD_MS);
++        }
++    };
++    private final Runnable smsPoll = new Runnable() {
++        @Override
++        public void run() {
++            SmsSender.request(CallService.this);
++            handler.postDelayed(this, smsPollDelay());
++        }
++    };
++    private final Runnable smsIn = () -> SmsInbox.request(this);
++    private ContentObserver observer;
++    private ContentObserver smsObserver;
++
++    static void start(Context ctx) {
++        if (!new Prefs(ctx).paired()) return;
++        try {
++            ctx.startForegroundService(new Intent(ctx, CallService.class));
++        } catch (RuntimeException e) {
++            // Android 12+ fonda ishga tushirishni cheklaydi — keyingi job yoki ilova ochilganda boshlanadi
++            SyncJob.schedule(ctx);
++        }
++    }
++
++    @Override
++    public void onCreate() {
++        super.onCreate();
++        observer = new ContentObserver(handler) {
++            @Override
++            public void onChange(boolean selfChange) {
++                handler.removeCallbacks(sync);
++                handler.postDelayed(sync, DEBOUNCE_MS);
++            }
++        };
++        try {
++            getContentResolver().registerContentObserver(CallLog.Calls.CONTENT_URI, true, observer);
++        } catch (SecurityException e) {
++            new Prefs(this).error("Qo'ng'iroqlar jurnaliga ruxsat berilmagan");
++        }
++        smsObserver = new ContentObserver(handler) {
++            @Override
++            public void onChange(boolean selfChange) {
++                handler.removeCallbacks(smsIn);
++                handler.postDelayed(smsIn, DEBOUNCE_MS);
++            }
++        };
++        try {
++            getContentResolver().registerContentObserver(android.provider.Telephony.Sms.CONTENT_URI, true, smsObserver);
++        } catch (SecurityException e) {
++            new Prefs(this).smsError("SMS o'qishga ruxsat berilmagan");
++        }
++        handler.postDelayed(periodic, PERIOD_MS);
++        handler.postDelayed(smsPoll, 5000);
++    }
++
++    @Override
++    public int onStartCommand(Intent intent, int flags, int startId) {
++        Notification n = notification();
++        if (Build.VERSION.SDK_INT >= 34) startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
++        else startForeground(1, n);
++        if (!new Prefs(this).paired()) {
++            stopSelf();
++            return START_NOT_STICKY;
++        }
++        CallSync.request(this);
++        SmsInbox.request(this);
++        Recordings.request(this);
++        return START_STICKY;
++    }
++
++    private Notification notification() {
++        NotificationManager nm = getSystemService(NotificationManager.class);
++        nm.createNotificationChannel(new NotificationChannel(CHANNEL, "Qo'ng'iroqlarni yuborish", NotificationManager.IMPORTANCE_MIN));
++        PendingIntent open = PendingIntent.getActivity(this, 0, new Intent(this, MainActivity.class), PendingIntent.FLAG_IMMUTABLE);
++        return new Notification.Builder(this, CHANNEL)
++                .setSmallIcon(android.R.drawable.sym_call_incoming)
++                .setContentTitle("Codial ERP")
++                .setContentText("Qo'ng'iroqlar, SMS va yozuvlar — ERP bilan ulangan")
++                .setContentIntent(open)
++                .setOngoing(true)
++                .build();
++    }
++
++    @Override
++    public void onDestroy() {
++        handler.removeCallbacksAndMessages(null);
++        if (observer != null) getContentResolver().unregisterContentObserver(observer);
++        if (smsObserver != null) getContentResolver().unregisterContentObserver(smsObserver);
++        super.onDestroy();
++    }
++
++    @Override
++    public IBinder onBind(Intent intent) {
++        return null;
++    }
++}
+diff --git a/app/src/main/java/uz/codial/calls/CallSync.java b/app/src/main/java/uz/codial/calls/CallSync.java
+new file mode 100644
+index 0000000..defa988
+--- /dev/null
++++ b/app/src/main/java/uz/codial/calls/CallSync.java
+@@ -0,0 +1,122 @@
++package uz.codial.calls;
++
++import android.Manifest;
++import android.content.Context;
++import android.content.pm.PackageManager;
++import android.database.Cursor;
++import android.provider.CallLog;
++
++import org.json.JSONArray;
++import org.json.JSONException;
++import org.json.JSONObject;
++
++import java.io.IOException;
++import java.util.concurrent.ExecutorService;
++import java.util.concurrent.Executors;
++
++/**
++ * Qo'ng'iroqlar jurnalidan oxirgi yuborilgandan keyingilarini o'qib serverga yuboradi.
++ * Yangi qatorlar CallLog _ID bo'yicha olinadi (1.1): kechikib yozilgan qator (masalan, suhbat paytidagi javobsiz qo'ng'iroq)
++ * ham katta _ID oladi, shuning uchun har safar faqat yangilari yuboriladi; zaxira — oxirgi 10 daqiqa sana bo'yicha.
++ * Server takrorni qabul qilmaydi (qurilma + id + vaqt). 1.0 dan yangilanganda bir marta eskicha 3 soatlik oyna bilan o'qiladi.
++ * Internet bo'lmasa — keyingi urinishda (qo'ng'iroq tugaganda, har 10 daqiqada, har 15 daqiqalik job'da) yuboriladi.
++ */
++final class CallSync {
++    private static final ExecutorService EXEC = Executors.newSingleThreadExecutor();
++    private static final long OVERLAP_MS = 3 * 3600_000L;
++    private static final long OVERLAP_SHORT_MS = 10 * 60_000L;
++    static final long FULL_SCAN_MS = 24 * 3600_000L;  // sutkada bir marta oxirgi 24 soat qayta yuboriladi (kafolat; server takrorni olmaydi)
++    private static final int BATCH = 200;
++
++    private CallSync() {}
++
++    static void request(Context ctx) {
++        Context app = ctx.getApplicationContext();
++        EXEC.execute(() -> run(app));
++    }
++
++    /** Sinxron (fon oqimida chaqiriladi). Natija: yuborilganlar soni yoki -1 xato bo'lsa. */
++    static synchronized int run(Context ctx) {
++        Prefs p = new Prefs(ctx);
++        if (!p.paired()) return 0;
++        if (ctx.checkSelfPermission(Manifest.permission.READ_CALL_LOG) != PackageManager.PERMISSION_GRANTED) {
++            p.error("Qo'ng'iroqlar jurnaliga ruxsat berilmagan");
++            return -1;
++        }
++        int total = 0;
++        try {
++            long lastId = p.lastId();
++            // Yangi qatorlar _ID bo'yicha (kech yozilgan qator ham katta _ID oladi); sana bo'yicha qisqa oyna — zaxira.
++            // 1.0 dan yangilanganda (_ID hali yo'q) — eskicha 3 soatlik oyna bir marta.
++            long now = System.currentTimeMillis();
++            boolean full = lastId > 0 && now - p.callsFullAt() > FULL_SCAN_MS;
++            long dateFrom = full ? now - FULL_SCAN_MS : Math.max(0, p.lastDate() - (lastId > 0 ? OVERLAP_SHORT_MS : OVERLAP_MS));
++            boolean first = true;
++            while (true) {
++                JSONArray calls = new JSONArray();
++                long[] max = read(ctx, lastId > 0 ? lastId : Long.MAX_VALUE, first ? dateFrom : Long.MAX_VALUE, calls);
++                if (calls.length() == 0) {
++                    p.synced(p.lastDate(), lastId, 0);
++                    if (full) p.callsFullScanned(now);
++                    break;
++                }
++                JSONObject body = new JSONObject().put("calls", calls).put("app_version", version(ctx));
++                JSONObject res = Api.request(p.server(), "ingest/", p.token(), body);
++                int accepted = res.optInt("accepted");
++                total += accepted;
++                lastId = Math.max(lastId, max[0]);
++                p.synced(max[1], lastId, accepted);
++                if (full && first) p.callsFullScanned(now);
++                if (calls.length() < BATCH) break;
++                first = false;  // keyingi to'plam — faqat _ID bo'yicha
++            }
++            return total;
++        } catch (Api.HttpError e) {
++            if (e.deviceRevoked()) p.unpair("Ulanish bekor qilingan — ERP'dan yangi kod olib qayta ulang");
++            else p.error(e.getMessage());
++            return -1;
++        } catch (IOException | JSONException | SecurityException e) {
++            p.error("Internet yoki server bilan aloqa yo'q: " + e.getMessage());
++            return -1;
++        }
++    }
++
++    /** `_ID > afterId` yoki `DATE > dateFrom` qatorlar (_ID tartibida). Qaytaradi: {eng katta _ID, eng katta sana}. */
++    private static long[] read(Context ctx, long afterId, long dateFrom, JSONArray out) throws JSONException {
++        String[] cols = {CallLog.Calls._ID, CallLog.Calls.NUMBER, CallLog.Calls.TYPE, CallLog.Calls.DATE, CallLog.Calls.DURATION,
++                CallLog.Calls.CACHED_NAME, CallLog.Calls.PHONE_ACCOUNT_ID};
++        long maxId = 0;
++        long max = 0;
++        String where = CallLog.Calls._ID + " > ? OR " + CallLog.Calls.DATE + " > ?";
++        try (Cursor c = ctx.getContentResolver().query(CallLog.Calls.CONTENT_URI, cols, where,
++                new String[]{String.valueOf(afterId), String.valueOf(dateFrom)}, CallLog.Calls._ID + " ASC")) {
++            if (c == null) return new long[]{maxId, max};
++            while (c.moveToNext() && out.length() < BATCH) {
++                long date = c.getLong(3);
++                maxId = Math.max(maxId, c.getLong(0));
++                out.put(new JSONObject()
++                        .put("id", c.getLong(0))
++                        .put("number", nz(c.getString(1)))
++                        .put("type", c.getInt(2))
++                        .put("date", date)
++                        .put("duration", c.getLong(4))
++                        .put("name", nz(c.getString(5)))
++                        .put("sim", nz(c.getString(6))));
++                max = Math.max(max, date);
++            }
++        }
++        return new long[]{maxId, max};
++    }
++
++    private static String nz(String s) {
++        return s == null ? "" : s;
++    }
++
++    static String version(Context ctx) {
++        try {
++            return ctx.getPackageManager().getPackageInfo(ctx.getPackageName(), 0).versionName;
++        } catch (PackageManager.NameNotFoundException e) {
++            return "";
++        }
++    }
++}
+diff --git a/app/src/main/java/uz/codial/calls/MainActivity.java b/app/src/main/java/uz/codial/calls/MainActivity.java
+new file mode 100644
+index 0000000..d31b2cd
+--- /dev/null
++++ b/app/src/main/java/uz/codial/calls/MainActivity.java
+@@ -0,0 +1,367 @@
++package uz.codial.calls;
++
++import android.Manifest;
++import android.app.Activity;
++import android.content.ActivityNotFoundException;
++import android.content.ComponentName;
++import android.content.Intent;
++import android.content.pm.PackageManager;
++import android.provider.DocumentsContract;
++import android.graphics.Typeface;
++import android.net.Uri;
++import android.os.Build;
++import android.os.Bundle;
++import android.os.Handler;
++import android.os.Looper;
++import android.os.PowerManager;
++import android.provider.Settings;
++import android.text.InputType;
++import android.view.View;
++import android.widget.Button;
++import android.widget.EditText;
++import android.widget.LinearLayout;
++import android.widget.ScrollView;
++import android.widget.TextView;
++import android.widget.Toast;
++
++import org.json.JSONObject;
++
++import java.text.SimpleDateFormat;
++import java.util.ArrayList;
++import java.util.Calendar;
++import java.util.Date;
++import java.util.List;
++import java.util.Locale;
++import java.util.concurrent.Executors;
++
++/** Bitta ekran: ulash (server + 8 belgili kod), holat, ruxsatlar va MIUI sozlamalari. */
++public class MainActivity extends Activity {
++    private static final java.util.concurrent.ExecutorService BG = Executors.newSingleThreadExecutor();  // har bosishda yangi oqim ochilmasin
++    private static final char LF = (char) 10;
++    private final Handler ui = new Handler(Looper.getMainLooper());
++    private Prefs prefs;
++    private LinearLayout root;
++    private TextView status;
++    private EditText server;
++    private EditText code;
++
++    @Override
++    protected void onCreate(Bundle savedInstanceState) {
++        super.onCreate(savedInstanceState);
++        prefs = new Prefs(this);
++        ScrollView scroll = new ScrollView(this);
++        root = new LinearLayout(this);
++        root.setOrientation(LinearLayout.VERTICAL);
++        int pad = dp(16);
++        root.setPadding(pad, pad, pad, pad);
++        scroll.addView(root);
++        setContentView(scroll);
++        build();
++    }
++
++    @Override
++    protected void onResume() {
++        super.onResume();
++        refresh();
++        if (prefs.paired()) {
++            CallService.start(this);
++            SyncJob.schedule(this);
++        }
++    }
++
++    private void build() {
++        TextView title = text("Codial ERP — qo'ng'iroqlar", 20);
++        title.setTypeface(Typeface.DEFAULT_BOLD);
++        root.addView(title);
++        root.addView(text("Bu telefondagi qo'ng'iroqlar tugashi bilan ERP tizimidagi «Qo'ng'iroqlar» bo'limiga yuboriladi: raqam, vaqt va davomiylik. "
++                + "Suhbat yozuvini bu ilovaning o'zi yozmaydi — telefondagi yozuvchi ilova saqlagan fayllar ERP'ga yuklanadi (4-band). "
++                + "ERP'da administrator «SMS yuborish»ni bossa, to'lov eslatmalari shu telefonning SIM kartasidan yuboriladi. "
++                + "Mijozlardan (oddiy raqamlardan) kelgan SMS'lar ERP'ga tushadi; bank va xizmat SMS'lari yuborilmaydi.", 14));
++
++        status = text("", 15);
++        status.setPadding(0, dp(12), 0, dp(12));
++        root.addView(status);
++
++        root.addView(header("1. Ruxsatlar"));
++        root.addView(button("Ruxsatlarni berish", v -> askPermissions()));
++        root.addView(button("Batareya tejashni o'chirish", v -> batteryExemption()));
++        root.addView(button("MIUI: Avtozapusk (Autostart) yoqish", v -> miuiAutostart()));
++        root.addView(text("Xiaomi/Redmi'da: Sozlamalar → Ilovalar → Codial qo'ng'iroqlar → «Avtozapusk» yoqilgan, "
++                + "«Batareya tejash» → «Cheklovlarsiz» bo'lsin. Oxirgi ilovalar ro'yxatida ilovani qulflab qo'ying (🔒).", 13));
++
++        root.addView(header("2. ERP'ga ulash"));
++        server = new EditText(this);
++        server.setText(prefs.server());
++        server.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
++        root.addView(label("Server manzili"));
++        root.addView(server);
++        code = new EditText(this);
++        code.setHint("Masalan: ABCD-2345");
++        code.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS);
++        root.addView(label("Ulash kodi (ERP → Qo'ng'iroqlar → Qurilmalar)"));
++        root.addView(code);
++        root.addView(button("Ulash", v -> pair()));
++
++        root.addView(header("3. Tekshirish"));
++        root.addView(button("Hozir yuborish", v -> syncNow()));
++        root.addView(text("SMS ko'p yuborilganda Android «Ilova ko'p SMS yuboryapti» deb so'rashi mumkin — «Doim ruxsat berish» ni belgilab, «Yuborish»ni bosing.", 13));
++
++        root.addView(header("5. Yozuvchi (Shizuku)"));
++        root.addView(text("Suhbatni yozish endi shu ilovaning ichida. Shizuku ilovasi ishlab turishi kerak («Shizuku is running»). "
++                + "Audio manba, avtomatik yozish va papka sozlamalari — pastdagi tugmada.", 13));
++        root.addView(button("Yozuvchi sozlamalari", v -> openRecorderSettings()));
++        root.addView(button("Shizuku ilovasini ochish", v -> openShizuku()));
++
++        root.addView(header("4. Suhbat yozuvlari"));
++        root.addView(text("Yozuvchi ilova (masalan ShizuCallRecorder) suhbatlarni shu telefonda alohida papkaga saqlasin. "
++                + "Papkani shu yerda tanlang — undagi yangi audio fayllar har qo'ng'iroqdan keyin ERP'ga yuklanadi va mos qo'ng'iroqqa biriktiriladi. "
++                + "Papka tanlashda «Yangi papka» yarating (masalan «Yozuvlar»); Download yoki xotira ildizini Android ruxsat bermaydi.", 13));
++        root.addView(button("Yozuvlar papkasini tanlash", v -> pickRecordingsFolder()));
++        root.addView(button("Yozuvlarni hozir yuklash", v -> uploadRecordingsNow()));
++        root.addView(button("Papkani uzish", v -> {
++            prefs.recSetTree(null);
++            refresh();
++        }));
++    }
++
++    private void openRecorderSettings() {
++        try {
++            startActivity(new Intent().setClassName(getPackageName(), "com.kitsumed.shizucallrecorder.MainActivity"));
++        } catch (RuntimeException e) {
++            toast("Yozuvchi ekranini ochib bo'lmadi: " + e.getMessage());
++        }
++    }
++
++    private void openShizuku() {
++        Intent i = getPackageManager().getLaunchIntentForPackage("moe.shizuku.privileged.api");
++        if (i == null) {
++            toast("Shizuku ilovasi o'rnatilmagan");
++            return;
++        }
++        startActivity(i);
++    }
++
++    private void refresh() {
++        StringBuilder s = new StringBuilder();
++        s.append(prefs.paired() ? "✅ Ulangan: " + prefs.deviceName() : "⚠️ ERP'ga ulanmagan").append('\n');
++        s.append(hasCallLog() ? "✅ Qo'ng'iroqlar jurnaliga ruxsat bor" : "⚠️ Qo'ng'iroqlar jurnaliga ruxsat yo'q").append('\n');
++        PowerManager pm = getSystemService(PowerManager.class);
++        s.append(pm.isIgnoringBatteryOptimizations(getPackageName()) ? "✅ Batareya tejash o'chirilgan" : "⚠️ Batareya tejash yoqilgan — ilova to'xtab qolishi mumkin").append('\n');
++        if (prefs.lastSyncAt() > 0) s.append("Oxirgi yuborish: ").append(fmt(prefs.lastSyncAt())).append(" · jami ").append(prefs.sentTotal()).append(" ta\n");
++        if (!prefs.lastError().isEmpty()) s.append("❗ ").append(prefs.lastError()).append('\n');
++        s.append(SmsSender.allowed(this) ? "✅ SMS yuborishga ruxsat bor" : "⚠️ SMS yuborishga ruxsat yo'q — to'lov eslatmalari ketmaydi").append('\n');
++        if (prefs.smsLastAt() > 0) {
++            s.append("SMS: yuborildi ").append(prefs.smsSentTotal()).append(" · yetkazildi ").append(prefs.smsDeliveredTotal())
++                    .append(" · oxirgi ").append(fmt(prefs.smsLastAt())).append('\n');
++        }
++        s.append(SmsInbox.allowed(this) ? "✅ Kelgan SMS'larni o'qishga ruxsat bor" : "⚠️ SMS o'qishga ruxsat yo'q — mijozlardan kelgan SMS ERP'ga tushmaydi").append('\n');
++        if (prefs.smsInTotal() > 0) s.append("Kelgan SMS: jami ").append(prefs.smsInTotal()).append(" ta ERP'ga yuborildi\n");
++        if (!prefs.smsLastError().isEmpty()) s.append("❗ SMS: ").append(prefs.smsLastError()).append(LF);
++        if (prefs.recTree() == null) s.append("Yozuvlar papkasi tanlanmagan — suhbat yozuvlari ERP'ga yuklanmaydi");
++        else {
++            s.append("✅ Yozuvlar papkasi: ").append(folderName(prefs.recTree())).append(" · yuklandi ").append(prefs.recUploaded()).append(" ta");
++            if (prefs.recLastAt() > 0) s.append(" · oxirgi ").append(fmt(prefs.recLastAt()));
++            if (!prefs.recLastError().isEmpty()) s.append(LF).append("❗ Yozuv: ").append(prefs.recLastError());
++        }
++        status.setText(s.toString().trim());
++    }
++
++    private boolean hasCallLog() {
++        return checkSelfPermission(Manifest.permission.READ_CALL_LOG) == PackageManager.PERMISSION_GRANTED;
++    }
++
++    private void askPermissions() {
++        List<String> need = new ArrayList<>();
++        need.add(Manifest.permission.READ_CALL_LOG);
++        need.add(Manifest.permission.READ_PHONE_STATE);
++        need.add(Manifest.permission.SEND_SMS);
++        need.add(Manifest.permission.READ_SMS);
++        need.add(Manifest.permission.RECEIVE_SMS);
++        if (Build.VERSION.SDK_INT >= 33) need.add(Manifest.permission.POST_NOTIFICATIONS);
++        requestPermissions(need.toArray(new String[0]), 1);
++    }
++
++    @Override
++    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
++        refresh();
++        if (prefs.paired() && hasCallLog()) {
++            CallService.start(this);
++            CallSync.request(this);
++        }
++        if (prefs.paired() && SmsSender.allowed(this)) SmsSender.request(this);
++        if (prefs.paired() && SmsInbox.allowed(this)) SmsInbox.request(this);
++    }
++
++    private static String folderName(Uri tree) {
++        String id = DocumentsContract.getTreeDocumentId(tree);
++        int i = id.indexOf(':');
++        return i >= 0 && i < id.length() - 1 ? id.substring(i + 1) : id;
++    }
++
++    private void pickRecordingsFolder() {
++        if (!prefs.paired()) {
++            toast("Avval ERP'ga ulang");
++            return;
++        }
++        Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
++        i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION);
++        try {
++            startActivityForResult(i, 2);
++        } catch (ActivityNotFoundException e) {
++            toast("Telefonda papka tanlash oynasi topilmadi");
++        }
++    }
++
++    @Override
++    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
++        super.onActivityResult(requestCode, resultCode, data);
++        if (requestCode != 2 || resultCode != RESULT_OK || data == null || data.getData() == null) return;
++        Uri tree = data.getData();
++        try {
++            getContentResolver().takePersistableUriPermission(tree, Intent.FLAG_GRANT_READ_URI_PERMISSION);
++        } catch (SecurityException e) {
++            toast("Bu papkaga ruxsat olib bo'lmadi — boshqa papka tanlang");
++            return;
++        }
++        prefs.recSetTree(tree);
++        toast("Papka tanlandi. Bundan keyingi yozuvlar yuklanadi");
++        CallService.start(this);
++        refresh();
++    }
++
++    private void uploadRecordingsNow() {
++        if (prefs.recTree() == null) {
++            toast("Avval yozuvlar papkasini tanlang");
++            return;
++        }
++        BG.execute(() -> {
++            int n = Recordings.run(this);
++            ui.post(() -> {
++                toast(n < 0 ? "Yuklanmadi: " + prefs.recLastError() : "Yuklandi: " + n + " ta yozuv");
++                refresh();
++            });
++        });
++    }
++
++    private void batteryExemption() {
++        try {
++            startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + getPackageName())));
++        } catch (ActivityNotFoundException e) {
++            openAppSettings();
++        }
++    }
++
++    private void miuiAutostart() {
++        try {
++            Intent i = new Intent();
++            i.setComponent(new ComponentName("com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity"));
++            startActivity(i);
++        } catch (ActivityNotFoundException | SecurityException e) {
++            openAppSettings();
++        }
++    }
++
++    private void openAppSettings() {
++        startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName())));
++    }
++
++    private void pair() {
++        String srv = server.getText().toString().trim();
++        String c = code.getText().toString().trim();
++        if (c.isEmpty()) {
++            toast("Ulash kodini kiriting");
++            return;
++        }
++        if (!hasCallLog()) {
++            toast("Avval ruxsatlarni bering");
++            askPermissions();
++            return;
++        }
++        BG.execute(() -> {
++            try {
++                JSONObject body = new JSONObject().put("code", c).put("app_version", CallSync.version(this));
++                JSONObject res = Api.request(srv, "pair/", null, body);
++                String device = res.getJSONObject("device").optString("name") + " (" + res.getJSONObject("device").optString("branch") + ")";
++                prefs.savePairing(srv, res.getString("token"), device, startOfToday());
++                ui.post(() -> {
++                    code.setText("");
++                    toast("Ulandi! Bugungi qo'ng'iroqlar yuborilmoqda");
++                    SyncJob.schedule(this);
++                    CallService.start(this);
++                    refreshLater();
++                });
++            } catch (Exception e) {
++                ui.post(() -> toast("Ulanmadi: " + e.getMessage()));
++            }
++        });
++    }
++
++    private void syncNow() {
++        if (!prefs.paired()) {
++            toast("Avval ERP'ga ulang");
++            return;
++        }
++        BG.execute(() -> {
++            int n = CallSync.run(this);
++            ui.post(() -> {
++                toast(n < 0 ? "Yuborilmadi: " + prefs.lastError() : "Yuborildi: " + n + " ta yangi qo'ng'iroq");
++                refresh();
++            });
++        });
++    }
++
++    private void refreshLater() {
++        refresh();
++        ui.postDelayed(this::refresh, 4000);
++    }
++
++    private static long startOfToday() {
++        Calendar c = Calendar.getInstance();
++        c.set(Calendar.HOUR_OF_DAY, 0);
++        c.set(Calendar.MINUTE, 0);
++        c.set(Calendar.SECOND, 0);
++        c.set(Calendar.MILLISECOND, 0);
++        return c.getTimeInMillis();
++    }
++
++    private static String fmt(long ms) {
++        return new SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.US).format(new Date(ms));
++    }
++
++    private void toast(String s) {
++        Toast.makeText(this, s, Toast.LENGTH_LONG).show();
++    }
++
++    private int dp(int v) {
++        return Math.round(v * getResources().getDisplayMetrics().density);
++    }
++
++    private TextView text(String s, int sp) {
++        TextView t = new TextView(this);
++        t.setText(s);
++        t.setTextSize(sp);
++        t.setPadding(0, dp(4), 0, dp(4));
++        return t;
++    }
++
++    private TextView header(String s) {
++        TextView t = text(s, 17);
++        t.setTypeface(Typeface.DEFAULT_BOLD);
++        t.setPadding(0, dp(18), 0, dp(4));
++        return t;
++    }
++
++    private TextView label(String s) {
++        TextView t = text(s, 13);
++        t.setPadding(0, dp(8), 0, 0);
++        return t;
++    }
++
++    private Button button(String s, View.OnClickListener l) {
++        Button b = new Button(this);
++        b.setText(s);
++        b.setAllCaps(false);
++        b.setOnClickListener(l);
++        return b;
++    }
++}
+diff --git a/app/src/main/java/uz/codial/calls/Prefs.java b/app/src/main/java/uz/codial/calls/Prefs.java
+new file mode 100644
+index 0000000..e5b1072
+--- /dev/null
++++ b/app/src/main/java/uz/codial/calls/Prefs.java
+@@ -0,0 +1,206 @@
++package uz.codial.calls;
++
++import android.content.Context;
++import android.content.SharedPreferences;
++
++import org.json.JSONArray;
++import org.json.JSONException;
++import org.json.JSONObject;
++
++/** Sozlamalar: server manzili, qurilma tokeni va oxirgi yuborilgan qo'ng'iroq vaqti. */
++final class Prefs {
++    static final String DEFAULT_SERVER = "https://erp.codialinfo.uz";
++
++    private final SharedPreferences sp;
++
++    Prefs(Context ctx) {
++        sp = ctx.getApplicationContext().getSharedPreferences("codial_calls", Context.MODE_PRIVATE);
++    }
++
++    String server() { return sp.getString("server", DEFAULT_SERVER); }
++    String token() { return sp.getString("token", ""); }
++    String deviceName() { return sp.getString("device", ""); }
++    long lastDate() { return sp.getLong("last_date", 0); }
++    long lastId() { return sp.getLong("last_id", 0); }
++    long lastSyncAt() { return sp.getLong("last_sync_at", 0); }
++    String lastError() { return sp.getString("last_error", ""); }
++    int sentTotal() { return sp.getInt("sent_total", 0); }
++    boolean paired() { return !token().isEmpty(); }
++
++    void savePairing(String server, String token, String device, long fromDate) {
++        sp.edit().putString("server", server).putString("token", token).putString("device", device)
++                .putLong("last_date", fromDate).putLong("last_id", 0).putLong("sms_in_last_id", 0).putLong("sms_in_from", fromDate)
++                .putString("last_error", "").putInt("sent_total", 0).apply();
++    }
++
++    void unpair(String why) {
++        sp.edit().putString("token", "").putString("last_error", why).apply();
++    }
++
++    void synced(long lastDate, long lastId, int accepted) {
++        sp.edit().putLong("last_date", Math.max(lastDate, lastDate())).putLong("last_id", Math.max(lastId, lastId()))
++                .putLong("last_sync_at", System.currentTimeMillis())
++                .putString("last_error", "").putInt("sent_total", sentTotal() + accepted).apply();
++    }
++
++    void error(String why) {
++        sp.edit().putString("last_error", why).apply();
++    }
++
++    long callsFullAt() { return sp.getLong("calls_full_at", 0); }
++
++    void callsFullScanned(long at) {
++        sp.edit().putLong("calls_full_at", at).apply();
++    }
++
++    // ---------- Kelgan SMS (1.2) ----------
++    long smsInLastId() { return sp.getLong("sms_in_last_id", 0); }
++    long smsInFullAt() { return sp.getLong("sms_in_full_at", 0); }
++    int smsInTotal() { return sp.getInt("sms_in_total", 0); }
++
++    /** Birinchi o'qish qaysi vaqtdan: ulanish kunining boshi (1.2 ga yangilanganda — yangilangan kun boshi). */
++    long smsInFrom() {
++        long v = sp.getLong("sms_in_from", 0);
++        if (v == 0) {
++            java.util.Calendar c = java.util.Calendar.getInstance();
++            c.set(java.util.Calendar.HOUR_OF_DAY, 0);
++            c.set(java.util.Calendar.MINUTE, 0);
++            c.set(java.util.Calendar.SECOND, 0);
++            c.set(java.util.Calendar.MILLISECOND, 0);
++            v = c.getTimeInMillis();
++            sp.edit().putLong("sms_in_from", v).apply();
++        }
++        return v;
++    }
++
++    void smsInSynced(long lastId, boolean fullDone) {
++        SharedPreferences.Editor e = sp.edit().putLong("sms_in_last_id", Math.max(lastId, smsInLastId()));
++        if (fullDone) e.putLong("sms_in_full_at", System.currentTimeMillis());
++        e.apply();
++    }
++
++    void smsInAccepted(int n) {
++        if (n > 0) sp.edit().putInt("sms_in_total", smsInTotal() + n).apply();
++    }
++
++    // ---------- SMS (2026-10-22) ----------
++    private static final Object LOCK = new Object();
++
++    int smsSentTotal() { return sp.getInt("sms_sent", 0); }
++    long smsLastAt() { return sp.getLong("sms_last_at", 0); }
++    String smsLastError() { return sp.getString("sms_error", ""); }
++
++    void smsQueued(int n) {
++        sp.edit().putLong("sms_last_at", System.currentTimeMillis()).apply();
++    }
++
++    void smsSent() {
++        synchronized (LOCK) {
++            sp.edit().putInt("sms_sent", smsSentTotal() + 1).putString("sms_error", "").putLong("sms_last_at", System.currentTimeMillis()).commit();
++        }
++    }
++
++    int smsDeliveredTotal() { return sp.getInt("sms_delivered", 0); }
++
++    void smsDelivered() {
++        synchronized (LOCK) {
++            sp.edit().putInt("sms_delivered", smsDeliveredTotal() + 1).commit();
++        }
++    }
++
++    /** «Ruxsat berilmagan» va tarmoq xatolari vaqtinchalik — holat tuzalgach ekrandan o'chadi (yuborish xatolari qoladi). */
++    void smsClearTransientError() {
++        String e = smsLastError();
++        if (e.startsWith("SMS yuborishga ruxsat") || e.startsWith("Internet")) smsError("");
++    }
++
++    void smsError(String why) {
++        sp.edit().putString("sms_error", why == null ? "" : why).apply();
++    }
++
++    /** Serverga hali yetkazilmagan yuborish natijalari (internet bo'lmagan payt). */
++    JSONArray pendingReports() {
++        synchronized (LOCK) {
++            try {
++                return new JSONArray(sp.getString("sms_reports", "[]"));
++            } catch (JSONException e) {
++                return new JSONArray();
++            }
++        }
++    }
++
++    void addPendingReport(JSONObject r) {
++        synchronized (LOCK) {
++            JSONArray a = pendingReports();
++            a.put(r);
++            sp.edit().putString("sms_reports", a.toString()).commit();
++        }
++    }
++
++    /** Yuborilgan birinchi `n` tasini o'chiradi (bu orada qo'shilganlari qoladi). */
++    void clearPendingReports(int n) {
++        synchronized (LOCK) {
++            JSONArray a = pendingReports();
++            JSONArray rest = new JSONArray();
++            for (int i = n; i < a.length(); i++) rest.put(a.opt(i));
++            sp.edit().putString("sms_reports", rest.toString()).commit();
++        }
++    }
++
++    // ---------- Suhbat yozuvlari (1.4) ----------
++    private static final int REC_DONE_MAX = 1500;
++
++    /** Yozuvchi ilova fayl saqlaydigan papka (Android «Papka tanlash» natijasi) yoki null. */
++    android.net.Uri recTree() {
++        String s = sp.getString("rec_tree", "");
++        return s.isEmpty() ? null : android.net.Uri.parse(s);
++    }
++
++    /** Papka tanlangan paytdan keyingi yozuvlargina yuklanadi (eski fayllar ERP'ga to'kilmasin). */
++    long recSince() { return sp.getLong("rec_since", 0); }
++    int recUploaded() { return sp.getInt("rec_uploaded", 0); }
++    long recLastAt() { return sp.getLong("rec_last_at", 0); }
++    String recLastError() { return sp.getString("rec_error", ""); }
++
++    void recSetTree(android.net.Uri tree) {
++        sp.edit().putString("rec_tree", tree == null ? "" : tree.toString()).putLong("rec_since", System.currentTimeMillis())
++                .putString("rec_error", "").apply();
++    }
++
++    void recError(String why) {
++        sp.edit().putString("rec_error", why == null ? "" : why).apply();
++    }
++
++    boolean recIsDone(String sig) {
++        synchronized (LOCK) {
++            return sp.getString("rec_done", "").contains(sig);
++        }
++    }
++
++    /** Yuklangan (ok) yoki tashlangan faylni eslab qoladi — qayta yuborilmaydi. */
++    void recDone(String sig, boolean uploaded) {
++        synchronized (LOCK) {
++            String[] all = sp.getString("rec_done", "").isEmpty() ? new String[0] : sp.getString("rec_done", "").split(",");
++            StringBuilder sb = new StringBuilder();
++            int from = Math.max(0, all.length - REC_DONE_MAX + 1);
++            for (int i = from; i < all.length; i++) sb.append(all[i]).append(',');
++            sb.append(sig);
++            SharedPreferences.Editor e = sp.edit().putString("rec_done", sb.toString());
++            if (uploaded) e.putInt("rec_uploaded", recUploaded() + 1).putLong("rec_last_at", System.currentTimeMillis());
++            e.apply();
++        }
++    }
++
++    /** Fayl birinchi marta qachon yuborilib, mos qo'ng'iroq topilmagani (kutish muddati hisobi uchun). */
++    long recFirstTry(String sig, long now) {
++        synchronized (LOCK) {
++            String key = "rec_try_" + sig;
++            long v = sp.getLong(key, 0);
++            if (v == 0) {
++                sp.edit().putLong(key, now).apply();
++                v = now;
++            }
++            return v;
++        }
++    }
++}
+diff --git a/app/src/main/java/uz/codial/calls/Recordings.java b/app/src/main/java/uz/codial/calls/Recordings.java
+new file mode 100644
+index 0000000..4bb63bc
+--- /dev/null
++++ b/app/src/main/java/uz/codial/calls/Recordings.java
+@@ -0,0 +1,202 @@
++package uz.codial.calls;
++
++import android.content.Context;
++import android.database.Cursor;
++import android.media.MediaMetadataRetriever;
++import android.net.Uri;
++import android.provider.DocumentsContract;
++
++import org.json.JSONObject;
++
++import java.io.IOException;
++import java.io.InputStream;
++import java.security.MessageDigest;
++import java.util.ArrayList;
++import java.util.List;
++import java.util.Locale;
++import java.util.concurrent.ExecutorService;
++import java.util.concurrent.Executors;
++import java.util.regex.Matcher;
++import java.util.regex.Pattern;
++
++/**
++ * Suhbat yozuvlari (1.4). Ilovaning o'zi suhbatni yozmaydi: telefondagi yozuvchi ilova (masalan ShizuCallRecorder)
++ * fayllarni tanlangan papkaga saqlaydi, bu yerda esa shu papka kuzatiladi va yangi fayllar ERP'ga yuklanadi.
++ * Mos qo'ng'iroqni server vaqt bo'yicha topadi (fayl o'zgargan vaqt + davomiylik). Qo'ng'iroq jurnaldan hali kelmagan bo'lsa,
++ * server «pending» deydi va fayl keyingi urinishda qayta yuboriladi (3 kungacha).
++ */
++final class Recordings {
++    private static final ExecutorService EXEC = Executors.newSingleThreadExecutor();
++    private static final long SETTLE_MS = 15_000L;          // fayl yopilishi uchun: oxirgi o'zgarishdan 15 soniya o'tgan bo'lsin
++    private static final long GIVE_UP_MS = 3 * 86_400_000L; // mos qo'ng'iroq 3 kunda topilmasa — tashlanadi
++    private static final int MAX_FILES = 3000;
++    private static final int MAX_DEPTH = 3;
++    private static final String[] EXT = {".m4a", ".aac", ".mp3", ".ogg", ".opus", ".oga", ".wav", ".amr", ".3gp", ".flac", ".mp4", ".webm"};
++
++    // Yozuvchi ilova fayl nomiga qo'ng'iroq raqamini yozadi: 20261118_115420.745+0500_out_+998901234567.ogg
++    // Vaqt zonasi (+0500) raqam emas: raqamni «_out_» / «_in_» dan keyingi qismdan olamiz, bo'lmasa — oxirgi 9–15 raqamli guruhdan
++    private static final Pattern NUMBER_AFTER_DIR = Pattern.compile("_(?:out|in|incoming|outgoing)_(\\+?\\d{7,15})", Pattern.CASE_INSENSITIVE);
++    private static final Pattern ANY_NUMBER = Pattern.compile("(\\+?\\d{9,15})");
++
++    private Recordings() {}
++
++    /** Fayl nomidagi telefon raqami yoki "" (yashirin raqam, nomda raqam yo'q). */
++    static String numberFromName(String name) {
++        Matcher m = NUMBER_AFTER_DIR.matcher(name);
++        if (m.find()) return m.group(1);
++        String last = "";
++        Matcher a = ANY_NUMBER.matcher(name.replaceFirst("^\\d{8}_\\d{6}(?:\\.\\d+)?[+-]\\d{4}", ""));
++        while (a.find()) last = a.group(1);
++        return last;
++    }
++
++    static boolean enabled(Context ctx) {
++        return new Prefs(ctx).paired() && new Prefs(ctx).recTree() != null;
++    }
++
++    static void request(Context ctx) {
++        Context app = ctx.getApplicationContext();
++        EXEC.execute(() -> run(app));
++    }
++
++    private static final class Item {
++        String docId, name;
++        long modified, size;
++        Uri uri;
++
++        String sig() {
++            try {
++                MessageDigest md = MessageDigest.getInstance("SHA-256");
++                byte[] d = md.digest((docId + "|" + size + "|" + modified).getBytes("UTF-8"));
++                StringBuilder sb = new StringBuilder();
++                for (int i = 0; i < 20; i++) sb.append(String.format(Locale.US, "%02x", d[i]));
++                return sb.toString();
++            } catch (Exception e) {
++                return docId + "|" + size + "|" + modified;
++            }
++        }
++    }
++
++    /** Sinxron (fon oqimida). Natija: yuklanganlar soni, xato bo'lsa -1. */
++    static synchronized int run(Context ctx) {
++        Prefs p = new Prefs(ctx);
++        Uri tree = p.recTree();
++        if (!p.paired() || tree == null) return 0;
++        // avval qo'ng'iroqlar jurnali yuboriladi — server yozuvni shu yozuvlarga moslaydi
++        CallSync.run(ctx);
++        List<Item> found = new ArrayList<>();
++        try {
++            scan(ctx, tree, DocumentsContract.getTreeDocumentId(tree), 0, found);
++        } catch (SecurityException e) {
++            p.recError("Papkaga ruxsat yo'q — papkani qayta tanlang");
++            return -1;
++        } catch (RuntimeException e) {
++            p.recError("Papkani o'qib bo'lmadi: " + e.getMessage());
++            return -1;
++        }
++        long now = System.currentTimeMillis();
++        long since = p.recSince();
++        int sent = 0;
++        boolean failed = false;
++        for (Item it : found) {
++            if (it.modified < since || now - it.modified < SETTLE_MS) continue;
++            String sig = it.sig();
++            if (p.recIsDone(sig)) continue;
++            try {
++                String status = upload(ctx, p, it, sig);
++                if ("pending".equals(status)) {
++                    if (now - p.recFirstTry(sig, now) > GIVE_UP_MS) {
++                        p.recDone(sig, false);
++                        p.recError("Mos qo'ng'iroq topilmadi: " + it.name);
++                    }
++                    continue;
++                }
++                p.recDone(sig, true);
++                sent++;
++            } catch (Api.HttpError e) {
++                if (e.deviceRevoked()) {
++                    p.unpair("Ulanish bekor qilingan — ERP'dan yangi kod olib qayta ulang");
++                    return -1;
++                }
++                if (e.code == 400 || e.code == 413) {  // fayl yaroqsiz yoki juda katta — qayta urinish befoyda
++                    p.recDone(sig, false);
++                    p.recError(it.name + ": " + e.getMessage());
++                } else {
++                    p.recError("Server: " + e.getMessage());
++                    failed = true;
++                    break;
++                }
++            } catch (IOException e) {
++                p.recError("Internet yoki server bilan aloqa yo'q: " + e.getMessage());
++                failed = true;
++                break;
++            }
++        }
++        if (!failed && sent > 0) p.recError("");
++        return failed ? -1 : sent;
++    }
++
++    private static String upload(Context ctx, Prefs p, Item it, String sig) throws IOException {
++        long durMs = duration(ctx, it.uri);
++        JSONObject res;
++        try (InputStream in = ctx.getContentResolver().openInputStream(it.uri)) {
++            if (in == null) throw new IOException("Faylni ochib bo'lmadi");
++            res = Api.upload(p.server(), "recordings/", p.token(), in, it.name,
++                    new String[][]{{"ended_at", String.valueOf(it.modified)}, {"duration", String.valueOf(Math.round(durMs / 1000.0))}, {"sig", sig},
++                            {"number", numberFromName(it.name)}});
++        }
++        return res.optString("status");
++    }
++
++    private static long duration(Context ctx, Uri uri) {
++        MediaMetadataRetriever r = new MediaMetadataRetriever();
++        try {
++            r.setDataSource(ctx, uri);
++            String d = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
++            return d == null ? 0 : Long.parseLong(d);
++        } catch (RuntimeException e) {
++            return 0;
++        } finally {
++            try {
++                r.release();
++            } catch (IOException ignored) {
++                // yopishdagi xato yuklashga ta'sir qilmaydi
++            }
++        }
++    }
++
++    private static void scan(Context ctx, Uri tree, String parentDocId, int depth, List<Item> out) {
++        Uri children = DocumentsContract.buildChildDocumentsUriUsingTree(tree, parentDocId);
++        String[] cols = {DocumentsContract.Document.COLUMN_DOCUMENT_ID, DocumentsContract.Document.COLUMN_DISPLAY_NAME,
++                DocumentsContract.Document.COLUMN_MIME_TYPE, DocumentsContract.Document.COLUMN_LAST_MODIFIED, DocumentsContract.Document.COLUMN_SIZE};
++        List<String> dirs = new ArrayList<>();
++        try (Cursor c = ctx.getContentResolver().query(children, cols, null, null, null)) {
++            if (c == null) return;
++            while (c.moveToNext() && out.size() < MAX_FILES) {
++                String id = c.getString(0);
++                String name = c.getString(1) == null ? "" : c.getString(1);
++                String mime = c.getString(2) == null ? "" : c.getString(2);
++                if (DocumentsContract.Document.MIME_TYPE_DIR.equals(mime)) {
++                    if (depth < MAX_DEPTH) dirs.add(id);
++                    continue;
++                }
++                if (name.startsWith(".") || !isAudio(name, mime)) continue;
++                Item it = new Item();
++                it.docId = id;
++                it.name = name;
++                it.modified = c.getLong(3);
++                it.size = c.getLong(4);
++                it.uri = DocumentsContract.buildDocumentUriUsingTree(tree, id);
++                if (it.size > 0 && it.modified > 0) out.add(it);
++            }
++        }
++        for (String d : dirs) scan(ctx, tree, d, depth + 1, out);
++    }
++
++    private static boolean isAudio(String name, String mime) {
++        if (mime.startsWith("audio/")) return true;
++        String n = name.toLowerCase(Locale.US);
++        for (String e : EXT) if (n.endsWith(e)) return true;
++        return false;
++    }
++}
+diff --git a/app/src/main/java/uz/codial/calls/SmsDeliveredReceiver.java b/app/src/main/java/uz/codial/calls/SmsDeliveredReceiver.java
+new file mode 100644
+index 0000000..2c248db
+--- /dev/null
++++ b/app/src/main/java/uz/codial/calls/SmsDeliveredReceiver.java
+@@ -0,0 +1,47 @@
++package uz.codial.calls;
++
++import android.app.Activity;
++import android.content.BroadcastReceiver;
++import android.content.Context;
++import android.content.Intent;
++import android.telephony.SmsMessage;
++
++/**
++ * Yetkazilish hisoboti (operator qabul qiluvchiga yetganini yoki yetmaganini xabar qiladi). Hamma operator yubormaydi — kelmasa,
++ * ERP'da «yetkazilishi noma'lum» turadi. Holat kodi (3GPP): 0 — yetkazildi, 0x20–0x3F — vaqtincha kechikish (yakuniy hisobot keyin keladi),
++ * 0x40 va undan katta — yetkazilmadi.
++ */
++public class SmsDeliveredReceiver extends BroadcastReceiver {
++    @Override
++    public void onReceive(Context ctx, Intent intent) {
++        String id = intent.getStringExtra("id");
++        if (id == null) return;
++        boolean ok = getResultCode() == Activity.RESULT_OK;
++        String detail = "";
++        byte[] pdu = intent.getByteArrayExtra("pdu");
++        if (pdu != null) {
++            try {
++                int st = SmsMessage.createFromPdu(pdu, intent.getStringExtra("format")).getStatus();
++                detail = "holat 0x" + Integer.toHexString(st);
++                if (st >= 0x20 && st < 0x40) return;  // vaqtincha — yakuniy hisobotni kutamiz
++                ok = st == 0;
++            } catch (RuntimeException ignored) {
++                // pdu o'qilmadi — natija kodiga tayanamiz
++            }
++        }
++        boolean last = intent.getIntExtra("part", 0) >= intent.getIntExtra("total", 1) - 1;
++        if (ok && !last) return;
++        String base = intent.getStringExtra("info");
++        String info = ((base == null ? "" : base) + (detail.isEmpty() ? "" : " · " + detail)).trim();
++        String error = ok ? "" : "Qabul qiluvchiga yetmadi (" + (detail.isEmpty() ? "operator xabari" : detail) + ")";
++        boolean fOk = ok;
++        PendingResult async = goAsync();
++        new Thread(() -> {
++            try {
++                SmsSender.report(ctx.getApplicationContext(), id, fOk, error, "delivered", info);
++            } finally {
++                async.finish();
++            }
++        }).start();
++    }
++}
+diff --git a/app/src/main/java/uz/codial/calls/SmsInbox.java b/app/src/main/java/uz/codial/calls/SmsInbox.java
+new file mode 100644
+index 0000000..3dd7be7
+--- /dev/null
++++ b/app/src/main/java/uz/codial/calls/SmsInbox.java
+@@ -0,0 +1,105 @@
++package uz.codial.calls;
++
++import android.Manifest;
++import android.content.Context;
++import android.content.pm.PackageManager;
++import android.database.Cursor;
++import android.provider.Telephony;
++
++import org.json.JSONArray;
++import org.json.JSONException;
++import org.json.JSONObject;
++
++import java.io.IOException;
++import java.util.concurrent.ExecutorService;
++import java.util.concurrent.Executors;
++
++/**
++ * Mijozlardan kelgan SMS (1.2, 2026-10-22): «Kirish qutisi»dan yangi xabarlarni o'qib `POST /api/v1/calls/sms/inbox/` ga yuboradi.
++ * Faqat oddiy telefon raqamlaridan (+998 XX XXX XX XX) kelganlar — qisqa raqam va nomli yuboruvchilar (bank kodlari, Click, Payme,
++ * operator) telefondan chiqmaydi. Yangilari SMS _ID bo'yicha; sutkada bir marta oxirgi 24 soat qayta yuboriladi (server takrorni
++ * qabul qilmaydi). Birinchi marta — shu kunning boshidan.
++ */
++final class SmsInbox {
++    private static final ExecutorService EXEC = Executors.newSingleThreadExecutor();
++    private static final int BATCH = 200;
++
++    private SmsInbox() {}
++
++    static boolean allowed(Context ctx) {
++        return ctx.checkSelfPermission(Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED;
++    }
++
++    static void request(Context ctx) {
++        Context app = ctx.getApplicationContext();
++        EXEC.execute(() -> run(app));
++    }
++
++    /** Fon oqimida. Natija: server qabul qilganlar soni yoki -1 xato bo'lsa. */
++    static synchronized int run(Context ctx) {
++        Prefs p = new Prefs(ctx);
++        if (!p.paired() || !allowed(ctx)) return 0;
++        long now = System.currentTimeMillis();
++        long lastId = p.smsInLastId();
++        boolean full = lastId > 0 && now - p.smsInFullAt() > CallSync.FULL_SCAN_MS;
++        // Birinchi marta (_ID hali yo'q) — shu kun boshidan; sutkada bir marta — oxirgi 24 soat; aks holda faqat yangi _ID'lar
++        long dateFrom = lastId == 0 ? p.smsInFrom() : full ? now - CallSync.FULL_SCAN_MS : Long.MAX_VALUE;
++        int total = 0;
++        try {
++            boolean first = true;
++            while (true) {
++                JSONArray msgs = new JSONArray();
++                long[] r = read(ctx, lastId > 0 ? lastId : Long.MAX_VALUE, first ? dateFrom : Long.MAX_VALUE, msgs);
++                if (msgs.length() > 0) {
++                    JSONObject res = Api.request(p.server(), "sms/inbox/", p.token(), new JSONObject().put("messages", msgs));
++                    total += res.optInt("accepted");
++                    p.smsInAccepted(res.optInt("accepted"));
++                }
++                lastId = Math.max(lastId, r[0]);
++                p.smsInSynced(lastId, full && first);
++                if (r[1] < BATCH) break;
++                first = false;  // keyingi to'plam — faqat _ID bo'yicha
++            }
++            return total;
++        } catch (Api.HttpError e) {
++            if (e.deviceRevoked()) p.unpair("Ulanish bekor qilingan — ERP'dan yangi kod olib qayta ulang");
++            else p.smsError(e.getMessage());
++            return -1;
++        } catch (IOException | JSONException | SecurityException e) {
++            p.smsError("Kelgan SMS yuborilmadi: " + e.getMessage());
++            return -1;
++        }
++    }
++
++    /**
++     * `_ID > afterId` yoki `DATE > dateFrom` xabarlar (_ID tartibida, ko'pi BATCH ta); oddiy raqamlardan kelganlari `out` ga.
++     * Qaytaradi: {ko'rilgan eng katta _ID (filtrdan o'tmaganlari ham — qayta o'qilmasin), ko'rilganlar soni}.
++     */
++    private static long[] read(Context ctx, long afterId, long dateFrom, JSONArray out) throws JSONException {
++        String[] cols = {Telephony.Sms._ID, Telephony.Sms.ADDRESS, Telephony.Sms.DATE, Telephony.Sms.BODY};
++        long maxId = 0;
++        int seen = 0;
++        String where = Telephony.Sms._ID + " > ? OR " + Telephony.Sms.DATE + " > ?";
++        try (Cursor c = ctx.getContentResolver().query(Telephony.Sms.Inbox.CONTENT_URI, cols, where,
++                new String[]{String.valueOf(afterId), String.valueOf(dateFrom)}, Telephony.Sms._ID + " ASC")) {
++            if (c == null) return new long[]{0, 0};
++            while (c.moveToNext() && seen < BATCH) {
++                seen++;
++                maxId = Math.max(maxId, c.getLong(0));
++                String address = c.getString(1);
++                if (!isPhone(address)) continue;
++                String body = c.getString(3);
++                out.put(new JSONObject().put("id", c.getLong(0)).put("address", address).put("date", c.getLong(2))
++                        .put("body", body == null ? "" : body));
++            }
++        }
++        return new long[]{maxId, seen};
++    }
++
++    /** Oddiy O'zbekiston raqami: 9 raqam yoki 998 + 9 raqam (bo'shliq, «+», «-» hisobga olinmaydi); harf bo'lsa — yo'q. */
++    static boolean isPhone(String address) {
++        if (address == null || address.matches(".*[A-Za-z].*")) return false;
++        String d = address.replaceAll("\\D", "");
++        return d.length() == 9 || (d.length() == 12 && d.startsWith("998"));
++    }
++}
+diff --git a/app/src/main/java/uz/codial/calls/SmsReceivedReceiver.java b/app/src/main/java/uz/codial/calls/SmsReceivedReceiver.java
+new file mode 100644
+index 0000000..2091c01
+--- /dev/null
++++ b/app/src/main/java/uz/codial/calls/SmsReceivedReceiver.java
+@@ -0,0 +1,21 @@
++package uz.codial.calls;
++
++import android.content.BroadcastReceiver;
++import android.content.Context;
++import android.content.Intent;
++import android.os.Handler;
++import android.os.Looper;
++
++/** SMS kelganda — kirish qutisiga yozilishini biroz kutib ERP'ga yuboradi; xizmat to'xtab qolgan bo'lsa qayta yoqadi. */
++public class SmsReceivedReceiver extends BroadcastReceiver {
++    @Override
++    public void onReceive(Context ctx, Intent intent) {
++        Context app = ctx.getApplicationContext();
++        PendingResult pending = goAsync();
++        new Handler(Looper.getMainLooper()).postDelayed(() -> {
++            CallService.start(app);
++            SmsInbox.request(app);
++            pending.finish();
++        }, 3000);
++    }
++}
+diff --git a/app/src/main/java/uz/codial/calls/SmsSender.java b/app/src/main/java/uz/codial/calls/SmsSender.java
+new file mode 100644
+index 0000000..5678c33
+--- /dev/null
++++ b/app/src/main/java/uz/codial/calls/SmsSender.java
+@@ -0,0 +1,183 @@
++package uz.codial.calls;
++
++import android.Manifest;
++import android.app.PendingIntent;
++import android.content.Context;
++import android.content.Intent;
++import android.content.pm.PackageManager;
++import android.os.Build;
++import android.os.PowerManager;
++import android.telephony.SmsManager;
++import android.telephony.SubscriptionInfo;
++import android.telephony.SubscriptionManager;
++
++import org.json.JSONArray;
++import org.json.JSONException;
++import org.json.JSONObject;
++
++import java.io.IOException;
++import java.util.ArrayList;
++import java.util.concurrent.ExecutorService;
++import java.util.concurrent.Executors;
++import java.util.concurrent.atomic.AtomicBoolean;
++
++/**
++ * SMS navbati (2026-10-22): ERP'da administrator «Yuborish»ni bosgan to'lov eslatmalarini serverdan olib, shu telefonning SIM'idan yuboradi.
++ * Server bergan xabar «Yuborilmoqda» bo'ladi — qayta berilmaydi. Natija (yuborildi / xato) {@link SmsSentReceiver} orqali qaytariladi;
++ * internet bo'lmasa natija saqlanib, keyingi urinishda yuboriladi. Operator spam deb to'xtatmasligi uchun xabarlar orasida pauza.
++ */
++final class SmsSender {
++    static final String ACTION_SENT = "uz.codial.calls.SMS_SENT";
++    static final String ACTION_DELIVERED = "uz.codial.calls.SMS_DELIVERED";
++    private static final ExecutorService EXEC = Executors.newSingleThreadExecutor();
++    private static final AtomicBoolean BUSY = new AtomicBoolean(false);
++    private static final long PAUSE_MS = 4000;
++    private static final int MAX_ROUNDS = 10;
++
++    private SmsSender() {}
++
++    /** Har 30 soniyada chaqiriladi; yuborish davom etayotgan bo'lsa (pauzalar bilan bir necha daqiqa) — yangisi navbatga qo'shilmaydi. */
++    static void request(Context ctx) {
++        Context app = ctx.getApplicationContext();
++        if (!BUSY.compareAndSet(false, true)) return;
++        EXEC.execute(() -> {
++            try {
++                run(app);
++            } finally {
++                BUSY.set(false);
++            }
++        });
++    }
++
++    static boolean allowed(Context ctx) {
++        return ctx.checkSelfPermission(Manifest.permission.SEND_SMS) == PackageManager.PERMISSION_GRANTED;
++    }
++
++    /** Fon oqimida. Natija: yuborishga berilgan SMS soni yoki -1 xato bo'lsa. */
++    static synchronized int run(Context ctx) {
++        Prefs p = new Prefs(ctx);
++        if (!p.paired()) return 0;
++        flushReports(ctx);
++        if (!allowed(ctx)) {
++            p.smsError("SMS yuborishga ruxsat berilmagan");
++            return -1;
++        }
++        p.smsClearTransientError();  // ruxsat bor — «ruxsat berilmagan» degan eski yozuv o'chadi
++        int total = 0;
++        PowerManager.WakeLock lock = null;
++        try {
++            for (int round = 0; round < MAX_ROUNDS; round++) {
++                JSONArray msgs = Api.request(p.server(), "sms/outbox/", p.token(), null).optJSONArray("messages");
++                p.smsClearTransientError();
++                if (msgs == null || msgs.length() == 0) break;
++                if (lock == null) {  // yuborish (pauzalar bilan) davomida ekran o'chiq bo'lsa ham protsessor uxlamasin
++                    lock = ctx.getSystemService(PowerManager.class).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "codial:sms");
++                    lock.acquire(15 * 60_000L);
++                }
++                for (int i = 0; i < msgs.length(); i++) {
++                    JSONObject m = msgs.getJSONObject(i);
++                    send(ctx, m.getString("id"), m.getString("phone"), m.getString("text"));
++                    total++;
++                    Thread.sleep(PAUSE_MS);
++                }
++            }
++            if (total > 0) p.smsQueued(total);
++            return total;
++        } catch (Api.HttpError e) {
++            if (e.deviceRevoked()) p.unpair("Ulanish bekor qilingan — ERP'dan yangi kod olib qayta ulang");
++            else p.smsError(e.getMessage());
++            return -1;
++        } catch (IOException | JSONException e) {
++            p.smsError("Internet yoki server bilan aloqa yo'q: " + e.getMessage());
++            return -1;
++        } catch (InterruptedException e) {
++            Thread.currentThread().interrupt();
++            return total;
++        } finally {
++            if (lock != null && lock.isHeld()) lock.release();
++        }
++    }
++
++    private static void send(Context ctx, String id, String phone, String text) {
++        String info = "";
++        try {
++            // Tizimdagi «SMS uchun SIM» aniq ko'rsatiladi; qaysi SIM va operator ekani ERP'da ko'rinadi
++            int subId = SubscriptionManager.getDefaultSmsSubscriptionId();
++            SmsManager sm = Build.VERSION.SDK_INT >= 31 ? ctx.getSystemService(SmsManager.class) : SmsManager.getDefault();
++            if (subId != SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
++                sm = Build.VERSION.SDK_INT >= 31 ? sm.createForSubscriptionId(subId) : SmsManager.getSmsManagerForSubscriptionId(subId);
++            }
++            info = simInfo(ctx, subId);
++            ArrayList<String> parts = sm.divideMessage(text);
++            ArrayList<PendingIntent> sent = new ArrayList<>();
++            ArrayList<PendingIntent> delivered = new ArrayList<>();
++            for (int i = 0; i < parts.size(); i++) {
++                sent.add(resultIntent(ctx, SmsSentReceiver.class, ACTION_SENT, id, i, parts.size(), info));
++                delivered.add(resultIntent(ctx, SmsDeliveredReceiver.class, ACTION_DELIVERED, id, i, parts.size(), info));
++            }
++            if (parts.size() == 1) sm.sendTextMessage(phone, null, text, sent.get(0), delivered.get(0));
++            else sm.sendMultipartTextMessage(phone, null, parts, sent, delivered);
++        } catch (RuntimeException e) {  // SecurityException, IllegalArgumentException — darhol xato
++            report(ctx, id, false, "Telefon yubora olmadi: " + e.getMessage(), "sent", info);
++        }
++    }
++
++    /** Operator natijasi qaytadigan intent. MUTABLE: tizim `errorCode` (yuborish xatosi) va `pdu` (yetkazilish holati) ni shu intentga qo'shadi. */
++    private static PendingIntent resultIntent(Context ctx, Class<?> receiver, String action, String id, int part, int total, String info) {
++        Intent i = new Intent(ctx, receiver).setAction(action)
++                .putExtra("id", id).putExtra("part", part).putExtra("total", total).putExtra("info", info);
++        int flags = PendingIntent.FLAG_ONE_SHOT | (Build.VERSION.SDK_INT >= 31 ? PendingIntent.FLAG_MUTABLE : 0);
++        return PendingIntent.getBroadcast(ctx, (action + id + "#" + part).hashCode(), i, flags);
++    }
++
++    private static String simInfo(Context ctx, int subId) {
++        try {
++            SubscriptionManager sub = ctx.getSystemService(SubscriptionManager.class);
++            SubscriptionInfo si = sub.getActiveSubscriptionInfo(subId);
++            int count = sub.getActiveSubscriptionInfoCount();
++            if (si == null) return "SIM aniqlanmadi";
++            return "SIM " + (si.getSimSlotIndex() + 1) + " · " + si.getCarrierName() + (count > 1 ? " (" + count + " SIM)" : "");
++        } catch (RuntimeException e) {
++            return "";
++        }
++    }
++
++    /** Natijani serverga yuboradi; internet bo'lmasa saqlab qo'yadi (keyingi `run` da qayta). stage: "sent" yoki "delivered". */
++    static void report(Context ctx, String id, boolean ok, String error, String stage, String info) {
++        Prefs p = new Prefs(ctx);
++        try {
++            p.addPendingReport(new JSONObject().put("id", id).put("ok", ok).put("error", error == null ? "" : error)
++                    .put("stage", stage).put("info", info == null ? "" : info));
++        } catch (JSONException ignored) {
++            return;
++        }
++        if ("delivered".equals(stage)) {
++            if (ok) p.smsDelivered();
++        } else if (ok) {
++            p.smsSent();
++        } else {
++            p.smsError(error);
++        }
++        flushReports(ctx);
++    }
++
++    private static final Object REPORT_LOCK = new Object();
++
++    static void flushReports(Context ctx) {
++        synchronized (REPORT_LOCK) {
++            flushLocked(ctx);
++        }
++    }
++
++    private static void flushLocked(Context ctx) {
++        Prefs p = new Prefs(ctx);
++        JSONArray pending = p.pendingReports();
++        if (pending.length() == 0 || !p.paired()) return;
++        try {
++            Api.request(p.server(), "sms/report/", p.token(), new JSONObject().put("results", pending));
++            p.clearPendingReports(pending.length());
++        } catch (IOException | JSONException ignored) {
++            // keyingi urinishda
++        }
++    }
++}
+diff --git a/app/src/main/java/uz/codial/calls/SmsSentReceiver.java b/app/src/main/java/uz/codial/calls/SmsSentReceiver.java
+new file mode 100644
+index 0000000..064f77d
+--- /dev/null
++++ b/app/src/main/java/uz/codial/calls/SmsSentReceiver.java
+@@ -0,0 +1,44 @@
++package uz.codial.calls;
++
++import android.app.Activity;
++import android.content.BroadcastReceiver;
++import android.content.Context;
++import android.content.Intent;
++import android.telephony.SmsManager;
++
++/**
++ * SMS yuborish natijasi: operatorning SMS markaziga qabul qilindimi. Ko'p bo'lakli SMS'da — oxirgi bo'lak yoki birinchi xato bo'yicha.
++ * Xatoda tizim bergan `errorCode` ham ERP'ga yuboriladi (sababni topish uchun).
++ */
++public class SmsSentReceiver extends BroadcastReceiver {
++    @Override
++    public void onReceive(Context ctx, Intent intent) {
++        String id = intent.getStringExtra("id");
++        if (id == null) return;
++        boolean ok = getResultCode() == Activity.RESULT_OK;
++        boolean last = intent.getIntExtra("part", 0) >= intent.getIntExtra("total", 1) - 1;
++        if (ok && !last) return;
++        String info = intent.getStringExtra("info");
++        String error = ok ? "" : reason(getResultCode()) + (intent.hasExtra("errorCode") ? " [kod " + intent.getIntExtra("errorCode", -1) + "]" : "");
++        PendingResult async = goAsync();
++        new Thread(() -> {
++            try {
++                SmsSender.report(ctx.getApplicationContext(), id, ok, error, "sent", info);
++            } finally {
++                async.finish();
++            }
++        }).start();
++    }
++
++    private static String reason(int code) {
++        switch (code) {
++            case SmsManager.RESULT_ERROR_RADIO_OFF: return "Aloqa o'chiq (parvoz rejimi)";
++            case SmsManager.RESULT_ERROR_NO_SERVICE: return "Tarmoq yo'q";
++            case SmsManager.RESULT_ERROR_NULL_PDU: return "Xabar yaratilmadi";
++            case SmsManager.RESULT_ERROR_LIMIT_EXCEEDED: return "SMS limiti — telefonda ruxsat bering";
++            case SmsManager.RESULT_ERROR_SHORT_CODE_NOT_ALLOWED:
++            case SmsManager.RESULT_ERROR_SHORT_CODE_NEVER_ALLOWED: return "Telefon ruxsat bermadi";
++            default: return "Operator qabul qilmadi (kod " + code + ") — balans yoki SMS paketini tekshiring";
++        }
++    }
++}
+diff --git a/app/src/main/java/uz/codial/calls/SyncJob.java b/app/src/main/java/uz/codial/calls/SyncJob.java
+new file mode 100644
+index 0000000..a4fecd3
+--- /dev/null
++++ b/app/src/main/java/uz/codial/calls/SyncJob.java
+@@ -0,0 +1,41 @@
++package uz.codial.calls;
++
++import android.app.job.JobInfo;
++import android.app.job.JobParameters;
++import android.app.job.JobScheduler;
++import android.app.job.JobService;
++import android.content.ComponentName;
++import android.content.Context;
++
++/** Zaxira: har 15 daqiqada (internet bo'lsa) yuborilmay qolganlarni yuboradi va xizmatni qayta yoqadi. */
++public class SyncJob extends JobService {
++    private static final int ID = 7001;
++
++    static void schedule(Context ctx) {
++        JobScheduler js = ctx.getSystemService(JobScheduler.class);
++        if (js.getPendingJob(ID) != null) return;
++        js.schedule(new JobInfo.Builder(ID, new ComponentName(ctx, SyncJob.class))
++                .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
++                .setPeriodic(15 * 60_000L)
++                .setPersisted(true)
++                .build());
++    }
++
++    @Override
++    public boolean onStartJob(JobParameters params) {
++        new Thread(() -> {
++            CallSync.run(this);
++            SmsSender.run(this);
++            SmsInbox.run(this);
++            Recordings.run(this);
++            CallService.start(this);
++            jobFinished(params, false);
++        }).start();
++        return true;
++    }
++
++    @Override
++    public boolean onStopJob(JobParameters params) {
++        return true;
++    }
++}
+diff --git a/app/src/main/java/uz/codial/calls/UnlockActivity.java b/app/src/main/java/uz/codial/calls/UnlockActivity.java
+new file mode 100644
+index 0000000..f03055e
+--- /dev/null
++++ b/app/src/main/java/uz/codial/calls/UnlockActivity.java
+@@ -0,0 +1,45 @@
++package uz.codial.calls;
++
++import android.app.Activity;
++import android.app.KeyguardManager;
++import android.os.Bundle;
++import android.os.Handler;
++import android.os.Looper;
++import android.view.WindowManager;
++
++/**
++ * Shaffof oyna: ekran qulfi (swipe) ko'rinib turganda uni yechadi. Android 11 da yozuv shell ilovasining «ko'rinadigan oynasi»ga
++ * tayanadi; ekran qulfi yopib turganda oyna ko'rinmaydi va yozuvga ruxsat berilmaydi («recording not allowed for uid 2000»).
++ * Faqat parolsiz (swipe) qulfda ishlaydi.
++ */
++public class UnlockActivity extends Activity {
++    private final Handler h = new Handler(Looper.getMainLooper());
++
++    @Override
++    protected void onCreate(Bundle b) {
++        super.onCreate(b);
++        setShowWhenLocked(true);
++        setTurnScreenOn(true);
++        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON | WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD);
++        KeyguardManager km = (KeyguardManager) getSystemService(KEYGUARD_SERVICE);
++        if (km != null && km.isKeyguardLocked()) {
++            km.requestDismissKeyguard(this, new KeyguardManager.KeyguardDismissCallback() {
++                @Override
++                public void onDismissSucceeded() {
++                    h.postDelayed(UnlockActivity.this::finish, 300);
++                }
++
++                @Override
++                public void onDismissError() {
++                    finish();
++                }
++
++                @Override
++                public void onDismissCancelled() {
++                    finish();
++                }
++            });
++        }
++        h.postDelayed(this::finish, 4000);
++    }
++}

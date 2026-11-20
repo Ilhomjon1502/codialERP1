@@ -364,8 +364,17 @@ class CallRecordingViewSet(AuditedModelViewSet):
     def get_queryset(self):
         qs = super().get_queryset()
         if self.action in ("list", "summary"):
-            qs = self._filter(qs)
+            qs = self._filter(self._one_per_file(qs))
         return qs
+
+    @staticmethod
+    def _one_per_file(qs):
+        """Telefon yozuv davom etayotganda uni bir necha marta yuklaydi (har safar uzunroq nusxa). Ro'yxatda har fayl bir qator:
+        eng uzun (teng bo'lsa — oxirgi) nusxa; boshqa nusxalar bazada qoladi. Bir xil nom + bir xil boshlanish vaqti = bitta fayl;
+        fayl nomi bo'sh (eski ko'chirilgan) yozuvlar guruhlanmaydi."""
+        better = CallRecording.objects.filter(device_id=OuterRef("device_id"), filename=OuterRef("filename"), started_at=OuterRef("started_at")).exclude(filename="").filter(
+            Q(duration__gt=OuterRef("duration")) | Q(duration=OuterRef("duration"), created_at__gt=OuterRef("created_at")))
+        return qs.filter(~Exists(better))
 
     def _filter(self, qs):
         p = self.request.query_params

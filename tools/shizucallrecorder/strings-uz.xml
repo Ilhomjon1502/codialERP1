@@ -1,0 +1,340 @@
+<!--
+  ~ ShizuCallRecorder: FOSS Call recording powered through ADB/Shizuku!
+  ~  Copyright (C) 2026-present kitsumed (Med)
+  ~  This software is licensed under the GNU General Public License v3 or later, with additional terms as permitted under Section 7.
+  ~  The full license text is available in the LICENSE file at the root of this project.
+  ~  This software is distributed WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+  ~
+  ~  Codial: o'zbekcha tarjima (lotin). Bu fayl standart (yagona) til: boshqa tillar olib tashlangan.
+  -->
+
+<resources tools:ignore="MissingTranslation,TypographyEllipsis" xmlns:tools="http://schemas.android.com/tools">
+    <!-- ========================================== -->
+    <!-- UMUMIY XABARLAR                            -->
+    <!-- ========================================== -->
+    <string name="app_name" translatable="false">Codial qo\'ng\'iroqlar</string>
+    <string name="general_close">Yopish</string>
+    <string name="general_continue">Davom etish</string>
+    <string name="general_ok">OK</string>
+    <string name="general_cancel">Bekor qilish</string>
+    <string name="general_settings">Sozlamalar</string>
+    <string name="general_licenses">Litsenziyalar</string>
+    <string name="general_record">Yozish</string>
+    <string name="general_pause">To\'xtatib turish</string>
+    <string name="general_resume">Davom ettirish</string>
+    <string name="general_incoming">kiruvchi</string>
+    <string name="general_outgoing">chiquvchi</string>
+    <string name="general_reset">Tiklash</string>
+    <string name="general_play">Eshitish</string>
+    <string name="general_share">Ulashish</string>
+    <string name="general_delete">O\'chirish</string>
+    <string name="general_deleted">O\'chirildi</string>
+    <string name="general_system_limitation">Tizim cheklovi</string>
+    <string name="general_system_limitation_message">ShizuCallRecorder bu telefonda ishlamaydi: shell ilovasida kerakli ruxsatlar yo\'q:\n\n%1$s\n\nBu holatda hech narsa qilib bo\'lmaydi, ilova ishlay olmaydi va hozir yopiladi.</string>
+    <string name="general_permission_escalation_exhausted">\'%1$s\' uchun \'%2$s\' ruxsatini olib bo\'lmadi.\nBarcha urinishlar (%3$d) tugadi.\n\nShizuku hozir ishlayotganini tekshiring, xato shundan bo\'lishi mumkin.\n\nTelefon ishlab chiqaruvchisi ruxsat o\'zgarishlarini bloklashi yoki qaytarib qo\'yishi ham mumkin. Telefon sozlamalarida buni o\'chiradigan narsa bor-yo\'qligini tekshiring.\n\nVivo, Oppo, Xiaomi va boshqa Xitoy telefonlarida bu ruxsatni butunlay to\'sadigan qattiq cheklovlar uchraydi.\n\nRuxsatni ADB orqali qo\'lda berish yo\'lini topsangiz, GitHub\'da xabar bering!</string>
+
+    <!-- ========================================== -->
+    <!-- YORDAMCHI (TalkBack)                       -->
+    <!-- ========================================== -->
+    <string name="a11y_overlay_action_start">Yozishni boshlash</string>
+    <string name="a11y_overlay_action_pause">Yozishni to\'xtatib turish</string>
+    <string name="a11y_overlay_action_resume">Yozishni davom ettirish</string>
+    <string name="a11y_overlay_recording_active">Yozilmoqda</string>
+    <string name="a11y_overlay_recording_paused">Yozish to\'xtatilgan</string>
+    <string name="a11y_overlay_recording_stopped">Yozishga tayyor</string>
+    <string name="a11y_overlay_drag_handle">Surish tutqichi: oynani ko\'chirish uchun bosib turing va suring</string>
+    <string name="a11y_contact_photo">%1$s rasmi</string>
+
+
+    <!-- ========================================== -->
+    <!-- EKRANLAR                                   -->
+    <!-- ========================================== -->
+
+    <!-- Ogohlantirish ekrani -->
+    <string name="disclaimer_title">ShizuCallRecorder\'ga xush kelibsiz</string>
+    <string name="disclaimer_wiki_link_KEYWORD">Wiki</string>
+    <string name="disclaimer_introduction">Davom etishdan oldin Wiki sahifasidagi o\'rnatish ko\'rsatmalarini oching va o\'qing. Keyin quyidagi ogohlantirishni o\'qing.</string>
+    <string name="disclaimer_body" translatable="false">
+        Ushbu ilovadan foydalanib, siz ushbu ogohlantirishni o\'qiganingizni va dastur GNU General Public License v3.0 (7-band bo\'yicha qo\'shimcha shartlar bilan) ostida litsenziyalanganini tasdiqlaysiz.\n\n
+
+        Copyright © 2026 Kitsumed (Med)\n\n
+
+        Bu dastur erkin dastur: uni Free Software Foundation e\'lon qilgan GNU General Public License shartlari bo\'yicha (3-versiya yoki o\'zingiz tanlagan keyingi versiya) tarqatishingiz va o\'zgartirishingiz mumkin.\n\n
+
+        Bu dastur foydali bo\'lishi umidida tarqatiladi, lekin HECH QANDAY KAFOLATSIZ; hatto SOTILISHI YOKI MA\'LUM MAQSADGA YARASHLIGI kafolatisiz. Batafsil GNU General Public License matniga qarang.\n\n
+
+        Litsenziya nusxasini dastur bilan birga olgan bo\'lishingiz kerak. Aks holda qarang: https://github.com/kitsumed/ShizuCallRecorder/blob/main/LICENSE/.\n\n
+
+        ----------------------Ogohlantirish---------------------------\n\n
+
+        Telefon suhbatlarini yozib olish turli mamlakatlarda turlicha va murakkab qonunlarga bo\'ysunishi mumkin. Masalan, suhbatni yozishdan oldin barcha ishtirokchilardan rozilik olish talab qilinishi mumkin. Ishlab chiquvchilar va hissa qo\'shuvchilar ilovadan noto\'g\'ri foydalanish yoki uning oqibatida yuzaga keladigan huquqiy oqibatlar uchun javobgar emas.\n
+        Ko\'proq ma\'lumot: https://en.wikipedia.org/wiki/Telephone_call_recording_laws.\n\n
+
+        Agar yozishdan oldin kimnidir ogohlantirishingiz yoki undan rozilik so\'rashingiz qonun bo\'yicha shart bo\'lsa, ilova buni SIZ UCHUN BAJARMAYDI.\n
+        Ba\'zi hollarda avtomatik yozish kabi imkoniyatlar qonun bo\'yicha taqiqlangan bo\'lishi mumkin. Amaldagi qonunlarga rioya qilish sizning javobgarligingiz. Bu yuridik maslahat emas. Aniq holatingiz bo\'yicha yurist bilan maslahatlashing.\n\n
+
+        ILOVANING ISHLASHI\n
+        Android tizimi va telefon turlarining xilma-xilligi sababli bu dastur oldindan aytib bo\'lmaydigan tarzda ishlashi mumkin:\n\n
+        * Bir vaqtdagi qo\'ng\'iroqlar: ilova suhbat paytida ikkinchi qo\'ng\'iroq kelishi yoki qo\'ng\'iroqlar almashishini payqamasligi mumkin. Bunda ilova keyingi qo\'ng\'iroq qiluvchilar uchun alohida xabarsiz yoki yangi bildirishnomasiz, bitta uzluksiz faylga yozishda davom etishi mumkin.\n\n
+        * Filtr cheklovlari: Android raqamni real vaqtda ko\'rsatmasligi sababli ilova qo\'ng\'iroqni aniqlash usuliga qarab eskirgan yoki ishonchsiz qiymatlarga tayanishi mumkin. Qiymat kech kelsa, noto\'g\'ri bo\'lsa yoki umuman kelmasa, ilova qo\'ng\'iroqni noma\'lum deb hisoblashi ehtimoli katta.\n\n
+        * Kutilmagan nosozliklar: kelgusi tizim yangilanishlari, xatolar yoki hujjatlashtirilmagan tizim xatti-harakatlari ilovaning kutilmagan tarzda yozishni boshlashi, davom ettirishi yoki to\'xtashiga olib kelishi mumkin.\n\n
+
+        FOYDALANUVCHI JAVOBGARLIGI\n
+        Ilovaning xatti-harakati oldindan kafolatlanmagani uchun siz quyidagilarga javobgarsiz:\n\n
+        1. Yozish xatti-harakati va ilova sozlamalari sizning niyatingizga va o\'z hududingizdagi talablarga mos kelishini ta\'minlash.\n\n
+        2. Ilovaning telefoningizda qanday ishlashini kuzatib borish. Agar mahalliy qonunlarga zid xatti-harakatni ko\'rsangiz, qonunbuzarlikni darhol to\'xtating (masalan, qo\'ng\'iroqni tugatish, audio fayllarni o\'chirish).
+    </string>
+    <string name="disclaimer_checkbox_label">Ogohlantirishni o\'qidim, bu dasturning huquqiy talablari, mas\'uliyati va texnik cheklovlarini tushunaman.</string>
+    <string name="disclaimer_wait">%1$d soniya kuting</string>
+    <string name="disclaimer_must_read">Ogohlantirishni o\'qishingiz shart.</string>
+
+    <!-- Loyihani qo'llab-quvvatlash ekrani -->
+    <string name="sponsor_title">Loyihani qo\'llab-quvvatlash</string>
+    <string name="sponsor_body_title">Salom, men kitsumed (Med)! 👋</string>
+    <string name="sponsor_body">Yoshligimdan texnologiya va kompyuterlar bilan qiziqaman. Loyihalarimning ko\'pi o\'zimning jismoniy yoki ruhiy cheklovlarimga yechim izlashdan tug\'ilgan, qolganlari esa oddiy ilhomdan.\n\nShizuCallRecorder cheklovlarimdan biri bilan bog\'liq shaxsiy ehtiyojdan paydo bo\'ldi. Bir necha yil davomida rootsiz telefonlarda ishlaydigan bepul va ochiq kodli qo\'ng\'iroq yozish ilovasini qidirdim, lekin topolmadim. Shuning uchun o\'zim yaratdim va hammaga ochiq qildim.\n\nBo\'sh vaqtimning ko\'pini ochiq kodli dasturlarni o\'rganish, yaratish va qo\'llab-quvvatlashga sarflayman. Sizning yordamingiz kundalik hayotimda moliyaviy jihatdan yordam beradi va jamiyat uchun sifatli vositalar yaratishda davom etishga ilhomlantiradi.\n\nIlovalarimni zo\'ravon reklamasiz va maxfiylikka tajovuz qiluvchi kuzatuvsiz saqlashga ishonaman. Vositalarim kundalik hayotingizda foydali bo\'lgan bo\'lsa, qo\'llab-quvvatlashni o\'ylab ko\'ring!</string>
+    <string name="sponsor_days_used">ShizuCallRecorder\'dan %1$d kundan beri foydalanyapsiz!</string>
+
+    <string name="sponsor_way_to_help">Qanday yordam berish mumkin:</string>
+    <string name="sponsor_way_github_sponsor_title">GitHub homiysi bo\'ling</string>
+    <string name="sponsor_way_github_sponsor_description">Ommaviy homiy yutug\'ini oling, profilingiz mening sahifamda ko\'rinadi va ochiq kodli ishimni moliyaviy qo\'llab-quvvatlaysiz.</string>
+    <string name="sponsor_way_github_star_title">GitHub\'da yulduzcha qo\'ying</string>
+    <string name="sponsor_way_github_star_description">Loyiha ko\'proq odamga ko\'rinishiga yordam bering.</string>
+    <string name="sponsor_way_contribute_title">Hissa qo\'shing</string>
+    <string name="sponsor_way_contribute_description">Kod, xatolar haqida xabar yoki tarjima bilan yordam bering.</string>
+    <string name="sponsor_way_share_title">Ilovani ulashing</string>
+    <string name="sponsor_way_share_description">Do\'stlaringizga yoki hamjamiyatga ShizuCallRecorder haqida ayting.</string>
+
+    <string name="sponsor_github_sponsor_button">GitHub\'da homiy bo\'lish</string>
+    <string name="sponsor_github_star_button">Yulduzcha qo\'yish</string>
+    <string name="sponsor_maybe_later_button">Keyinroq</string>
+
+    <string name="sponsor_notification_body">Bu loyiha bepul, ochiq kodli va reklamasiz. Vosita kundalik hayotingizda yordam bergan bo\'lsa, loyihani qo\'llab-quvvatlash yo\'llarini ko\'rib chiqing!</string>
+    <string name="sponsor_notification_action">Qo\'llab-quvvatlash usullarini ko\'rish</string>
+    <string name="sponsor_notification_call_to_action_title">ShizuCallRecorder yoqdimi?</string>
+    <string name="sponsor_notification_call_to_action">Sizning yordamingiz kerak!</string>
+
+    <!-- Ruxsatlar ekrani -->
+    <string name="permissions_title">Ruxsatlarni sozlash</string>
+    <string name="permissions_intro">Yozishni boshlash uchun bir necha ruxsat kerak. «Ruxsat berish» tugmasini bosing va har birini tasdiqlang.</string>
+    <string name="permissions_grant_access">Ruxsat berish</string>
+    <string name="permissions_status_granted">Berilgan</string>
+    <string name="permissions_status_required">Kerak</string>
+
+    <string name="permission_notifications_label">Bildirishnomalar</string>
+    <string name="permission_notifications_description">Yozish holati va xatolar haqida xabar berish uchun.</string>
+
+    <string name="permission_contacts_label">Kontaktlar</string>
+    <string name="permission_contacts_description">Tanish kontaktlarni e\'tiborsiz qoldirish qoidalari uchun.</string>
+
+    <string name="permission_phone_state_label">Telefon holati</string>
+    <string name="permission_phone_state_description">Qo\'ng\'iroq boshlanishi yoki tugashini aniqlash uchun kerak.</string>
+
+    <string name="permission_call_log_label">Qo\'ng\'iroqlar jurnali</string>
+    <string name="permission_call_log_description">Telefon holati hodisalarida raqamni to\'liq (yashirilmagan) olish uchun kerak.</string>
+
+    <string name="permission_manage_ongoing_calls_label">Davom etayotgan qo\'ng\'iroqlarni boshqarish</string>
+    <string name="permission_manage_ongoing_calls_description">Shizuku bilan avtomatik beriladigan AppOps ruxsati. InCallService orqali qo\'ng\'iroqlarni aniqlash uchun kerak.</string>
+
+    <string name="permission_battery_label">Batareya optimallashtirishi</string>
+    <string name="permission_battery_description">Kerak paytda ilovani tirik saqlaydi va fonda ishga tushish cheklovlarini chetlab o\'tishga imkon beradi.</string>
+
+    <!-- settings_recording_folder_label bilan bir xil sarlavha -->
+    <string name="permission_storage_description">Yozuvlar qayerga saqlanishini tanlang.</string>
+
+    <string name="permission_shizuku_label" translatable="false">Shizuku</string>
+    <string name="permission_shizuku_description">Audio yozishni (ShellService) scrcpy bilan boshlash uchun kerak.</string>
+    <string name="permission_shizuku_not_running">Ishlamayapti</string>
+    <string name="permission_shizuku_open">Shizuku\'ni ochish</string>
+
+    <!-- Sozlamalar ekrani: bo'lim sarlavhalari -->
+    <string name="settings_section_about">Ilova haqida</string>
+    <string name="settings_section_recording">Yozish</string>
+    <string name="settings_section_visual">Ko\'rinish sozlamalari</string>
+    <string name="settings_section_audio">Audio sozlamalari</string>
+    <string name="settings_section_debug">Nosozliklarni tuzatish</string>
+    <string name="settings_section_security">Xavfsizlik</string>
+
+    <!-- Sozlamalar: xavfsizlik -->
+    <string name="settings_shizuku_auto_manage">Shizuku\'ni boshqarish</string>
+    <string name="settings_shizuku_auto_manage_desc">Shizuku\'ni avtomatik yoqish va o\'chirish</string>
+    <string name="settings_shizuku_auth_key">Shizuku Intent autentifikatsiya kaliti</string>
+    <string name="settings_shizuku_start_on_record">Faqat yozishda yoqish</string>
+    <string name="settings_shizuku_start_on_record_desc">Shizuku faqat yozish tugmasi bosilganda yoki avtomatik yozish qoidasi mos kelganda yoqiladi</string>
+    <string name="settings_shizuku_keep_alive">Shizuku\'ni tirik saqlash</string>
+    <string name="settings_shizuku_keep_alive_desc">To\'xtatish buyrug\'ini yubormaslik</string>
+
+    <!-- Sozlamalar: yozish -->
+    <string name="settings_call_detection_method">Qo\'ng\'iroqni aniqlash usuli</string>
+    <string name="settings_call_detection_method_warning_title">Cheklangan qo\'llab-quvvatlash haqida ogohlantirish</string>
+    <string name="call_detection_mode_phonestate_title" translatable="false">Telefon holati</string>
+    <string name="call_detection_mode_phonestate_description">Eskirgan maydonlarga ega eski telefon holati xabaridan foydalanadi. Bu usul poyga holatlariga (race condition) juda moyil va kam ma\'lumot beradi.</string>
+    <string name="call_detection_mode_phonestate_limited_support">Bu qo\'ng\'iroqni aniqlash usuli ishonchsiz. Telefon holati yangilanganda eskirgan qiymat olinadi va aniqlash mantig\'i poyga holatlariga moyil. Shuningdek, operator qo\'ng\'iroqlarini uchinchi tomon ilovalari qo\'ng\'iroqlaridan ajratib bo\'lmaydi. Bu cheklovni noma\'lum qo\'ng\'iroqlarni e\'tiborsiz qoldirish orqali chetlab o\'tish mumkin.</string>
+    <string name="call_detection_mode_incallservice_title" translatable="false">InCallService</string>
+    <string name="call_detection_mode_incallservice_description">Zamonaviy InCallService API\'dan foydalanadi. Bu usul samaraliroq va ko\'proq ma\'lumot bilan yaxshiroq aniqlashni ta\'minlaydi.</string>
+
+    <string name="settings_record_third_party_calls">Uchinchi tomon ilovalarini yozish</string>
+    <string name="settings_record_third_party_calls_description">Android telecom tizimi bilan integratsiyalashgan uchinchi tomon ilovalarining qo\'ng\'iroqlarini yozadi. Natija jim yoki bir tomonlama yozuv bo\'lishi mumkin.</string>
+
+    <string name="settings_tap_to_select_folder">Papkani tanlash uchun bosing...</string>
+    <string name="settings_recording_folder_label">Yozuvlar papkasi</string>
+
+    <string name="settings_file_name_template">Fayl nomi shabloni</string>
+    <string name="settings_file_name_template_placeholders">%s uchun o\'rnini bosuvchilar:</string>
+    <string name="settings_file_name_template_placeholders_preview">Ko\'rinishi: %1$s</string>
+    <string name="placeholder_date_desc">Hozirgi sana va vaqt</string>
+    <string name="placeholder_date_year_desc">Hozirgi yil (masalan, 2026)</string>
+    <string name="placeholder_date_month_desc">Hozirgi oy, ikki xonali (01-12)</string>
+    <string name="placeholder_date_day_desc">Oyning hozirgi kuni, ikki xonali (01-31)</string>
+    <string name="placeholder_date_hours_desc">Hozirgi soat, 24 soatlik, ikki xonali (00-23)</string>
+    <string name="placeholder_date_minutes_desc">Hozirgi daqiqa, ikki xonali (00-59)</string>
+    <string name="placeholder_date_seconds_desc">Hozirgi soniya, ikki xonali (00-59)</string>
+    <string name="placeholder_direction_desc">Qo\'ng\'iroq yo\'nalishi (in/out)</string>
+    <string name="placeholder_phone_number_desc">Telefon raqami</string>
+    <string name="placeholder_caller_name_desc">Qo\'ng\'iroq qiluvchining ismi: avval kontaktlar ro\'yxatidan, bo\'lmasa operator ma\'lumotidan olinadi</string>
+    <string name="placeholder_cross_country_desc">Qo\'ng\'iroq xalqaro ekanini bildiradi (true/false)</string>
+    <string name="placeholder_package_name_desc">Qo\'ng\'iroqni boshlagan ilovaning nomi yoki paket nomi.</string>
+
+    <string name="settings_post_recording_notification">Yozishdan keyingi bildirishnoma</string>
+    <string name="settings_post_recording_notification_description">Yozish tugagach, eshitish va o\'chirish kabi tezkor tugmalar bilan bildirishnoma ko\'rsatadi.</string>
+    <string name="settings_vibration_enabled">Boshlanganda/to\'xtaganda tebranish</string>
+
+    <string name="settings_auto_record_incoming">Kiruvchi qo\'ng\'iroqlarni avtomatik yozish</string>
+    <string name="settings_auto_record_outgoing">Chiquvchi qo\'ng\'iroqlarni avtomatik yozish</string>
+    <string name="settings_ignore_anonymous_incoming">Noma\'lum kiruvchi qo\'ng\'iroqlarni e\'tiborsiz qoldirish</string>
+    <string name="settings_ignore_cross_country_incoming">Xalqaro kiruvchi qo\'ng\'iroqlarni e\'tiborsiz qoldirish</string>
+    <string name="settings_ignore_cross_country_outgoing">Xalqaro chiquvchi qo\'ng\'iroqlarni e\'tiborsiz qoldirish</string>
+    <string name="settings_ignore_contacts_incoming">Kontaktlarni e\'tiborsiz qoldirish (kiruvchi)</string>
+    <string name="settings_ignore_contacts_outgoing">Kontaktlarni e\'tiborsiz qoldirish (chiquvchi)</string>
+    <string name="settings_ignore_contacts_none">Hamma kontaktlarni yozish</string>
+    <string name="settings_ignore_contacts_all">Hamma kontaktlarni e\'tiborsiz qoldirish</string>
+    <string name="settings_ignore_contacts_selected">Tanlangan kontaktlarni e\'tiborsiz qoldirish</string>
+    <string name="settings_select_contacts">Kontaktlarni tanlash (%1$d)</string>
+    <string name="settings_select_contacts_incoming">Kiruvchi kontaktlarni tanlash</string>
+    <string name="settings_select_contacts_outgoing">Chiquvchi kontaktlarni tanlash</string>
+
+    <!-- Sozlamalar: ko'rinish -->
+    <string name="settings_language">Til</string>
+    <string name="settings_language_system">Tizim tili</string>
+    <string name="settings_theme_mode">Mavzu rejimi</string>
+    <string name="settings_dynamic_color">Dinamik mavzu rangi</string>
+    <string name="settings_show_toasts">Qisqa xabarlarni ko\'rsatish</string>
+    <string name="settings_overlay_title">Yozish oynasini ko\'rsatish</string>
+    <string name="settings_overlay_subtitle">Boshqa ilovalar ustida yozishni boshqarish uchun tezkor tugmali oyna ko\'rsatadi.</string>
+
+    <string name="settings_theme_mode_system">Tizim bo\'yicha</string>
+    <string name="settings_theme_mode_light">Yorug\'</string>
+    <string name="settings_theme_mode_dark">Qorong\'i</string>
+
+    <!-- Sozlamalar: audio -->
+    <string name="settings_audio_codec">Audio kodek</string>
+    <string name="settings_audio_bitrate_recommendation">Muammo bo\'lsa AAC ni sinab ko\'ring: u telefonlarda keng qo\'llab-quvvatlanadi.</string>
+    <string name="audio_codec_opus" translatable="false">Opus</string>
+    <string name="audio_codec_aac" translatable="false">AAC</string>
+    <string name="audio_codec_he_aac_v1" translatable="false">HE-AAC v1</string>
+    <string name="audio_codec_he_aac_v2" translatable="false">HE-AAC v2</string>
+    <string name="audio_codec_xhe_aac" translatable="false">xHE-AAC</string>
+    <string name="audio_codec_amr_wb" translatable="false">AMR-WB</string>
+    <string name="settings_audio_allow_playback_api">Playback API orqali yozishga ruxsat</string>
+    <string name="settings_audio_allow_playback_api_desc">VoIP yoki Wi-Fi qo\'ng\'iroq aniqlansa, tanlangan uplink/downlink manbalari o\'rniga ovozni ijro oqimidan yoki unga teng boshqa manbadan olishga urinadi.</string>
+    <string name="settings_audio_channel_split">Uplink/Downlink ovozini ajratish</string>
+    <string name="settings_audio_channel_split_desc">Sizning ovozingiz chap kanalga, narigi tomon ovozi o\'ng kanalga yoziladi.</string>
+
+    <string name="settings_audio_bitrate">Audio bitreyt</string>
+    <string name="audio_bitrate_kbps" translatable="false">%1$d kbit/s</string>
+
+    <string name="settings_audio_source">Audio manba</string>
+    <string name="audio_source_voice_comm" translatable="false">Mikrofon (muloqot uchun)</string>
+    <string name="audio_source_voice_comm_description">Ovozli muloqot uchun sozlangan mikrofon manbasi. Aks-sadoni yo\'qotish o\'rnatilgan.</string>
+
+    <string name="audio_source_voice_call" translatable="false">Qo\'ng\'iroq ovozi</string>
+    <string name="audio_source_voice_call_description">Qo\'ng\'iroqning ikkala tomonini yozadi. Xom ovoz, telefon signallari bilan.</string>
+
+    <string name="audio_source_voice_recognition" translatable="false">Mikrofon (ovozni aniqlash uchun)</string>
+    <string name="audio_source_voice_recognition_description">Ovozni aniqlash uchun sozlangan mikrofon manbasi.</string>
+
+    <string name="audio_source_remote_submix" translatable="false">Masofaviy submiks</string>
+    <string name="audio_source_remote_submix_description">Ovozni karnaylarga yuborilayotgan holda aynan yozadi. Telefon tovush chiqarmay qo\'yadi.</string>
+
+    <string name="audio_source_voice_call_uplink" translatable="false">Qo\'ng\'iroq: faqat sizning ovozingiz</string>
+    <string name="audio_source_voice_call_uplink_description">Qo\'ng\'iroqning faqat sizning tomoningizni yozadi (uplink).</string>
+
+    <string name="audio_source_voice_call_downlink" translatable="false">Qo\'ng\'iroq: faqat narigi tomon</string>
+    <string name="audio_source_voice_call_downlink_description">Qo\'ng\'iroqning faqat narigi tomonini yozadi (downlink).</string>
+
+    <string name="audio_source_uplink_downlink" translatable="false">Uplink + Downlink (ikkala tomon)</string>
+    <string name="audio_source_uplink_downlink_description">Qo\'ng\'iroqning ikkala tomonini yozadi (uplink + downlink aralashmasi), telefon signallarisiz.</string>
+
+    <string name="audio_source_mic_voice_communication_downlink" translatable="false">Muloqot mikrofoni + Downlink</string>
+    <string name="audio_source_mic_voice_communication_downlink_description">Qo\'ng\'iroqning ikkala tomonini yozadi (muloqot mikrofoni + downlink aralashmasi), telefon signallarisiz.</string>
+
+    <string name="audio_source_mic_voice_recognition_downlink" translatable="false">Ovoz aniqlash mikrofoni + Downlink</string>
+    <string name="audio_source_mic_voice_recognition_downlink_description">Qo\'ng\'iroqning ikkala tomonini yozadi (ovoz aniqlash mikrofoni + downlink aralashmasi), telefon signallarisiz.</string>
+
+    <!-- Sozlamalar: nosozliklarni tuzatish -->
+    <string name="settings_debug_logging_enabled">Jurnal yozishni yoqish</string>
+    <string name="settings_debug_logging_enabled_description">Xato haqida xabar berish uchun buni yoqing, ilovani qayta ishga tushiring va muammoni takrorlang.</string>
+    <string name="settings_debug_logging_title">Xato haqida xabar berish tartibi</string>
+    <string name="settings_debug_logging_steps">
+        1. Muammo GitHub\'da allaqachon xabar qilinganini tekshiring, bo\'lmasa davom eting.\n
+        2. Jurnal yozish yoqiq holda xatoni takrorlang.\n
+        3. Jurnalni telefonga saqlash uchun pastdagi «Hisobot yaratish» tugmasini bosing.\n
+        4. GitHub\'da yangi masala ochish uchun «GitHub\'da xabar berish» ni bosing, maydonlarni to\'ldiring va jurnal faylini biriktiring.
+    </string>
+    <string name="settings_debug_logging_step_warning">Ulashishdan oldin yaratilgan faylni maxfiy ma\'lumotlar uchun tekshiring. Tugagach jurnal yozishni o\'chiring.</string>
+    <string name="settings_debug_logging_step_warning_no_redaction">⚠️ Nosozlik rejimi YOQILGAN. Jurnaldagi ma\'lumotlar yashirilmaydi.</string>
+    <string name="settings_debug_logging_generate_report">Hisobot yaratish</string>
+    <string name="settings_debug_logging_report_on_github">GitHub\'da xabar berish</string>
+    <string name="settings_debug_mode">Nosozlik rejimini yoqish</string>
+    <string name="settings_debug_mode_description">Dasturchi sozlamalarini ko\'rsatadi, jurnalda ma\'lumotlarni yashirishni o\'chiradi.</string>
+    <string name="settings_debug_caller_number">Sinov telefon raqami</string>
+    <string name="settings_debug_action_ringing" translatable="false">Jiringlamoqda</string>
+    <string name="settings_debug_action_offhook" translatable="false">Go\'shak ko\'tarildi</string>
+    <string name="settings_debug_action_idle" translatable="false">Bo\'sh / Tugadi</string>
+
+    <!-- Sozlamalar: ilova haqida -->
+    <string name="settings_view_licenses">Litsenziyalarni ko\'rish</string>
+    <string name="settings_open_github_Wiki">Wiki\'ni ochish</string>
+
+    <!-- Kontakt tanlash oynasi -->
+    <string name="contact_search_hint">Ism yoki raqam bo\'yicha qidirish...</string>
+    <string name="contact_select_all">Hammasini tanlash</string>
+    <string name="contact_unselect_all">Tanlovni bekor qilish</string>
+
+    <!-- ========================================== -->
+    <!-- XIZMATLAR VA FON ISHLARI                   -->
+    <!-- ========================================== -->
+
+    <!-- Yozish xizmati: bildirishnomalar -->
+    <string name="recording_standby_notification_title">Qo\'ng\'iroq davom etmoqda</string>
+    <string name="recording_notification_cross_country_tip">🌐Xalqaro</string>
+    <string name="recording_notification_current_country_tip">🏠Mahalliy</string>
+    <string name="recording_notification_title">Yozilmoqda</string>
+    <string name="recording_notification_press_to_start">Yozishni boshlash uchun bosing</string>
+    <string name="recording_notification_waiting_shizuku">Shizuku serveri ishga tushishi kutilmoqda...</string>
+    <string name="recording_notification_press_to_pause">Yozishni to\'xtatib turish uchun bosing</string>
+    <string name="recording_notification_press_to_resume">Yozishni davom ettirish uchun bosing</string>
+    <string name="recording_toast_standby">%1$s qo\'ng\'iroq uchun kutish rejimi.</string>
+    <string name="recording_toast_ended">Qo\'ng\'iroq tugadi. Yozish to\'xtatildi.</string>
+    <string name="recording_toast_paused">Yozish to\'xtatib turildi.</string>
+    <string name="recording_toast_resumed">Yozish davom ettirildi.</string>
+    <string name="recording_started">Yozish boshlandi.</string>
+    <string name="post_recording_notification_title">Yozuvni boshqarish</string>
+    <string name="post_recording_notification_unknown_caller">Noma\'lum yoki yashirin raqam</string>
+    <!-- Yozish xizmati: o'chirishni tasdiqlash oynasi -->
+    <string name="delete_recording_confirmation_title">Yozuvni o\'chirish</string>
+    <string name="delete_recording_confirmation_message">Bu yozuvni o\'chirishga ishonchingiz komilmi? Buni qaytarib bo\'lmaydi.</string>
+    <string name="delete_recording_confirmation_failed">Yozuvni o\'chirib bo\'lmadi. Ilova jurnallarini tekshiring.</string>
+    <!-- Yozish xizmati: xatolar -->
+    <string name="recording_error_title">Yozish xatosi</string>
+    <string name="recording_error_folder_missing">Tanlangan papka yo\'q, yaroqsiz yoki unga yozishga ruxsat yo\'q. Ilova sozlamalarida boshqa papka tanlang.</string>
+    <string name="recording_error_file_creation">Yozuv faylini yaratib bo\'lmadi. Xotiraga ruxsatni tekshiring yoki ilova sozlamalarida boshqa papka tanlang.</string>
+    <string name="recording_error_cannot_reach_binder">Yozishni boshlab bo\'lmadi. ShellService binder usulini chaqirishda xato yuz berdi.</string>
+    <string name="recording_unexpected_error">Yozish paytida kutilmagan xato yuz berdi. Uni takrorlash bosqichlari va ilova jurnallari bilan birga xabar bering.</string>
+    <string name="recording_failure_capture_start_failed">Audio yozib olish boshlanganda xato yuz berdi.</string>
+    <string name="recording_failure_capture_read_failed">Yozib olingan audioni o\'qish va qayta ishlashda xato yuz berdi.</string>
+    <!-- Yozish xizmati: Shizuku xatolari -->
+    <string name="recording_error_shizuku_disconnected_unexpectedly">Shizuku kutilmaganda uzildi va yozish to\'xtadi. (Shizuku serveri jarayoni to\'xtagan)</string>
+    <string name="recording_shizuku_not_started">Shizuku serveri to\'xtagan. Shizuku\'ni ishga tushiring va ilova yozmoqchi bo\'lganda u doim ishlab turishini ta\'minlang.</string>
+    <string name="recording_shizuku_permission_denied">Ilovaga Shizuku\'dan foydalanishga ruxsat bering. Ruxsat rad etildi.</string>
+    <string name="recording_shizuku_auth_key_missing">Shizuku Intent autentifikatsiya kaliti yo\'q. Uni ilova sozlamalariga kiriting.</string>
+</resources>

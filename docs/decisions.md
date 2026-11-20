@@ -182,3 +182,9 @@
 - **Qaror (buyurtmachi: «avval ogohlantirish»):** gaplashilgan qo'ng'iroqdan 5 daqiqa o'tgach yozuv yo'q yoki qisqa bo'lsa — Administrator, Administrator+Hisobchi, Bosh menejerga Telegram. `calls/rec_watch.py`, hodisa `rec_problem`, `CallRecord.rec_alert_at`.
 
 - **Aniqlangan sabab (2026-11-20, telefon jurnali):** yozuv qo'ng'iroq paytida karnay yoqilsa/o'chirilsa uziladi (Telecom `USER_SWITCH_SPEAKER` / javobdan keyin `USER_SWITCH_EARPIECE` vaqtlari yozuv uzilgan vaqt bilan mos: 15:09, 14:55, 16:25, 15:04, 17:11, 17:13). Karnay boshida yoqilib tegilmasa — yozuv to'liq. Ogohlantirish matniga shu maslahat qo'shildi. Telefon region `IN` (Google Dialer, Xiaomi dialeri yo'q) — Xiaomi'ning o'z yozuvi mumkin emas.
+
+## 2026-11-20 — Birlashgan Android ilova (Codial + yozuvchi, o'zbekcha)
+
+- **Qaror (buyurtmachi):** telefondagi 3 ta ilova (Shizuku, ShizuCallRecorder, Codial qo'ng'iroqlar) o'rniga 2 ta: Shizuku + bitta o'zbekcha ilova `uz.codial.calls` (Codial kodi ShizuCallRecorder v2.0.0 forkiga qo'shilgan). Shizuku'ni ichiga olish (3→1) murakkabligi va foydasi kichikligi sababli qilinmadi.
+- **Sabablar va tuzatishlar:** karnay/quloq almashganda AudioRecord uziladi — oqimlar noldan qayta ochiladi; ekran qulfi (swipe) yopiq turganda Android 11 yozuvga ruxsat bermaydi — ekran yoqiladi va qulf yechiladi; MIUI jarayonni jiringlash paytida o'ldiradi — doimiy xizmat. Audio manba «Qo'ng'iroq ovozi» (Uplink+Downlink narigi tomonni yozmadi).
+- **Manba:** `tools/shizucallrecorder/` (patch, o'zbekcha strings, yig'ish va MIUI sozlamalari). ERP: «Yozuvlar» ro'yxatida bir fayl — bir qator (eng uzun nusxa; boshqalari bazada saqlanadi).
