@@ -188,3 +188,8 @@
 - **Qaror (buyurtmachi):** telefondagi 3 ta ilova (Shizuku, ShizuCallRecorder, Codial qo'ng'iroqlar) o'rniga 2 ta: Shizuku + bitta o'zbekcha ilova `uz.codial.calls` (Codial kodi ShizuCallRecorder v2.0.0 forkiga qo'shilgan). Shizuku'ni ichiga olish (3→1) murakkabligi va foydasi kichikligi sababli qilinmadi.
 - **Sabablar va tuzatishlar:** karnay/quloq almashganda AudioRecord uziladi — oqimlar noldan qayta ochiladi; ekran qulfi (swipe) yopiq turganda Android 11 yozuvga ruxsat bermaydi — ekran yoqiladi va qulf yechiladi; MIUI jarayonni jiringlash paytida o'ldiradi — doimiy xizmat. Audio manba «Qo'ng'iroq ovozi» (Uplink+Downlink narigi tomonni yozmadi).
 - **Manba:** `tools/shizucallrecorder/` (patch, o'zbekcha strings, yig'ish va MIUI sozlamalari). ERP: «Yozuvlar» ro'yxatida bir fayl — bir qator (eng uzun nusxa; boshqalari bazada saqlanadi).
+
+## 2026-11-22 — Instagram lid audiolari guruhga kech borardi
+
+- **Sabab:** `ig_audio.tick()` navbatdagi dastlabki 10 ta yozuvni olardi, ichida lidga aloqasiz oddiy qo'ng'iroqlar ham bor edi (belgilanmay qoladi) — ular IG/FB lidlar audiosini 1–2 kun, 2 kunlik oynadan chiqquncha to'sib turardi (46 ta navbatdan faqat 9 tasi IG).
+- **Tuzatish:** navbat faqat IG/FB lidiga tegishli qo'ng'iroqlardan (`Exists`); yozuv suhbatdan qisqa bo'lsa izohga «⚠️ Yozuv to'liq emas: m:ss» qatori qo'shildi. Telegram vaqtinchalik xatolari (502, ulanish uzilishi) keyingi daqiqada qayta uriniladi.

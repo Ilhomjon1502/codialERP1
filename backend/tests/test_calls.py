@@ -574,3 +574,17 @@ def test_recordings_list_shows_one_row_per_file(api, paired, make_user, media):
     from apps.calls.models import CallRecording
 
     assert CallRecording.objects.count() == 4  # bazada hammasi saqlangan
+
+
+def test_ig_audio_caption_warns_when_recording_is_cut_short(api, paired, media, settings):
+    """2026-11-22: 5:28 suhbat va 0:22 yozuv guruhga to'liq suhbat sifatida ketmasin — izohda ogohlantirish."""
+    from apps.calls import ig_audio
+
+    settings.IG_CALLS_CHAT_ID = -100777
+    _ig_setup(api, paired, media)
+    c = CallRecord.objects.get()
+    assert "to'liq emas" not in ig_audio.caption(c, ig_audio.find_inbox(c))
+    CallRecord.objects.filter(pk=c.pk).update(duration=328, audio_duration=22)
+    c.refresh_from_db()
+    text = ig_audio.caption(c, ig_audio.find_inbox(c))
+    assert "Yozuv to'liq emas" in text and "0:22" in text and "5:28" in text

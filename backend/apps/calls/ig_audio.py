@@ -11,12 +11,14 @@ import logging
 from html import escape
 
 from django.conf import settings
+from django.db.models import Exists, OuterRef
 from django.utils import timezone
 
 from apps.crm.models import InboxLead
 from apps.notifications import services as tg
 
 from .models import CallRecord
+from .rec_watch import shortfall
 
 log = logging.getLogger(__name__)
 KINDS = (InboxLead.Kind.INSTAGRAM, InboxLead.Kind.FACEBOOK)
@@ -54,6 +56,9 @@ def caption(call, lead):
         f"🆕 <b>Lid tushgan:</b> {_local(lead.received_at)}",
         f"📞 <b>Qo'ng'iroq:</b> {_local(call.started_at)} · {direction} · suhbat {call.duration // 60}:{call.duration % 60:02d}",
     ]
+    rec = call.audio_duration or 0
+    if rec + shortfall(call.duration) < call.duration:  # yozuv uzilgan (Shizuku/karnay): guruh to'liq suhbat deb o'ylamasin
+        lines.append(f"⚠️ <b>Yozuv to'liq emas:</b> {rec // 60}:{rec % 60:02d} (suhbat {call.duration // 60}:{call.duration % 60:02d})")
     return "\n".join(lines)[:1024]
 
 
@@ -81,8 +86,10 @@ def tick(now=None, sender=None):
         return 0
     now = now or timezone.now()
     sender = sender or send
+    # Faqat Instagram/Facebook lidiga tegishli yozuvlar navbatda: aks holda boshqa (lidga aloqasiz) yozuvlar oldingi 10 ta o'ringa tiqilib, hech narsa yuborilmay qolardi
+    mine = InboxLead.objects.filter(branch_id=OuterRef("branch_id"), phone=OuterRef("phone"), kind__in=KINDS, received_at__lte=OuterRef("started_at"))
     qs = (CallRecord.objects.filter(audio_tg_at__isnull=True, audio_at__gte=now - WINDOW, audio_at__lte=now - SETTLE, duration__gt=0, audio_size__gte=MIN_BYTES)
-          .exclude(audio="").order_by("audio_at"))
+          .exclude(audio="").filter(Exists(mine)).order_by("audio_at"))
     sent = 0
     for call in qs[:10]:
         lead = find_inbox(call)
