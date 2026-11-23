@@ -1198,8 +1198,9 @@
     const top = A.isTop();
     const B = A.branchIds()[0];
     const [, all] = await Promise.all([A.reloadMoney(), A.http.get('/salary-assignments/')]);
-    const prevYm = A.addMonths(A.ym(A.today()), -1);
-    const [y0, m0] = prevYm.split('-').map(Number);
+    // Yangi oylik: standart davr — ro'yxatda tanlangan oy (chap daraxt), tanlanmagan bo'lsa — joriy oy
+    const picked = String(A.q('sp:tree', '')).split('|')[1];
+    const [y0, m0] = (/^\d{4}-\d{2}$/.test(picked || '') ? picked : A.ym(A.today())).split('-').map(Number);
     const find = (x) => all.find((z) => z.user === x.user && z.year === Number(x.year) && z.month === Number(x.month));
     const fits = (a, x) => a.cash_type === 'ALL' || a.cash_type === x.cash_type;
     // tahrirda joriy g'azna (mas'ul bo'lmasa ham) ro'yxatda qoladi
