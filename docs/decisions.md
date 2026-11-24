@@ -193,3 +193,8 @@
 
 - **Sabab:** `ig_audio.tick()` navbatdagi dastlabki 10 ta yozuvni olardi, ichida lidga aloqasiz oddiy qo'ng'iroqlar ham bor edi (belgilanmay qoladi) — ular IG/FB lidlar audiosini 1–2 kun, 2 kunlik oynadan chiqquncha to'sib turardi (46 ta navbatdan faqat 9 tasi IG).
 - **Tuzatish:** navbat faqat IG/FB lidiga tegishli qo'ng'iroqlardan (`Exists`); yozuv suhbatdan qisqa bo'lsa izohga «⚠️ Yozuv to'liq emas: m:ss» qatori qo'shildi. Telegram vaqtinchalik xatolari (502, ulanish uzilishi) keyingi daqiqada qayta uriniladi.
+
+## 2026-11-24 — Guruhga yozuvning oraliq (qisqa) nusxasi ketardi
+
+- **Sabab:** telefon yozuv davom etayotganda uni oraliq yuklaydi (92 s, 179 s, ...). Qo'ng'iroq tugab jurnali kelishi bilan eng oxirgi oraliq nusxa qo'ng'iroqqa biriktirilib, bot uni darhol guruhga yuborgan; to'liq fayl 1 soniya keyin kelgan, lekin qayta yuborilmaydi (6:15 suhbat → 3 daqiqalik audio).
+- **Qaror (buyurtmachi):** suhbat 10–30 daqiqa, 1 soat va undan ortiq bo'lishi mumkin — audio har doim to'liq tushsin. **Server:** yozuv suhbatdan 15 s dan ko'p qisqa bo'lsa, qo'ng'iroq tugagach 30 daqiqagacha to'liq fayl kutiladi (suhbat uzunligiga bog'liq emas), kelmasa «⚠️ Yozuv to'liq emas» izohi bilan yuboriladi. **Telefon (3.4):** qo'ng'iroq davomida oraliq nusxa yuklanmaydi.

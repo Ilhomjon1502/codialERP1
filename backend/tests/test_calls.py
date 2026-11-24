@@ -588,3 +588,44 @@ def test_ig_audio_caption_warns_when_recording_is_cut_short(api, paired, media, 
     c.refresh_from_db()
     text = ig_audio.caption(c, ig_audio.find_inbox(c))
     assert "Yozuv to'liq emas" in text and "0:22" in text and "5:28" in text
+
+
+def test_ig_audio_waits_for_the_full_file_before_sending(api, paired, media, settings):
+    """2026-11-24: 6 daqiqalik suhbat guruhga 2 daqiqalik oraliq nusxa bo'lib ketgan edi — to'liq fayl kelguncha kutiladi."""
+    from apps.calls import ig_audio
+
+    settings.IG_CALLS_CHAT_ID = -100777
+    _ig_setup(api, paired, media)
+    started = datetime.datetime.fromtimestamp(T0 / 1000, tz=datetime.UTC)
+    CallRecord.objects.update(duration=360, audio_duration=179, audio_at=started + datetime.timedelta(minutes=3))  # oraliq nusxa
+    sent = []
+    soon = started + datetime.timedelta(minutes=8)  # suhbat 6 daqiqa, tugaganiga 2 daqiqa
+    assert ig_audio.tick(soon, sender=lambda c, lead, chat: sent.append(c.audio_duration)) == 0
+    CallRecord.objects.update(audio_duration=375, audio_at=started + datetime.timedelta(minutes=7))  # to'liq fayl keldi
+    assert ig_audio.tick(soon + datetime.timedelta(minutes=2), sender=lambda c, lead, chat: sent.append(c.audio_duration)) == 1
+    assert sent == [375]
+
+
+def test_ig_audio_sends_incomplete_file_after_waiting(api, paired, media, settings):
+    from apps.calls import ig_audio
+
+    settings.IG_CALLS_CHAT_ID = -100777
+    _ig_setup(api, paired, media)
+    started = datetime.datetime.fromtimestamp(T0 / 1000, tz=datetime.UTC)
+    CallRecord.objects.update(duration=360, audio_duration=22, audio_at=started + datetime.timedelta(minutes=1))
+    assert ig_audio.tick(started + datetime.timedelta(minutes=30), sender=lambda *a: pytest.fail("hali kutiladi")) == 0
+    late = started + datetime.timedelta(minutes=40)  # suhbat (6 daqiqa) tugaganiga 30 daqiqadan ko'p o'tdi
+    assert ig_audio.tick(late, sender=lambda *a: None) == 1
+
+
+def test_ig_audio_long_call_partial_snapshot_is_not_sent(api, paired, media, settings):
+    """1 soatlik suhbat: oxirgi oraliq nusxa suhbatdan 1,5 daqiqa qisqa bo'lsa ham to'liq hisoblanmaydi."""
+    from apps.calls import ig_audio
+
+    settings.IG_CALLS_CHAT_ID = -100777
+    _ig_setup(api, paired, media)
+    started = datetime.datetime.fromtimestamp(T0 / 1000, tz=datetime.UTC)
+    CallRecord.objects.update(duration=3600, audio_duration=3510, audio_at=started + datetime.timedelta(minutes=59))
+    assert ig_audio.tick(started + datetime.timedelta(minutes=64), sender=lambda *a: pytest.fail("to'liq fayl kutiladi")) == 0
+    CallRecord.objects.update(audio_duration=3595, audio_at=started + datetime.timedelta(minutes=61))
+    assert ig_audio.tick(started + datetime.timedelta(minutes=64), sender=lambda *a: None) == 1

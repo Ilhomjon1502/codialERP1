@@ -10,6 +10,7 @@ Telefonda faqat ikkita ilova qoladi: bu ilova va **Shizuku** (`moe.shizuku.privi
 ## Tuzatishlar (nima uchun kerak bo'lgan)
 1. **Karnay/quloq almashganda yozuv uzilishi** (`ShellRecordingEngine.recoverCapture`): Android AudioRecord'ni uzadi va o'zi qayta ocholmaydi (`createRecord ... getInputForAttr -1`); oqim(lar) noldan qayta ochiladi. Ikkala oqim ham qayta ochiladi (Android tiklagani jim qaytaradi).
 2. **Ekran qulfi (swipe) yopiq turganda yozuv boshlanmasligi**: Android 11 da yozuv shell'ning «ko'rinadigan oynasi»ga tayanadi, qulf ustida u ko'rinmaydi (`recording not allowed for uid 2000`). `CallReceiver` jiringlash/javobda ekranni yoqadi va `UnlockActivity` bilan qulfni yechadi (+ to'liq ekranli bildirishnoma zaxirasi). `AudioRecordCapture`: urinish 25 × 200 ms.
+4. **Qo'ng'iroq davomida oraliq yozuv yuklanmaydi** (3.4, `Recordings.run`): telefon yozuv davom etayotganda uni bir necha marta yuklasa, ERP/guruhga qisqa nusxa ketardi; endi faqat qo'ng'iroq tugagach to'liq fayl yuklanadi.
 3. **Doimiy xizmat** (`CallService`) jarayonni tirik saqlaydi — MIUI uni qo'ng'iroq jiringlayotganda o'ldirmaydi, kiruvchi qo'ng'iroqda yozuv javobdan ~4 s keyin boshlanadi.
 
 ## Yig'ish (Windows, foydalanuvchi Terminalida)

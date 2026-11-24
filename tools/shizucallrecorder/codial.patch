@@ -1,5 +1,5 @@
 diff --git a/app/build.gradle.kts b/app/build.gradle.kts
-index 989f531..eb5555e 100644
+index 989f531..8eb4c7d 100644
 --- a/app/build.gradle.kts
 +++ b/app/build.gradle.kts
 @@ -61,12 +61,12 @@ android {
@@ -13,8 +13,8 @@ index 989f531..eb5555e 100644
          // Keep theses two values hard-coded here and update them per version. (To keep F-Droid compatibility since their parser is very basic)
 -        versionCode = 20
 -        versionName = "2.0.0"
-+        versionCode = 33
-+        versionName = "3.3-birlashgan"
++        versionCode = 34
++        versionName = "3.4-birlashgan"
      }
      signingConfigs {
          // Signing config for CI environments.
@@ -1354,10 +1354,10 @@ index 0000000..e5b1072
 +}
 diff --git a/app/src/main/java/uz/codial/calls/Recordings.java b/app/src/main/java/uz/codial/calls/Recordings.java
 new file mode 100644
-index 0000000..4bb63bc
+index 0000000..5abf8f1
 --- /dev/null
 +++ b/app/src/main/java/uz/codial/calls/Recordings.java
-@@ -0,0 +1,202 @@
+@@ -0,0 +1,210 @@
 +package uz.codial.calls;
 +
 +import android.content.Context;
@@ -1442,6 +1442,14 @@ index 0000000..4bb63bc
 +        Prefs p = new Prefs(ctx);
 +        Uri tree = p.recTree();
 +        if (!p.paired() || tree == null) return 0;
++        // 2026-11-24: qo'ng'iroq davom etayotganda yozuv hali yozilmoqda — oraliq nusxalarni yuklamaymiz (ERP/guruhga qisqa nusxa ketmasin).
++        // Tugagach CallReceiver 30 s va 2 daqiqadan keyin qayta so'raydi.
++        try {
++            android.telephony.TelephonyManager tm = (android.telephony.TelephonyManager) ctx.getSystemService(Context.TELEPHONY_SERVICE);
++            if (tm != null && tm.getCallState() != android.telephony.TelephonyManager.CALL_STATE_IDLE) return 0;
++        } catch (SecurityException ignored) {
++            // ruxsat yo'q bo'lsa — avvalgidek ishlaydi
++        }
 +        // avval qo'ng'iroqlar jurnali yuboriladi — server yozuvni shu yozuvlarga moslaydi
 +        CallSync.run(ctx);
 +        List<Item> found = new ArrayList<>();

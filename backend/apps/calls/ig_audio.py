@@ -24,6 +24,8 @@ log = logging.getLogger(__name__)
 KINDS = (InboxLead.Kind.INSTAGRAM, InboxLead.Kind.FACEBOOK)
 SETTLE = datetime.timedelta(seconds=60)   # yozuv yuklangach biroz kutamiz (bitta qo'ng'iroqqa ikki fayl bo'lsa — uzunrog'i qoladi)
 WINDOW = datetime.timedelta(days=2)       # shu muddatda mos lid topilmasa — qaytib urinmaymiz
+INCOMPLETE_WAIT = datetime.timedelta(minutes=30)  # yozuv suhbatdan qisqa: to'liq fayl kelishini suhbat tugagandan shuncha kutamiz (telefon uni qo'ng'iroq tugagach yuklaydi)
+COMPLETE_GAP = 15                                 # soniya: yozuv suhbatdan shundan ko'p qisqa bo'lmasa — to'liq (kiruvchida yozuv 1–10 s keyin boshlanadi)
 MIN_BYTES = 1024                          # bundan kichik fayl — ovozsiz sarlavha
 VOICE_EXT = (".ogg", ".opus", ".oga")
 
@@ -91,7 +93,15 @@ def tick(now=None, sender=None):
     qs = (CallRecord.objects.filter(audio_tg_at__isnull=True, audio_at__gte=now - WINDOW, audio_at__lte=now - SETTLE, duration__gt=0, audio_size__gte=MIN_BYTES)
           .exclude(audio="").filter(Exists(mine)).order_by("audio_at"))
     sent = 0
-    for call in qs[:10]:
+    for call in qs[:40]:
+        if sent >= 10:
+            break
+        # 2026-11-24: telefon yozuv davom etayotganda oraliq nusxalarni yuklaydi; 6 daqiqalik suhbat guruhga 2 daqiqalik nusxa bo'lib ketgan edi (suhbat 1 soat bo'lsa ham shu)
+        # (qo'ng'iroq tugagach qo'ng'iroq jurnali kelishi bilan eski oraliq nusxa biriktiriladi, to'liq fayl esa bir necha soniya-daqiqadan keyin).
+        # Yozuv suhbatdan qisqa bo'lsa — to'liq fayl kelguncha kutamiz; kelmasa (suhbat tugagach 30 daqiqa) borini «to'liq emas» izohi bilan yuboramiz.
+        ended = call.started_at + datetime.timedelta(seconds=call.duration)
+        if (call.audio_duration or 0) + COMPLETE_GAP < call.duration and ended > now - INCOMPLETE_WAIT:
+            continue
         lead = find_inbox(call)
         if not lead:
             continue
