@@ -26,11 +26,17 @@
     return `${A.badge('Yopildi', 'gray')}${why}`;
   };
   const knownCell = (o) => (o.known ? `<span class="t-red small">⚠️ Bazada bor: ${esc(o.known.name)}</span>` : '<span class="muted">—</span>');
+  // Oxirgi izoh; bittadan ko'p yoki uzun bo'lsa — kengaytirgich: hamma izoh shu katakning o'zida (yangisi tepada)
+  const noteHTML = (n, text) => `<small class="nx-text">${esc(text)}</small><br><small class="muted">${esc(n.by)} · ${A.fdt(n.at)}</small>`;
   const notesCell = (o) => {
     const n = o.notes || [];
     if (!n.length) return '<span class="muted">—</span>';
     const last = n[n.length - 1];
-    return `<small>${esc(last.comment.slice(0, 120))}</small><br><small class="muted">${esc(last.by)} · ${A.fdt(last.at)}${n.length > 1 ? ` · ${n.length} ta izoh` : ''}</small>`;
+    const long = last.comment.length > 120;
+    const short = noteHTML(last, long ? last.comment.slice(0, 120) + '…' : last.comment);
+    if (n.length === 1 && !long) return short;
+    const all = n.slice().reverse().map((x) => `<li>${noteHTML(x, x.comment)}</li>`).join('');
+    return `<details class="notes-x"><summary><span class="nx-last">${short}<br></span><span class="nx-btn"><span class="nx-show">${n.length > 1 ? `Barcha izohlar (${n.length})` : "To'liq o'qish"}</span><span class="nx-hide">Yig'ish</span></span></summary><ul>${all}</ul></details>`;
   };
   // Telefondagi qo'ng'iroqlar bilan bog'lanish: lid tushgandan keyin shu raqamga/raqamdan bo'lgan qo'ng'iroqlar
   const DIR = { Kiruvchi: '↙', Chiquvchi: '↗', Javobsiz: '✕', 'Rad etilgan': '⊘', Bloklangan: '⊘' };

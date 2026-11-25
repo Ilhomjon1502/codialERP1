@@ -627,3 +627,17 @@ select.att-inline.st-\- { background: #eef0f3; color: #5b6472; }
 .top-tabs a { font-weight: 700; }
 
 .due-note{display:flex;align-items:center;gap:6px;max-width:260px}.due-note span{overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;font-size:13px}
+
+/* Instagram/sayt lidlari: izohlar kengaytirgichi */
+.notes-x{min-width:190px;max-width:320px}
+.notes-x summary{cursor:pointer;list-style:none}
+.notes-x summary::-webkit-details-marker{display:none}
+.nx-btn{display:inline-block;margin-top:3px;font-size:12px;font-weight:600;color:var(--brand)}
+.nx-btn::before{content:"▾ "}
+.notes-x[open] .nx-btn::before{content:"▴ "}
+.notes-x .nx-hide,.notes-x[open] .nx-last,.notes-x[open] .nx-show{display:none}
+.notes-x[open] .nx-hide{display:inline}
+.notes-x ul{list-style:none;margin:4px 0 0;padding:0}
+.notes-x li{padding:6px 0;border-top:1px solid var(--line)}
+.notes-x li .nx-text{white-space:pre-wrap;overflow-wrap:anywhere}
+@media (max-width:900px){.notes-x{min-width:0;max-width:none}.tbl:not(.perm) td:has(> .notes-x[open]){grid-column:1/-1}}

@@ -17,6 +17,7 @@ Kim ko'radi: **Bosh menejer, Admin, Administrator+Hisobchi** (menyu «Instagram/
 ## Qo'ng'iroqlar bilan bog'lanish
 - Qabul telefonidagi qo'ng'iroq raqami navbatdagi lidniki bo'lsa, **Qo'ng'iroqlar** jurnalida «Noma'lum» o'rniga «Instagram lidi» belgisi, ism va kurs chiqadi; shu qatorning o'zidan «💬 Gaplashdim» va «＋ Lidga qo'shish» bosiladi (raqam bazada bo'lmasa).
 - Navbat sahifasida va bosh sahifadagi kartochkada «Qo'ng'iroqlar» ustuni: lid tushgandan keyingi oxirgi qo'ng'iroq (yo'nalish, vaqt, suhbat), jami soni. Gaplashilgan qo'ng'iroq bo'lib, undan keyin izoh yozilmagan bo'lsa — «📞 gaplashilgan — izoh yozing».
+- «Oxirgi izoh» ustunida izoh bittadan ko'p bo'lsa — **▾ Barcha izohlar (N)**: bosilsa hamma izoh shu katakning o'zida ochiladi (yangisi tepada, kim va qachon yozgani bilan), «▴ Yig'ish» yopadi.
 - Lid tushishidan oldingi qo'ng'iroqlar hisobga olinmaydi.
 
 ## Qaysi lidlar tushadi
