@@ -18,7 +18,7 @@ from apps.core.pagination import Pagination
 from apps.core.viewsets import AuditedModelViewSet, BranchScopedSerializerMixin
 from apps.education.models import Attendance, Contract
 
-from . import auto_sms, services, sms
+from . import auto_sms, lookup, services, sms
 from .models import CallDevice, CallRecord, CallRecording, SmsMessage, SmsRule, SmsTemplate
 
 D = CallRecord.Direction
@@ -56,6 +56,16 @@ class IngestView(DeviceAPIView):
         if not device:
             return Response({"detail": "Qurilma ulanmagan", "code": "device_unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
         return Response(services.ingest(device, request.data.get("calls"), request.data.get("app_version")))
+
+
+class LookupView(DeviceAPIView):
+    """GET ?phone= → qo'ng'iroq qilayotgan odam kartasi (telefonning qo'ng'iroq ekrani uchun; lookup.card)."""
+
+    def get(self, request):
+        device = _device(request)
+        if not device:
+            return Response({"detail": "Qurilma ulanmagan", "code": "device_unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
+        return Response(lookup.card(device, request.query_params.get("phone", "")))
 
 
 class RecordingView(DeviceAPIView):

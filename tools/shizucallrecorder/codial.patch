@@ -1,5 +1,5 @@
 diff --git a/app/build.gradle.kts b/app/build.gradle.kts
-index 989f531..8eb4c7d 100644
+index 989f531..42542fd 100644
 --- a/app/build.gradle.kts
 +++ b/app/build.gradle.kts
 @@ -61,12 +61,12 @@ android {
@@ -13,16 +13,16 @@ index 989f531..8eb4c7d 100644
          // Keep theses two values hard-coded here and update them per version. (To keep F-Droid compatibility since their parser is very basic)
 -        versionCode = 20
 -        versionName = "2.0.0"
-+        versionCode = 34
-+        versionName = "3.4-birlashgan"
++        versionCode = 40
++        versionName = "4.0-telefon"
      }
      signingConfigs {
          // Signing config for CI environments.
 diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
-index 18a8164..261c40c 100644
+index 18a8164..f29d430 100644
 --- a/app/src/main/AndroidManifest.xml
 +++ b/app/src/main/AndroidManifest.xml
-@@ -38,12 +38,22 @@
+@@ -38,12 +38,23 @@
      <!-- Android 11+ Onwards () -->
      <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
  
@@ -33,6 +33,7 @@ index 18a8164..261c40c 100644
 +    <uses-permission android:name="android.permission.READ_SMS" />
 +    <uses-permission android:name="android.permission.RECEIVE_SMS" />
 +    <uses-permission android:name="android.permission.WAKE_LOCK" />
++    <uses-permission android:name="android.permission.CALL_PHONE" />
 +    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
 +    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 +
@@ -46,7 +47,7 @@ index 18a8164..261c40c 100644
          android:dataExtractionRules="@xml/data_extraction_rules"
          android:fullBackupContent="@xml/backup_rules"
          android:icon="@mipmap/ic_launcher"
-@@ -60,7 +70,6 @@
+@@ -60,7 +71,6 @@
                  <action android:name="android.intent.action.MAIN" />
                  <action android:name="android.intent.action.APPLICATION_PREFERENCES" /> <!-- Show "Additional settings in the app" button in Settings App Info -->
                  <category android:name="android.intent.category.NOTIFICATION_PREFERENCES" /> <!-- Show "Additional settings in the app" button in Settings App Info -> notifications -->
@@ -54,7 +55,7 @@ index 18a8164..261c40c 100644
              </intent-filter>
          </activity>
  
-@@ -121,6 +130,76 @@
+@@ -121,6 +131,127 @@
              </intent-filter>
          </receiver>
  
@@ -70,6 +71,57 @@ index 18a8164..261c40c 100644
 +                <category android:name="android.intent.category.LAUNCHER" />
 +            </intent-filter>
 +        </activity>
++
++        <!-- Asosiy qo'ng'iroq ilovasi: terish oynasi, qo'ng'iroq ekrani (ERP kartasi bilan), tizim xizmati -->
++        <activity
++            android:name="uz.codial.calls.phone.DialerActivity"
++            android:exported="true"
++            android:label="Codial telefon"
++            android:launchMode="singleTask"
++            android:theme="@android:style/Theme.Material.NoActionBar">
++            <intent-filter>
++                <action android:name="android.intent.action.MAIN" />
++                <category android:name="android.intent.category.LAUNCHER" />
++            </intent-filter>
++            <intent-filter>
++                <action android:name="android.intent.action.DIAL" />
++                <category android:name="android.intent.category.DEFAULT" />
++            </intent-filter>
++            <intent-filter>
++                <action android:name="android.intent.action.DIAL" />
++                <action android:name="android.intent.action.VIEW" />
++                <category android:name="android.intent.category.DEFAULT" />
++                <category android:name="android.intent.category.BROWSABLE" />
++                <data android:scheme="tel" />
++            </intent-filter>
++            <intent-filter>
++                <action android:name="android.intent.action.CALL_BUTTON" />
++                <category android:name="android.intent.category.DEFAULT" />
++            </intent-filter>
++        </activity>
++
++        <activity
++            android:name="uz.codial.calls.phone.InCallActivity"
++            android:exported="false"
++            android:excludeFromRecents="true"
++            android:launchMode="singleInstance"
++            android:showWhenLocked="true"
++            android:turnScreenOn="true"
++            android:theme="@android:style/Theme.Material.NoActionBar" />
++
++        <service
++            android:name="uz.codial.calls.phone.CodialInCallService"
++            android:exported="true"
++            android:permission="android.permission.BIND_INCALL_SERVICE">
++            <meta-data android:name="android.telecom.IN_CALL_SERVICE_UI" android:value="true" />
++            <intent-filter>
++                <action android:name="android.telecom.InCallService" />
++            </intent-filter>
++        </service>
++
++        <receiver
++            android:name="uz.codial.calls.phone.PhoneActionReceiver"
++            android:exported="false" />
 +
 +        <activity
 +            android:name="uz.codial.calls.UnlockActivity"
@@ -253,7 +305,7 @@ index 4a25c5d..e6515a5 100644
              }
 diff --git a/app/src/main/java/uz/codial/calls/Api.java b/app/src/main/java/uz/codial/calls/Api.java
 new file mode 100644
-index 0000000..9dc04b3
+index 0000000..d34e238
 --- /dev/null
 +++ b/app/src/main/java/uz/codial/calls/Api.java
 @@ -0,0 +1,122 @@
@@ -271,7 +323,7 @@ index 0000000..9dc04b3
 +import java.nio.charset.StandardCharsets;
 +
 +/** ERP API: /api/v1/calls/pair/, /ingest/, /ping/, /sms/outbox/, /sms/report/ (qurilma tokeni bilan, sessiyasiz). */
-+final class Api {
++public final class Api {
 +    static final class HttpError extends IOException {
 +        final int code;
 +        final String errCode;  // serverning {"code": "..."} maydoni
@@ -290,7 +342,7 @@ index 0000000..9dc04b3
 +
 +    private Api() {}
 +
-+    static JSONObject request(String server, String path, String token, JSONObject body) throws IOException {
++    public static JSONObject request(String server, String path, String token, JSONObject body) throws IOException {
 +        URL url = new URL(server.replaceAll("/+$", "") + "/api/v1/calls/" + path);
 +        HttpURLConnection c = (HttpURLConnection) url.openConnection();
 +        c.setConnectTimeout(15000);
@@ -401,10 +453,10 @@ index 0000000..c6c7a13
 +}
 diff --git a/app/src/main/java/uz/codial/calls/CallReceiver.java b/app/src/main/java/uz/codial/calls/CallReceiver.java
 new file mode 100644
-index 0000000..cba1ce4
+index 0000000..7c0b915
 --- /dev/null
 +++ b/app/src/main/java/uz/codial/calls/CallReceiver.java
-@@ -0,0 +1,90 @@
+@@ -0,0 +1,92 @@
 +package uz.codial.calls;
 +
 +import android.app.KeyguardManager;
@@ -471,6 +523,8 @@ index 0000000..cba1ce4
 +        try {
 +            KeyguardManager km = (KeyguardManager) ctx.getSystemService(Context.KEYGUARD_SERVICE);
 +            if (km == null || !km.isKeyguardLocked()) return;
++            android.telecom.TelecomManager tm = (android.telecom.TelecomManager) ctx.getSystemService(Context.TELECOM_SERVICE);
++            if (tm != null && ctx.getPackageName().equals(tm.getDefaultDialerPackage())) return;  // qo'ng'iroq ekranimiz o'zi qulfni yechadi
 +            Intent i = new Intent(ctx, UnlockActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_ANIMATION | Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS);
 +            try {
 +                ctx.startActivity(i);
@@ -769,16 +823,17 @@ index 0000000..defa988
 +}
 diff --git a/app/src/main/java/uz/codial/calls/MainActivity.java b/app/src/main/java/uz/codial/calls/MainActivity.java
 new file mode 100644
-index 0000000..d31b2cd
+index 0000000..ccb9df3
 --- /dev/null
 +++ b/app/src/main/java/uz/codial/calls/MainActivity.java
-@@ -0,0 +1,367 @@
+@@ -0,0 +1,389 @@
 +package uz.codial.calls;
 +
 +import android.Manifest;
 +import android.app.Activity;
 +import android.content.ActivityNotFoundException;
 +import android.content.ComponentName;
++import android.content.Context;
 +import android.content.Intent;
 +import android.content.pm.PackageManager;
 +import android.provider.DocumentsContract;
@@ -881,6 +936,12 @@ index 0000000..d31b2cd
 +        root.addView(button("Hozir yuborish", v -> syncNow()));
 +        root.addView(text("SMS ko'p yuborilganda Android «Ilova ko'p SMS yuboryapti» deb so'rashi mumkin — «Doim ruxsat berish» ni belgilab, «Yuborish»ni bosing.", 13));
 +
++        root.addView(header("6. Asosiy qo'ng'iroq ilovasi"));
++        root.addView(text("Shu ilova asosiy qo'ng'iroq ilovasi bo'lsa, qo'ng'iroq ekranida kim qo'ng'iroq qilayotgani ERP'dan ko'rsatiladi "
++                + "(o'quvchi, ota-ona, lid, sinov darsi, nechanchi bog'lanish). Eski ilovaga qaytish: Sozlamalar → Ilovalar → Standart ilovalar → Telefon.", 13));
++        root.addView(button("Asosiy qo'ng'iroq ilovasi qilish", v -> becomeDialer()));
++        root.addView(button("Telefon (raqam terish)", v -> startActivity(new Intent(this, uz.codial.calls.phone.DialerActivity.class))));
++
 +        root.addView(header("5. Yozuvchi (Shizuku)"));
 +        root.addView(text("Suhbatni yozish endi shu ilovaning ichida. Shizuku ilovasi ishlab turishi kerak («Shizuku is running»). "
 +                + "Audio manba, avtomatik yozish va papka sozlamalari — pastdagi tugmada.", 13));
@@ -897,6 +958,19 @@ index 0000000..d31b2cd
 +            prefs.recSetTree(null);
 +            refresh();
 +        }));
++    }
++
++    private void becomeDialer() {
++        android.app.role.RoleManager rm = (android.app.role.RoleManager) getSystemService(Context.ROLE_SERVICE);
++        if (rm == null || !rm.isRoleAvailable(android.app.role.RoleManager.ROLE_DIALER)) {
++            toast("Bu telefonda asosiy qo'ng'iroq ilovasini tanlab bo'lmaydi");
++            return;
++        }
++        if (rm.isRoleHeld(android.app.role.RoleManager.ROLE_DIALER)) {
++            toast("Allaqachon asosiy qo'ng'iroq ilovasi");
++            return;
++        }
++        startActivityForResult(rm.createRequestRoleIntent(android.app.role.RoleManager.ROLE_DIALER), 3);
 +    }
 +
 +    private void openRecorderSettings() {
@@ -919,6 +993,8 @@ index 0000000..d31b2cd
 +    private void refresh() {
 +        StringBuilder s = new StringBuilder();
 +        s.append(prefs.paired() ? "✅ Ulangan: " + prefs.deviceName() : "⚠️ ERP'ga ulanmagan").append('\n');
++        android.telecom.TelecomManager tm = (android.telecom.TelecomManager) getSystemService(Context.TELECOM_SERVICE);
++        s.append(tm != null && getPackageName().equals(tm.getDefaultDialerPackage()) ? "✅ Asosiy qo'ng'iroq ilovasi" : "ℹ️ Asosiy qo'ng'iroq ilovasi boshqa").append(LF);
 +        s.append(hasCallLog() ? "✅ Qo'ng'iroqlar jurnaliga ruxsat bor" : "⚠️ Qo'ng'iroqlar jurnaliga ruxsat yo'q").append('\n');
 +        PowerManager pm = getSystemService(PowerManager.class);
 +        s.append(pm.isIgnoringBatteryOptimizations(getPackageName()) ? "✅ Batareya tejash o'chirilgan" : "⚠️ Batareya tejash yoqilgan — ilova to'xtab qolishi mumkin").append('\n');
@@ -1138,6 +1214,31 @@ index 0000000..d31b2cd
 +        b.setAllCaps(false);
 +        b.setOnClickListener(l);
 +        return b;
++    }
++}
+diff --git a/app/src/main/java/uz/codial/calls/PhoneAccess.java b/app/src/main/java/uz/codial/calls/PhoneAccess.java
+new file mode 100644
+index 0000000..df04ad2
+--- /dev/null
++++ b/app/src/main/java/uz/codial/calls/PhoneAccess.java
+@@ -0,0 +1,19 @@
++package uz.codial.calls;
++
++import android.content.Context;
++
++/** ERP ulanishi (server, token) — `phone` paketi uchun ochiq ko'rinish (Prefs paket ichida). */
++public final class PhoneAccess {
++    public final String server;
++    public final String token;
++
++    private PhoneAccess(String server, String token) {
++        this.server = server;
++        this.token = token;
++    }
++
++    public static PhoneAccess of(Context ctx) {
++        Prefs p = new Prefs(ctx);
++        return new PhoneAccess(p.server(), p.token());
 +    }
 +}
 diff --git a/app/src/main/java/uz/codial/calls/Prefs.java b/app/src/main/java/uz/codial/calls/Prefs.java
@@ -2094,5 +2195,784 @@ index 0000000..f03055e
 +            });
 +        }
 +        h.postDelayed(this::finish, 4000);
++    }
++}
+diff --git a/app/src/main/java/uz/codial/calls/phone/CodialInCallService.java b/app/src/main/java/uz/codial/calls/phone/CodialInCallService.java
+new file mode 100644
+index 0000000..a26dbe5
+--- /dev/null
++++ b/app/src/main/java/uz/codial/calls/phone/CodialInCallService.java
+@@ -0,0 +1,140 @@
++package uz.codial.calls.phone;
++
++import android.app.Notification;
++import android.app.NotificationChannel;
++import android.app.NotificationManager;
++import android.app.PendingIntent;
++import android.content.Intent;
++import android.telecom.Call;
++import android.telecom.CallAudioState;
++import android.telecom.InCallService;
++import android.util.Log;
++
++import org.json.JSONObject;
++
++/**
++ * Asosiy qo'ng'iroq ilovasi xizmati: tizim har qo'ng'iroqda shu xizmatni o'zi ishga tushiradi.
++ * Qo'ng'iroq ekrani (InCallActivity) va bildirishnomani boshqaradi; jiringlash ovozini tizim chaladi.
++ */
++public class CodialInCallService extends InCallService {
++    private static final String TAG = "CodialPhone";
++    private static final String CHANNEL = "codial_calls";
++    private static final int NOTE = 7702;
++
++    private final Call.Callback callback = new Call.Callback() {
++        @Override
++        public void onStateChanged(Call call, int state) { update(); }
++
++        @Override
++        public void onDetailsChanged(Call call, Call.Details details) {
++            Phone.load(CodialInCallService.this, Phone.number(call));
++            update();
++        }
++    };
++
++    private final Runnable refresh = this::notifyCall;
++
++    @Override
++    public void onCreate() {
++        super.onCreate();
++        Phone.service = this;
++        NotificationChannel ch = new NotificationChannel(CHANNEL, "Qo'ng'iroq ekrani", NotificationManager.IMPORTANCE_HIGH);
++        ch.setSound(null, null);  // jiringlashni tizim chaladi
++        ch.enableVibration(false);
++        getSystemService(NotificationManager.class).createNotificationChannel(ch);
++        Phone.listen(refresh);
++    }
++
++    @Override
++    public void onDestroy() {
++        Phone.unlisten(refresh);
++        getSystemService(NotificationManager.class).cancel(NOTE);
++        Phone.calls.clear();
++        Phone.service = null;
++        Phone.changed();
++        super.onDestroy();
++    }
++
++    @Override
++    public void onCallAdded(Call call) {
++        super.onCallAdded(call);
++        if (!Phone.calls.contains(call)) Phone.calls.add(call);
++        call.registerCallback(callback);
++        Phone.load(this, Phone.number(call));
++        update();
++        showScreen();
++    }
++
++    @Override
++    public void onCallRemoved(Call call) {
++        super.onCallRemoved(call);
++        call.unregisterCallback(callback);
++        Phone.calls.remove(call);
++        Phone.forget(Phone.number(call));
++        update();
++    }
++
++    @Override
++    public void onCallAudioStateChanged(CallAudioState state) {
++        super.onCallAudioStateChanged(state);
++        Phone.changed();
++    }
++
++    @Override
++    public void onBringToForeground(boolean showDialpad) {
++        super.onBringToForeground(showDialpad);
++        showScreen();
++    }
++
++    private void update() {
++        Phone.changed();
++        notifyCall();
++    }
++
++    private void showScreen() {
++        try {
++            startActivity(new Intent(this, InCallActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT));
++        } catch (RuntimeException e) {
++            Log.w(TAG, "Qo'ng'iroq ekrani ochilmadi", e);  // bildirishnoma orqali ochiladi
++        }
++    }
++
++    private PendingIntent action(String name, int code) {
++        return PendingIntent.getBroadcast(this, code, new Intent(this, PhoneActionReceiver.class).setAction(name), PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
++    }
++
++    private void notifyCall() {
++        NotificationManager nm = getSystemService(NotificationManager.class);
++        Call c = Phone.primary();
++        if (c == null || c.getState() == Call.STATE_DISCONNECTED) {
++            if (c == null) nm.cancel(NOTE);
++            return;
++        }
++        boolean ringing = c.getState() == Call.STATE_RINGING;
++        String number = Phone.number(c);
++        JSONObject card = Phone.card(number);
++        String title = card != null && card.has("title") ? card.optString("title") : (number.isEmpty() ? "Yashirin raqam" : number);
++        String text = card != null ? card.optString("badge") : (ringing ? "Kiruvchi qo'ng'iroq" : "Qo'ng'iroq");
++        PendingIntent open = PendingIntent.getActivity(this, 1, new Intent(this, InCallActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
++        Notification.Builder b = new Notification.Builder(this, CHANNEL)
++                .setSmallIcon(android.R.drawable.sym_action_call)
++                .setContentTitle(title)
++                .setContentText(text)
++                .setCategory(Notification.CATEGORY_CALL)
++                .setOngoing(true)
++                .setOnlyAlertOnce(true)
++                .setContentIntent(open);
++        if (ringing) {
++            b.setFullScreenIntent(open, true);
++            b.addAction(new Notification.Action.Builder(null, "Rad etish", action(PhoneActionReceiver.REJECT, 2)).build());
++            b.addAction(new Notification.Action.Builder(null, "Javob berish", action(PhoneActionReceiver.ANSWER, 3)).build());
++        } else {
++            b.addAction(new Notification.Action.Builder(null, "Tugatish", action(PhoneActionReceiver.HANGUP, 4)).build());
++        }
++        try {
++            nm.notify(NOTE, b.build());
++        } catch (RuntimeException e) {
++            Log.w(TAG, "Bildirishnoma ko'rsatilmadi", e);
++        }
++    }
++}
+diff --git a/app/src/main/java/uz/codial/calls/phone/DialerActivity.java b/app/src/main/java/uz/codial/calls/phone/DialerActivity.java
+new file mode 100644
+index 0000000..3657a19
+--- /dev/null
++++ b/app/src/main/java/uz/codial/calls/phone/DialerActivity.java
+@@ -0,0 +1,160 @@
++package uz.codial.calls.phone;
++
++import android.Manifest;
++import android.app.Activity;
++import android.content.Intent;
++import android.content.pm.PackageManager;
++import android.database.Cursor;
++import android.graphics.Color;
++import android.net.Uri;
++import android.os.Bundle;
++import android.provider.CallLog;
++import android.provider.ContactsContract;
++import android.telecom.TelecomManager;
++import android.text.InputType;
++import android.view.Gravity;
++import android.view.View;
++import android.widget.EditText;
++import android.widget.LinearLayout;
++import android.widget.ScrollView;
++import android.widget.TextView;
++import android.widget.Toast;
++
++import java.text.SimpleDateFormat;
++import java.util.Date;
++import java.util.Locale;
++
++/** Raqam terish oynasi va so'nggi qo'ng'iroqlar (asosiy qo'ng'iroq ilovasi uchun shart). */
++public class DialerActivity extends Activity {
++    private EditText number;
++    private LinearLayout recent;
++
++    @Override
++    protected void onCreate(Bundle b) {
++        super.onCreate(b);
++        LinearLayout root = new LinearLayout(this);
++        root.setOrientation(LinearLayout.VERTICAL);
++        root.setBackgroundColor(Ui.BG);
++        int pad = Ui.dp(this, 12);
++        root.setPadding(pad, pad, pad, pad);
++
++        ScrollView scroll = new ScrollView(this);
++        recent = new LinearLayout(this);
++        recent.setOrientation(LinearLayout.VERTICAL);
++        scroll.addView(recent);
++        root.addView(scroll, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
++
++        number = new EditText(this);
++        number.setInputType(InputType.TYPE_CLASS_PHONE);
++        number.setTextColor(Color.WHITE);
++        number.setHintTextColor(Ui.MUTED);
++        number.setHint("Raqam");
++        number.setTextSize(26);
++        number.setGravity(Gravity.CENTER);
++        number.setShowSoftInputOnFocus(false);
++        root.addView(number);
++
++        String[][] keys = {{"1", "2", "3"}, {"4", "5", "6"}, {"7", "8", "9"}, {"*", "0", "#"}};
++        for (String[] line : keys) root.addView(Ui.row(this, key(line[0]), key(line[1]), key(line[2])));
++        View back = Ui.button(this, "⌫", Ui.PANEL, v -> {
++            int n = number.length();
++            if (n > 0) number.getText().delete(n - 1, n);
++        });
++        back.setOnLongClickListener(v -> {
++            number.setText("");
++            return true;
++        });
++        root.addView(Ui.row(this, Ui.button(this, "+", Ui.PANEL, v -> type("+")),
++                Ui.button(this, "Kontaktlar", Ui.PANEL, v -> contacts()), back));
++        root.addView(Ui.row(this, Ui.button(this, "Qo'ng'iroq qilish", Ui.GREEN, v -> call())));
++        setContentView(root);
++        fill(getIntent());
++    }
++
++    @Override
++    protected void onNewIntent(Intent intent) {
++        super.onNewIntent(intent);
++        fill(intent);
++    }
++
++    @Override
++    protected void onResume() {
++        super.onResume();
++        showRecent();
++    }
++
++    private View key(String k) { return Ui.button(this, k, Ui.PANEL, v -> type(k)); }
++
++    private void type(String s) {
++        number.getText().append(s);
++        number.setSelection(number.length());
++    }
++
++    private void fill(Intent i) {
++        Uri data = i == null ? null : i.getData();
++        if (data != null && "tel".equals(data.getScheme())) {
++            number.setText(data.getSchemeSpecificPart());
++            number.setSelection(number.length());
++        }
++    }
++
++    private void contacts() {
++        try {
++            startActivity(new Intent(Intent.ACTION_VIEW, ContactsContract.Contacts.CONTENT_URI));
++        } catch (RuntimeException e) {
++            Toast.makeText(this, "Kontaktlar ilovasi topilmadi", Toast.LENGTH_LONG).show();
++        }
++    }
++
++    private void call() {
++        String n = number.getText().toString().trim();
++        if (n.isEmpty()) return;
++        if (checkSelfPermission(Manifest.permission.CALL_PHONE) != PackageManager.PERMISSION_GRANTED) {
++            requestPermissions(new String[]{Manifest.permission.CALL_PHONE}, 1);
++            return;
++        }
++        try {
++            getSystemService(TelecomManager.class).placeCall(Uri.fromParts("tel", n, null), new Bundle());
++        } catch (SecurityException e) {
++            Toast.makeText(this, "Qo'ng'iroqqa ruxsat yo'q", Toast.LENGTH_LONG).show();
++        }
++    }
++
++    @Override
++    public void onRequestPermissionsResult(int code, String[] perms, int[] results) {
++        super.onRequestPermissionsResult(code, perms, results);
++        if (results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED) {
++            if (code == 1) call();
++            else showRecent();
++        }
++    }
++
++    private void showRecent() {
++        recent.removeAllViews();
++        if (checkSelfPermission(Manifest.permission.READ_CALL_LOG) != PackageManager.PERMISSION_GRANTED) {
++            recent.addView(Ui.button(this, "So'nggi qo'ng'iroqlarni ko'rsatish", Ui.PANEL, v -> requestPermissions(new String[]{Manifest.permission.READ_CALL_LOG}, 2)));
++            return;
++        }
++        String[] cols = {CallLog.Calls.NUMBER, CallLog.Calls.CACHED_NAME, CallLog.Calls.TYPE, CallLog.Calls.DATE, CallLog.Calls.DURATION};
++        SimpleDateFormat f = new SimpleDateFormat("dd.MM HH:mm", Locale.US);
++        try (Cursor c = getContentResolver().query(CallLog.Calls.CONTENT_URI, cols, null, null, CallLog.Calls.DATE + " DESC")) {
++            int i = 0;
++            while (c != null && c.moveToNext() && i++ < 40) {
++                String num = c.getString(0);
++                String name = c.getString(1);
++                int type = c.getInt(2);
++                String arrow = type == CallLog.Calls.OUTGOING_TYPE ? "↗" : type == CallLog.Calls.MISSED_TYPE ? "✕" : "↙";
++                int color = type == CallLog.Calls.MISSED_TYPE ? Color.parseColor("#f87171") : Ui.WHITE;
++                TextView row = Ui.text(this, arrow + "  " + (name == null || name.isEmpty() ? num : name + " · " + num) + "\n      " + f.format(new Date(c.getLong(3))) + " · " + c.getLong(4) + " s", 16, color);
++                row.setPadding(0, Ui.dp(this, 8), 0, Ui.dp(this, 8));
++                row.setOnClickListener(v -> {
++                    number.setText(num);
++                    number.setSelection(number.length());
++                });
++                recent.addView(row);
++            }
++        } catch (RuntimeException e) {
++            recent.addView(Ui.text(this, "Qo'ng'iroqlar tarixini o'qib bo'lmadi", 15, Ui.MUTED));
++        }
++    }
++}
+diff --git a/app/src/main/java/uz/codial/calls/phone/InCallActivity.java b/app/src/main/java/uz/codial/calls/phone/InCallActivity.java
+new file mode 100644
+index 0000000..d053e5e
+--- /dev/null
++++ b/app/src/main/java/uz/codial/calls/phone/InCallActivity.java
+@@ -0,0 +1,265 @@
++package uz.codial.calls.phone;
++
++import android.app.Activity;
++import android.app.KeyguardManager;
++import android.content.Intent;
++import android.graphics.Typeface;
++import android.graphics.drawable.GradientDrawable;
++import android.os.Bundle;
++import android.os.Handler;
++import android.os.Looper;
++import android.os.PowerManager;
++import android.telecom.Call;
++import android.telecom.CallAudioState;
++import android.telecom.PhoneAccount;
++import android.telecom.PhoneAccountHandle;
++import android.telecom.TelecomManager;
++import android.telecom.VideoProfile;
++import android.view.Gravity;
++import android.view.MotionEvent;
++import android.view.View;
++import android.widget.Button;
++import android.widget.LinearLayout;
++import android.widget.ScrollView;
++import android.widget.TextView;
++
++import org.json.JSONArray;
++import org.json.JSONObject;
++
++import java.util.Locale;
++
++/** Qo'ng'iroq ekrani: yuqorida ERP kartasi (kim qo'ng'iroq qilyapti), pastda qo'ng'iroq tugmalari. */
++public class InCallActivity extends Activity {
++    private final Handler h = new Handler(Looper.getMainLooper());
++    private LinearLayout card;
++    private LinearLayout controls;
++    private TextView state;
++    private boolean keypad;
++    private PowerManager.WakeLock proximity;
++    private final Runnable render = this::render;
++    private final Runnable tick = new Runnable() {
++        @Override
++        public void run() {
++            showState(Phone.primary());
++            h.postDelayed(this, 1000);
++        }
++    };
++
++    @Override
++    protected void onCreate(Bundle b) {
++        super.onCreate(b);
++        setShowWhenLocked(true);
++        setTurnScreenOn(true);
++        KeyguardManager km = getSystemService(KeyguardManager.class);
++        if (km != null && km.isKeyguardLocked()) km.requestDismissKeyguard(this, null);  // parolsiz qulf: yozuv uchun ham ochiq bo'lishi kerak
++        PowerManager pm = getSystemService(PowerManager.class);
++        if (pm.isWakeLockLevelSupported(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK))
++            proximity = pm.newWakeLock(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK, "codial:proximity");
++
++        LinearLayout root = new LinearLayout(this);
++        root.setOrientation(LinearLayout.VERTICAL);
++        root.setBackgroundColor(Ui.BG);
++        int pad = Ui.dp(this, 16);
++        root.setPadding(pad, pad, pad, pad);
++
++        ScrollView scroll = new ScrollView(this);
++        card = new LinearLayout(this);
++        card.setOrientation(LinearLayout.VERTICAL);
++        scroll.addView(card);
++        root.addView(scroll, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
++
++        state = Ui.text(this, "", 16, Ui.ORANGE);
++        state.setGravity(Gravity.CENTER);
++        root.addView(state);
++        controls = new LinearLayout(this);
++        controls.setOrientation(LinearLayout.VERTICAL);
++        root.addView(controls);
++        setContentView(root);
++    }
++
++    @Override
++    protected void onNewIntent(Intent intent) {
++        super.onNewIntent(intent);
++        render();
++    }
++
++    @Override
++    protected void onStart() {
++        super.onStart();
++        Phone.listen(render);
++        render();
++        h.post(tick);
++    }
++
++    @Override
++    protected void onStop() {
++        Phone.unlisten(render);
++        h.removeCallbacks(tick);
++        super.onStop();
++    }
++
++    @Override
++    protected void onDestroy() {
++        setProximity(false);
++        super.onDestroy();
++    }
++
++    private void render() {
++        Call c = Phone.primary();
++        if (c == null) {
++            setProximity(false);
++            finishAndRemoveTask();
++            return;
++        }
++        showCard(c);
++        showState(c);
++        showControls(c);
++    }
++
++    private void showCard(Call c) {
++        card.removeAllViews();
++        String number = Phone.number(c);
++        JSONObject data = Phone.card(number);
++        String badge = data == null ? "Ma'lumot olinmoqda…" : data.optString("badge");
++        String title = data != null && !data.optString("title").isEmpty() ? data.optString("title") : (number.isEmpty() ? "Yashirin raqam" : number);
++
++        TextView b = Ui.text(this, badge, 14, Ui.ORANGE);
++        b.setTypeface(Typeface.DEFAULT_BOLD);
++        card.addView(b);
++        TextView t = Ui.text(this, title, 28, Ui.WHITE);
++        t.setTypeface(Typeface.DEFAULT_BOLD);
++        card.addView(t);
++        card.addView(Ui.text(this, number, 17, Ui.MUTED));
++
++        JSONArray lines = data == null ? null : data.optJSONArray("lines");
++        if (lines != null && lines.length() > 0) {
++            LinearLayout box = new LinearLayout(this);
++            box.setOrientation(LinearLayout.VERTICAL);
++            GradientDrawable d = new GradientDrawable();
++            d.setColor(Ui.PANEL);
++            d.setCornerRadius(Ui.dp(this, 14));
++            box.setBackground(d);
++            int p = Ui.dp(this, 12);
++            box.setPadding(p, p, p, p);
++            for (int i = 0; i < lines.length(); i++) box.addView(Ui.text(this, lines.optString(i), 17, Ui.WHITE));
++            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
++            lp.topMargin = Ui.dp(this, 12);
++            card.addView(box, lp);
++        }
++        Call other = Phone.other(c);
++        if (other != null) {
++            JSONObject o = Phone.card(Phone.number(other));
++            String name = o != null && !o.optString("title").isEmpty() ? o.optString("title") : Phone.number(other);
++            card.addView(Ui.text(this, "Ikkinchi qo'ng'iroq: " + name + (other.getState() == Call.STATE_HOLDING ? " (kutmoqda)" : ""), 15, Ui.MUTED));
++        }
++    }
++
++    private void showState(Call c) {
++        if (c == null) return;
++        String s;
++        switch (c.getState()) {
++            case Call.STATE_RINGING: s = "Kiruvchi qo'ng'iroq"; break;
++            case Call.STATE_DIALING:
++            case Call.STATE_CONNECTING: s = "Terilmoqda…"; break;
++            case Call.STATE_ACTIVE: {
++                long start = c.getDetails().getConnectTimeMillis();
++                long sec = start > 0 ? Math.max(0, (System.currentTimeMillis() - start) / 1000) : 0;
++                s = String.format(Locale.US, "Suhbat %02d:%02d", sec / 60, sec % 60);
++                break;
++            }
++            case Call.STATE_HOLDING: s = "Ushlab turilibdi"; break;
++            case Call.STATE_DISCONNECTING:
++            case Call.STATE_DISCONNECTED: s = "Qo'ng'iroq tugadi"; break;
++            case Call.STATE_SELECT_PHONE_ACCOUNT: s = "SIM kartani tanlang"; break;
++            default: s = "";
++        }
++        state.setText(s);
++    }
++
++    private void showControls(Call c) {
++        controls.removeAllViews();
++        int st = c.getState();
++        CodialInCallService svc = Phone.service;
++        if (st == Call.STATE_RINGING) {
++            setProximity(false);
++            controls.addView(Ui.row(this,
++                    Ui.button(this, "Rad etish", Ui.RED, v -> c.reject(false, null)),
++                    Ui.button(this, "Javob berish", Ui.GREEN, v -> c.answer(VideoProfile.STATE_AUDIO_ONLY))));
++            return;
++        }
++        if (st == Call.STATE_SELECT_PHONE_ACCOUNT) {
++            TelecomManager tm = getSystemService(TelecomManager.class);
++            try {
++                int i = 1;
++                for (PhoneAccountHandle a : tm.getCallCapablePhoneAccounts()) {
++                    PhoneAccount acc = tm.getPhoneAccount(a);
++                    String label = acc != null && acc.getLabel() != null ? acc.getLabel().toString() : "SIM " + i;
++                    controls.addView(Ui.row(this, Ui.button(this, label, Ui.GREEN, v -> c.phoneAccountSelected(a, false))));
++                    i++;
++                }
++            } catch (SecurityException e) {
++                controls.addView(Ui.text(this, "SIM ro'yxatiga ruxsat yo'q", 15, Ui.MUTED));
++            }
++            controls.addView(Ui.row(this, Ui.button(this, "Bekor qilish", Ui.RED, v -> c.disconnect())));
++            return;
++        }
++        CallAudioState audio = svc == null ? null : svc.getCallAudioState();
++        boolean muted = audio != null && audio.isMuted();
++        int route = audio == null ? CallAudioState.ROUTE_EARPIECE : audio.getRoute();
++        boolean speaker = route == CallAudioState.ROUTE_SPEAKER;
++        boolean bluetooth = route == CallAudioState.ROUTE_BLUETOOTH;
++        setProximity(st != Call.STATE_DISCONNECTED && !speaker && !bluetooth && !keypad);
++
++        if (keypad) {
++            String[][] keys = {{"1", "2", "3"}, {"4", "5", "6"}, {"7", "8", "9"}, {"*", "0", "#"}};
++            for (String[] line : keys) controls.addView(Ui.row(this, dtmf(c, line[0]), dtmf(c, line[1]), dtmf(c, line[2])));
++        }
++        Button mic = Ui.button(this, muted ? "Mikrofon o'chiq" : "Mikrofon", muted ? Ui.ORANGE : Ui.PANEL, v -> {
++            if (svc != null) svc.setMuted(!muted);
++        });
++        Button spk = Ui.button(this, speaker ? "Karnay yoniq" : "Karnay", speaker ? Ui.ORANGE : Ui.PANEL, v -> {
++            if (svc != null) svc.setAudioRoute(speaker ? CallAudioState.ROUTE_WIRED_OR_EARPIECE : CallAudioState.ROUTE_SPEAKER);
++        });
++        controls.addView(Ui.row(this, mic, spk));
++        Button hold = Ui.button(this, st == Call.STATE_HOLDING ? "Davom ettirish" : "Ushlab turish", st == Call.STATE_HOLDING ? Ui.ORANGE : Ui.PANEL, v -> {
++            if (c.getState() == Call.STATE_HOLDING) c.unhold();
++            else c.hold();
++        });
++        Button keys = Ui.button(this, keypad ? "Raqamlarni yopish" : "Raqamlar", Ui.PANEL, v -> {
++            keypad = !keypad;
++            render();
++        });
++        controls.addView(Ui.row(this, hold, keys));
++        boolean hasBt = audio != null && (audio.getSupportedRouteMask() & CallAudioState.ROUTE_BLUETOOTH) != 0;
++        Call other = Phone.other(c);
++        if (hasBt || other != null) {
++            Button bt = Ui.button(this, bluetooth ? "Bluetooth yoniq" : "Bluetooth", bluetooth ? Ui.ORANGE : Ui.PANEL, v -> {
++                if (svc != null) svc.setAudioRoute(bluetooth ? CallAudioState.ROUTE_WIRED_OR_EARPIECE : CallAudioState.ROUTE_BLUETOOTH);
++            });
++            bt.setVisibility(hasBt ? View.VISIBLE : View.INVISIBLE);
++            Button swap = Ui.button(this, "Qo'ng'iroqlarni almashtirish", Ui.PANEL, v -> {
++                if (other != null && other.getState() == Call.STATE_HOLDING) other.unhold();
++            });
++            swap.setVisibility(other != null && other.getState() == Call.STATE_HOLDING ? View.VISIBLE : View.INVISIBLE);
++            controls.addView(Ui.row(this, bt, swap));
++        }
++        controls.addView(Ui.row(this, Ui.button(this, "Tugatish", Ui.RED, v -> c.disconnect())));
++    }
++
++    private Button dtmf(Call c, String key) {
++        Button b = Ui.button(this, key, Ui.PANEL, v -> { });
++        b.setOnTouchListener((v, e) -> {
++            if (e.getAction() == MotionEvent.ACTION_DOWN) c.playDtmfTone(key.charAt(0));
++            if (e.getAction() == MotionEvent.ACTION_UP || e.getAction() == MotionEvent.ACTION_CANCEL) c.stopDtmfTone();
++            return false;
++        });
++        return b;
++    }
++
++    /** Telefon quloqqa tutilganda ekran o'chadi (tasodifiy bosilmasin). */
++    private void setProximity(boolean on) {
++        if (proximity == null) return;
++        if (on && !proximity.isHeld()) proximity.acquire(60 * 60 * 1000L);
++        else if (!on && proximity.isHeld()) proximity.release();
++    }
++}
+diff --git a/app/src/main/java/uz/codial/calls/phone/Phone.java b/app/src/main/java/uz/codial/calls/phone/Phone.java
+new file mode 100644
+index 0000000..6294ef7
+--- /dev/null
++++ b/app/src/main/java/uz/codial/calls/phone/Phone.java
+@@ -0,0 +1,88 @@
++package uz.codial.calls.phone;
++
++import android.content.Context;
++import android.net.Uri;
++import android.os.Handler;
++import android.os.Looper;
++import android.telecom.Call;
++
++import org.json.JSONObject;
++
++import java.net.URLEncoder;
++import java.util.List;
++import java.util.Map;
++import java.util.concurrent.ConcurrentHashMap;
++import java.util.concurrent.CopyOnWriteArrayList;
++import java.util.concurrent.ExecutorService;
++import java.util.concurrent.Executors;
++
++import uz.codial.calls.Api;
++import uz.codial.calls.PhoneAccess;
++
++/** Faol qo'ng'iroqlar va qo'ng'iroqchi kartalari (xizmat, ekran va bildirishnoma uchun umumiy holat). */
++final class Phone {
++    static volatile CodialInCallService service;
++    static final List<Call> calls = new CopyOnWriteArrayList<>();
++    private static final List<Runnable> listeners = new CopyOnWriteArrayList<>();
++    private static final Map<String, JSONObject> cards = new ConcurrentHashMap<>();
++    private static final ExecutorService NET = Executors.newSingleThreadExecutor();
++    private static final Handler UI = new Handler(Looper.getMainLooper());
++
++    private Phone() {}
++
++    static void listen(Runnable r) { listeners.add(r); }
++
++    static void unlisten(Runnable r) { listeners.remove(r); }
++
++    static void changed() {
++        UI.post(() -> {
++            for (Runnable r : listeners) r.run();
++        });
++    }
++
++    static String number(Call c) {
++        Uri h = c == null || c.getDetails() == null ? null : c.getDetails().getHandle();
++        String s = h == null ? null : h.getSchemeSpecificPart();
++        return s == null ? "" : s;
++    }
++
++    /** Ekranda ko'rsatiladigan qo'ng'iroq: jiringlayotgani, keyin terilayotgani, keyin faol, keyin ushlab turilgani. */
++    static Call primary() {
++        int[] order = {Call.STATE_RINGING, Call.STATE_SELECT_PHONE_ACCOUNT, Call.STATE_DIALING, Call.STATE_CONNECTING, Call.STATE_ACTIVE, Call.STATE_HOLDING};
++        for (int st : order)
++            for (Call c : calls)
++                if (c.getState() == st) return c;
++        return calls.isEmpty() ? null : calls.get(0);
++    }
++
++    static Call other(Call first) {
++        for (Call c : calls)
++            if (c != first && c.getState() != Call.STATE_DISCONNECTED) return c;
++        return null;
++    }
++
++    static JSONObject card(String number) { return cards.get(number); }
++
++    static void forget(String number) { cards.remove(number); }
++
++    /** Serverdan karta (bir qo'ng'iroqda bir marta). Internet bo'lmasa — qisqa xabar; qo'ng'iroqqa ta'sir qilmaydi. */
++    static void load(Context ctx, String number) {
++        if (number.isEmpty() || cards.containsKey(number)) return;
++        Context app = ctx.getApplicationContext();
++        NET.execute(() -> {
++            if (cards.containsKey(number)) return;
++            try {
++                PhoneAccess p = PhoneAccess.of(app);
++                if (p.token.isEmpty()) return;
++                cards.put(number, Api.request(p.server, "lookup/?phone=" + URLEncoder.encode(number, "UTF-8"), p.token, null));
++            } catch (Exception e) {
++                try {
++                    cards.put(number, new JSONObject().put("badge", "Ma'lumot olinmadi (internet yoki server)"));
++                } catch (Exception ignored) {
++                    // JSON yaratilmadi — kartasiz davom etamiz
++                }
++            }
++            changed();
++        });
++    }
++}
+diff --git a/app/src/main/java/uz/codial/calls/phone/PhoneActionReceiver.java b/app/src/main/java/uz/codial/calls/phone/PhoneActionReceiver.java
+new file mode 100644
+index 0000000..f7f6b03
+--- /dev/null
++++ b/app/src/main/java/uz/codial/calls/phone/PhoneActionReceiver.java
+@@ -0,0 +1,29 @@
++package uz.codial.calls.phone;
++
++import android.content.BroadcastReceiver;
++import android.content.Context;
++import android.content.Intent;
++import android.telecom.Call;
++import android.telecom.VideoProfile;
++
++/** Bildirishnomadagi «Javob berish / Rad etish / Tugatish» tugmalari. */
++public class PhoneActionReceiver extends BroadcastReceiver {
++    static final String ANSWER = "uz.codial.calls.ANSWER";
++    static final String REJECT = "uz.codial.calls.REJECT";
++    static final String HANGUP = "uz.codial.calls.HANGUP";
++
++    @Override
++    public void onReceive(Context ctx, Intent intent) {
++        Call c = Phone.primary();
++        if (c == null) return;
++        String a = intent.getAction();
++        if (ANSWER.equals(a) && c.getState() == Call.STATE_RINGING) {
++            c.answer(VideoProfile.STATE_AUDIO_ONLY);
++            ctx.startActivity(new Intent(ctx, InCallActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
++        } else if (REJECT.equals(a) && c.getState() == Call.STATE_RINGING) {
++            c.reject(false, null);
++        } else if (HANGUP.equals(a)) {
++            c.disconnect();
++        }
++    }
++}
+diff --git a/app/src/main/java/uz/codial/calls/phone/Ui.java b/app/src/main/java/uz/codial/calls/phone/Ui.java
+new file mode 100644
+index 0000000..dc18772
+--- /dev/null
++++ b/app/src/main/java/uz/codial/calls/phone/Ui.java
+@@ -0,0 +1,61 @@
++package uz.codial.calls.phone;
++
++import android.content.Context;
++import android.graphics.Color;
++import android.graphics.drawable.GradientDrawable;
++import android.view.Gravity;
++import android.view.View;
++import android.widget.Button;
++import android.widget.LinearLayout;
++import android.widget.TextView;
++
++/** Kichik interfeys yordamchilari (XML'siz, kutubxonasiz). */
++final class Ui {
++    static final int BG = Color.parseColor("#0f172a");
++    static final int PANEL = Color.parseColor("#1e293b");
++    static final int WHITE = Color.WHITE;
++    static final int MUTED = Color.parseColor("#94a3b8");
++    static final int ORANGE = Color.parseColor("#f97316");
++    static final int GREEN = Color.parseColor("#16a34a");
++    static final int RED = Color.parseColor("#dc2626");
++
++    private Ui() {}
++
++    static int dp(Context c, int v) { return Math.round(v * c.getResources().getDisplayMetrics().density); }
++
++    static TextView text(Context c, String s, int sp, int color) {
++        TextView t = new TextView(c);
++        t.setText(s);
++        t.setTextSize(sp);
++        t.setTextColor(color);
++        t.setPadding(0, dp(c, 2), 0, dp(c, 2));
++        return t;
++    }
++
++    static Button button(Context c, String s, int bg, View.OnClickListener l) {
++        Button b = new Button(c);
++        b.setText(s);
++        b.setAllCaps(false);
++        b.setTextColor(WHITE);
++        b.setTextSize(16);
++        GradientDrawable d = new GradientDrawable();
++        d.setColor(bg);
++        d.setCornerRadius(dp(c, 14));
++        b.setBackground(d);
++        b.setOnClickListener(l);
++        return b;
++    }
++
++    /** Bir qatorda teng kenglikdagi tugmalar. */
++    static LinearLayout row(Context c, View... views) {
++        LinearLayout r = new LinearLayout(c);
++        r.setOrientation(LinearLayout.HORIZONTAL);
++        r.setGravity(Gravity.CENTER);
++        for (View v : views) {
++            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(c, 58), 1f);
++            lp.setMargins(dp(c, 4), dp(c, 4), dp(c, 4), dp(c, 4));
++            r.addView(v, lp);
++        }
++        return r;
 +    }
 +}

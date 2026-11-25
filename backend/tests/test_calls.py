@@ -629,3 +629,42 @@ def test_ig_audio_long_call_partial_snapshot_is_not_sent(api, paired, media, set
     assert ig_audio.tick(started + datetime.timedelta(minutes=64), sender=lambda *a: pytest.fail("to'liq fayl kutiladi")) == 0
     CallRecord.objects.update(audio_duration=3595, audio_at=started + datetime.timedelta(minutes=61))
     assert ig_audio.tick(started + datetime.timedelta(minutes=64), sender=lambda *a: None) == 1
+
+
+# ---------- Qo'ng'iroqchi kartasi (2026-11-25) ----------
+
+
+def lookup(api, token, phone):
+    return api().get(f"/api/v1/calls/lookup/?phone={phone}", HTTP_AUTHORIZATION=f"Device {token}")
+
+
+def test_lookup_requires_device_and_handles_unknown(api, paired):
+    assert api().get("/api/v1/calls/lookup/?phone=901234567").status_code == 401
+    r = lookup(api, paired, "%2B998901234567").data
+    assert r["found"] is False and r["title"] == "Yangi raqam" and r["lines"] == ["Birinchi qo'ng'iroq"]
+    assert lookup(api, paired, "").data["badge"] == "Raqam aniqlanmadi"
+
+
+def test_lookup_lead_card_with_demo_and_history(api, paired, device, branch):
+    from apps.crm.models import LeadComment, Student
+
+    st = Student.objects.create(branch=branch, first_name="Madina", last_name="Aliyeva", phone1="901234567", phone2="907654321")
+    course = Course.objects.create(name="Frontend")
+    src = LeadSource.objects.create(name="Instagram")
+    lead = Lead.objects.create(branch=branch, student=st, source=src, course=course, status="3", demo_date=datetime.date(2026, 11, 27))
+    LeadComment.objects.create(lead=lead, comment="Onasi bilan kelishadi")
+    ingest(api, paired, [call(1, "+998901234567", kind=2, duration=125)])
+    r = lookup(api, paired, "998901234567").data
+    text = "\n".join(r["lines"])
+    assert r["found"] and r["title"].startswith("Madina Aliyeva") and r["badge"] == "Lid"
+    for part in ("Frontend · Instagram", "Sinov dars", "27.11", "Onasi bilan kelishadi", "2-marta bog'lanish", "(2:05)"):
+        assert part in text, part
+
+
+def test_lookup_instagram_inbox_card(api, paired, branch):
+    from apps.crm import inbox
+
+    inbox.add("Instagram", phone="935556677", name="Sardor", course_name="Flutter", info="reklama",
+              received_at=datetime.datetime(2026, 10, 18, 9, 0, tzinfo=datetime.UTC), external_id="l:77")
+    r = lookup(api, paired, "935556677").data
+    assert r["found"] and r["title"] == "Sardor" and "Instagram lidi" in r["badge"] and any("Flutter" in x for x in r["lines"])
