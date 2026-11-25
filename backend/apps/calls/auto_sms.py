@@ -67,7 +67,8 @@ DEFAULTS = {
     },
     R.DEMO_SIGNUP: {
         "kind": K.DEMO, "time": None, "day": None, "ph": ["ism", "talaba", "kurs", "guruh", "sana", "hafta", "vaqt"], "enabled": True,
-        "text": "{ism}, {kurs} sinov darsi {sana} ({hafta}) soat {vaqt} da. 10 daqiqa oldin keling. Kelolmasangiz 998204432 ga qo'ng'iroq qiling. Codial",
+        "text": ("{ism}, {kurs} sinov darsi {sana} ({hafta}) {vaqt} da. Kelolmasangiz: 998204432. "
+                 "Manzil: https://maps.app.goo.gl/Pt4LFgiEodV8o15Q8"),
         "when": "Lid «Sinov darsga yozildi» holatida guruh va sinov dars kuni bilan saqlanganda — talabaning hamma raqamiga; sana yoki guruh o'zgarsa qayta. "
                 "Bitta SMSga sig'masa hafta kuni qisqartiriladi, kerak bo'lsa oxiridagi «Codial» tushib qoladi",
     },

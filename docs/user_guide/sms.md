@@ -47,12 +47,12 @@ Instagram, Facebook yoki saytdan lid tushishi bilan (Instagram/sayt lidlari ro'y
 
 ## Sinov darsga yozilganda — kelish vaqti
 
-Lid **«3. Sinov darsga yozildi»** holatida **guruh** va **sinov dars kuni** bilan saqlansa, talabaning hamma raqamiga SMS ketadi: «{ism}, {kurs} sinov darsi {sana} ({hafta}) soat {vaqt} da. 10 daqiqa oldin keling. Kelolmasangiz 998204432 ga qo'ng'iroq qiling. Codial».
+Lid **«3. Sinov darsga yozildi»** holatida **guruh** va **sinov dars kuni** bilan saqlansa, talabaning hamma raqamiga SMS ketadi: «{ism}, {kurs} sinov darsi {sana} ({hafta}) {vaqt} da. Kelolmasangiz: 998204432. Manzil: https://maps.app.goo.gl/Pt4LFgiEodV8o15Q8».
 
 - Vaqt — tanlangan guruhning dars boshlanish vaqti.
 - Sana yoki guruh o'zgarsa, yangi vaqt bilan qayta yuboriladi; o'zgarmasa takror ketmaydi.
 - Guruh yoki sana tanlanmagan bo'lsa, yoki dars vaqti o'tib ketgan bo'lsa — SMS ketmaydi.
-- Xabar bitta SMSga sig'diriladi: uzun bo'lsa hafta kuni qisqartiriladi, kerak bo'lsa oxiridagi «Codial» tushib qoladi.
+- Xabar bitta SMSga sig'diriladi: uzun bo'lsa hafta kuni qisqartiriladi («chorshanba» → «chor»).
 - Qoida **Avtomatik SMS** ro'yxatida («Sinov darsga yozildi (vaqti bilan)»), boshidan yoniq.
 
 ## Qaysi raqamlarga SMS ketmaydi

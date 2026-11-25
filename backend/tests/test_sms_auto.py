@@ -309,7 +309,8 @@ def test_demo_signup_sms_time_resend_and_one_segment(env):
     msgs = SmsMessage.objects.filter(kind=K.DEMO)
     assert sorted(msgs.values_list("phone", flat=True)) == sorted([st.phone1, st.phone2])
     m = msgs.first()
-    assert f"{day:%d.%m}" in m.text and "soat 14:00" in m.text and m.text.startswith("Muhsinjon, Kompyuter savodxonligi sinov darsi") and m.parts == 1
+    assert f"{day:%d.%m}" in m.text and " 14:00 da." in m.text and m.text.startswith("Muhsinjon, Kompyuter savodxonligi sinov darsi") and m.parts == 1
+    assert m.text.endswith("https://maps.app.goo.gl/Pt4LFgiEodV8o15Q8")
     lead.demo_attended = True
     lead.save()  # boshqa maydon — takror yo'q
     assert msgs.count() == 2
@@ -328,7 +329,7 @@ def test_demo_signup_text_always_fits_one_sms(env):
             ctx = {"ism": name, "kurs": "Kompyuter savodxonligi", "sana": "27.11", "vaqt": "14:00"}
             text = auto_sms.fit_one_sms(template, ctx, weekday)
             assert sms.segments(text) == 1, text
-            assert name in text and "soat 14:00" in text and "998204432" in text
+            assert name in text and " 14:00 da." in text and "998204432" in text and text.endswith("/Pt4LFgiEodV8o15Q8")
     full = auto_sms.fit_one_sms(template, {"ism": "Javlon", "kurs": "Kompyuter savodxonligi", "sana": "27.11", "vaqt": "14:00"}, 4)
-    assert full == ("Javlon, Kompyuter savodxonligi sinov darsi 27.11 (juma) soat 14:00 da. 10 daqiqa oldin keling. "
-                    "Kelolmasangiz 998204432 ga qo'ng'iroq qiling. Codial")
+    assert full == ("Javlon, Kompyuter savodxonligi sinov darsi 27.11 (juma) 14:00 da. Kelolmasangiz: 998204432. "
+                    "Manzil: https://maps.app.goo.gl/Pt4LFgiEodV8o15Q8")
