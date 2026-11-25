@@ -45,6 +45,12 @@ Instagram, Facebook yoki saytdan lid tushishi bilan (Instagram/sayt lidlari ro'y
 - Raqam bazada (talaba, vasiy) bo'lsa yoki unga avval shu SMS ketgan bo'lsa — yuborilmaydi (har raqamga bir marta).
 - Telefon ulanmagan bo'lsa, Bosh menejerga Telegram'da ogohlantirish keladi.
 
+## Qaysi raqamlarga SMS ketmaydi
+
+Talabaning 2-telefoni yoki vasiy raqami o'rniga yozilgan **to'ldirma raqamlarga** SMS yuborilmaydi: hamma raqami bir xil (999999999, 555555555 …) yoki Codial telefonining o'z raqami. Bunday raqamga ilgari ketgan boshqa talabalarning SMS'lari ham lid va shartnoma kartochkasida ko'rinmaydi.
+
+To'lov eslatmalari va oldindan to'lov bonusi faqat shartnomasi bor talabalarga boradi.
+
 ## Qoliplar
 
 **Qo'ng'iroqlar va SMS → SMS → «Qolip qo'shish»**. Matnni administratorlarning o'zi yozadi. Matnga o'rinbosarlar qo'yiladi, ular har talaba uchun almashtiriladi:

@@ -267,3 +267,25 @@ def test_check_problems_stuck_failed_undelivered_once(env, django_capture_on_com
     with django_capture_on_commit_callbacks(execute=True):
         assert auto_sms.check_problems(now + datetime.timedelta(minutes=20)) == 0  # har SMS haqida bir marta
     assert Outbox.objects.filter(event="sms_problem").count() == 1
+
+
+def test_filler_and_own_numbers_get_no_sms_and_do_not_leak_into_history(env):
+    """«999999999» yoki Codialning o'z raqami 2-telefon o'rniga yozilsa — SMS ketmaydi va kartochkaga boshqalarning SMS'i tushmaydi."""
+    env["enable"](R.MONTH_START)
+    CallDevice.objects.filter(pk=env["device"].pk).update(phone="998204432")
+    st = env["student"](1, parent=False)
+    st.phone2 = "999999999"
+    st.save()
+    other = env["student"](2, parent=False)
+    other.phone2 = "998204432"
+    other.save()
+    env["contract"](st)
+    env["contract"](other)
+    assert sms.recipients(st) == [(st.phone1, "Talaba")] and sms.recipients(other) == [(other.phone1, "Talaba")]
+    assert auto_sms.tick(timezone.make_aware(datetime.datetime(2026, 11, 1, 10, 0))) == 2
+    assert sorted(SmsMessage.objects.values_list("phone", flat=True)) == sorted([st.phone1, other.phone1])
+    # avval to'ldirma raqamga ketib qolgan boshqa talabaning SMS'i
+    old = SmsMessage.objects.get(phone=other.phone1)
+    SmsMessage.objects.filter(pk=old.pk).update(phone="999999999")
+    h = sms.history(env["branch"].pk, st, [st.phone1, st.phone2])
+    assert h["count"] == 1 and h["results"][0]["phone"] == st.phone1

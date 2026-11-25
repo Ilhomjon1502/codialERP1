@@ -475,7 +475,8 @@ def preview(rule, today=None):
             out["info"] = "Matn oxiriga mijozlar botiga ulanish havolasi (har raqamga alohida kod) avtomatik qo'shiladi; raqam allaqachon ulangan bo'lsa qo'shilmaydi."
     out["parts"] = sms.segments(out["sample"])
     out["students"] = len(plans)
-    out["messages"] = sum(len([1 for p, _ in sms.recipients(pl.student) if p not in pl.skip]) for pl in plans)
+    own = sms.own_numbers()
+    out["messages"] = sum(len([1 for p, _ in sms.recipients(pl.student, own) if p not in pl.skip]) for pl in plans)
     out["names"] = [_name(pl.student) for pl in plans[:8]]
     return out
 

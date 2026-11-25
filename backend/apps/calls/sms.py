@@ -100,13 +100,24 @@ def due_context(contract, info, month):
     }
 
 
-def recipients(student):
-    """[(phone, kimga)] — talabaning 1- va 2-telefoni, vasiyning telefoni (takrorsiz)."""
+def own_numbers():
+    """Codial telefonlarining o'z SIM raqamlari (ko'pincha talabaning yo'q 2-telefoni o'rniga yoziladi)."""
+    return set(CallDevice.objects.filter(is_deleted=False).exclude(phone="").values_list("phone", flat=True))
+
+
+def is_filler(phone, own):
+    """«To'ldirma» raqam: hamma raqami bir xil (999999999, 555555555 …) yoki Codialning o'z raqami — SMS yuborilmaydi (2026-11-25)."""
+    return len(set(phone)) == 1 or phone in own
+
+
+def recipients(student, own=None):
+    """[(phone, kimga)] — talabaning 1- va 2-telefoni, vasiyning telefoni (takrorsiz, to'ldirma raqamlarsiz)."""
+    own = own_numbers() if own is None else own
     out, seen = [], set()
     for phone, who in ((student.phone1, "Talaba"), (student.phone2, "Talaba (2-tel)"),
                        (student.parent.phone if student.parent_id else "", "Vasiy")):
         p = normalize(phone)
-        if p and p not in seen:
+        if p and p not in seen and not is_filler(p, own):
             seen.add(p)
             out.append((p, who))
     return out
@@ -140,7 +151,7 @@ def _dues(user, contract_ids, month, text, skip_sent, commit, template=None):
     sent = set(SmsMessage.objects.filter(contract__in=[c.pk for c in contracts], month=month, kind__in=kinds,
                                          status__in=[S.QUEUED, S.SENDING, S.SENT], is_deleted=False).values_list("contract_id", "phone"))
     sent |= bot.sent_pairs([c.pk for c in contracts], month, kinds)  # botga ketganlar ham «shu oy eslatma olgan» hisoblanadi
-    devices, no_device = {}, set()
+    devices, no_device, own = {}, set(), own_numbers()
     rows, bot_msgs, skipped_sent, no_phone, sample = [], [], 0, 0, None
     for c in contracts:
         if c.branch_id not in devices:
@@ -148,7 +159,7 @@ def _dues(user, contract_ids, month, text, skip_sent, commit, template=None):
         dev = devices[c.branch_id]
         msg = render(text, due_context(c, dues[c.pk], month))
         sample = sample or msg
-        phones = recipients(c.student)
+        phones = recipients(c.student, own)
         if not phones:
             no_phone += 1
             continue
@@ -290,6 +301,9 @@ def cancel_queued(user, qs):
 def history(branch_id, student, phones, limit=30):
     """Talabaning SMS yozishmasi: yuborilganlar (shartnomasi yoki raqamlari bo'yicha) va undan/vasiydan kelganlar — yangisi birinchi."""
     from django.db.models import Q
+
+    own = own_numbers()
+    phones = [p for p in phones if not is_filler(p, own)]  # to'ldirma raqamga boshqalarga ketgan SMS bu kartochkada chiqmasin
 
     qs = (SmsMessage.objects.filter(branch_id=branch_id, is_deleted=False)
           .filter(Q(contract__student=student) | Q(student=student) | Q(phone__in=phones))
