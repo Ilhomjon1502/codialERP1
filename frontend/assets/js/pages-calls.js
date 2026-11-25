@@ -470,8 +470,8 @@
   const SAMPLE = { ism: 'Muhsinjon', talaba: 'Muhsinjon Karimov', kurs: 'Kompyuter savodxonligi', guruh: 'Kompyuter savodxonligi 192', oy: 'noyabr', summa: '450 000',
     muddat: '10.11', muddat_kun: '10', bonus: '75 000', kun: '5', keyingi_oy: 'dekabr', kecha: 'Kecha', sana: '21.10' };
   const ruleCount = (t) => countHTML(fill(t || '', SAMPLE));
-  const RULE_ORDER = ['inbox_lead', 'lead', 'contract', 'demo', 'bot_reminder', 'month_start', 'prepay_bonus', 'absence'];
-  const RULE_EMOJI = { inbox_lead: '📲', lead: '🆕', contract: '📝', demo: '🎓', bot_reminder: '🤖', month_start: '📅', prepay_bonus: '🎁', absence: '📵' };
+  const RULE_ORDER = ['inbox_lead', 'lead', 'demo_signup', 'contract', 'demo', 'bot_reminder', 'month_start', 'prepay_bonus', 'absence'];
+  const RULE_EMOJI = { demo_signup: '🕒', inbox_lead: '📲', lead: '🆕', contract: '📝', demo: '🎓', bot_reminder: '🤖', month_start: '📅', prepay_bonus: '🎁', absence: '📵' };
   const ruleTime = (r) => (r.scheduled ? `${r.day ? `har oyning ${r.day}-sanasi` : 'har kuni'}, ${r.send_time || '—'}` : "voqea bo'lishi bilan");
   function rulesView() {
     if (!rules.length) return '';

@@ -532,7 +532,11 @@
     m.el.querySelectorAll('[data-status]').forEach((b) =>
       (b.onclick = () => {
         if (CB.includes(b.dataset.status) && b.dataset.status !== l.status) { m.close(); A.callbackForm(l, b.dataset.status, () => { A.refresh(); A.openLead(id); }); return; }
-        A.http.patch(`/leads/${id}/`, { status: b.dataset.status }).then(reopen, fail);
+        const noTime = b.dataset.status === '3' && l.status !== '3' && !(l.group && l.demo_date);
+        A.http.patch(`/leads/${id}/`, { status: b.dataset.status }).then(() => {
+          reopen();
+          if (noTime) A.toast("Kelish vaqti SMS'i ketmadi: «Tahrirlash»da guruh va sinov dars kunini tanlang", 'warn');
+        }, fail);
       }));
     const cnBtn = m.el.querySelector('[data-callnote]');
     if (cnBtn) cnBtn.onclick = () => { m.close(); A.callNoteForm(l, () => { A.refresh(); A.openLead(id); }); };

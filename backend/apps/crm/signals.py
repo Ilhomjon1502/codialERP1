@@ -5,10 +5,23 @@ from django.dispatch import receiver
 
 from .models import InboxLead, Lead
 
+DEMO_FIELDS = ("status", "group_id", "demo_date")
+
 
 @receiver(pre_save, sender=Lead, dispatch_uid="lead_age_before")
 def _remember_age(sender, instance, **kw):
-    instance._age_before = Lead.all_objects.filter(pk=instance.pk).values_list("age_group", flat=True).first() if instance.pk else None
+    old = Lead.all_objects.filter(pk=instance.pk).values("age_group", *DEMO_FIELDS).first() if instance.pk else None
+    instance._age_before = old["age_group"] if old else None
+    instance._demo_before = tuple(old[f] for f in DEMO_FIELDS) if old else None
+
+
+@receiver(post_save, sender=Lead, dispatch_uid="lead_demo_sms")
+def _demo_sms(sender, instance, **kw):
+    """«Sinov darsga yozildi»ga o'tdi yoki sinov kuni/guruhi o'zgardi — kelish vaqti SMS'i (avtomatik SMS qoidasi `demo_signup`)."""
+    if getattr(instance, "_demo_before", None) != tuple(getattr(instance, f) for f in DEMO_FIELDS) and not instance.is_deleted:
+        from apps.calls import auto_sms
+
+        auto_sms.demo_signed_up(instance)
 
 
 @receiver(post_save, sender=Lead, dispatch_uid="lead_age_recalc")

@@ -45,6 +45,16 @@ Instagram, Facebook yoki saytdan lid tushishi bilan (Instagram/sayt lidlari ro'y
 - Raqam bazada (talaba, vasiy) bo'lsa yoki unga avval shu SMS ketgan bo'lsa — yuborilmaydi (har raqamga bir marta).
 - Telefon ulanmagan bo'lsa, Bosh menejerga Telegram'da ogohlantirish keladi.
 
+## Sinov darsga yozilganda — kelish vaqti
+
+Lid **«3. Sinov darsga yozildi»** holatida **guruh** va **sinov dars kuni** bilan saqlansa, talabaning hamma raqamiga SMS ketadi: «{ism}, {kurs} sinov darsi {sana} ({hafta}) soat {vaqt} da. 10 daqiqa oldin keling. Kelolmasangiz 998204432 ga qo'ng'iroq qiling. Codial».
+
+- Vaqt — tanlangan guruhning dars boshlanish vaqti.
+- Sana yoki guruh o'zgarsa, yangi vaqt bilan qayta yuboriladi; o'zgarmasa takror ketmaydi.
+- Guruh yoki sana tanlanmagan bo'lsa, yoki dars vaqti o'tib ketgan bo'lsa — SMS ketmaydi.
+- Xabar bitta SMSga sig'diriladi: uzun bo'lsa hafta kuni qisqartiriladi, kerak bo'lsa oxiridagi «Codial» tushib qoladi.
+- Qoida **Avtomatik SMS** ro'yxatida («Sinov darsga yozildi (vaqti bilan)»), boshidan yoniq.
+
 ## Qaysi raqamlarga SMS ketmaydi
 
 Talabaning 2-telefoni yoki vasiy raqami o'rniga yozilgan **to'ldirma raqamlarga** SMS yuborilmaydi: hamma raqami bir xil (999999999, 555555555 …) yoki Codial telefonining o'z raqami. Bunday raqamga ilgari ketgan boshqa talabalarning SMS'lari ham lid va shartnoma kartochkasida ko'rinmaydi.

@@ -188,6 +188,7 @@ class SmsRule(BaseModel):
         DEMO = "demo", "Sinov darsga qatnashdi"
         BOT_REMINDER = "bot_reminder", "Botga ulanish eslatmasi"
         INBOX_LEAD = "inbox_lead", "Reklama lidi (Kompyuter savodxonligi)"
+        DEMO_SIGNUP = "demo_signup", "Sinov darsga yozildi (vaqti bilan)"
 
     branch = models.ForeignKey("references.Branch", on_delete=models.PROTECT, related_name="sms_rules", verbose_name="Filial")
     key = models.CharField("Qoida", max_length=16, choices=Key.choices)

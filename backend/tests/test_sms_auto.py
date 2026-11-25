@@ -63,7 +63,7 @@ def texts():
 
 
 def test_rules_created_disabled_and_nothing_sent_by_default(env, api, refs):
-    assert {r.key for r in env["rules"].values()} == set(R.values) and not any(r.enabled for r in env["rules"].values() if r.key != "inbox_lead")
+    assert {r.key for r in env["rules"].values()} == set(R.values) and not any(r.enabled for r in env["rules"].values() if r.key not in ("inbox_lead", "demo_signup"))
     r = api(env["user"]).post("/api/v1/leads/", new_lead(refs), format="json")
     assert r.status_code == 201 and not SmsMessage.objects.exists()
 
@@ -206,7 +206,7 @@ def test_tick_runs_once_per_day_at_time_and_day(env):
 def test_disabled_rule_does_nothing_and_text_validation(env, api):
     c = api(env["user"])
     rules = c.get("/api/v1/sms-rules/").data
-    assert len(rules) == 8 and all(r["enabled"] == (r["key"] == "inbox_lead") and r["text"] for r in rules)  # reklama lidi qoidasi boshidan yoniq
+    assert len(rules) == 9 and all(r["enabled"] == (r["key"] in ("inbox_lead", "demo_signup")) and r["text"] for r in rules)  # ikki qoida boshidan yoniq
     absence = next(r for r in rules if r["key"] == "absence")
     bad = c.patch(f"/api/v1/sms-rules/{absence['id']}/", {"text": "{bonus} so'm"}, format="json")
     assert bad.status_code == 400 and "ishlatib bo'lmaydigan" in str(bad.data)
@@ -289,3 +289,46 @@ def test_filler_and_own_numbers_get_no_sms_and_do_not_leak_into_history(env):
     SmsMessage.objects.filter(pk=old.pk).update(phone="999999999")
     h = sms.history(env["branch"].pk, st, [st.phone1, st.phone2])
     assert h["count"] == 1 and h["results"][0]["phone"] == st.phone1
+
+
+def test_demo_signup_sms_time_resend_and_one_segment(env):
+    """«Sinov darsga yozildi» — guruh darsi vaqti bilan; sana o'zgarsa qayta; vaqt o'tgan yoki guruhsiz bo'lsa ketmaydi."""
+    from apps.crm.models import Lead
+
+    env["enable"](R.DEMO_SIGNUP)
+    st = env["student"](1, parent=False)
+    group = Group.objects.get()
+    src = LeadSource.objects.create(name="Telegram")
+    day = timezone.localdate() + datetime.timedelta(days=2)
+    lead = Lead.objects.create(branch=env["branch"], student=st, source=src, course=env["course"], status="2")
+    lead.status = "3"
+    lead.save()  # guruh va sana yo'q
+    assert not SmsMessage.objects.exists()
+    lead.group, lead.demo_date = group, day
+    lead.save()
+    msgs = SmsMessage.objects.filter(kind=K.DEMO)
+    assert sorted(msgs.values_list("phone", flat=True)) == sorted([st.phone1, st.phone2])
+    m = msgs.first()
+    assert f"{day:%d.%m}" in m.text and "soat 14:00" in m.text and m.text.startswith("Muhsinjon, Kompyuter savodxonligi sinov darsi") and m.parts == 1
+    lead.demo_attended = True
+    lead.save()  # boshqa maydon — takror yo'q
+    assert msgs.count() == 2
+    lead.demo_date = day + datetime.timedelta(days=1)
+    lead.save()
+    assert msgs.count() == 4
+    lead.demo_date = timezone.localdate() - datetime.timedelta(days=1)
+    lead.save()  # o'tgan kun
+    assert msgs.count() == 4
+
+
+def test_demo_signup_text_always_fits_one_sms(env):
+    template = auto_sms.DEFAULTS[R.DEMO_SIGNUP]["text"]
+    for name in ("Ali", "Muhammadyusuf", "Muhammadabdulloh1234"[:20]):
+        for weekday in range(7):
+            ctx = {"ism": name, "kurs": "Kompyuter savodxonligi", "sana": "27.11", "vaqt": "14:00"}
+            text = auto_sms.fit_one_sms(template, ctx, weekday)
+            assert sms.segments(text) == 1, text
+            assert name in text and "soat 14:00" in text and "998204432" in text
+    full = auto_sms.fit_one_sms(template, {"ism": "Javlon", "kurs": "Kompyuter savodxonligi", "sana": "27.11", "vaqt": "14:00"}, 4)
+    assert full == ("Javlon, Kompyuter savodxonligi sinov darsi 27.11 (juma) soat 14:00 da. 10 daqiqa oldin keling. "
+                    "Kelolmasangiz 998204432 ga qo'ng'iroq qiling. Codial")

@@ -38,6 +38,8 @@ PLACEHOLDERS = {
     "keyingi_oy": "Keyingi oy nomi (masalan: dekabr)",
     "kecha": "«Kecha» yoki sana («21.10 kuni»)",
     "sana": "Dars sanasi (masalan: 21.10)",
+    "hafta": "Hafta kuni (masalan: juma)",
+    "vaqt": "Dars boshlanish vaqti (masalan: 14:00)",
 }
 OUTBOX_BATCH = 20
 SENDING_TIMEOUT_MIN = 30  # telefon olgan, lekin natija qaytarmagan SMS shuncha daqiqadan keyin «Xato» (qayta yuborilmaydi — takror bo'lmasin)

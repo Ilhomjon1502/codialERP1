@@ -8,6 +8,8 @@
 - **demo** — lid «Sinov darsga qatnashdi» holatiga o'tganda (hook: `notifications.services.lead_changed`);
 - **inbox_lead** — Instagram/Facebook/saytdan kiruvchi lid tushishi bilan, reklamasi «Kompyuter savodxonligi» bo'lsa, shu raqamga ism bilan SMS
   (2026-11-16; boshidan yoniq; raqam bazada bo'lsa yoki avval olgan bo'lsa — ketmaydi; hook: `crm/signals.py`);
+- **demo_signup** — lid «Sinov darsga yozildi» (3) holatida guruh va sinov kuni bilan saqlanganda: markazga kelish sanasi va vaqti (guruh darsi
+  boshlanishi); sana yoki guruh o'zgarsa qayta ketadi; **bitta SMS**ga sig'diriladi (2026-11-25; boshidan yoniq; hook: `crm/signals.py`);
 - **bot_reminder** — har kuni 10:00: faol shartnomasi yoki ochiq lidi (1–4) bor, lekin mijozlar botiga ulanmagan raqamlarga ulanish eslatmasi
   (har `reminder_days` kunda, jami `reminder_max` marta — Telegram bot sozlamasi).
 
@@ -63,6 +65,12 @@ DEFAULTS = {
                  "{keyingi_oy} oyi uchun to'lovni hozir qilsangiz bonus sizniki."),
         "when": "Har oyning belgilangan kuni — kelasi oy uchun hali to'lamagan faol shartnomalarga (bonus «Avvaldan to'lov» chegirmasidan)",
     },
+    R.DEMO_SIGNUP: {
+        "kind": K.DEMO, "time": None, "day": None, "ph": ["ism", "talaba", "kurs", "guruh", "sana", "hafta", "vaqt"], "enabled": True,
+        "text": "{ism}, {kurs} sinov darsi {sana} ({hafta}) soat {vaqt} da. 10 daqiqa oldin keling. Kelolmasangiz 998204432 ga qo'ng'iroq qiling. Codial",
+        "when": "Lid «Sinov darsga yozildi» holatida guruh va sinov dars kuni bilan saqlanganda — talabaning hamma raqamiga; sana yoki guruh o'zgarsa qayta. "
+                "Bitta SMSga sig'masa hafta kuni qisqartiriladi, kerak bo'lsa oxiridagi «Codial» tushib qoladi",
+    },
     R.DEMO: {
         "kind": K.DEMO, "time": None, "day": None, "ph": ["ism", "talaba", "kurs", "guruh"],
         "text": "Assalomu alaykum! Sinov darsimizga qatnashganingiz uchun rahmat. Savollaringiz bo'lsa, 998204432 ga murojaat qiling.",
@@ -88,7 +96,7 @@ DEFAULTS = {
 SAMPLE_CTX = {
     "ism": "Muhsinjon", "talaba": "Muhsinjon Karimov", "kurs": "Kompyuter savodxonligi", "guruh": "Kompyuter savodxonligi 192",
     "oy": "noyabr", "summa": "450 000", "muddat": "10.11", "muddat_kun": "10", "bonus": "75 000", "kun": "5", "keyingi_oy": "dekabr",
-    "kecha": "Kecha", "sana": "21.10",
+    "kecha": "Kecha", "sana": "21.10", "hafta": "juma", "vaqt": "14:00",
 }
 PROBLEM_AFTER = datetime.timedelta(minutes=15)
 ABSENCE_WINDOW_DAYS = 3
@@ -141,12 +149,13 @@ def alert_no_device(branch):
                  "(Qo'ng'iroqlar va SMS → Qurilmalar).", force=True, key=f"smsnodev:{branch.pk}:{timezone.localdate()}")
 
 
-def enqueue(rule, student, ctx, key_base, kind, *, contract=None, lead=None, month=None, skip=()):
-    """Talabaning hamma raqamiga xabar: botga ulangan raqamga **botga**, qolganiga SMS qatori (Navbatda). Qaytaradi: yaratilganlar soni."""
+def enqueue(rule, student, ctx, key_base, kind, *, contract=None, lead=None, month=None, skip=(), text=None):
+    """Talabaning hamma raqamiga xabar: botga ulangan raqamga **botga**, qolganiga SMS qatori (Navbatda). Qaytaradi: yaratilganlar soni.
+    text — tayyor matn (berilmasa qoida matni ctx bilan to'ldiriladi)."""
     from apps.clientbot import services as bot
     from apps.clientbot.models import ClientOutbox
 
-    text = sms.plain(sms.render(sms.plain(rule.text), ctx))
+    text = text or sms.plain(sms.render(sms.plain(rule.text), ctx))
     phones = [(p, who) for p, who in sms.recipients(student) if p not in skip]
     keys = [f"{key_base}:{p}" for p, _ in phones]
     have = set(SmsMessage.all_objects.filter(key__in=keys).values_list("key", flat=True))
@@ -284,6 +293,44 @@ def contract_created(contract):
             st = contract.student
             ctx = {"ism": st.first_name, "talaba": _name(st), "kurs": contract.course.name, "guruh": sms.group_label(contract.group)}
             enqueue(rule, st, ctx, f"contract:{contract.pk}", K.CONTRACT, contract=contract)
+
+    _safe(run)
+
+
+WEEKDAYS = ["dushanba", "seshanba", "chorshanba", "payshanba", "juma", "shanba", "yakshanba"]
+WEEKDAYS_SHORT = ["dush", "sesh", "chor", "pay", "juma", "shan", "yak"]
+
+
+def fit_one_sms(template, ctx, weekday):
+    """Matn bitta SMSga sig'sin: sig'masa hafta kuni qisqartiriladi, so'ng oxiridagi « Codial» imzosi olib tashlanadi."""
+    template = sms.plain(template)
+    render = lambda t, day: sms.plain(sms.render(t, {**ctx, "hafta": day}))  # noqa: E731
+    text = render(template, WEEKDAYS[weekday])
+    if sms.segments(text) > 1:
+        text = render(template, WEEKDAYS_SHORT[weekday])
+    if sms.segments(text) > 1:
+        text = text.removesuffix(" Codial")
+    return text
+
+
+def demo_signed_up(lead):
+    """Lid «Sinov darsga yozildi»: guruh va sinov kuni bo'lsa — markazga kelish vaqti (hook: crm/signals.py)."""
+    from apps.crm.models import Lead
+
+    if lead.status != Lead.LeadStatus.DEMO_BOOKED or not lead.group_id or not lead.demo_date:
+        return
+
+    def run():
+        rule = _enabled_rule(lead.branch_id, R.DEMO_SIGNUP)
+        if not rule:
+            return
+        start = lead.group.time.start_time
+        if timezone.make_aware(datetime.datetime.combine(lead.demo_date, start)) <= timezone.now():
+            return  # dars vaqti o'tib ketgan — taklif yuborilmaydi
+        st, d, at = lead.student, lead.demo_date, f"{start:%H:%M}"
+        ctx = {"ism": clean_name(st.first_name) or st.first_name, "talaba": _name(st), "kurs": lead.course.name if lead.course_id else "",
+               "guruh": sms.group_label(lead.group), "sana": f"{d:%d.%m}", "vaqt": at}
+        enqueue(rule, st, ctx, f"demo3:{lead.pk}:{d:%Y%m%d}:{at}", K.DEMO, lead=lead, text=fit_one_sms(rule.text, ctx, d.weekday()))
 
     _safe(run)
 
