@@ -3,21 +3,28 @@
 Qabul telefonida yozuvni Shizuku orqali ShizuCallRecorder yozadi; Shizuku vaqti-vaqti bilan o'chib qoladi va suhbat o'rtasida yozuv uziladi
 yoki fayl bo'sh chiqadi. Qizlar buni kech payqaydi — uzun suhbatlar yo'qoladi. Shuning uchun gaplashilgan qo'ng'iroqdan GRACE daqiqa o'tgach
 yozuv bo'lmasa, yoki u suhbatdan sezilarli qisqa bo'lsa, Administrator, Administrator+Hisobchi va Bosh menejerga xabar boradi.
+Telefon ilovasi (4.1 dan) Shizuku o'chganini o'zi ham xabar qiladi (`/calls/ping/?recorder=down`) — `recorder_down` shu zahoti ogohlantiradi.
 `run_bot` har daqiqada `tick()` ni chaqiradi. Har qo'ng'iroq haqida bir marta (`CallRecord.rec_alert_at`); xabarlar orasida kamida COOLDOWN.
 """
 
 import datetime
+from html import escape
 
 from django.db.models import Max, Q
 from django.utils import timezone
 
-from .models import CallRecord
+from apps.core.models import Status
+
+from .models import CallDevice, CallRecord
 
 MIN_TALK = 15                                  # shundan qisqa suhbat — e'tiborga olinmaydi
 GRACE = datetime.timedelta(minutes=5)          # suhbat tugagach telefon yozuvni yuklab bo'lishi uchun
 WINDOW = datetime.timedelta(hours=3)           # eskirgan qo'ng'iroqlar haqida xabar berilmaydi
 COOLDOWN = datetime.timedelta(minutes=10)      # xabarlar orasida (ketma-ket xatolar bitta xabarga jamlanadi)
 MAX_LINES = 8
+DOWN_GRACE = datetime.timedelta(minutes=2)     # qisqa uzilish (qayta ishga tushirish) uchun xabar berilmaydi
+ALIVE = datetime.timedelta(minutes=30)         # telefon shuncha vaqt jim bo'lsa holat eskirgan hisoblanadi
+DAY_FROM, DAY_TO = 8, 20                       # «yozuvchi o'chgan» xabari faqat ish vaqtida
 
 
 def shortfall(duration):
@@ -65,13 +72,31 @@ def text(items):
     return "\n".join(lines)
 
 
+def recorder_down(now):
+    """Telefon «yozuvchi o'chdi» degan qurilmalar haqida (qo'ng'iroq yo'qolmasidan oldin) ish vaqtida har 30 daqiqada xabar beradi."""
+    from apps.notifications import services as notif
+
+    local = timezone.localtime(now)
+    if not DAY_FROM <= local.hour < DAY_TO:
+        return
+    devices = CallDevice.objects.filter(status=Status.ACTIVE, is_deleted=False, recorder_down_at__lte=now - DOWN_GRACE,
+                                        last_seen_at__gte=now - ALIVE).select_related("branch")
+    for d in devices:
+        since = timezone.localtime(d.recorder_down_at).strftime("%H:%M")
+        msg = (f"🔴 <b>Yozuvchi o'chgan</b> — {escape(d.name)} ({since} dan). Hozir qo'ng'iroqlar <b>yozilmayapti</b>.\n\n"
+               "Telefonda <b>Shizuku</b> ilovasini oching va «Start via Wireless debugging» (Simsiz nosozlikni tuzatish) orqali ishga tushiring. "
+               "Wi-Fi yoqilgan bo'lishi kerak.")
+        notif.notify("rec_problem", msg, branch=d.branch, force=True, key=f"recdown:{d.pk}:{local:%Y%m%d%H}:{local.minute // 30}")
+
+
 def tick(now=None):
     """Yozuvi to'liq bo'lmagan qo'ng'iroqlar haqida xabar beradi. Qaytaradi: xabarga kirgan qo'ng'iroqlar soni."""
     from apps.notifications import services as notif
     from apps.notifications.models import Outbox
 
     now = now or timezone.now()
-    if Outbox.objects.filter(event="rec_problem", created_at__gte=now - COOLDOWN).exists():
+    recorder_down(now)
+    if Outbox.objects.filter(event="rec_problem", key__startswith="recprob:", created_at__gte=now - COOLDOWN).exists():
         return 0
     items = bad_calls(now)
     if not items:

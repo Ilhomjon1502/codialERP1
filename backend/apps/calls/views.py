@@ -84,14 +84,22 @@ class RecordingView(DeviceAPIView):
 
 
 class PingView(DeviceAPIView):
-    """Ilova ulanishni tekshiradi: {name, branch, last_external_ids}."""
+    """Ilova ulanishni tekshiradi: {name, branch}. `?recorder=ok|down` — telefondagi yozuvchi (Shizuku) holati."""
 
     def get(self, request):
         device = _device(request)
         if not device:
             return Response({"detail": "Qurilma ulanmagan", "code": "device_unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
         device.last_seen_at = timezone.now()
-        device.save(update_fields=["last_seen_at"])
+        fields = ["last_seen_at"]
+        state = request.query_params.get("recorder")
+        if state == "ok" and device.recorder_down_at:
+            device.recorder_down_at = None
+            fields.append("recorder_down_at")
+        elif state == "down" and not device.recorder_down_at:
+            device.recorder_down_at = device.last_seen_at
+            fields.append("recorder_down_at")
+        device.save(update_fields=fields)
         return Response({"name": device.name, "branch": device.branch.name})
 
 
@@ -104,8 +112,8 @@ class CallDeviceSerializer(BranchScopedSerializerMixin, serializers.ModelSeriali
 
     class Meta:
         model = CallDevice
-        fields = ["id", "name", "branch", "phone", "status", "paired", "paired_at", "last_seen_at", "app_version", "pair_code", "pair_expires_at"]
-        read_only_fields = ["paired_at", "last_seen_at", "app_version", "pair_expires_at"]
+        fields = ["id", "name", "branch", "phone", "status", "paired", "paired_at", "last_seen_at", "app_version", "pair_code", "pair_expires_at", "recorder_down_at"]
+        read_only_fields = ["paired_at", "last_seen_at", "app_version", "pair_expires_at", "recorder_down_at"]
 
     def validate_phone(self, v):
         p = services.normalize(v)

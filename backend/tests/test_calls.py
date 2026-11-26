@@ -561,6 +561,40 @@ def test_rec_watch_batches_and_cools_down(watch):
     assert watch["tick"](20) == 0  # oldingi xabardan 10 daqiqa o'tmagan (now - COOLDOWN)
 
 
+def test_same_file_with_new_signature_is_duplicate(api, paired, media):
+    """Telefon faylga keyinroq «tegsa» imzo o'zgaradi, lekin nom, hajm, davomiylik o'sha — qayta saqlanmaydi (2026-11-26)."""
+    from apps.calls.models import CallRecording
+
+    name = "20261019_090000.000+0000_out_+998901234567.ogg"
+    assert _upload(api, paired, name=name, ended_sec=40, duration=40, sig="a").data["status"] == "stored"
+    assert _upload(api, paired, name=name, ended_sec=58, duration=40, sig="b").data["status"] == "duplicate"
+    assert CallRecording.objects.count() == 1
+
+
+def test_recorder_down_is_alerted_before_calls_are_lost(watch):
+    from apps.calls.models import CallDevice
+
+    api, token = watch["api"], watch["token"]
+    ping = lambda state: api().get(f"/api/v1/calls/ping/?recorder={state}", HTTP_AUTHORIZATION=f"Device {token}")  # noqa: E731
+    assert ping("down").status_code == 200
+    first = CallDevice.objects.get().recorder_down_at
+    assert first and ping("down").status_code == 200 and CallDevice.objects.get().recorder_down_at == first  # vaqt birinchi xabardan
+    start = datetime.datetime.fromtimestamp(T0 / 1000, tz=datetime.UTC)  # Toshkentda 14:00
+    CallDevice.objects.update(recorder_down_at=start, last_seen_at=start + datetime.timedelta(minutes=5))
+    watch["tick"](1)
+    assert watch["outbox"]().count() == 0  # 2 daqiqalik chidam
+    watch["tick"](5)
+    watch["tick"](6)
+    assert watch["outbox"]().count() == 1 and "Yozuvchi o'chgan" in watch["outbox"]().get().text.replace("&#x27;", "'")  # yarim soatda bitta
+    CallDevice.objects.update(last_seen_at=start + datetime.timedelta(minutes=34))
+    watch["tick"](35)
+    assert watch["outbox"]().count() == 2  # hali ham o'chiq — eslatma takrorlanadi
+    ping("ok")
+    assert CallDevice.objects.get().recorder_down_at is None
+    watch["tick"](65)
+    assert watch["outbox"]().count() == 2
+
+
 def test_recordings_list_shows_one_row_per_file(api, paired, make_user, media):
     """2026-11-20: telefon yozuv davom etayotganda uni bir necha marta yuklaydi — ro'yxatda eng uzun nusxa bitta qatorda (summary ham)."""
     ingest(api, paired, [call(1, "+998901234567", kind=2, duration=60)])

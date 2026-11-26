@@ -345,10 +345,12 @@ def attach_recording(device, upload, ended_ms, duration, sig="", number=""):
     except (TypeError, ValueError, OverflowError, OSError) as e:
         raise ValidationError({"ended_at": "Yaroqsiz vaqt"}) from e
     sig = str(sig or "")[:64]
-    if sig:
-        old = CallRecording.objects.filter(device=device, sig=sig).first()
-        if old:
-            return {"status": "duplicate", "call": str(old.call_id) if old.call_id else None}
+    old = CallRecording.objects.filter(device=device, sig=sig).first() if sig else None
+    if not old and started_from_name(upload.name):
+        # imzoda fayl o'zgargan vaqt bor: telefon faylga keyinroq «tegsa», aynan shu fayl yana yuklanardi (vaqtli nom, hajm, davomiylik bir xil)
+        old = CallRecording.objects.filter(device=device, filename=upload.name[:200], size=upload.size, duration=duration).exclude(file="").first()
+    if old:
+        return {"status": "duplicate", "call": str(old.call_id) if old.call_id else None}
     r = CallRecording(device=device, branch_id=device.branch_id, filename=(upload.name or "")[:200], number=normalize(number),
                       direction=_name_direction(upload.name), ended_at=ended, duration=duration, size=upload.size, sig=sig,
                       started_at=started_from_name(upload.name) or ended - datetime.timedelta(seconds=duration))

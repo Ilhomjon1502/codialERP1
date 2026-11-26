@@ -1,5 +1,7 @@
 """Mijozlar boti (B1): taklif kodlari, SMS'dagi havola, ulash, manba va tavsiya so'rovi, API."""
 
+import urllib.error
+
 import pytest
 
 from apps.calls import auto_sms
@@ -205,6 +207,19 @@ def test_send_pending_marks_sent_and_blocked(db):
 
     assert bot.send_pending(sender=sender) == 1 and sent == [1]
     assert ClientOutbox.objects.get(account=b).status == "failed" and BotAccount.objects.get(pk=b.pk).blocked
+
+
+def test_send_pending_http_403_blocks_account(db):
+    """urllib Telegram javob matnini bermaydi («HTTP Error 403: Forbidden») — kod bo'yicha ham bloklangan deb belgilanadi."""
+    acc = BotAccount.objects.create(chat_id=3)
+    bot.queue(acc, "salom", key="k1")
+
+    def sender(chat, text, markup):
+        raise urllib.error.HTTPError("https://api.telegram.org", 403, "Forbidden", None, None)
+
+    assert bot.send_pending(sender=sender) == 0
+    m = ClientOutbox.objects.get()
+    assert m.status == "failed" and m.attempts == 1 and BotAccount.objects.get(pk=acc.pk).blocked
 
 
 # ---------- API ----------

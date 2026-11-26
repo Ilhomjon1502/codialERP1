@@ -170,7 +170,8 @@ def send_pending(limit=30, sender=None):
         except Exception as e:  # noqa: BLE001
             m.attempts += 1
             m.error = str(e)[:255]
-            if "blocked" in m.error.lower() or "deactivated" in m.error.lower():  # foydalanuvchi botni bloklagan — qayta urinmaymiz
+            # foydalanuvchi botni bloklagan — qayta urinmaymiz, keyingi xabarlar SMS bo'lib ketadi. urllib 403 da matnni emas, faqat kodni beradi
+            if getattr(e, "code", None) == 403 or "blocked" in m.error.lower() or "deactivated" in m.error.lower():
                 m.status = ClientOutbox.Status.FAILED
                 BotAccount.objects.filter(pk=m.account_id).update(blocked=True)
             elif m.attempts >= 5:

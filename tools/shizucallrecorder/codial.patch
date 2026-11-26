@@ -1,5 +1,5 @@
 diff --git a/app/build.gradle.kts b/app/build.gradle.kts
-index 989f531..42542fd 100644
+index 989f531..14e2dba 100644
 --- a/app/build.gradle.kts
 +++ b/app/build.gradle.kts
 @@ -61,12 +61,12 @@ android {
@@ -13,8 +13,8 @@ index 989f531..42542fd 100644
          // Keep theses two values hard-coded here and update them per version. (To keep F-Droid compatibility since their parser is very basic)
 -        versionCode = 20
 -        versionName = "2.0.0"
-+        versionCode = 40
-+        versionName = "4.0-telefon"
++        versionCode = 41
++        versionName = "4.1-nazorat"
      }
      signingConfigs {
          // Signing config for CI environments.
@@ -551,10 +551,10 @@ index 0000000..7c0b915
 +}
 diff --git a/app/src/main/java/uz/codial/calls/CallService.java b/app/src/main/java/uz/codial/calls/CallService.java
 new file mode 100644
-index 0000000..1f9b532
+index 0000000..b569512
 --- /dev/null
 +++ b/app/src/main/java/uz/codial/calls/CallService.java
-@@ -0,0 +1,138 @@
+@@ -0,0 +1,147 @@
 +package uz.codial.calls;
 +
 +import android.app.Notification;
@@ -604,8 +604,15 @@ index 0000000..1f9b532
 +        @Override
 +        public void run() {
 +            SmsSender.request(CallService.this);
++            RecorderWatch.check(CallService.this);
 +            handler.postDelayed(this, smsPollDelay());
 +        }
++    };
++    // Shizuku o'chishi bilan (20 s dan keyin — qayta ulanishga imkon) tekshiriladi, navbatdagi 30 s ni kutmasdan
++    private final Runnable recorderCheck = () -> RecorderWatch.check(this);
++    private final rikka.shizuku.Shizuku.OnBinderDeadListener shizukuDead = () -> {
++        handler.postDelayed(recorderCheck, 5_000L);
++        handler.postDelayed(recorderCheck, 20_000L);
 +    };
 +    private final Runnable smsIn = () -> SmsInbox.request(this);
 +    private ContentObserver observer;
@@ -650,6 +657,7 @@ index 0000000..1f9b532
 +        }
 +        handler.postDelayed(periodic, PERIOD_MS);
 +        handler.postDelayed(smsPoll, 5000);
++        rikka.shizuku.Shizuku.addBinderDeadListener(shizukuDead);
 +    }
 +
 +    @Override
@@ -682,6 +690,7 @@ index 0000000..1f9b532
 +
 +    @Override
 +    public void onDestroy() {
++        rikka.shizuku.Shizuku.removeBinderDeadListener(shizukuDead);
 +        handler.removeCallbacksAndMessages(null);
 +        if (observer != null) getContentResolver().unregisterContentObserver(observer);
 +        if (smsObserver != null) getContentResolver().unregisterContentObserver(smsObserver);
@@ -1451,6 +1460,111 @@ index 0000000..e5b1072
 +            }
 +            return v;
 +        }
++    }
++}
+diff --git a/app/src/main/java/uz/codial/calls/RecorderWatch.java b/app/src/main/java/uz/codial/calls/RecorderWatch.java
+new file mode 100644
+index 0000000..446950e
+--- /dev/null
++++ b/app/src/main/java/uz/codial/calls/RecorderWatch.java
+@@ -0,0 +1,99 @@
++package uz.codial.calls;
++
++import android.app.Notification;
++import android.app.NotificationChannel;
++import android.app.NotificationManager;
++import android.app.PendingIntent;
++import android.content.Context;
++import android.content.Intent;
++
++import java.io.IOException;
++import java.util.Calendar;
++import java.util.concurrent.ExecutorService;
++import java.util.concurrent.Executors;
++
++import rikka.shizuku.Shizuku;
++
++/**
++ * Yozuvchi nazorati (4.1): Shizuku o'chsa suhbatlar yozilmaydi, buni esa qo'ng'iroqdan keyin kech bilardik.
++ * Ishlamayotgani aniqlansa — shu telefonda ovozli bildirishnoma (bosilsa Shizuku ochiladi) va ERP'ga xabar
++ * (`ping/?recorder=down|ok` — server Telegram'ga ogohlantirish yuboradi). {@link CallService} muntazam chaqiradi.
++ */
++final class RecorderWatch {
++    private static final String SHIZUKU = "moe.shizuku.privileged.api";
++    private static final String CHANNEL = "recorder_alert";
++    private static final int NOTIFICATION_ID = 41;
++    private static final int CONFIRM = 2;                       // ketma-ket shuncha tekshiruvda ishlamasa — o'chgan (ilova endi ochilganda binder kechikadi)
++    private static final long ALERT_REPEAT_MS = 5 * 60_000L;    // telefonda ovozli eslatma takrori
++    private static final long REPORT_REPEAT_MS = 10 * 60_000L;  // ERP'ga holat takrori (o'zgarsa — darhol)
++    private static final ExecutorService EXEC = Executors.newSingleThreadExecutor();
++
++    private static int downChecks;
++    private static long lastAlert;
++    private static volatile String reported = "";
++    private static volatile long reportedAt;
++
++    private RecorderWatch() {}
++
++    /** Asosiy oqimdan chaqiriladi (arzon: lokal binder tekshiruvi); tarmoq so'rovi fon oqimida. */
++    static void check(Context ctx) {
++        Context app = ctx.getApplicationContext();
++        Prefs p = new Prefs(app);
++        if (!p.paired() || p.recTree() == null) return;  // yozuv sozlanmagan
++        boolean up;
++        try {
++            up = Shizuku.pingBinder();
++        } catch (RuntimeException e) {
++            up = false;
++        }
++        NotificationManager nm = app.getSystemService(NotificationManager.class);
++        long now = System.currentTimeMillis();
++        if (up) {
++            downChecks = 0;
++            lastAlert = 0;
++            nm.cancel(NOTIFICATION_ID);
++            report(app, "ok", now);
++            return;
++        }
++        if (++downChecks < CONFIRM) return;
++        report(app, "down", now);
++        int h = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
++        if (h >= 8 && h < 21 && now - lastAlert >= ALERT_REPEAT_MS) {
++            lastAlert = now;
++            alert(app, nm);
++        }
++    }
++
++    private static void report(Context ctx, String state, long now) {
++        if (state.equals(reported) && now - reportedAt < REPORT_REPEAT_MS) return;
++        reported = state;
++        reportedAt = now;
++        EXEC.execute(() -> {
++            Prefs p = new Prefs(ctx);
++            try {
++                Api.request(p.server(), "ping/?recorder=" + state, p.token(), null);
++            } catch (IOException e) {
++                reported = "";  // yetib bormadi — keyingi tekshiruvda qayta
++            }
++        });
++    }
++
++    private static void alert(Context ctx, NotificationManager nm) {
++        NotificationChannel ch = new NotificationChannel(CHANNEL, "Yozuv ishlamayapti", NotificationManager.IMPORTANCE_HIGH);
++        ch.enableVibration(true);
++        nm.createNotificationChannel(ch);
++        Intent open = ctx.getPackageManager().getLaunchIntentForPackage(SHIZUKU);
++        if (open == null) open = new Intent(ctx, MainActivity.class);
++        PendingIntent tap = PendingIntent.getActivity(ctx, NOTIFICATION_ID, open, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
++        String text = "Suhbatlar yozilmayapti. Shu yerga bosing va Shizuku'ni «Simsiz nosozlikni tuzatish» orqali ishga tushiring (Wi-Fi yoqiq bo'lsin).";
++        nm.notify(NOTIFICATION_ID, new Notification.Builder(ctx, CHANNEL)
++                .setSmallIcon(android.R.drawable.stat_notify_error)
++                .setContentTitle("Yozuv o'chgan!")
++                .setContentText(text)
++                .setStyle(new Notification.BigTextStyle().bigText(text))
++                .setContentIntent(tap)
++                .setOngoing(true)
++                .setCategory(Notification.CATEGORY_ERROR)
++                .build());
 +    }
 +}
 diff --git a/app/src/main/java/uz/codial/calls/Recordings.java b/app/src/main/java/uz/codial/calls/Recordings.java

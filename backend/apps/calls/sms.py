@@ -41,7 +41,7 @@ PLACEHOLDERS = {
     "hafta": "Hafta kuni (masalan: juma)",
     "vaqt": "Dars boshlanish vaqti (masalan: 14:00)",
 }
-OUTBOX_BATCH = 20
+OUTBOX_BATCH = 5  # kichik to'plam: telefon ilovasi yuborish o'rtasida to'xtasa, ko'pi 4 ta SMS «javobsiz» qoladi (avval 20 edi)
 SENDING_TIMEOUT_MIN = 30  # telefon olgan, lekin natija qaytarmagan SMS shuncha daqiqadan keyin «Xato» (qayta yuborilmaydi — takror bo'lmasin)
 
 # O'zbekcha apostroflar va «» GSM-7 da yo'q — bitta UCS-2 belgi butun SMSni 70 belgiga qisqartiradi (narx 2–3 barobar oshadi)

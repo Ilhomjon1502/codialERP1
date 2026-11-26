@@ -53,6 +53,10 @@ Qoidalar: faqat suhbat davomiyligi 0 dan katta qo'ng'iroqlar; lid qo'ng'irodan o
 
 Shizuku o'chib qolsa, yozuv suhbat o'rtasida uziladi yoki fayl bo'sh chiqadi. Gaplashilgan (15 soniyadan uzun) qo'ng'iroq tugaganidan 5 daqiqa o'tgach yozuv yo'q bo'lsa yoki suhbatdan sezilarli qisqa bo'lsa (15% yoki kamida 8 soniya), Administrator, Administrator+Hisobchi va Bosh menejerga Telegram xabari keladi: qaysi qo'ng'iroq, suhbat va yozuv davomiyligi, Shizuku'ni qayta yoqish ko'rsatmasi. Har qo'ng'iroq haqida bir marta; ketma-ket xatolar 10 daqiqada bitta xabarga jamlanadi. Xodim bu xabarni Telegram oynasida o'chira oladi («Suhbat yozuvi to'liq emas»). Kod: `apps/calls/rec_watch.py`.
 
+## Yozuvchi o'chsa — darhol ogohlantirish (2026-11-26, ilova 4.1)
+
+Telefon Shizuku o'chganini o'zi sezadi: ekranda ovoz bilan «Yozuv o'chgan!» bildirishnomasi chiqadi (bosilsa Shizuku ochiladi), 2 daqiqadan keyin Telegram'ga «🔴 Yozuvchi o'chgan» xabari boradi va ish vaqtida har 30 daqiqada takrorlanadi. Qo'ng'iroqlar → «Ro'yxat» tepasida ham ogohlantirish chiqadi. Shizuku ishga tushgach bildirishnoma o'zi o'chadi.
+
 ## Eslatma
 
 Suhbatni yozish haqida mijozga xabar berish yoki roziligini olish masalasi markaz zimmasida (masalan, qabul telefoniga javobda «suhbat sifat nazorati uchun yozib olinadi» deyish).

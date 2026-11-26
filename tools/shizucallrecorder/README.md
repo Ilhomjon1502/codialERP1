@@ -3,6 +3,10 @@
 Bitta ilova (`uz.codial.calls`): **Codial ERP qo'ng'iroqlar/SMS** (eski `android/` ilovasi, Java) + **suhbat yozuvchi** ([ShizuCallRecorder](https://github.com/kitsumed/ShizuCallRecorder) v2.0.0, GPLv3, Kotlin) + to'liq o'zbekcha interfeys.
 Telefonda faqat ikkita ilova qoladi: bu ilova va **Shizuku** (`moe.shizuku.privileged.api`). Asos — ShizuCallRecorder loyihasi, unga Codial kodi qo'shilgan; `applicationId = uz.codial.calls` (eski Codial ilovaning ustiga yangilanadi, ERP bilan ulanish saqlanadi).
 
+## 4.1 — yozuvchi nazorati (2026-11-26)
+
+`uz/codial/calls/RecorderWatch.java`: `CallService` Shizuku'ni muntazam (va binder o'lishi bilan) tekshiradi; o'chgan bo'lsa telefonda ovozli bildirishnoma va `GET /api/v1/calls/ping/?recorder=down` (tiklansa `ok`).
+
 ## 4.0 — asosiy qo'ng'iroq ilovasi va ERP kartasi (2026-11-25)
 
 Ilova **asosiy qo'ng'iroq ilovasi** bo'la oladi (`uz/codial/calls/phone/`: `CodialInCallService`, `InCallActivity`, `DialerActivity`, `PhoneActionReceiver`). Qo'ng'iroq ekranida server tuzgan karta chiqadi (`GET /api/v1/calls/lookup/?phone=`, `backend/apps/calls/lookup.py`: o'quvchi/ota-ona/lid/Instagram navbati, kurs, holat, sinov darsi, guruh, qarz belgisi, nechanchi bog'lanish). Yoqish: ilovada «Asosiy qo'ng'iroq ilovasi qilish». Orqaga qaytish: Sozlamalar → Ilovalar → Standart ilovalar → Telefon → Google «Telefon». Xato bo'lib qo'ng'iroq ekrani chiqmasa — darhol shu yo'l bilan qaytiladi. Shizuku ilovaga qo'shilmagan (root rejalashtirilgan).

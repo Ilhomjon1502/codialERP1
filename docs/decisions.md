@@ -204,3 +204,11 @@
 - **Qaror (buyurtmachi):** qizlar qo'ng'iroqqa javob berayotganda kimligini bilsin. Ilova asosiy qo'ng'iroq ilovasi bo'ladi, karta qo'ng'iroq ekranida; Shizuku ilovaga qo'shilmaydi (keyin root — unda Shizuku keraksiz).
 - **Taxmin (javob berilmagan savol):** kartada qarz summasi ko'rsatilmaydi, faqat «💰 Qarzi bor». Matn serverda tuziladi — maydonlarni ilovani yangilamasdan o'zgartirsa bo'ladi.
 - **Xavf:** qo'ng'iroq ekrani buzilsa qabul to'xtaydi — Google «Telefon»ga qaytish yo'li saqlanadi; sinov ish vaqtidan tashqarida.
+
+## 2026-11-26 — Yozuv, SMS va mijozlar botidagi kamchiliklar
+
+- **Topilgani:** 25-noyabrda 15 soniyadan uzun 52 suhbatdan 39 tasining yozuvi yo'q yoki chala edi — asosan 09:00–16:00 da; taxminimiz: telefonda yozuvchi (Shizuku) ishlamagan. Telegram ogohlantirishi faqat qo'ng'iroqdan keyin borardi.
+- **Qaror:** ilova (4.1) Shizuku holatini o'zi tekshiradi: telefonda ovozli bildirishnoma (8–21, har 5 daqiqada) va ERP'ga `ping/?recorder=down|ok`. Server 2 daqiqadan keyin Telegram'ga xabar beradi, ish vaqtida (8–20) har 30 daqiqada takrorlaydi (`CallDevice.recorder_down_at`, `rec_watch.recorder_down`).
+- **Takroriy yozuv:** fayl o'zgargan vaqti yangilansa, bir fayl qayta yuklanardi — nomida vaqt bor fayl hajmi va davomiyligi bir xil bo'lsa takror hisoblanadi. Eski takrorlar o'chirilmadi.
+- **SMS:** 25-noyabr 10:09 da 6 ta SMS «Telefondan javob kelmadi» (telefondagi yuborilganlar soniga ko'ra ular ketmagan; sabab aniqlanmadi). Telefonga bir so'rovda 20 o'rniga 5 ta SMS beriladi — uzilishda kamroq SMS yo'qoladi. «Javobsiz» SMS avvalgidek avtomatik qayta yuborilmaydi.
+- **Mijozlar boti:** botni bloklagan odam («HTTP Error 403») bloklangan deb belgilanmasdi va keyingi xabarlar ham botga ketardi. Endi 403 — bloklangan, keyingilari SMS bo'lib ketadi.

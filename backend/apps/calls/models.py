@@ -31,6 +31,7 @@ class CallDevice(BaseModel):
     paired_at = models.DateTimeField("Ulangan vaqti", null=True, blank=True)
     last_seen_at = models.DateTimeField("Oxirgi aloqa", null=True, blank=True)
     app_version = models.CharField("Ilova versiyasi", max_length=20, blank=True)
+    recorder_down_at = models.DateTimeField("Yozuvchi o'chgan vaqt", null=True, blank=True)  # ilova xabar beradi (Shizuku); bo'sh — ishlayapti
 
     class Meta:
         verbose_name = "Qo'ng'iroq qurilmasi"

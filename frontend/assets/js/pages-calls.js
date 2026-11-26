@@ -115,9 +115,12 @@
   /* ---------- Ro'yxat ---------- */
   function listView() {
     const offline = devices.filter((d) => d.status === 'Faol' && d.paired && d.last_seen_at && Date.now() - new Date(d.last_seen_at) > 6 * 3600e3);
-    const warn = offline.length
+    const silent = devices.filter((d) => d.status === 'Faol' && d.paired && d.recorder_down_at);
+    const warn = (silent.length
+      ? `<div class="alert warn">${A.icon('alert')}<div><b>${silent.map((d) => esc(d.name)).join(', ')}</b> — yozuvchi o'chgan (${silent.map((d) => A.fdt(d.recorder_down_at)).join(', ')} dan): qo'ng'iroqlar yozilmayapti. Telefonda Shizuku ilovasini ochib ishga tushiring.</div></div>`
+      : '') + (offline.length
       ? `<div class="alert warn">${A.icon('alert')}<div><b>${offline.map((d) => esc(d.name)).join(', ')}</b> — oxirgi aloqa ${offline.map((d) => A.fdt(d.last_seen_at)).join(', ')}. Telefonda internet va «Codial qo'ng'iroqlar» ilovasi yoqilganini tekshiring.</div></div>`
-      : '';
+      : '');
     const canEdit = A.can('calls', 'e');
     const table = A.table(
       [
