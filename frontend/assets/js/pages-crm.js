@@ -838,7 +838,7 @@
             <tr><td>− To'lovlar</td><td class="num">${A.num(c.paid)}</td></tr>
             <tr><td>− Chegirmalar</td><td class="num">${A.num(c.discount)}</td></tr>
             <tr class="tot"><td>= Balans</td><td class="num">${A.num(c.balance)}</td></tr></table>
-            <p class="muted small">Bir dars narxi = kurs narxi ÷ oydagi dars soni. Talaba kelmasa ham dars uchun qarz yoziladi ("Nofaol" va Grant bundan mustasno).</p>
+            <p class="muted small">Bir dars narxi = kurs narxi ÷ oydagi dars soni (oy yig'indisi narxga aniq teng bo'lishi uchun darslar 1 so'm farq qilishi mumkin). Talaba kelmasa ham dars uchun qarz yoziladi ("Nofaol" va Grant bundan mustasno).</p>
           </section>
         </div>
         ${A.tabs([['att', 'Davomat', att.length], ...(A.can('payments') ? [['pay', "To'lovlar", pays.length]] : [])], tab, 'contracts/' + id)}

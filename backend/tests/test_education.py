@@ -85,7 +85,8 @@ def test_grant_nofaol_rounding_and_missing_frequency(world):
     LessonFrequency.objects.filter(year=MONTH.year, month=MONTH.month).update(frequency=7)
     b = Attendance(branch=w["branch"], group=w["group"], course=w["course"], contract=w["contracts"][1], day_pattern=w["pattern"], date=TODAY, status="1", teacher=w["teacher"])
     calc.calculate(b)
-    assert b.student_debt == Decimal("85714")  # 600 000 / 7 = 85 714,28 → ROUND_HALF_UP
+    assert b.student_debt in (Decimal(85714), Decimal(85715))  # 600 000 / 7 = 85 714,28 — darsga qarab 1 so'm farq
+    assert b.student_debt == calc.lesson_share(600000, 7, TODAY.day)  # har kuni dars: tartib raqami = oyning kuni
     assert b.calc_note == calc.NOTE_NO_RATE and b.teacher_kpi == 0
     b.status = "-"
     calc.calculate(b)
@@ -475,7 +476,7 @@ def test_prior_literacy_study_lookup(api, make_user, world):
 
 
 def test_rounding_remainder_is_not_debt(api, make_user, world):
-    """500 000 ÷ 12 = 41 667 × 12 = 500 004: 4 so'mlik yaxlitlash qoldig'i qarzdorlar ro'yxatiga kirmaydi (10 so'mdan kam)."""
+    """10 so'mdan kam mayda qoldiq qarzdorlar ro'yxatiga kirmaydi."""
     w = world
     Contract.objects.filter(pk=w["contracts"][0].pk).update(opening_balance=4)
     Contract.objects.filter(pk=w["contracts"][1].pk).update(opening_balance=10)
@@ -530,3 +531,34 @@ def test_adult_price_by_lead_age_group(api, make_user, world):
     assert Attendance.objects.get(contract__student=adult).student_debt == Decimal(65000)
     assert Attendance.objects.get(contract__student=unknown).student_debt == Decimal(60000)
     assert CoursePrice.objects.filter(course=w["course"]).count() == 2
+
+
+# ------------------------------------------------------------------ dars narxini aniq taqsimlash (2026-11-26)
+
+@pytest.mark.parametrize("price", [500000, 650000, 600000, 499999])
+@pytest.mark.parametrize("freq", [4, 7, 11, 12, 13, 14, 26])
+def test_lesson_shares_sum_to_month_price(price, freq):
+    shares = [calc.lesson_share(price, freq, n) for n in range(1, freq + 1)]
+    assert sum(shares) == price
+    assert max(shares) - min(shares) <= 1
+    assert calc.lesson_share(price, freq, freq + 1) == shares[0]  # kalendarda ortiqcha dars — boshidan
+
+
+def test_full_month_charges_exactly_the_price(world):
+    """Sesh/Pay/Shan, 2026-noyabr: 12 dars × 500 000 ÷ 12 — yig'indi aniq 500 000 (avval 500 004 edi)."""
+    w = world
+    tts = DayPattern.objects.create(name="", weekdays=[2, 4, 6])
+    month = datetime.date(2026, 11, 1)
+    CoursePrice.objects.create(branch=w["branch"], course=w["course"], effective_from=month, price=500000)
+    LessonFrequency.objects.filter(year=2026, month=11).delete()
+    LessonFrequency.objects.create(branch=w["branch"], day_pattern=tts, year=2026, month=11, frequency=12, status="Tasdiqlangan").courses.set([w["course"]])
+    days = [datetime.date(2026, 11, d) for d in (3, 5, 7, 10, 12, 14, 17, 19, 21, 24, 26, 28)]
+    c = calc.Calculator()
+    assert [c.lesson_no(tts.pk, d) for d in days] == list(range(1, 13))
+    contract = w["contracts"][0]
+    for d in days:  # eski usulda yozilgan qatorlar
+        Attendance.objects.create(branch=w["branch"], group=w["group"], course=w["course"], contract=contract, day_pattern=tts, date=d, status="1",
+                                  teacher=w["teacher"], student_debt=41667)
+    calc.recalculate(Attendance.objects.filter(contract=contract))
+    debts = list(Attendance.objects.filter(contract=contract).order_by("date").values_list("student_debt", flat=True))
+    assert sum(debts) == 500000 and set(debts) == {Decimal(41666), Decimal(41667)}

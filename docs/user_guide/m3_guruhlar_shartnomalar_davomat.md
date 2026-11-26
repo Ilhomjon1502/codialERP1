@@ -23,7 +23,7 @@ Menyu → **Shartnomalar**. Tablar: Faol · Rejada · Nofaol · Talabalar. Kurs 
 - Tahrirlash muddati (administrator — 7 kun, filial menejeri — 15 kun) boshlanish sanasidan hisoblanadi. Muddati o'tgan shartnomada **To'xtatish** tugmasi bor: tugash sanasi (oxirgi 30 kun ichida), sabab va izoh kiritiladi.
 - Shartnoma sahifasida: balans (qarz), darslar uchun hisoblangan summa, «Qarz qanday hisoblandi» bloki va davomat tarixi. To'lovlar M4 da qo'shiladi.
 
-**Qarz qanday hisoblanadi:** bir dars narxi = kurs narxi ÷ oydagi dars soni (Sozlamalar → Oydagi dars soni, **tasdiqlangan** bo'lishi kerak). Dars bo'lsa qarz yoziladi — talaba kelmagan bo'lsa ham. «Nofaol» va Grant shartnomada qarz yo'q. Balans = boshlang'ich qoldiq + darslar − to'lovlar − chegirmalar.
+**Qarz qanday hisoblanadi:** bir dars narxi = kurs narxi ÷ oydagi dars soni (Sozlamalar → Oydagi dars soni, **tasdiqlangan** bo'lishi kerak). Oy narxi darslarga so'm aniqligida bo'lib beriladi: to'liq oy yig'indisi kurs narxiga aniq teng, shuning uchun darslar 1 so'm farq qiladi (500 000 ÷ 12 → 41 666, 41 667, 41 667, …). Oy o'rtasidan boshlagan yoki «Nofaol» darsi bor o'quvchida 1–2 so'm qoldiq bo'lishi mumkin; 10 so'mdan kami qarz hisoblanmaydi. Dars bo'lsa qarz yoziladi — talaba kelmagan bo'lsa ham. «Nofaol» va Grant shartnomada qarz yo'q. Balans = boshlang'ich qoldiq + darslar − to'lovlar − chegirmalar.
 
 ## Qarzdorlar
 

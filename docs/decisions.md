@@ -212,3 +212,10 @@
 - **Takroriy yozuv:** fayl o'zgargan vaqti yangilansa, bir fayl qayta yuklanardi — nomida vaqt bor fayl hajmi va davomiyligi bir xil bo'lsa takror hisoblanadi. Eski takrorlar o'chirilmadi.
 - **SMS:** 25-noyabr 10:09 da 6 ta SMS «Telefondan javob kelmadi» (telefondagi yuborilganlar soniga ko'ra ular ketmagan; sabab aniqlanmadi). Telefonga bir so'rovda 20 o'rniga 5 ta SMS beriladi — uzilishda kamroq SMS yo'qoladi. «Javobsiz» SMS avvalgidek avtomatik qayta yuborilmaydi.
 - **Mijozlar boti:** botni bloklagan odam («HTTP Error 403») bloklangan deb belgilanmasdi va keyingi xabarlar ham botga ketardi. Endi 403 — bloklangan, keyingilari SMS bo'lib ketadi.
+
+## 2026-11-26 — Dars narxini aniq taqsimlash (yaxlitlash qoldig'i)
+
+- **Muammo:** 500 000 ÷ 12 har darsga 41 667 bo'lib yozilardi, 12 dars = 500 004. Qoldiq yig'ilib, 36 darsdan keyin to'g'ri to'lagan o'quvchi ham qarzdor chiqardi (xodimlar 2 so'mlik chegirma bilan qo'lda tuzatishgan).
+- **Qaror (buyurtmachi):** darslar 1 so'm farq bilan bo'lib beriladi (41 666, 41 667, 41 667, …), to'liq oy yig'indisi narxga aniq teng (`education/calc.lesson_share`, tartib raqami — oy ichidagi dars kunlari bo'yicha). Pastga yaxlitlash varianti rad etildi (har oy o'quvchi foydasiga qoldiq yig'ilardi).
+- Faqat talaba qarziga tegishli; KPI formulasi va yaxlitlashi o'zgarmadi. `DEBT_MIN` (10 so'm) qoladi — oy o'rtasidan boshlash va «Nofaol» darslardagi 1–2 so'm uchun.
+- Oktyabrdan yozilgan davomat qatorlari serverga joylangach `recalculate --all` bilan qayta hisoblanadi.

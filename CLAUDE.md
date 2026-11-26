@@ -665,6 +665,7 @@ agar status == NOFAOL ("-")  yoki  contract.type == Grant:   student_debt = 0
 aks holda (KELDI, SABABLI, BESABAB):
     student_debt = price(branch, course, oy) / frequency(branch, day_pattern, course, oy)
 ```
+Yaxlitlash (2026-11-26, `calc.lesson_share`): n — sananing oy ichidagi dars tartib raqami (dars kunlari bo'yicha), i = (n−1) mod freq + 1; `student_debt = floor(price×i/freq) − floor(price×(i−1)/freq)` — to'liq oy yig'indisi narxga aniq teng. KPI avvalgidek so'mgacha yaxlitlanadi.
 Qoida: **dars bo'ldimi, qarz yoziladi**, talaba kelmagan bo'lsa ham.
 
 ### 8.3 Ustoz va yordamchi KPI (har bir davomat qatori)

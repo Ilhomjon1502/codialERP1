@@ -1,6 +1,7 @@
 """Davomat qatori uchun talaba qarzi va KPI (CLAUDE.md 8.1–8.3) hamda qayta hisoblash (8.5).
 
-Bo'lish so'mgacha ROUND_HALF_UP bilan yaxlitlanadi (docs/decisions.md). Narx, dars soni va stavka bir hisob davomida
+Dars narxi oy darslariga so'm aniqligida bo'lib beriladi — oy yig'indisi kurs narxiga aniq teng (`lesson_share`); KPI so'mgacha
+ROUND_HALF_UP bilan yaxlitlanadi (docs/decisions.md). Narx, dars soni va stavka bir hisob davomida
 keshlanadi — bir oy qatorlarini qayta hisoblash bir necha so'rov bilan bajariladi.
 """
 
@@ -10,7 +11,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from django.db import transaction
 
 from apps.payroll.models import KPIRate
-from apps.references.models import CoursePrice, LessonFrequency
+from apps.references.models import CoursePrice, DayPattern, LessonFrequency
 
 from .models import Attendance, Contract
 
@@ -21,12 +22,20 @@ NOTE_NO_RATE = "KPI stavkasi belgilanmagan"
 CALC_FIELDS = ["student_debt", "teacher_kpi", "supporter_kpi", "calc_note"]
 
 
-# Yaxlitlash qoldig'i (masalan 500 000 ÷ 12 = 41 667 × 12 = 500 004): shundan kichik qoldiq qarz hisoblanmaydi (buyurtmachi qarori 2026-11-09)
+# Mayda qoldiq (oy o'rtasidan boshlash, «–» dars, eski yozuvlar): shundan kichigi qarz hisoblanmaydi (buyurtmachi qarori 2026-11-09)
 DEBT_MIN = Decimal(10)
 
 
 def rnd(x):
     return Decimal(x).quantize(Decimal(1), rounding=ROUND_HALF_UP)
+
+
+def lesson_share(price, freq, n):
+    """Oy narxining n-darsga to'g'ri keladigan ulushi, so'mda (buyurtmachi qarori 2026-11-26). Ulushlar 1 so'mgacha farq qiladi va
+    `freq` ta darsning yig'indisi narxga aniq teng: 500 000 ÷ 12 → 41 666, 41 667, 41 667, …  Kalendarda dars `freq` dan ko'p
+    bo'lsa, ortiqchasi boshidan takrorlanadi."""
+    price, i = int(price), (n - 1) % freq + 1
+    return Decimal(price * i // freq - price * (i - 1) // freq)
 
 
 def age_of(age_group):
@@ -45,7 +54,7 @@ class Calculator:
     """Bitta hisob davomida narx, dars soni va stavkalarni keshlaydi."""
 
     def __init__(self):
-        self._price, self._freq, self._rate, self._age = {}, {}, {}, {}
+        self._price, self._freq, self._rate, self._age, self._days = {}, {}, {}, {}, {}
 
     def tiers(self, branch_id, course_id, month):
         """{min_age: narx} — har bir yosh pog'onasi uchun shu oyda amalda bo'lgan oxirgi narx (0 — hamma uchun)."""
@@ -89,6 +98,12 @@ class Calculator:
             self._freq[key] = f
         return self._freq[key]
 
+    def lesson_no(self, pattern_id, d):
+        """Sananing oy ichidagi dars tartib raqami (1 dan): shu oyda undan oldingi dars kunlari soni + 1."""
+        if pattern_id not in self._days:
+            self._days[pattern_id] = set(DayPattern.all_objects.filter(pk=pattern_id).values_list("weekdays", flat=True).first() or [])
+        return 1 + sum(d.replace(day=k).isoweekday() in self._days[pattern_id] for k in range(1, d.day))
+
     def rate(self, branch_id, user_id, role_type, course_id, month):
         key = (branch_id, user_id, role_type, course_id, month)
         if key not in self._rate:
@@ -113,7 +128,7 @@ class Calculator:
             a.student_debt = None
             notes.append(NOTE_NO_PRICE)
         else:
-            a.student_debt = rnd(Decimal(price) / freq)
+            a.student_debt = lesson_share(price, freq, self.lesson_no(a.day_pattern_id, a.date))
         # 8.3 — KPI faqat Keldi va Sababli uchun
         no_kpi = grant or a.status in (BESABAB, NOFAOL)
 
