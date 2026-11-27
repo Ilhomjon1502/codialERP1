@@ -702,3 +702,47 @@ def test_lookup_instagram_inbox_card(api, paired, branch):
               received_at=datetime.datetime(2026, 10, 18, 9, 0, tzinfo=datetime.UTC), external_id="l:77")
     r = lookup(api, paired, "935556677").data
     assert r["found"] and r["title"] == "Sardor" and "Instagram lidi" in r["badge"] and any("Flutter" in x for x in r["lines"])
+
+
+# ---------- Telefondagi ro'yxat uchun ismlar va qidiruv (2026-11-27) ----------
+
+
+def _device_get(api, token, url):
+    return api().get(url, HTTP_AUTHORIZATION=f"Device {token}")
+
+
+@pytest.fixture
+def people_data(branch, other_branch):
+    from apps.crm import inbox
+
+    ali = Student.objects.create(branch=branch, first_name="Ali", last_name="Valiyev", phone1="901112233", phone2="931112233")
+    Lead.objects.create(branch=branch, student=ali, source=LeadSource.objects.create(name="Instagram"), course=Course.objects.create(name="Frontend"))
+    par = Parent.objects.create(branch=branch, first_name="Vali", phone="977776655")
+    Student.objects.create(branch=branch, first_name="Bek", last_name="Valiyev", phone1="900000001", parent=par)
+    Student.objects.create(branch=other_branch, first_name="Alisher", last_name="Boshqa", phone1="909998877")
+    inbox.add("Instagram", phone="935556677", name="Sardor", course_name="Flutter", info="", external_id="l:1",
+              received_at=datetime.datetime(2026, 10, 18, 9, 0, tzinfo=datetime.UTC))
+    inbox.InboxLead.objects.update(branch=branch)  # navbat filiali — qurilmaniki (add() birinchi faol filialni oladi, ikki filialda bu tasodifiy)
+    return ali
+
+
+def test_names_resolves_known_numbers_in_own_branch(api, paired, people_data):
+    assert api().post("/api/v1/calls/names/", {"numbers": ["901112233"]}, format="json").status_code == 401
+    numbers = ["+998931112233", "977776655", "935556677", "909998877", "991234567", "bad"]
+    r = api().post("/api/v1/calls/names/", {"numbers": numbers}, format="json", HTTP_AUTHORIZATION=f"Device {paired}")
+    names = r.data["names"]
+    assert set(names) == {"931112233", "977776655", "935556677"}  # boshqa filial va noma'lum raqam yo'q
+    assert names["931112233"]["title"].startswith("Ali Valiyev") and names["931112233"]["badge"] == "Lid"
+    assert names["977776655"]["title"] == "Vali" and "Bek" in names["977776655"]["badge"]
+    assert names["935556677"] == {"title": "Sardor", "badge": "Instagram lidi"}
+
+
+def test_search_by_name_and_number_with_minimum_length(api, paired, people_data):
+    assert api().get("/api/v1/calls/search/?q=Ali").status_code == 401
+    assert _device_get(api, paired, "/api/v1/calls/search/?q=Al").data["results"] == []  # 3 belgidan qisqa
+    rows = _device_get(api, paired, "/api/v1/calls/search/?q=ali vali").data["results"]
+    assert [x["phone"] for x in rows if x["title"].startswith("Ali ")] == ["901112233", "931112233"]
+    assert all("Boshqa" not in x["title"] for x in rows)  # boshqa filial ko'rinmaydi
+    assert [x["phone"] for x in _device_get(api, paired, "/api/v1/calls/search/?q=sardor").data["results"]] == ["935556677"]
+    by_number = _device_get(api, paired, "/api/v1/calls/search/?q=%2B998 97 777").data["results"]
+    assert [x["phone"] for x in by_number] == ["977776655"]

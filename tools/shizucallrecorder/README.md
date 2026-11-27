@@ -3,6 +3,10 @@
 Bitta ilova (`uz.codial.calls`): **Codial ERP qo'ng'iroqlar/SMS** (eski `android/` ilovasi, Java) + **suhbat yozuvchi** ([ShizuCallRecorder](https://github.com/kitsumed/ShizuCallRecorder) v2.0.0, GPLv3, Kotlin) + to'liq o'zbekcha interfeys.
 Telefonda faqat ikkita ilova qoladi: bu ilova va **Shizuku** (`moe.shizuku.privileged.api`). Asos — ShizuCallRecorder loyihasi, unga Codial kodi qo'shilgan; `applicationId = uz.codial.calls` (eski Codial ilovaning ustiga yangilanadi, ERP bilan ulanish saqlanadi).
 
+## 5.0 — Google «Telefon» ko'rinishi (2026-11-27)
+
+`uz/codial/calls/phone/` Compose'da: `DialerActivity.kt`, `DialerScreens.kt` (So'nggilar + «Javobsiz» filtri, Kontaktlar, qidiruv, raqam sahifasi, klaviatura takliflari bilan), `InCallActivity.kt`, `PhoneData.kt` (jurnal, kontaktlar, ERP `names/`, `search/`, `lookup/`), `Theme.kt`. Eski `DialerActivity.java`, `InCallActivity.java`, `Ui.java` olib tashlandi.
+
 ## 4.1 — yozuvchi nazorati (2026-11-26)
 
 `uz/codial/calls/RecorderWatch.java`: `CallService` Shizuku'ni muntazam (va binder o'lishi bilan) tekshiradi; o'chgan bo'lsa telefonda ovozli bildirishnoma va `GET /api/v1/calls/ping/?recorder=down` (tiklansa `ok`).

@@ -57,6 +57,12 @@ Shizuku o'chib qolsa, yozuv suhbat o'rtasida uziladi yoki fayl bo'sh chiqadi. Ga
 
 Telefon Shizuku o'chganini o'zi sezadi: ekranda ovoz bilan «Yozuv o'chgan!» bildirishnomasi chiqadi (bosilsa Shizuku ochiladi), 2 daqiqadan keyin Telegram'ga «🔴 Yozuvchi o'chgan» xabari boradi va ish vaqtida har 30 daqiqada takrorlanadi. Qo'ng'iroqlar → «Ro'yxat» tepasida ham ogohlantirish chiqadi. Shizuku ishga tushgach bildirishnoma o'zi o'chadi.
 
+## Telefon ilovasi 5.0 (2026-11-27)
+
+- **So'nggilar:** raqam o'rnida ERP'dagi ism, «Javobsiz» filtri. Qatorni bosing — raqam sahifasi (kim, holat, izoh, barcha qo'ng'iroqlar), «Qo'ng'iroq», «SMS».
+- **Qidiruv:** yuqoridagi maydonga ism yoki raqam (ERP'dan qidirish uchun kamida 3 belgi).
+- **Klaviatura:** yozayotganda mos raqamlar chiqadi; bo'sh maydonda yashil tugma oxirgi terilgan raqamni yozadi.
+
 ## Eslatma
 
 Suhbatni yozish haqida mijozga xabar berish yoki roziligini olish masalasi markaz zimmasida (masalan, qabul telefoniga javobda «suhbat sifat nazorati uchun yozib olinadi» deyish).

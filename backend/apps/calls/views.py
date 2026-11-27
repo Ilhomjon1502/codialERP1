@@ -18,7 +18,7 @@ from apps.core.pagination import Pagination
 from apps.core.viewsets import AuditedModelViewSet, BranchScopedSerializerMixin
 from apps.education.models import Attendance, Contract
 
-from . import auto_sms, lookup, services, sms
+from . import auto_sms, lookup, people, services, sms
 from .models import CallDevice, CallRecord, CallRecording, SmsMessage, SmsRule, SmsTemplate
 
 D = CallRecord.Direction
@@ -66,6 +66,27 @@ class LookupView(DeviceAPIView):
         if not device:
             return Response({"detail": "Qurilma ulanmagan", "code": "device_unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
         return Response(lookup.card(device, request.query_params.get("phone", "")))
+
+
+class NamesView(DeviceAPIView):
+    """POST {numbers: [...]} → {names: {9 xonali raqam: {title, badge}}} — telefondagi qo'ng'iroqlar ro'yxati uchun (people.names)."""
+
+    def post(self, request):
+        device = _device(request)
+        if not device:
+            return Response({"detail": "Qurilma ulanmagan", "code": "device_unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
+        numbers = request.data.get("numbers")
+        return Response({"names": people.names(device, numbers if isinstance(numbers, list) else [])})
+
+
+class SearchView(DeviceAPIView):
+    """GET ?q= → {results: [{title, badge, phone}]} — ism yoki raqam bo'yicha (kamida 3 belgi; people.search)."""
+
+    def get(self, request):
+        device = _device(request)
+        if not device:
+            return Response({"detail": "Qurilma ulanmagan", "code": "device_unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
+        return Response({"results": people.search(device, request.query_params.get("q", ""))})
 
 
 class RecordingView(DeviceAPIView):

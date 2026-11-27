@@ -1,5 +1,5 @@
 diff --git a/app/build.gradle.kts b/app/build.gradle.kts
-index 989f531..14e2dba 100644
+index 989f531..046e38a 100644
 --- a/app/build.gradle.kts
 +++ b/app/build.gradle.kts
 @@ -61,12 +61,12 @@ android {
@@ -13,13 +13,13 @@ index 989f531..14e2dba 100644
          // Keep theses two values hard-coded here and update them per version. (To keep F-Droid compatibility since their parser is very basic)
 -        versionCode = 20
 -        versionName = "2.0.0"
-+        versionCode = 41
-+        versionName = "4.1-nazorat"
++        versionCode = 50
++        versionName = "5.0-telefon"
      }
      signingConfigs {
          // Signing config for CI environments.
 diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
-index 18a8164..f29d430 100644
+index 18a8164..3a08218 100644
 --- a/app/src/main/AndroidManifest.xml
 +++ b/app/src/main/AndroidManifest.xml
 @@ -38,12 +38,23 @@
@@ -55,7 +55,7 @@ index 18a8164..f29d430 100644
              </intent-filter>
          </activity>
  
-@@ -121,6 +131,127 @@
+@@ -121,6 +131,128 @@
              </intent-filter>
          </receiver>
  
@@ -78,7 +78,8 @@ index 18a8164..f29d430 100644
 +            android:exported="true"
 +            android:label="Codial telefon"
 +            android:launchMode="singleTask"
-+            android:theme="@android:style/Theme.Material.NoActionBar">
++            android:theme="@android:style/Theme.Material.Light.NoActionBar"
++            android:windowSoftInputMode="adjustResize">
 +            <intent-filter>
 +                <action android:name="android.intent.action.MAIN" />
 +                <category android:name="android.intent.category.LAUNCHER" />
@@ -107,7 +108,7 @@ index 18a8164..f29d430 100644
 +            android:launchMode="singleInstance"
 +            android:showWhenLocked="true"
 +            android:turnScreenOn="true"
-+            android:theme="@android:style/Theme.Material.NoActionBar" />
++            android:theme="@android:style/Theme.Material.Light.NoActionBar" />
 +
 +        <service
 +            android:name="uz.codial.calls.phone.CodialInCallService"
@@ -2457,441 +2458,886 @@ index 0000000..a26dbe5
 +        }
 +    }
 +}
-diff --git a/app/src/main/java/uz/codial/calls/phone/DialerActivity.java b/app/src/main/java/uz/codial/calls/phone/DialerActivity.java
+diff --git a/app/src/main/java/uz/codial/calls/phone/DialerActivity.kt b/app/src/main/java/uz/codial/calls/phone/DialerActivity.kt
 new file mode 100644
-index 0000000..3657a19
+index 0000000..c8bf697
 --- /dev/null
-+++ b/app/src/main/java/uz/codial/calls/phone/DialerActivity.java
-@@ -0,0 +1,160 @@
-+package uz.codial.calls.phone;
++++ b/app/src/main/java/uz/codial/calls/phone/DialerActivity.kt
+@@ -0,0 +1,159 @@
++package uz.codial.calls.phone
 +
-+import android.Manifest;
-+import android.app.Activity;
-+import android.content.Intent;
-+import android.content.pm.PackageManager;
-+import android.database.Cursor;
-+import android.graphics.Color;
-+import android.net.Uri;
-+import android.os.Bundle;
-+import android.provider.CallLog;
-+import android.provider.ContactsContract;
-+import android.telecom.TelecomManager;
-+import android.text.InputType;
-+import android.view.Gravity;
-+import android.view.View;
-+import android.widget.EditText;
-+import android.widget.LinearLayout;
-+import android.widget.ScrollView;
-+import android.widget.TextView;
-+import android.widget.Toast;
++import android.Manifest
++import android.content.Intent
++import android.graphics.Color
++import android.os.Bundle
++import androidx.activity.ComponentActivity
++import androidx.activity.SystemBarStyle
++import androidx.activity.compose.BackHandler
++import androidx.activity.compose.rememberLauncherForActivityResult
++import androidx.activity.compose.setContent
++import androidx.activity.enableEdgeToEdge
++import androidx.activity.result.contract.ActivityResultContracts
++import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.fillMaxSize
++import androidx.compose.foundation.layout.safeDrawingPadding
++import androidx.compose.material.icons.Icons
++import androidx.compose.material.icons.filled.Dialpad
++import androidx.compose.material.icons.filled.History
++import androidx.compose.material.icons.filled.People
++import androidx.compose.material3.FloatingActionButton
++import androidx.compose.material3.Icon
++import androidx.compose.material3.NavigationBar
++import androidx.compose.material3.NavigationBarItem
++import androidx.compose.material3.Surface
++import androidx.compose.material3.Text
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.LaunchedEffect
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableIntStateOf
++import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.remember
++import androidx.compose.runtime.saveable.rememberSaveable
++import androidx.compose.runtime.setValue
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.unit.dp
++import androidx.compose.foundation.layout.padding
++import androidx.compose.ui.platform.LocalFocusManager
 +
-+import java.text.SimpleDateFormat;
-+import java.util.Date;
-+import java.util.Locale;
++/**
++ * Asosiy qo'ng'iroq ilovasi oynasi (5.0, Google «Telefon» ko'rinishida): qidiruv, «So'nggilar» va «Kontaktlar», klaviatura,
++ * raqam sahifasi (tarix + ERP kartasi). ERP ismlari ro'yxat va qidiruvda ko'rinadi.
++ */
++class DialerActivity : ComponentActivity() {
++    /** tel: havolasi bilan ochilganda klaviaturaga yoziladigan raqam. */
++    private var requested by mutableStateOf<String?>(null)
 +
-+/** Raqam terish oynasi va so'nggi qo'ng'iroqlar (asosiy qo'ng'iroq ilovasi uchun shart). */
-+public class DialerActivity extends Activity {
-+    private EditText number;
-+    private LinearLayout recent;
++    /** Har ochilishda ro'yxatlar qayta o'qiladi. */
++    private var resumed by mutableIntStateOf(0)
 +
-+    @Override
-+    protected void onCreate(Bundle b) {
-+        super.onCreate(b);
-+        LinearLayout root = new LinearLayout(this);
-+        root.setOrientation(LinearLayout.VERTICAL);
-+        root.setBackgroundColor(Ui.BG);
-+        int pad = Ui.dp(this, 12);
-+        root.setPadding(pad, pad, pad, pad);
-+
-+        ScrollView scroll = new ScrollView(this);
-+        recent = new LinearLayout(this);
-+        recent.setOrientation(LinearLayout.VERTICAL);
-+        scroll.addView(recent);
-+        root.addView(scroll, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
-+
-+        number = new EditText(this);
-+        number.setInputType(InputType.TYPE_CLASS_PHONE);
-+        number.setTextColor(Color.WHITE);
-+        number.setHintTextColor(Ui.MUTED);
-+        number.setHint("Raqam");
-+        number.setTextSize(26);
-+        number.setGravity(Gravity.CENTER);
-+        number.setShowSoftInputOnFocus(false);
-+        root.addView(number);
-+
-+        String[][] keys = {{"1", "2", "3"}, {"4", "5", "6"}, {"7", "8", "9"}, {"*", "0", "#"}};
-+        for (String[] line : keys) root.addView(Ui.row(this, key(line[0]), key(line[1]), key(line[2])));
-+        View back = Ui.button(this, "⌫", Ui.PANEL, v -> {
-+            int n = number.length();
-+            if (n > 0) number.getText().delete(n - 1, n);
-+        });
-+        back.setOnLongClickListener(v -> {
-+            number.setText("");
-+            return true;
-+        });
-+        root.addView(Ui.row(this, Ui.button(this, "+", Ui.PANEL, v -> type("+")),
-+                Ui.button(this, "Kontaktlar", Ui.PANEL, v -> contacts()), back));
-+        root.addView(Ui.row(this, Ui.button(this, "Qo'ng'iroq qilish", Ui.GREEN, v -> call())));
-+        setContentView(root);
-+        fill(getIntent());
++    override fun onCreate(savedInstanceState: Bundle?) {
++        super.onCreate(savedInstanceState)
++        val light = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
++        enableEdgeToEdge(statusBarStyle = light, navigationBarStyle = light)
++        read(intent)
++        setContent { CodialTheme { Surface(Modifier.fillMaxSize()) { App() } } }
 +    }
 +
-+    @Override
-+    protected void onNewIntent(Intent intent) {
-+        super.onNewIntent(intent);
-+        fill(intent);
++    override fun onNewIntent(intent: Intent) {
++        super.onNewIntent(intent)
++        setIntent(intent)
++        read(intent)
 +    }
 +
-+    @Override
-+    protected void onResume() {
-+        super.onResume();
-+        showRecent();
++    override fun onResume() {
++        super.onResume()
++        resumed++
 +    }
 +
-+    private View key(String k) { return Ui.button(this, k, Ui.PANEL, v -> type(k)); }
-+
-+    private void type(String s) {
-+        number.getText().append(s);
-+        number.setSelection(number.length());
++    private fun read(intent: Intent?) {
++        val data = intent?.data ?: return
++        if (data.scheme == "tel") requested = data.schemeSpecificPart
 +    }
 +
-+    private void fill(Intent i) {
-+        Uri data = i == null ? null : i.getData();
-+        if (data != null && "tel".equals(data.getScheme())) {
-+            number.setText(data.getSchemeSpecificPart());
-+            number.setSelection(number.length());
++    @Composable
++    private fun App() {
++        var tab by rememberSaveable { mutableIntStateOf(0) }
++        var dialpad by rememberSaveable { mutableStateOf(false) }
++        var typed by rememberSaveable { mutableStateOf("") }
++        var query by rememberSaveable { mutableStateOf("") }
++        var searching by rememberSaveable { mutableStateOf(false) }
++        var detail by rememberSaveable { mutableStateOf<String?>(null) }
++        var calls by remember { mutableStateOf<List<CallEntry>>(emptyList()) }
++        var contacts by remember { mutableStateOf<List<ContactEntry>>(emptyList()) }
++        var granted by remember { mutableIntStateOf(0) }
++        val focus = LocalFocusManager.current
++
++        val permissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted++ }
++        LaunchedEffect(Unit) {
++            val need = listOf(Manifest.permission.READ_CALL_LOG, Manifest.permission.READ_CONTACTS, Manifest.permission.CALL_PHONE).filter { !has(it) }
++            if (need.isNotEmpty()) permissions.launch(need.toTypedArray())
 +        }
-+    }
-+
-+    private void contacts() {
-+        try {
-+            startActivity(new Intent(Intent.ACTION_VIEW, ContactsContract.Contacts.CONTENT_URI));
-+        } catch (RuntimeException e) {
-+            Toast.makeText(this, "Kontaktlar ilovasi topilmadi", Toast.LENGTH_LONG).show();
++        LaunchedEffect(resumed, granted) {
++            calls = PhoneData.calls(this@DialerActivity)
++            contacts = PhoneData.contacts(this@DialerActivity)
 +        }
-+    }
-+
-+    private void call() {
-+        String n = number.getText().toString().trim();
-+        if (n.isEmpty()) return;
-+        if (checkSelfPermission(Manifest.permission.CALL_PHONE) != PackageManager.PERMISSION_GRANTED) {
-+            requestPermissions(new String[]{Manifest.permission.CALL_PHONE}, 1);
-+            return;
-+        }
-+        try {
-+            getSystemService(TelecomManager.class).placeCall(Uri.fromParts("tel", n, null), new Bundle());
-+        } catch (SecurityException e) {
-+            Toast.makeText(this, "Qo'ng'iroqqa ruxsat yo'q", Toast.LENGTH_LONG).show();
-+        }
-+    }
-+
-+    @Override
-+    public void onRequestPermissionsResult(int code, String[] perms, int[] results) {
-+        super.onRequestPermissionsResult(code, perms, results);
-+        if (results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED) {
-+            if (code == 1) call();
-+            else showRecent();
-+        }
-+    }
-+
-+    private void showRecent() {
-+        recent.removeAllViews();
-+        if (checkSelfPermission(Manifest.permission.READ_CALL_LOG) != PackageManager.PERMISSION_GRANTED) {
-+            recent.addView(Ui.button(this, "So'nggi qo'ng'iroqlarni ko'rsatish", Ui.PANEL, v -> requestPermissions(new String[]{Manifest.permission.READ_CALL_LOG}, 2)));
-+            return;
-+        }
-+        String[] cols = {CallLog.Calls.NUMBER, CallLog.Calls.CACHED_NAME, CallLog.Calls.TYPE, CallLog.Calls.DATE, CallLog.Calls.DURATION};
-+        SimpleDateFormat f = new SimpleDateFormat("dd.MM HH:mm", Locale.US);
-+        try (Cursor c = getContentResolver().query(CallLog.Calls.CONTENT_URI, cols, null, null, CallLog.Calls.DATE + " DESC")) {
-+            int i = 0;
-+            while (c != null && c.moveToNext() && i++ < 40) {
-+                String num = c.getString(0);
-+                String name = c.getString(1);
-+                int type = c.getInt(2);
-+                String arrow = type == CallLog.Calls.OUTGOING_TYPE ? "↗" : type == CallLog.Calls.MISSED_TYPE ? "✕" : "↙";
-+                int color = type == CallLog.Calls.MISSED_TYPE ? Color.parseColor("#f87171") : Ui.WHITE;
-+                TextView row = Ui.text(this, arrow + "  " + (name == null || name.isEmpty() ? num : name + " · " + num) + "\n      " + f.format(new Date(c.getLong(3))) + " · " + c.getLong(4) + " s", 16, color);
-+                row.setPadding(0, Ui.dp(this, 8), 0, Ui.dp(this, 8));
-+                row.setOnClickListener(v -> {
-+                    number.setText(num);
-+                    number.setSelection(number.length());
-+                });
-+                recent.addView(row);
++        LaunchedEffect(calls) { Erp.resolve(this@DialerActivity, calls.map { it.number }) }
++        LaunchedEffect(requested) {
++            requested?.let {
++                typed = it
++                dialpad = true
++                detail = null
++                searching = false
++                requested = null
 +            }
-+        } catch (RuntimeException e) {
-+            recent.addView(Ui.text(this, "Qo'ng'iroqlar tarixini o'qib bo'lmadi", 15, Ui.MUTED));
++        }
++
++        val book = remember(contacts) { contacts.associateBy { numberKey(it.number) } }
++        val open: (String) -> Unit = {
++            focus.clearFocus()
++            detail = it
++        }
++        val closeSearch = {
++            searching = false
++            query = ""
++            focus.clearFocus()
++        }
++
++        BackHandler(enabled = detail != null || dialpad || searching || tab != 0) {
++            when {
++                detail != null -> detail = null
++                dialpad -> dialpad = false
++                searching -> closeSearch()
++                else -> tab = 0
++            }
++        }
++
++        Box(Modifier.fillMaxSize().safeDrawingPadding()) {
++            val shown = detail
++            if (shown != null) {
++                DetailScreen(shown, calls, book, resumed) { detail = null }
++            } else if (dialpad) {
++                DialpadScreen(typed, { typed = it }, calls, contacts, book, open) { dialpad = false }
++            } else {
++                Column(Modifier.fillMaxSize()) {
++                    SearchField(query, searching, { query = it; searching = true }, { searching = true }, closeSearch)
++                    Box(Modifier.weight(1f)) {
++                        if (searching) SearchResults(query, calls, contacts, book, open)
++                        else if (tab == 0) Recents(calls, book, open)
++                        else Contacts(contacts, open)
++                        if (!searching) {
++                            FloatingActionButton(onClick = { dialpad = true }, modifier = Modifier.align(Alignment.BottomEnd).padding(18.dp)) {
++                                Icon(Icons.Filled.Dialpad, contentDescription = "Klaviatura")
++                            }
++                        }
++                    }
++                    if (!searching) {
++                        NavigationBar {
++                            NavigationBarItem(selected = tab == 0, onClick = { tab = 0 }, icon = { Icon(Icons.Filled.History, null) }, label = { Text("So'nggilar") })
++                            NavigationBarItem(selected = tab == 1, onClick = { tab = 1 }, icon = { Icon(Icons.Filled.People, null) }, label = { Text("Kontaktlar") })
++                        }
++                    }
++                }
++            }
 +        }
 +    }
 +}
-diff --git a/app/src/main/java/uz/codial/calls/phone/InCallActivity.java b/app/src/main/java/uz/codial/calls/phone/InCallActivity.java
+diff --git a/app/src/main/java/uz/codial/calls/phone/DialerScreens.kt b/app/src/main/java/uz/codial/calls/phone/DialerScreens.kt
 new file mode 100644
-index 0000000..d053e5e
+index 0000000..05f0c01
 --- /dev/null
-+++ b/app/src/main/java/uz/codial/calls/phone/InCallActivity.java
-@@ -0,0 +1,265 @@
-+package uz.codial.calls.phone;
++++ b/app/src/main/java/uz/codial/calls/phone/DialerScreens.kt
+@@ -0,0 +1,431 @@
++package uz.codial.calls.phone
 +
-+import android.app.Activity;
-+import android.app.KeyguardManager;
-+import android.content.Intent;
-+import android.graphics.Typeface;
-+import android.graphics.drawable.GradientDrawable;
-+import android.os.Bundle;
-+import android.os.Handler;
-+import android.os.Looper;
-+import android.os.PowerManager;
-+import android.telecom.Call;
-+import android.telecom.CallAudioState;
-+import android.telecom.PhoneAccount;
-+import android.telecom.PhoneAccountHandle;
-+import android.telecom.TelecomManager;
-+import android.telecom.VideoProfile;
-+import android.view.Gravity;
-+import android.view.MotionEvent;
-+import android.view.View;
-+import android.widget.Button;
-+import android.widget.LinearLayout;
-+import android.widget.ScrollView;
-+import android.widget.TextView;
++import android.content.Intent
++import android.provider.CallLog
++import android.text.format.DateUtils
++import androidx.compose.foundation.ExperimentalFoundationApi
++import androidx.compose.foundation.background
++import androidx.compose.foundation.clickable
++import androidx.compose.foundation.combinedClickable
++import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.Spacer
++import androidx.compose.foundation.layout.fillMaxSize
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.height
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.size
++import androidx.compose.foundation.layout.width
++import androidx.compose.foundation.lazy.LazyColumn
++import androidx.compose.foundation.lazy.items
++import androidx.compose.foundation.shape.CircleShape
++import androidx.compose.foundation.shape.RoundedCornerShape
++import androidx.compose.foundation.text.BasicTextField
++import androidx.compose.material.icons.Icons
++import androidx.compose.material.icons.automirrored.filled.ArrowBack
++import androidx.compose.material.icons.automirrored.filled.Backspace
++import androidx.compose.material.icons.automirrored.filled.CallMade
++import androidx.compose.material.icons.automirrored.filled.CallMissed
++import androidx.compose.material.icons.automirrored.filled.CallReceived
++import androidx.compose.material.icons.automirrored.filled.Message
++import androidx.compose.material.icons.filled.Block
++import androidx.compose.material.icons.filled.Call
++import androidx.compose.material.icons.filled.Close
++import androidx.compose.material.icons.filled.ContentCopy
++import androidx.compose.material.icons.filled.MoreVert
++import androidx.compose.material.icons.filled.Search
++import androidx.compose.material3.Card
++import androidx.compose.material3.CardDefaults
++import androidx.compose.material3.DropdownMenu
++import androidx.compose.material3.DropdownMenuItem
++import androidx.compose.material3.FilterChip
++import androidx.compose.material3.HorizontalDivider
++import androidx.compose.material3.Icon
++import androidx.compose.material3.IconButton
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.Text
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.LaunchedEffect
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.remember
++import androidx.compose.runtime.saveable.rememberSaveable
++import androidx.compose.runtime.setValue
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.draw.clip
++import androidx.compose.ui.graphics.Color
++import androidx.compose.ui.graphics.SolidColor
++import androidx.compose.ui.graphics.vector.ImageVector
++import androidx.compose.ui.platform.LocalContext
++import androidx.compose.ui.text.TextStyle
++import androidx.compose.ui.text.font.FontWeight
++import androidx.compose.ui.text.style.TextAlign
++import androidx.compose.ui.text.style.TextOverflow
++import androidx.compose.ui.unit.dp
++import androidx.compose.ui.unit.sp
++import kotlinx.coroutines.delay
++import org.json.JSONObject
++import uz.codial.calls.MainActivity
++import java.text.SimpleDateFormat
++import java.util.Calendar
++import java.util.Date
++import java.util.Locale
 +
-+import org.json.JSONArray;
-+import org.json.JSONObject;
++private val MONTHS = arrayOf("yanvar", "fevral", "mart", "aprel", "may", "iyun", "iyul", "avgust", "sentabr", "oktabr", "noyabr", "dekabr")
 +
-+import java.util.Locale;
++private fun dayLabel(date: Long): String {
++    if (DateUtils.isToday(date)) return "Bugun"
++    if (DateUtils.isToday(date + DateUtils.DAY_IN_MILLIS)) return "Kecha"
++    val c = Calendar.getInstance().apply { timeInMillis = date }
++    return "${c.get(Calendar.DAY_OF_MONTH)}-${MONTHS[c.get(Calendar.MONTH)]}"
++}
 +
-+/** Qo'ng'iroq ekrani: yuqorida ERP kartasi (kim qo'ng'iroq qilyapti), pastda qo'ng'iroq tugmalari. */
-+public class InCallActivity extends Activity {
-+    private final Handler h = new Handler(Looper.getMainLooper());
-+    private LinearLayout card;
-+    private LinearLayout controls;
-+    private TextView state;
-+    private boolean keypad;
-+    private PowerManager.WakeLock proximity;
-+    private final Runnable render = this::render;
-+    private final Runnable tick = new Runnable() {
-+        @Override
-+        public void run() {
-+            showState(Phone.primary());
-+            h.postDelayed(this, 1000);
++private fun clock(date: Long) = SimpleDateFormat("HH:mm", Locale.US).format(Date(date))
++
++private fun length(sec: Long) = if (sec <= 0) "" else if (sec < 60) "$sec s" else "${sec / 60} daq ${sec % 60} s"
++
++private fun isMissed(type: Int) = type == CallLog.Calls.MISSED_TYPE || type == CallLog.Calls.REJECTED_TYPE
++
++private fun typeName(e: CallEntry) = when (e.type) {
++    CallLog.Calls.OUTGOING_TYPE -> if (e.duration > 0) "Chiquvchi" else "Chiquvchi, javob bo'lmadi"
++    CallLog.Calls.MISSED_TYPE -> "Javobsiz"
++    CallLog.Calls.REJECTED_TYPE -> "Rad etilgan"
++    CallLog.Calls.BLOCKED_TYPE -> "Bloklangan"
++    else -> "Kiruvchi"
++}
++
++private fun typeIcon(type: Int): Pair<ImageVector, Color> = when (type) {
++    CallLog.Calls.OUTGOING_TYPE -> Icons.AutoMirrored.Filled.CallMade to Palette.green
++    CallLog.Calls.MISSED_TYPE -> Icons.AutoMirrored.Filled.CallMissed to Palette.red
++    CallLog.Calls.REJECTED_TYPE, CallLog.Calls.BLOCKED_TYPE -> Icons.Filled.Block to Palette.red
++    else -> Icons.AutoMirrored.Filled.CallReceived to Palette.blue
++}
++
++/** Raqam uchun ko'rsatiladigan ism: ERP, keyin telefon kontakti, keyin raqamning o'zi. */
++private fun titleOf(number: String, cached: String, book: Map<String, ContactEntry>): String {
++    val key = numberKey(number)
++    return Erp.names[key]?.title ?: book[key]?.name?.ifEmpty { null } ?: cached.ifEmpty { prettyNumber(number) }
++}
++
++@Composable
++fun SearchField(query: String, active: Boolean, onQuery: (String) -> Unit, onFocus: () -> Unit, onClose: () -> Unit) {
++    val ctx = LocalContext.current
++    var menu by remember { mutableStateOf(false) }
++    Row(
++        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp).clip(RoundedCornerShape(28.dp))
++            .background(MaterialTheme.colorScheme.surfaceContainerHigh).height(52.dp).padding(start = 4.dp, end = 4.dp),
++        verticalAlignment = Alignment.CenterVertically,
++    ) {
++        IconButton(onClick = { if (active) onClose() else onFocus() }) {
++            Icon(if (active) Icons.AutoMirrored.Filled.ArrowBack else Icons.Filled.Search, contentDescription = null, tint = Palette.muted)
 +        }
-+    };
-+
-+    @Override
-+    protected void onCreate(Bundle b) {
-+        super.onCreate(b);
-+        setShowWhenLocked(true);
-+        setTurnScreenOn(true);
-+        KeyguardManager km = getSystemService(KeyguardManager.class);
-+        if (km != null && km.isKeyguardLocked()) km.requestDismissKeyguard(this, null);  // parolsiz qulf: yozuv uchun ham ochiq bo'lishi kerak
-+        PowerManager pm = getSystemService(PowerManager.class);
-+        if (pm.isWakeLockLevelSupported(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK))
-+            proximity = pm.newWakeLock(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK, "codial:proximity");
-+
-+        LinearLayout root = new LinearLayout(this);
-+        root.setOrientation(LinearLayout.VERTICAL);
-+        root.setBackgroundColor(Ui.BG);
-+        int pad = Ui.dp(this, 16);
-+        root.setPadding(pad, pad, pad, pad);
-+
-+        ScrollView scroll = new ScrollView(this);
-+        card = new LinearLayout(this);
-+        card.setOrientation(LinearLayout.VERTICAL);
-+        scroll.addView(card);
-+        root.addView(scroll, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
-+
-+        state = Ui.text(this, "", 16, Ui.ORANGE);
-+        state.setGravity(Gravity.CENTER);
-+        root.addView(state);
-+        controls = new LinearLayout(this);
-+        controls.setOrientation(LinearLayout.VERTICAL);
-+        root.addView(controls);
-+        setContentView(root);
-+    }
-+
-+    @Override
-+    protected void onNewIntent(Intent intent) {
-+        super.onNewIntent(intent);
-+        render();
-+    }
-+
-+    @Override
-+    protected void onStart() {
-+        super.onStart();
-+        Phone.listen(render);
-+        render();
-+        h.post(tick);
-+    }
-+
-+    @Override
-+    protected void onStop() {
-+        Phone.unlisten(render);
-+        h.removeCallbacks(tick);
-+        super.onStop();
-+    }
-+
-+    @Override
-+    protected void onDestroy() {
-+        setProximity(false);
-+        super.onDestroy();
-+    }
-+
-+    private void render() {
-+        Call c = Phone.primary();
-+        if (c == null) {
-+            setProximity(false);
-+            finishAndRemoveTask();
-+            return;
++        Box(Modifier.weight(1f).clickable { onFocus() }) {
++            if (query.isEmpty()) Text("Ism yoki raqamni qidirish", color = Palette.muted, fontSize = 16.sp)
++            BasicTextField(
++                value = query, onValueChange = onQuery, singleLine = true, textStyle = TextStyle(fontSize = 16.sp, color = Palette.text),
++                cursorBrush = SolidColor(Palette.blue), modifier = Modifier.fillMaxWidth(),
++            )
 +        }
-+        showCard(c);
-+        showState(c);
-+        showControls(c);
-+    }
-+
-+    private void showCard(Call c) {
-+        card.removeAllViews();
-+        String number = Phone.number(c);
-+        JSONObject data = Phone.card(number);
-+        String badge = data == null ? "Ma'lumot olinmoqda…" : data.optString("badge");
-+        String title = data != null && !data.optString("title").isEmpty() ? data.optString("title") : (number.isEmpty() ? "Yashirin raqam" : number);
-+
-+        TextView b = Ui.text(this, badge, 14, Ui.ORANGE);
-+        b.setTypeface(Typeface.DEFAULT_BOLD);
-+        card.addView(b);
-+        TextView t = Ui.text(this, title, 28, Ui.WHITE);
-+        t.setTypeface(Typeface.DEFAULT_BOLD);
-+        card.addView(t);
-+        card.addView(Ui.text(this, number, 17, Ui.MUTED));
-+
-+        JSONArray lines = data == null ? null : data.optJSONArray("lines");
-+        if (lines != null && lines.length() > 0) {
-+            LinearLayout box = new LinearLayout(this);
-+            box.setOrientation(LinearLayout.VERTICAL);
-+            GradientDrawable d = new GradientDrawable();
-+            d.setColor(Ui.PANEL);
-+            d.setCornerRadius(Ui.dp(this, 14));
-+            box.setBackground(d);
-+            int p = Ui.dp(this, 12);
-+            box.setPadding(p, p, p, p);
-+            for (int i = 0; i < lines.length(); i++) box.addView(Ui.text(this, lines.optString(i), 17, Ui.WHITE));
-+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-+            lp.topMargin = Ui.dp(this, 12);
-+            card.addView(box, lp);
-+        }
-+        Call other = Phone.other(c);
-+        if (other != null) {
-+            JSONObject o = Phone.card(Phone.number(other));
-+            String name = o != null && !o.optString("title").isEmpty() ? o.optString("title") : Phone.number(other);
-+            card.addView(Ui.text(this, "Ikkinchi qo'ng'iroq: " + name + (other.getState() == Call.STATE_HOLDING ? " (kutmoqda)" : ""), 15, Ui.MUTED));
-+        }
-+    }
-+
-+    private void showState(Call c) {
-+        if (c == null) return;
-+        String s;
-+        switch (c.getState()) {
-+            case Call.STATE_RINGING: s = "Kiruvchi qo'ng'iroq"; break;
-+            case Call.STATE_DIALING:
-+            case Call.STATE_CONNECTING: s = "Terilmoqda…"; break;
-+            case Call.STATE_ACTIVE: {
-+                long start = c.getDetails().getConnectTimeMillis();
-+                long sec = start > 0 ? Math.max(0, (System.currentTimeMillis() - start) / 1000) : 0;
-+                s = String.format(Locale.US, "Suhbat %02d:%02d", sec / 60, sec % 60);
-+                break;
++        if (query.isNotEmpty()) IconButton(onClick = { onQuery("") }) { Icon(Icons.Filled.Close, contentDescription = "Tozalash", tint = Palette.muted) }
++        Box {
++            IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "Menyu", tint = Palette.muted) }
++            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
++                DropdownMenuItem(text = { Text("Ilova sozlamalari") }, onClick = {
++                    menu = false
++                    ctx.startActivity(Intent(ctx, MainActivity::class.java))
++                })
 +            }
-+            case Call.STATE_HOLDING: s = "Ushlab turilibdi"; break;
-+            case Call.STATE_DISCONNECTING:
-+            case Call.STATE_DISCONNECTED: s = "Qo'ng'iroq tugadi"; break;
-+            case Call.STATE_SELECT_PHONE_ACCOUNT: s = "SIM kartani tanlang"; break;
-+            default: s = "";
 +        }
-+        state.setText(s);
 +    }
++}
 +
-+    private void showControls(Call c) {
-+        controls.removeAllViews();
-+        int st = c.getState();
-+        CodialInCallService svc = Phone.service;
-+        if (st == Call.STATE_RINGING) {
-+            setProximity(false);
-+            controls.addView(Ui.row(this,
-+                    Ui.button(this, "Rad etish", Ui.RED, v -> c.reject(false, null)),
-+                    Ui.button(this, "Javob berish", Ui.GREEN, v -> c.answer(VideoProfile.STATE_AUDIO_ONLY))));
-+            return;
-+        }
-+        if (st == Call.STATE_SELECT_PHONE_ACCOUNT) {
-+            TelecomManager tm = getSystemService(TelecomManager.class);
-+            try {
-+                int i = 1;
-+                for (PhoneAccountHandle a : tm.getCallCapablePhoneAccounts()) {
-+                    PhoneAccount acc = tm.getPhoneAccount(a);
-+                    String label = acc != null && acc.getLabel() != null ? acc.getLabel().toString() : "SIM " + i;
-+                    controls.addView(Ui.row(this, Ui.button(this, label, Ui.GREEN, v -> c.phoneAccountSelected(a, false))));
-+                    i++;
++/** Ro'yxat qatori: rasm, ism, ostida izoh, o'ngda qo'ng'iroq tugmasi. */
++@Composable
++private fun PersonRow(
++    title: String, key: String, subtitle: String, number: String, onOpen: () -> Unit,
++    titleColor: Color = Palette.text, icon: Pair<ImageVector, Color>? = null,
++) {
++    val ctx = LocalContext.current
++    Row(Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
++        Avatar(title, key)
++        Spacer(Modifier.width(14.dp))
++        Column(Modifier.weight(1f)) {
++            Text(title, color = titleColor, fontSize = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
++            Row(verticalAlignment = Alignment.CenterVertically) {
++                if (icon != null) {
++                    Icon(icon.first, contentDescription = null, tint = icon.second, modifier = Modifier.size(15.dp))
++                    Spacer(Modifier.width(4.dp))
 +                }
-+            } catch (SecurityException e) {
-+                controls.addView(Ui.text(this, "SIM ro'yxatiga ruxsat yo'q", 15, Ui.MUTED));
++                Text(subtitle, color = Palette.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
 +            }
-+            controls.addView(Ui.row(this, Ui.button(this, "Bekor qilish", Ui.RED, v -> c.disconnect())));
-+            return;
 +        }
-+        CallAudioState audio = svc == null ? null : svc.getCallAudioState();
-+        boolean muted = audio != null && audio.isMuted();
-+        int route = audio == null ? CallAudioState.ROUTE_EARPIECE : audio.getRoute();
-+        boolean speaker = route == CallAudioState.ROUTE_SPEAKER;
-+        boolean bluetooth = route == CallAudioState.ROUTE_BLUETOOTH;
-+        setProximity(st != Call.STATE_DISCONNECTED && !speaker && !bluetooth && !keypad);
++        if (number.isNotEmpty()) IconButton(onClick = { PhoneData.dial(ctx, number) }) { Icon(Icons.Filled.Call, contentDescription = "Qo'ng'iroq", tint = Palette.muted) }
++    }
++}
 +
-+        if (keypad) {
-+            String[][] keys = {{"1", "2", "3"}, {"4", "5", "6"}, {"7", "8", "9"}, {"*", "0", "#"}};
-+            for (String[] line : keys) controls.addView(Ui.row(this, dtmf(c, line[0]), dtmf(c, line[1]), dtmf(c, line[2])));
++@Composable
++private fun Header(text: String) = Text(text, color = Palette.muted, fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 16.dp, top = 14.dp, bottom = 4.dp))
++
++@Composable
++private fun Empty(text: String) = Text(text, color = Palette.muted, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(32.dp))
++
++/** Ketma-ket kelgan bir xil raqamli (bir kundagi) qo'ng'iroqlar bitta qatorga yig'iladi. */
++private data class Group(val first: CallEntry, val count: Int, val day: String)
++
++private fun group(calls: List<CallEntry>): List<Group> {
++    val out = ArrayList<Group>()
++    for (e in calls) {
++        val day = dayLabel(e.date)
++        val last = out.lastOrNull()
++        if (last != null && last.day == day && numberKey(last.first.number) == numberKey(e.number) && isMissed(last.first.type) == isMissed(e.type)) {
++            out[out.size - 1] = last.copy(count = last.count + 1)
++        } else out.add(Group(e, 1, day))
++    }
++    return out
++}
++
++@Composable
++fun Recents(calls: List<CallEntry>, book: Map<String, ContactEntry>, onOpen: (String) -> Unit) {
++    var missedOnly by rememberSaveable { mutableStateOf(false) }
++    val groups = remember(calls, missedOnly) { group(if (missedOnly) calls.filter { isMissed(it.type) } else calls) }
++    Column(Modifier.fillMaxSize()) {
++        Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
++            FilterChip(selected = !missedOnly, onClick = { missedOnly = false }, label = { Text("Hammasi") })
++            FilterChip(selected = missedOnly, onClick = { missedOnly = true }, label = { Text("Javobsiz") })
 +        }
-+        Button mic = Ui.button(this, muted ? "Mikrofon o'chiq" : "Mikrofon", muted ? Ui.ORANGE : Ui.PANEL, v -> {
-+            if (svc != null) svc.setMuted(!muted);
-+        });
-+        Button spk = Ui.button(this, speaker ? "Karnay yoniq" : "Karnay", speaker ? Ui.ORANGE : Ui.PANEL, v -> {
-+            if (svc != null) svc.setAudioRoute(speaker ? CallAudioState.ROUTE_WIRED_OR_EARPIECE : CallAudioState.ROUTE_SPEAKER);
-+        });
-+        controls.addView(Ui.row(this, mic, spk));
-+        Button hold = Ui.button(this, st == Call.STATE_HOLDING ? "Davom ettirish" : "Ushlab turish", st == Call.STATE_HOLDING ? Ui.ORANGE : Ui.PANEL, v -> {
-+            if (c.getState() == Call.STATE_HOLDING) c.unhold();
-+            else c.hold();
-+        });
-+        Button keys = Ui.button(this, keypad ? "Raqamlarni yopish" : "Raqamlar", Ui.PANEL, v -> {
-+            keypad = !keypad;
-+            render();
-+        });
-+        controls.addView(Ui.row(this, hold, keys));
-+        boolean hasBt = audio != null && (audio.getSupportedRouteMask() & CallAudioState.ROUTE_BLUETOOTH) != 0;
-+        Call other = Phone.other(c);
-+        if (hasBt || other != null) {
-+            Button bt = Ui.button(this, bluetooth ? "Bluetooth yoniq" : "Bluetooth", bluetooth ? Ui.ORANGE : Ui.PANEL, v -> {
-+                if (svc != null) svc.setAudioRoute(bluetooth ? CallAudioState.ROUTE_WIRED_OR_EARPIECE : CallAudioState.ROUTE_BLUETOOTH);
-+            });
-+            bt.setVisibility(hasBt ? View.VISIBLE : View.INVISIBLE);
-+            Button swap = Ui.button(this, "Qo'ng'iroqlarni almashtirish", Ui.PANEL, v -> {
-+                if (other != null && other.getState() == Call.STATE_HOLDING) other.unhold();
-+            });
-+            swap.setVisibility(other != null && other.getState() == Call.STATE_HOLDING ? View.VISIBLE : View.INVISIBLE);
-+            controls.addView(Ui.row(this, bt, swap));
++        if (groups.isEmpty()) Empty(if (missedOnly) "Javobsiz qo'ng'iroq yo'q" else "Qo'ng'iroqlar tarixi bo'sh yoki ruxsat berilmagan")
++        LazyColumn(Modifier.fillMaxSize()) {
++            groups.forEachIndexed { i, g ->
++                if (i == 0 || groups[i - 1].day != g.day) item { Header(g.day) }
++                item {
++                    val e = g.first
++                    val title = titleOf(e.number, e.cachedName, book) + if (g.count > 1) " (${g.count})" else ""
++                    val badge = Erp.names[numberKey(e.number)]?.badge
++                    val known = title.startsWith("+") || title == "Yashirin raqam"
++                    val parts = listOfNotNull(badge, if (badge == null && !known) prettyNumber(e.number) else null, clock(e.date))
++                    PersonRow(
++                        title, numberKey(e.number), parts.joinToString(" · "), e.number, { onOpen(e.number) },
++                        titleColor = if (isMissed(e.type)) Palette.red else Palette.text, icon = typeIcon(e.type),
++                    )
++                }
++            }
++            item { Spacer(Modifier.height(90.dp)) }
 +        }
-+        controls.addView(Ui.row(this, Ui.button(this, "Tugatish", Ui.RED, v -> c.disconnect())));
++    }
++}
++
++@Composable
++fun Contacts(contacts: List<ContactEntry>, onOpen: (String) -> Unit) {
++    if (contacts.isEmpty()) {
++        Empty("Telefonda kontakt yo'q yoki ruxsat berilmagan")
++        return
++    }
++    LazyColumn(Modifier.fillMaxSize()) {
++        items(contacts) { c -> PersonRow(c.name.ifEmpty { prettyNumber(c.number) }, numberKey(c.number), prettyNumber(c.number), c.number, { onOpen(c.number) }) }
++        item { Spacer(Modifier.height(90.dp)) }
++    }
++}
++
++/** Telefonning o'zidagi mosliklar: kontaktlar va qo'ng'iroqlar tarixi (ism yoki raqamning istalgan qismi). */
++private fun localHits(query: String, calls: List<CallEntry>, contacts: List<ContactEntry>, book: Map<String, ContactEntry>, limit: Int): List<Hit> {
++    val q = query.trim()
++    if (q.isEmpty()) return emptyList()
++    val digits = q.filter { it.isDigit() }
++    val byNumber = digits.isNotEmpty() && q.all { it.isDigit() || it in "+ -()*#" }
++    val out = LinkedHashMap<String, Hit>()
++    fun add(title: String, subtitle: String, number: String) {
++        val key = numberKey(number)
++        if (key.isEmpty() || out.size >= limit || key in out) return
++        val name = Erp.names[key]?.title ?: title
++        val matches = if (byNumber) number.filter { it.isDigit() }.contains(digits) else name.contains(q, true) || title.contains(q, true)
++        if (matches) out[key] = Hit(name, subtitle, number)
++    }
++    for (e in calls) add(titleOf(e.number, e.cachedName, book), Erp.names[numberKey(e.number)]?.badge ?: prettyNumber(e.number), e.number)
++    for (c in contacts) add(c.name, prettyNumber(c.number), c.number)
++    return out.values.toList()
++}
++
++/** Qator ostidagi yozuv: kimligi va raqam — sarlavhada ko'rinib turgani takrorlanmaydi. */
++private fun details(h: Hit) = listOf(h.subtitle, prettyNumber(h.number)).filter { it.isNotEmpty() && it != h.title }.distinct().joinToString(" · ")
++
++@Composable
++fun SearchResults(query: String, calls: List<CallEntry>, contacts: List<ContactEntry>, book: Map<String, ContactEntry>, onOpen: (String) -> Unit) {
++    val ctx = LocalContext.current
++    var erp by remember { mutableStateOf<List<Hit>?>(emptyList()) }
++    var loading by remember { mutableStateOf(false) }
++    LaunchedEffect(query) {
++        erp = emptyList()
++        loading = query.trim().length >= 3
++        if (loading) {
++            delay(400)
++            erp = Erp.search(ctx, query)
++            loading = false
++        }
++    }
++    val local = remember(query, calls, contacts) { localHits(query, calls, contacts, book, 30) }
++    val remote = erp.orEmpty().filter { r -> local.none { numberKey(it.number) == numberKey(r.number) } }
++    LazyColumn(Modifier.fillMaxSize()) {
++        if (local.isNotEmpty()) item { Header("Telefonda") }
++        items(local) { h -> PersonRow(h.title, numberKey(h.number), details(h), h.number, { onOpen(h.number) }) }
++        if (remote.isNotEmpty()) item { Header("ERP'da") }
++        items(remote) { h -> PersonRow(h.title, numberKey(h.number), details(h), h.number, { onOpen(h.number) }) }
++        item {
++            when {
++                query.trim().length < 3 -> Empty("ERP'dan qidirish uchun kamida 3 ta harf yoki raqam yozing")
++                loading -> Empty("ERP'dan qidirilmoqda…")
++                erp == null -> Empty("ERP'ga ulanib bo'lmadi (internet yoki server)")
++                local.isEmpty() && remote.isEmpty() -> Empty("Hech narsa topilmadi")
++            }
++        }
++    }
++}
++
++private val KEYS = listOf(
++    listOf("1" to "", "2" to "ABC", "3" to "DEF"), listOf("4" to "GHI", "5" to "JKL", "6" to "MNO"),
++    listOf("7" to "PQRS", "8" to "TUV", "9" to "WXYZ"), listOf("*" to "", "0" to "+", "#" to ""),
++)
++
++@OptIn(ExperimentalFoundationApi::class)
++@Composable
++fun DialpadScreen(
++    typed: String, onTyped: (String) -> Unit, calls: List<CallEntry>, contacts: List<ContactEntry>, book: Map<String, ContactEntry>,
++    onOpen: (String) -> Unit, onClose: () -> Unit,
++) {
++    val ctx = LocalContext.current
++    var erp by remember { mutableStateOf<List<Hit>>(emptyList()) }
++    LaunchedEffect(typed) {
++        erp = emptyList()
++        if (typed.count { it.isDigit() } >= 3) {
++            delay(500)
++            erp = Erp.search(ctx, typed).orEmpty()
++        }
++    }
++    val local = remember(typed, calls, contacts) { localHits(typed, calls, contacts, book, 20) }
++    val hits = local + erp.filter { r -> local.none { numberKey(it.number) == numberKey(r.number) } }
++    Column(Modifier.fillMaxSize()) {
++        Row(verticalAlignment = Alignment.CenterVertically) {
++            IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Orqaga") }
++        }
++        LazyColumn(Modifier.weight(1f).fillMaxWidth()) {
++            items(hits) { h -> PersonRow(h.title, numberKey(h.number), details(h), h.number, { onTyped(h.number) }) }
++            if (typed.length >= 7) item {
++                Row(Modifier.fillMaxWidth().clickable { PhoneData.sms(ctx, typed) }.padding(horizontal = 24.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
++                    Icon(Icons.AutoMirrored.Filled.Message, contentDescription = null, tint = Palette.blue)
++                    Spacer(Modifier.width(18.dp))
++                    Text("SMS yozish", color = Palette.blue, fontSize = 16.sp)
++                }
++            }
++        }
++        HorizontalDivider()
++        Row(Modifier.fillMaxWidth().height(60.dp).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
++            if (typed.isNotEmpty()) Spacer(Modifier.width(48.dp))
++            Text(
++                typed.ifEmpty { "" }, fontSize = if (typed.length > 13) 24.sp else 32.sp, textAlign = TextAlign.Center, maxLines = 1,
++                modifier = Modifier.weight(1f).clickable(enabled = typed.isNotEmpty()) { onOpen(typed) },
++            )
++            if (typed.isNotEmpty()) {
++                Box(
++                    Modifier.size(48.dp).clip(CircleShape).combinedClickable(onClick = { onTyped(typed.dropLast(1)) }, onLongClick = { onTyped("") }),
++                    contentAlignment = Alignment.Center,
++                ) { Icon(Icons.AutoMirrored.Filled.Backspace, contentDescription = "O'chirish", tint = Palette.muted) }
++            }
++        }
++        for (line in KEYS) {
++            Row(Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 3.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
++                for ((digit, letters) in line) {
++                    Column(
++                        Modifier.weight(1f).height(60.dp).clip(RoundedCornerShape(30.dp)).background(MaterialTheme.colorScheme.surfaceContainer)
++                            .combinedClickable(onClick = { onTyped(typed + digit) }, onLongClick = { onTyped(typed + if (digit == "0") "+" else digit) }),
++                        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
++                    ) {
++                        Text(digit, fontSize = 26.sp, color = Palette.text)
++                        if (letters.isNotEmpty()) Text(letters, fontSize = 10.sp, color = Palette.muted)
++                    }
++                }
++            }
++        }
++        Box(Modifier.fillMaxWidth().padding(vertical = 10.dp), contentAlignment = Alignment.Center) {
++            Row(
++                Modifier.height(62.dp).clip(RoundedCornerShape(31.dp)).background(Palette.green)
++                    .clickable { if (typed.isEmpty()) onTyped(PhoneData.lastDialed(calls)) else PhoneData.dial(ctx, typed) }.padding(horizontal = 40.dp),
++                verticalAlignment = Alignment.CenterVertically,
++            ) {
++                Icon(Icons.Filled.Call, contentDescription = null, tint = Color.White)
++                Spacer(Modifier.width(10.dp))
++                Text("Qo'ng'iroq", color = Color.White, fontSize = 18.sp)
++            }
++        }
++    }
++}
++
++@Composable
++private fun Action(icon: ImageVector, label: String, onClick: () -> Unit) {
++    Column(Modifier.clip(RoundedCornerShape(16.dp)).clickable(onClick = onClick).padding(horizontal = 18.dp, vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
++        Box(Modifier.size(52.dp).clip(CircleShape).background(Palette.blueSoft), contentAlignment = Alignment.Center) { Icon(icon, contentDescription = null, tint = Palette.blue) }
++        Spacer(Modifier.height(6.dp))
++        Text(label, fontSize = 13.sp, color = Palette.text)
++    }
++}
++
++/** Raqam sahifasi: kim (ERP kartasi), Qo'ng'iroq / SMS tugmalari va shu raqam bilan barcha qo'ng'iroqlar. */
++@Composable
++fun DetailScreen(number: String, calls: List<CallEntry>, book: Map<String, ContactEntry>, refresh: Int, onBack: () -> Unit) {
++    val ctx = LocalContext.current
++    var card by remember(number) { mutableStateOf<JSONObject?>(null) }
++    var loading by remember(number) { mutableStateOf(true) }
++    LaunchedEffect(number, refresh) {
++        card = Erp.card(ctx, number) ?: card
++        loading = false
++    }
++    val key = numberKey(number)
++    val history = remember(number, calls) { calls.filter { numberKey(it.number) == key } }
++    val found = card?.optBoolean("found") == true
++    val title = if (found) card!!.optString("title") else titleOf(number, history.firstOrNull()?.cachedName.orEmpty(), book)
++    LazyColumn(Modifier.fillMaxSize()) {
++        item {
++            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Orqaga") }
++            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
++                Avatar(title, key, 88.dp)
++                Spacer(Modifier.height(10.dp))
++                Text(title, fontSize = 24.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 16.dp))
++                if (title != prettyNumber(number)) Text(prettyNumber(number), color = Palette.muted, fontSize = 15.sp)
++                Spacer(Modifier.height(10.dp))
++                Row {
++                    Action(Icons.Filled.Call, "Qo'ng'iroq") { PhoneData.dial(ctx, number) }
++                    Action(Icons.AutoMirrored.Filled.Message, "SMS") { PhoneData.sms(ctx, number) }
++                    Action(Icons.Filled.ContentCopy, "Nusxalash") { PhoneData.copy(ctx, number) }
++                }
++            }
++        }
++        item {
++            Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
++                Column(Modifier.padding(16.dp)) {
++                    val badge = card?.optString("badge").orEmpty()
++                    Text(
++                        if (badge.isNotEmpty()) badge else if (loading) "ERP'dan olinmoqda…" else "ERP ma'lumoti olinmadi (internet yoki server)",
++                        color = Palette.orange, fontWeight = FontWeight.Bold, fontSize = 15.sp,
++                    )
++                    val lines = card?.optJSONArray("lines")
++                    if (lines != null) for (i in 0 until lines.length()) Text(lines.optString(i), fontSize = 15.sp, modifier = Modifier.padding(top = 6.dp))
++                }
++            }
++        }
++        item { Header(if (history.isEmpty()) "Bu raqam bilan qo'ng'iroq bo'lmagan" else "Qo'ng'iroqlar tarixi (${history.size})") }
++        items(history) { e ->
++            val (icon, color) = typeIcon(e.type)
++            Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
++                Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
++                Spacer(Modifier.width(16.dp))
++                Column(Modifier.weight(1f)) {
++                    Text(typeName(e), fontSize = 15.sp)
++                    Text("${dayLabel(e.date)}, ${clock(e.date)}", color = Palette.muted, fontSize = 13.sp)
++                }
++                Text(length(e.duration), color = Palette.muted, fontSize = 13.sp)
++            }
++        }
++        item { Spacer(Modifier.height(24.dp)) }
++    }
++}
+diff --git a/app/src/main/java/uz/codial/calls/phone/InCallActivity.kt b/app/src/main/java/uz/codial/calls/phone/InCallActivity.kt
+new file mode 100644
+index 0000000..c11bb58
+--- /dev/null
++++ b/app/src/main/java/uz/codial/calls/phone/InCallActivity.kt
+@@ -0,0 +1,274 @@
++package uz.codial.calls.phone
++
++import android.app.KeyguardManager
++import android.content.Intent
++import android.graphics.Color as AndroidColor
++import android.os.Bundle
++import android.os.PowerManager
++import android.telecom.Call
++import android.telecom.CallAudioState
++import android.telecom.TelecomManager
++import android.telecom.VideoProfile
++import androidx.activity.ComponentActivity
++import androidx.activity.SystemBarStyle
++import androidx.activity.compose.setContent
++import androidx.activity.enableEdgeToEdge
++import androidx.compose.foundation.background
++import androidx.compose.foundation.clickable
++import androidx.compose.foundation.gestures.detectTapGestures
++import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.Spacer
++import androidx.compose.foundation.layout.fillMaxSize
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.height
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.safeDrawingPadding
++import androidx.compose.foundation.layout.size
++import androidx.compose.foundation.layout.width
++import androidx.compose.foundation.rememberScrollState
++import androidx.compose.foundation.shape.CircleShape
++import androidx.compose.foundation.shape.RoundedCornerShape
++import androidx.compose.foundation.verticalScroll
++import androidx.compose.material.icons.Icons
++import androidx.compose.material.icons.automirrored.filled.VolumeUp
++import androidx.compose.material.icons.filled.Bluetooth
++import androidx.compose.material.icons.filled.Call
++import androidx.compose.material.icons.filled.CallEnd
++import androidx.compose.material.icons.filled.Dialpad
++import androidx.compose.material.icons.filled.MicOff
++import androidx.compose.material.icons.filled.Pause
++import androidx.compose.material.icons.filled.SwapCalls
++import androidx.compose.material3.Button
++import androidx.compose.material3.Card
++import androidx.compose.material3.CardDefaults
++import androidx.compose.material3.Icon
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.Surface
++import androidx.compose.material3.Text
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.LaunchedEffect
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableIntStateOf
++import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.remember
++import androidx.compose.runtime.setValue
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.draw.clip
++import androidx.compose.ui.graphics.Color
++import androidx.compose.ui.graphics.vector.ImageVector
++import androidx.compose.ui.input.pointer.pointerInput
++import androidx.compose.ui.text.font.FontWeight
++import androidx.compose.ui.text.style.TextAlign
++import androidx.compose.ui.unit.dp
++import androidx.compose.ui.unit.sp
++import kotlinx.coroutines.delay
++import java.util.Locale
++
++/** Qo'ng'iroq ekrani: yuqorida ERP kartasi (kim qo'ng'iroq qilyapti), pastda Google «Telefon»ga o'xshash tugmalar. */
++class InCallActivity : ComponentActivity() {
++    private var proximity: PowerManager.WakeLock? = null
++
++    /** Qo'ng'iroq holati o'zgarganda ekran qayta chiziladi. */
++    private var version by mutableIntStateOf(0)
++    private val changed = Runnable {
++        if (Phone.primary() == null) {
++            setProximity(false)
++            finishAndRemoveTask()
++        } else version++
 +    }
 +
-+    private Button dtmf(Call c, String key) {
-+        Button b = Ui.button(this, key, Ui.PANEL, v -> { });
-+        b.setOnTouchListener((v, e) -> {
-+            if (e.getAction() == MotionEvent.ACTION_DOWN) c.playDtmfTone(key.charAt(0));
-+            if (e.getAction() == MotionEvent.ACTION_UP || e.getAction() == MotionEvent.ACTION_CANCEL) c.stopDtmfTone();
-+            return false;
-+        });
-+        return b;
++    override fun onCreate(savedInstanceState: Bundle?) {
++        super.onCreate(savedInstanceState)
++        setShowWhenLocked(true)
++        setTurnScreenOn(true)
++        val km = getSystemService(KeyguardManager::class.java)
++        if (km?.isKeyguardLocked == true) km.requestDismissKeyguard(this, null)  // parolsiz qulf: yozuv uchun ham ochiq bo'lishi kerak
++        val pm = getSystemService(PowerManager::class.java)
++        if (pm.isWakeLockLevelSupported(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK))
++            proximity = pm.newWakeLock(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK, "codial:proximity")
++        val light = SystemBarStyle.light(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT)
++        enableEdgeToEdge(statusBarStyle = light, navigationBarStyle = light)
++        setContent { CodialTheme { Surface(Modifier.fillMaxSize()) { Screen() } } }
++    }
++
++    override fun onNewIntent(intent: Intent) {
++        super.onNewIntent(intent)
++        changed.run()
++    }
++
++    override fun onStart() {
++        super.onStart()
++        Phone.listen(changed)
++        changed.run()
++    }
++
++    override fun onStop() {
++        Phone.unlisten(changed)
++        super.onStop()
++    }
++
++    override fun onDestroy() {
++        setProximity(false)
++        super.onDestroy()
 +    }
 +
 +    /** Telefon quloqqa tutilganda ekran o'chadi (tasodifiy bosilmasin). */
-+    private void setProximity(boolean on) {
-+        if (proximity == null) return;
-+        if (on && !proximity.isHeld()) proximity.acquire(60 * 60 * 1000L);
-+        else if (!on && proximity.isHeld()) proximity.release();
++    private fun setProximity(on: Boolean) {
++        val lock = proximity ?: return
++        if (on && !lock.isHeld) lock.acquire(60 * 60 * 1000L)
++        else if (!on && lock.isHeld) lock.release()
++    }
++
++    @Composable
++    private fun Screen() {
++        var second by remember { mutableIntStateOf(0) }
++        LaunchedEffect(Unit) {
++            while (true) {
++                delay(1000)
++                second++
++            }
++        }
++        val stamp = version  // o'qish — o'zgarishda qayta chizish
++        val call = remember(stamp) { Phone.primary() } ?: return
++        val state = call.state
++        var keypad by remember { mutableStateOf(false) }
++        val audio = Phone.service?.callAudioState
++        val muted = audio?.isMuted == true
++        val route = audio?.route ?: CallAudioState.ROUTE_EARPIECE
++        val speaker = route == CallAudioState.ROUTE_SPEAKER
++        val bluetooth = route == CallAudioState.ROUTE_BLUETOOTH
++        setProximity(state != Call.STATE_RINGING && state != Call.STATE_DISCONNECTED && state != Call.STATE_SELECT_PHONE_ACCOUNT && !speaker && !bluetooth && !keypad)
++
++        val number = Phone.number(call)
++        val data = Phone.card(number)
++        val title = data?.optString("title").orEmpty().ifEmpty { prettyNumber(number) }
++        val badge = if (data == null) "Ma'lumot olinmoqda…" else data.optString("badge")
++
++        Column(Modifier.fillMaxSize().safeDrawingPadding().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
++            Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
++                Text(stateText(call, second), color = Palette.muted, fontSize = 15.sp)
++                Spacer(Modifier.height(12.dp))
++                if (!keypad) {
++                    Avatar(title, numberKey(number), 76.dp)
++                    Spacer(Modifier.height(10.dp))
++                }
++                Text(title, fontSize = 28.sp, textAlign = TextAlign.Center)
++                Text(prettyNumber(number), color = Palette.muted, fontSize = 15.sp)
++                val lines = data?.optJSONArray("lines")
++                if (!keypad) {
++                    Card(Modifier.fillMaxWidth().padding(top = 14.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
++                        Column(Modifier.padding(14.dp)) {
++                            Text(badge, color = Palette.orange, fontWeight = FontWeight.Bold, fontSize = 15.sp)
++                            if (lines != null) for (i in 0 until lines.length()) Text(lines.optString(i), fontSize = 16.sp, modifier = Modifier.padding(top = 5.dp))
++                        }
++                    }
++                }
++                Phone.other(call)?.let { other ->
++                    val o = Phone.card(Phone.number(other))
++                    val name = o?.optString("title").orEmpty().ifEmpty { prettyNumber(Phone.number(other)) }
++                    Text(
++                        "Ikkinchi qo'ng'iroq: $name" + if (other.state == Call.STATE_HOLDING) " (kutmoqda)" else "",
++                        color = Palette.muted, fontSize = 15.sp, modifier = Modifier.padding(top = 10.dp),
++                    )
++                }
++            }
++            when (state) {
++                Call.STATE_RINGING -> Row(Modifier.fillMaxWidth().padding(vertical = 24.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
++                    Round(Icons.Filled.CallEnd, "Rad etish", Palette.red, Color.White, 76) { call.reject(false, null) }
++                    Round(Icons.Filled.Call, "Javob berish", Palette.green, Color.White, 76) { call.answer(VideoProfile.STATE_AUDIO_ONLY) }
++                }
++                Call.STATE_SELECT_PHONE_ACCOUNT -> SimChoice(call)
++                else -> {
++                    if (keypad) Keypad(call)
++                    val other = Phone.other(call)
++                    val hasBt = audio != null && audio.supportedRouteMask and CallAudioState.ROUTE_BLUETOOTH != 0
++                    Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
++                        Toggle(Icons.Filled.MicOff, "Mikrofon", muted) { Phone.service?.setMuted(!muted) }
++                        Toggle(Icons.Filled.Dialpad, "Raqamlar", keypad) { keypad = !keypad }
++                        Toggle(Icons.AutoMirrored.Filled.VolumeUp, "Karnay", speaker) {
++                            Phone.service?.setAudioRoute(if (speaker) CallAudioState.ROUTE_WIRED_OR_EARPIECE else CallAudioState.ROUTE_SPEAKER)
++                        }
++                        Toggle(Icons.Filled.Pause, "Ushlab turish", state == Call.STATE_HOLDING) {
++                            if (call.state == Call.STATE_HOLDING) call.unhold() else call.hold()
++                        }
++                    }
++                    if (hasBt || other?.state == Call.STATE_HOLDING) {
++                        Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
++                            if (hasBt) Toggle(Icons.Filled.Bluetooth, "Bluetooth", bluetooth) {
++                                Phone.service?.setAudioRoute(if (bluetooth) CallAudioState.ROUTE_WIRED_OR_EARPIECE else CallAudioState.ROUTE_BLUETOOTH)
++                            }
++                            if (other?.state == Call.STATE_HOLDING) Toggle(Icons.Filled.SwapCalls, "Almashtirish", false) { other.unhold() }
++                        }
++                    }
++                    Box(Modifier.padding(vertical = 18.dp)) { Round(Icons.Filled.CallEnd, "Tugatish", Palette.red, Color.White, 72) { call.disconnect() } }
++                }
++            }
++        }
++    }
++
++    private fun stateText(c: Call, tick: Int): String = when (c.state) {
++        Call.STATE_RINGING -> "Kiruvchi qo'ng'iroq"
++        Call.STATE_DIALING, Call.STATE_CONNECTING -> "Terilmoqda…"
++        Call.STATE_ACTIVE -> {
++            val start = c.details.connectTimeMillis
++            val sec = if (start > 0) maxOf(0L, (System.currentTimeMillis() - start) / 1000) else 0L
++            String.format(Locale.US, "Suhbat %02d:%02d", sec / 60, sec % 60).also { check(tick >= 0) }
++        }
++        Call.STATE_HOLDING -> "Ushlab turilibdi"
++        Call.STATE_DISCONNECTING, Call.STATE_DISCONNECTED -> "Qo'ng'iroq tugadi"
++        Call.STATE_SELECT_PHONE_ACCOUNT -> "SIM kartani tanlang"
++        else -> ""
++    }
++
++    @Composable
++    private fun SimChoice(call: Call) {
++        val tm = getSystemService(TelecomManager::class.java)
++        val accounts = remember { runCatching { tm.callCapablePhoneAccounts.map { it to (tm.getPhoneAccount(it)?.label?.toString() ?: "SIM") } }.getOrDefault(emptyList()) }
++        Column(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
++            if (accounts.isEmpty()) Text("SIM ro'yxatiga ruxsat yo'q", color = Palette.muted)
++            for ((handle, label) in accounts) Button(onClick = { call.phoneAccountSelected(handle, false) }, modifier = Modifier.fillMaxWidth().padding(4.dp)) { Text(label, fontSize = 17.sp) }
++            Spacer(Modifier.height(10.dp))
++            Round(Icons.Filled.CallEnd, "Bekor qilish", Palette.red, Color.White, 64) { call.disconnect() }
++        }
++    }
++
++    @Composable
++    private fun Keypad(call: Call) {
++        for (line in listOf("123", "456", "789", "*0#")) {
++            Row(Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 3.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
++                for (key in line) {
++                    Box(
++                        Modifier.weight(1f).height(52.dp).clip(RoundedCornerShape(26.dp)).background(MaterialTheme.colorScheme.surfaceContainer)
++                            .pointerInput(key) {
++                                detectTapGestures(onPress = {
++                                    call.playDtmfTone(key)
++                                    tryAwaitRelease()
++                                    call.stopDtmfTone()
++                                })
++                            },
++                        contentAlignment = Alignment.Center,
++                    ) { Text(key.toString(), fontSize = 24.sp) }
++                }
++            }
++        }
++    }
++
++    @Composable
++    private fun Toggle(icon: ImageVector, label: String, on: Boolean, onClick: () -> Unit) =
++        Round(icon, label, if (on) Palette.blue else Palette.panel, if (on) Color.White else Palette.text, 62, onClick)
++
++    @Composable
++    private fun Round(icon: ImageVector, label: String, background: Color, tint: Color, size: Int, onClick: () -> Unit) {
++        Column(Modifier.width(88.dp), horizontalAlignment = Alignment.CenterHorizontally) {
++            Box(Modifier.size(size.dp).clip(CircleShape).background(background).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
++                Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size((size * 0.45f).dp))
++            }
++            Spacer(Modifier.height(6.dp))
++            Text(label, fontSize = 12.sp, color = Palette.text, textAlign = TextAlign.Center, maxLines = 2)
++        }
 +    }
 +}
 diff --git a/app/src/main/java/uz/codial/calls/phone/Phone.java b/app/src/main/java/uz/codial/calls/phone/Phone.java
@@ -3023,70 +3469,274 @@ index 0000000..f7f6b03
 +        }
 +    }
 +}
-diff --git a/app/src/main/java/uz/codial/calls/phone/Ui.java b/app/src/main/java/uz/codial/calls/phone/Ui.java
+diff --git a/app/src/main/java/uz/codial/calls/phone/PhoneData.kt b/app/src/main/java/uz/codial/calls/phone/PhoneData.kt
 new file mode 100644
-index 0000000..dc18772
+index 0000000..3928dcc
 --- /dev/null
-+++ b/app/src/main/java/uz/codial/calls/phone/Ui.java
-@@ -0,0 +1,61 @@
-+package uz.codial.calls.phone;
++++ b/app/src/main/java/uz/codial/calls/phone/PhoneData.kt
+@@ -0,0 +1,197 @@
++package uz.codial.calls.phone
 +
-+import android.content.Context;
-+import android.graphics.Color;
-+import android.graphics.drawable.GradientDrawable;
-+import android.view.Gravity;
-+import android.view.View;
-+import android.widget.Button;
-+import android.widget.LinearLayout;
-+import android.widget.TextView;
++import android.Manifest
++import android.content.ClipData
++import android.content.ClipboardManager
++import android.content.Context
++import android.content.Intent
++import android.content.pm.PackageManager
++import android.net.Uri
++import android.os.Bundle
++import android.provider.CallLog
++import android.provider.ContactsContract
++import android.telecom.TelecomManager
++import android.widget.Toast
++import androidx.compose.runtime.mutableStateMapOf
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.withContext
++import org.json.JSONArray
++import org.json.JSONObject
++import uz.codial.calls.Api
++import uz.codial.calls.PhoneAccess
++import java.net.URLEncoder
 +
-+/** Kichik interfeys yordamchilari (XML'siz, kutubxonasiz). */
-+final class Ui {
-+    static final int BG = Color.parseColor("#0f172a");
-+    static final int PANEL = Color.parseColor("#1e293b");
-+    static final int WHITE = Color.WHITE;
-+    static final int MUTED = Color.parseColor("#94a3b8");
-+    static final int ORANGE = Color.parseColor("#f97316");
-+    static final int GREEN = Color.parseColor("#16a34a");
-+    static final int RED = Color.parseColor("#dc2626");
++/** Qo'ng'iroqlar jurnali, kontaktlar va ERP ma'lumoti (ismlar, qidiruv, karta) — terish ilovasi ekranlari uchun. */
 +
-+    private Ui() {}
++data class CallEntry(val number: String, val cachedName: String, val type: Int, val date: Long, val duration: Long)
 +
-+    static int dp(Context c, int v) { return Math.round(v * c.getResources().getDisplayMetrics().density); }
++data class ContactEntry(val name: String, val number: String)
 +
-+    static TextView text(Context c, String s, int sp, int color) {
-+        TextView t = new TextView(c);
-+        t.setText(s);
-+        t.setTextSize(sp);
-+        t.setTextColor(color);
-+        t.setPadding(0, dp(c, 2), 0, dp(c, 2));
-+        return t;
++/** ERP'dagi odam: ism va kimligi (o'quvchi, ota-ona, lid). */
++data class ErpName(val title: String, val badge: String)
++
++/** Qidiruv va takliflar qatori. */
++data class Hit(val title: String, val subtitle: String, val number: String)
++
++/** Raqamning solishtirish kaliti: oxirgi 9 raqam (+998 bilan ham, usiz ham bir xil). */
++fun numberKey(number: String): String = number.filter { it.isDigit() }.let { if (it.length > 9) it.takeLast(9) else it }
++
++/** +998 90 123 45 67 ko'rinishi; boshqa raqamlar o'zgarmaydi. */
++fun prettyNumber(number: String): String {
++    val d = number.filter { it.isDigit() }
++    val n = when {
++        d.length == 12 && d.startsWith("998") -> d.substring(3)
++        d.length == 9 && !number.startsWith("+") -> d
++        else -> return number.ifEmpty { "Yashirin raqam" }
 +    }
++    return "+998 ${n.substring(0, 2)} ${n.substring(2, 5)} ${n.substring(5, 7)} ${n.substring(7)}"
++}
 +
-+    static Button button(Context c, String s, int bg, View.OnClickListener l) {
-+        Button b = new Button(c);
-+        b.setText(s);
-+        b.setAllCaps(false);
-+        b.setTextColor(WHITE);
-+        b.setTextSize(16);
-+        GradientDrawable d = new GradientDrawable();
-+        d.setColor(bg);
-+        d.setCornerRadius(dp(c, 14));
-+        b.setBackground(d);
-+        b.setOnClickListener(l);
-+        return b;
-+    }
++fun Context.has(permission: String) = checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
 +
-+    /** Bir qatorda teng kenglikdagi tugmalar. */
-+    static LinearLayout row(Context c, View... views) {
-+        LinearLayout r = new LinearLayout(c);
-+        r.setOrientation(LinearLayout.HORIZONTAL);
-+        r.setGravity(Gravity.CENTER);
-+        for (View v : views) {
-+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(c, 58), 1f);
-+            lp.setMargins(dp(c, 4), dp(c, 4), dp(c, 4), dp(c, 4));
-+            r.addView(v, lp);
++object PhoneData {
++    private const val MAX_CALLS = 600
++
++    suspend fun calls(ctx: Context): List<CallEntry> = withContext(Dispatchers.IO) {
++        val out = ArrayList<CallEntry>()
++        if (!ctx.has(Manifest.permission.READ_CALL_LOG)) return@withContext out
++        val cols = arrayOf(CallLog.Calls.NUMBER, CallLog.Calls.CACHED_NAME, CallLog.Calls.TYPE, CallLog.Calls.DATE, CallLog.Calls.DURATION)
++        runCatching {
++            ctx.contentResolver.query(CallLog.Calls.CONTENT_URI, cols, null, null, CallLog.Calls.DATE + " DESC")?.use { c ->
++                while (out.size < MAX_CALLS && c.moveToNext()) {
++                    out.add(CallEntry(c.getString(0).orEmpty(), c.getString(1).orEmpty(), c.getInt(2), c.getLong(3), c.getLong(4)))
++                }
++            }
 +        }
-+        return r;
++        out
++    }
++
++    suspend fun contacts(ctx: Context): List<ContactEntry> = withContext(Dispatchers.IO) {
++        val out = LinkedHashMap<String, ContactEntry>()
++        if (!ctx.has(Manifest.permission.READ_CONTACTS)) return@withContext emptyList<ContactEntry>()
++        val phone = ContactsContract.CommonDataKinds.Phone.NUMBER
++        val name = ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME
++        runCatching {
++            ctx.contentResolver.query(ContactsContract.CommonDataKinds.Phone.CONTENT_URI, arrayOf(name, phone), null, null, "$name COLLATE NOCASE ASC")?.use { c ->
++                while (c.moveToNext()) {
++                    val n = c.getString(1)?.replace(" ", "")?.replace("-", "").orEmpty()
++                    if (n.isNotEmpty()) out.putIfAbsent(numberKey(n), ContactEntry(c.getString(0).orEmpty(), n))
++                }
++            }
++        }
++        out.values.toList()
++    }
++
++    /** Oxirgi terilgan (chiquvchi) raqam — bo'sh maydonda yashil tugma uchun. */
++    fun lastDialed(calls: List<CallEntry>): String = calls.firstOrNull { it.type == CallLog.Calls.OUTGOING_TYPE && it.number.isNotEmpty() }?.number.orEmpty()
++
++    fun dial(ctx: Context, number: String) {
++        if (number.isBlank()) return
++        if (!ctx.has(Manifest.permission.CALL_PHONE)) {
++            toast(ctx, "Qo'ng'iroqqa ruxsat berilmagan")
++            return
++        }
++        try {
++            ctx.getSystemService(TelecomManager::class.java).placeCall(Uri.fromParts("tel", number, null), Bundle())
++        } catch (e: SecurityException) {
++            toast(ctx, "Qo'ng'iroqqa ruxsat yo'q")
++        }
++    }
++
++    /** Telefonning SMS ilovasini shu raqam bilan ochadi (SMS shu ilovaning ichida yuborilmaydi). */
++    fun sms(ctx: Context, number: String) {
++        if (number.isBlank()) return
++        try {
++            ctx.startActivity(Intent(Intent.ACTION_SENDTO, Uri.fromParts("smsto", number, null)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
++        } catch (e: RuntimeException) {
++            toast(ctx, "SMS ilovasi topilmadi")
++        }
++    }
++
++    fun copy(ctx: Context, number: String) {
++        ctx.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("raqam", number))
++        toast(ctx, "Raqam nusxalandi")
++    }
++
++    private fun toast(ctx: Context, text: String) = Toast.makeText(ctx, text, Toast.LENGTH_LONG).show()
++}
++
++object Erp {
++    private const val REFRESH_MS = 10 * 60_000L
++    private const val BATCH = 300
++
++    /** Raqam kaliti → ERP ismi. Saqlanadi: internet bo'lmaganda ham ismlar ko'rinadi. */
++    val names = mutableStateMapOf<String, ErpName>()
++    private val asked = HashSet<String>()
++    private var askedAt = 0L
++    private var restored = false
++
++    private fun prefs(ctx: Context) = ctx.getSharedPreferences("erp_names", Context.MODE_PRIVATE)
++
++    private fun restore(ctx: Context) {
++        if (restored) return
++        restored = true
++        runCatching {
++            val j = JSONObject(prefs(ctx).getString("names", "{}")!!)
++            for (k in j.keys()) j.getJSONArray(k).let { names[k] = ErpName(it.getString(0), it.getString(1)) }
++        }
++    }
++
++    private fun save(ctx: Context) {
++        val j = JSONObject()
++        for ((k, v) in names) j.put(k, JSONArray().put(v.title).put(v.badge))
++        prefs(ctx).edit().putString("names", j.toString()).apply()
++    }
++
++    /** Ro'yxatdagi raqamlar ismini serverdan oladi (yangilari darhol, hammasi 10 daqiqada bir qayta). Asosiy oqimdan chaqiriladi. */
++    suspend fun resolve(ctx: Context, numbers: List<String>) {
++        restore(ctx)
++        val now = System.currentTimeMillis()
++        if (now - askedAt > REFRESH_MS) {
++            asked.clear()
++            askedAt = now
++        }
++        val need = numbers.map { numberKey(it) }.filter { it.length == 9 && it !in asked }.distinct().take(BATCH)
++        if (need.isEmpty()) return
++        asked.addAll(need)
++        val found = withContext(Dispatchers.IO) {
++            runCatching {
++                val p = PhoneAccess.of(ctx)
++                if (p.token.isEmpty()) return@runCatching null
++                Api.request(p.server, "names/", p.token, JSONObject().put("numbers", JSONArray(need))).getJSONObject("names")
++            }.getOrNull()
++        }
++        if (found == null) {
++            asked.removeAll(need.toSet())  // internet yo'q — keyingi safar qayta
++            return
++        }
++        for (k in need) {
++            val v = found.optJSONObject(k)
++            if (v == null) names.remove(k) else names[k] = ErpName(v.optString("title"), v.optString("badge"))
++        }
++        save(ctx)
++    }
++
++    /** ERP bo'yicha qidiruv (kamida 3 belgi). null — serverga ulanib bo'lmadi. */
++    suspend fun search(ctx: Context, query: String): List<Hit>? = withContext(Dispatchers.IO) {
++        if (query.trim().length < 3) return@withContext emptyList<Hit>()
++        runCatching {
++            val p = PhoneAccess.of(ctx)
++            if (p.token.isEmpty()) return@runCatching emptyList<Hit>()
++            val rows = Api.request(p.server, "search/?q=" + URLEncoder.encode(query.trim(), "UTF-8"), p.token, null).getJSONArray("results")
++            List(rows.length()) { i ->
++                val r = rows.getJSONObject(i)
++                Hit(r.optString("title"), r.optString("badge"), "+998" + r.optString("phone"))
++            }
++        }.getOrNull()
++    }
++
++    /** Raqam sahifasidagi karta: {badge, title, lines}. null — olinmadi. */
++    suspend fun card(ctx: Context, number: String): JSONObject? = withContext(Dispatchers.IO) {
++        runCatching {
++            val p = PhoneAccess.of(ctx)
++            if (p.token.isEmpty() || number.isEmpty()) null
++            else Api.request(p.server, "lookup/?phone=" + URLEncoder.encode(number, "UTF-8"), p.token, null)
++        }.getOrNull()
++    }
++}
+diff --git a/app/src/main/java/uz/codial/calls/phone/Theme.kt b/app/src/main/java/uz/codial/calls/phone/Theme.kt
+new file mode 100644
+index 0000000..c998dbe
+--- /dev/null
++++ b/app/src/main/java/uz/codial/calls/phone/Theme.kt
+@@ -0,0 +1,62 @@
++package uz.codial.calls.phone
++
++import androidx.compose.foundation.background
++import androidx.compose.foundation.clickable
++import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.size
++import androidx.compose.foundation.shape.CircleShape
++import androidx.compose.material.icons.Icons
++import androidx.compose.material.icons.filled.Person
++import androidx.compose.material3.Icon
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.Text
++import androidx.compose.material3.lightColorScheme
++import androidx.compose.runtime.Composable
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.draw.clip
++import androidx.compose.ui.graphics.Color
++import androidx.compose.ui.unit.Dp
++import androidx.compose.ui.unit.dp
++import androidx.compose.ui.unit.sp
++
++/** Yorug' ko'rinish — Google «Telefon»ga o'xshash ranglar. */
++object Palette {
++    val blue = Color(0xFF0B57D0)
++    val blueSoft = Color(0xFFD3E3FD)
++    val background = Color(0xFFFFFFFF)
++    val panel = Color(0xFFF0F4F9)
++    val text = Color(0xFF1F1F1F)
++    val muted = Color(0xFF5F6368)
++    val green = Color(0xFF188038)
++    val red = Color(0xFFD93025)
++    val orange = Color(0xFFE8710A)
++    val avatars = listOf(Color(0xFF1A73E8), Color(0xFF9334E6), Color(0xFF188038), Color(0xFFE8710A), Color(0xFFC5221F), Color(0xFF007B83))
++}
++
++@Composable
++fun CodialTheme(content: @Composable () -> Unit) {
++    MaterialTheme(
++        colorScheme = lightColorScheme(
++            primary = Palette.blue, onPrimary = Color.White, primaryContainer = Palette.blueSoft, onPrimaryContainer = Color(0xFF041E49),
++            secondaryContainer = Palette.blueSoft, onSecondaryContainer = Color(0xFF041E49),
++            background = Palette.background, onBackground = Palette.text, surface = Palette.background, onSurface = Palette.text,
++            surfaceVariant = Palette.panel, onSurfaceVariant = Palette.muted,
++            surfaceContainer = Palette.panel, surfaceContainerHigh = Color(0xFFE9EEF6), surfaceContainerLow = Color(0xFFF8FAFD),
++        ),
++        content = content,
++    )
++}
++
++/** Dumaloq rasm o'rnida: ismning birinchi harfi yoki odam belgisi. */
++@Composable
++fun Avatar(name: String, key: String, size: Dp = 42.dp, onClick: (() -> Unit)? = null) {
++    val letter = name.trim().firstOrNull()?.takeIf { it.isLetter() }
++    val color = Palette.avatars[Math.floorMod(key.hashCode(), Palette.avatars.size)]
++    var m = Modifier.size(size).clip(CircleShape).background(color)
++    if (onClick != null) m = m.clickable(onClick = onClick)
++    Box(m, contentAlignment = Alignment.Center) {
++        if (letter != null) Text(letter.uppercase(), color = Color.White, fontSize = (size.value * 0.45f).sp)
++        else Icon(Icons.Filled.Person, contentDescription = null, tint = Color.White, modifier = Modifier.size(size * 0.6f))
 +    }
 +}

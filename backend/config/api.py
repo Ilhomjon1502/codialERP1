@@ -119,6 +119,8 @@ urlpatterns = [
     path("calls/ingest/", calls.IngestView.as_view()),
     path("calls/ping/", calls.PingView.as_view()),
     path("calls/lookup/", calls.LookupView.as_view()),
+    path("calls/names/", calls.NamesView.as_view()),
+    path("calls/search/", calls.SearchView.as_view()),
     path("calls/recordings/", calls.RecordingView.as_view()),
     path("calls/sms/outbox/", calls.SmsOutboxView.as_view()),
     path("calls/sms/report/", calls.SmsReportView.as_view()),

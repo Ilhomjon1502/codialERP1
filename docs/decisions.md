@@ -219,3 +219,10 @@
 - **Qaror (buyurtmachi):** darslar 1 so'm farq bilan bo'lib beriladi (41 666, 41 667, 41 667, …), to'liq oy yig'indisi narxga aniq teng (`education/calc.lesson_share`, tartib raqami — oy ichidagi dars kunlari bo'yicha). Pastga yaxlitlash varianti rad etildi (har oy o'quvchi foydasiga qoldiq yig'ilardi).
 - Faqat talaba qarziga tegishli; KPI formulasi va yaxlitlashi o'zgarmadi. `DEBT_MIN` (10 so'm) qoladi — oy o'rtasidan boshlash va «Nofaol» darslardagi 1–2 so'm uchun.
 - Oktyabrdan yozilgan davomat qatorlari serverga joylangach `recalculate --all` bilan qayta hisoblanadi.
+
+## 2026-11-27 — Telefon ilovasi 5.0: Google «Telefon» ko'rinishi va ERP ismlari
+
+- **So'rov (buyurtmachi):** terayotganda avvalgi raqamlar chiqsin, qo'ng'iroqdan oldin tarix ko'rinsin, SMS ilovasiga o'tish bo'lsin, ko'rinish Google «Telefon» kabi.
+- **Javoblar:** takliflar + bo'sh maydonda yashil tugma oxirgi raqamni yozadi; raqam sahifasida tarix va ERP kartasi; ERP ismlari ro'yxat va qidiruvda; «Javobsiz» filtri va yorug' ko'rinish.
+- **Server:** `POST /calls/names/` (ko'pi 300 raqam), `GET /calls/search/?q=` (kamida 3 belgi, ko'pi 20 natija), faqat qurilma filiali; qarz va izohlar ro'yxatda chiqmaydi (`apps/calls/people.py`).
+- **Ilova:** `phone/` Jetpack Compose'da qayta yozildi; SMS tugmasi telefonning SMS ilovasini ochadi. Ismlar telefonda saqlanadi (internet bo'lmasa ham ko'rinadi), 10 daqiqada yangilanadi.
