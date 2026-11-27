@@ -2460,7 +2460,7 @@ index 0000000..a26dbe5
 +}
 diff --git a/app/src/main/java/uz/codial/calls/phone/DialerActivity.kt b/app/src/main/java/uz/codial/calls/phone/DialerActivity.kt
 new file mode 100644
-index 0000000..c8bf697
+index 0000000..fa7c56f
 --- /dev/null
 +++ b/app/src/main/java/uz/codial/calls/phone/DialerActivity.kt
 @@ -0,0 +1,159 @@
@@ -2562,7 +2562,7 @@ index 0000000..c8bf697
 +            calls = PhoneData.calls(this@DialerActivity)
 +            contacts = PhoneData.contacts(this@DialerActivity)
 +        }
-+        LaunchedEffect(calls) { Erp.resolve(this@DialerActivity, calls.map { it.number }) }
++        LaunchedEffect(calls, resumed) { Erp.resolve(this@DialerActivity, calls.map { it.number }) }  // resolve o'zi tejaydi: yangi raqam yoki 10 daqiqa
 +        LaunchedEffect(requested) {
 +            requested?.let {
 +                typed = it
@@ -3471,10 +3471,10 @@ index 0000000..f7f6b03
 +}
 diff --git a/app/src/main/java/uz/codial/calls/phone/PhoneData.kt b/app/src/main/java/uz/codial/calls/phone/PhoneData.kt
 new file mode 100644
-index 0000000..3928dcc
+index 0000000..3663baa
 --- /dev/null
 +++ b/app/src/main/java/uz/codial/calls/phone/PhoneData.kt
-@@ -0,0 +1,197 @@
+@@ -0,0 +1,194 @@
 +package uz.codial.calls.phone
 +
 +import android.Manifest
@@ -3630,7 +3630,6 @@ index 0000000..3928dcc
 +        }
 +        val need = numbers.map { numberKey(it) }.filter { it.length == 9 && it !in asked }.distinct().take(BATCH)
 +        if (need.isEmpty()) return
-+        asked.addAll(need)
 +        val found = withContext(Dispatchers.IO) {
 +            runCatching {
 +                val p = PhoneAccess.of(ctx)
@@ -3638,10 +3637,8 @@ index 0000000..3928dcc
 +                Api.request(p.server, "names/", p.token, JSONObject().put("numbers", JSONArray(need))).getJSONObject("names")
 +            }.getOrNull()
 +        }
-+        if (found == null) {
-+            asked.removeAll(need.toSet())  // internet yo'q — keyingi safar qayta
-+            return
-+        }
++        if (found == null) return  // internet yo'q — keyingi safar qayta
++        asked.addAll(need)  // faqat javob kelgach: bekor qilingan so'rov raqamlarni «so'ralgan» qilib qo'ymasin
 +        for (k in need) {
 +            val v = found.optJSONObject(k)
 +            if (v == null) names.remove(k) else names[k] = ErpName(v.optString("title"), v.optString("badge"))
